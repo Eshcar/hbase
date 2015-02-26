@@ -49,7 +49,7 @@ import com.google.protobuf.ServiceException;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
-public class ClientSmallScanner extends ClientScanner {
+public class ClientSmallScanner extends ClientSimpleScanner {
   private final Log LOG = LogFactory.getLog(this.getClass());
   private RegionServerCallable<Result[]> smallScanCallable = null;
   // When fetching results from server, skip the first result if it has the same

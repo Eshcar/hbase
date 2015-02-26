@@ -760,6 +760,11 @@ public class HTable implements HTableInterface {
       scan.setCaching(getScannerCaching());
     }
 
+    Boolean async = scan.isAsyncPrefetch();
+    if (async == null){
+      async = tableConfiguration.isClientScannerAsyncPrefetch();
+    }
+
     if (scan.isReversed()) {
       if (scan.isSmall()) {
         return new ClientSmallReversedScanner(getConfiguration(), scan, getName(),
@@ -772,7 +777,11 @@ public class HTable implements HTableInterface {
     if (scan.isSmall()) {
       return new ClientSmallScanner(getConfiguration(), scan, getName(), this.connection);
     } else {
-      return new ClientScanner(getConfiguration(), scan, getName(), this.connection);
+      if(async) {
+        return new ClientAsyncPrefetchScanner(getConfiguration(),scan, getName(), this.connection);
+      } else {
+        return new ClientSimpleScanner(getConfiguration(), scan, getName(), this.connection);
+      }
     }
   }
 

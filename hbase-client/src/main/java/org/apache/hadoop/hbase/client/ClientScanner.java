@@ -19,6 +19,7 @@ package org.apache.hadoop.hbase.client;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Queue;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -48,15 +49,15 @@ import org.apache.hadoop.hbase.util.Bytes;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
-public class ClientScanner extends AbstractClientScanner {
-    private final Log LOG = LogFactory.getLog(this.getClass());
+public abstract class ClientScanner extends AbstractClientScanner {
+    protected final Log LOG = LogFactory.getLog(this.getClass());
     protected Scan scan;
     protected boolean closed = false;
     // Current region scanner is against.  Gets cleared if current region goes
     // wonky: e.g. if it splits on us.
     protected HRegionInfo currentRegion = null;
     protected ScannerCallable callable = null;
-    protected final LinkedList<Result> cache = new LinkedList<Result>();
+    protected Queue<Result> cache;
     protected final int caching;
     protected long lastNext;
     // Keep lastResult returned successfully in case we have to reset scanner.
@@ -182,7 +183,10 @@ public class ClientScanner extends AbstractClientScanner {
       this.rpcControllerFactory = controllerFactory;
 
       initializeScannerInConstruction();
-    }
+      initCache();
+  }
+
+    protected abstract void initCache();
 
     protected void initializeScannerInConstruction() throws IOException{
       // initialize the scanner
@@ -323,13 +327,15 @@ public class ClientScanner extends AbstractClientScanner {
       scanMetricsPublished = true;
     }
 
-    @Override
-    public Result next() throws IOException {
-      // If the scanner is closed and there's nothing left in the cache, next is a no-op.
-      if (cache.size() == 0 && this.closed) {
-        return null;
-      }
-      if (cache.size() == 0) {
+    // depending on the implementation of the cache, the implementation of
+    // this method might change or be override
+    protected int getCacheSize() {
+        return cache.size();
+    }
+
+    protected void prefetch() throws IOException {
+        // check if scanner was closed during previous prefetch
+        if (closed) return;
         Result [] values = null;
         long remainingResultSize = maxScannerResultSize;
         int countdown = this.caching;
@@ -439,15 +445,6 @@ public class ClientScanner extends AbstractClientScanner {
           // Values == null means server-side filter has determined we must STOP
         } while (remainingResultSize > 0 && countdown > 0 && nextScanner(countdown, values == null));
       }
-
-      if (cache.size() > 0) {
-        return cache.poll();
-      }
-
-      // if we exhausted this scanner before calling close, write out the scan metrics
-      writeScanMetrics();
-      return null;
-    }
 
     @Override
     public void close() {

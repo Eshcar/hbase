@@ -123,7 +123,17 @@ public class Scan extends Query {
   // define this attribute with the appropriate table name by calling
   // scan.setAttribute(Scan.SCAN_ATTRIBUTES_TABLE_NAME, Bytes.toBytes(tableName))
   static public final String SCAN_ATTRIBUTES_TABLE_NAME = "scan.attributes.table.name";
-  
+
+  /**
+   * Parameter name for client scanner sync/async prefetch toggle.
+   */
+  public static final String HBASE_CLIENT_SCANNER_ASYNC_PREFETCH = "hbase.client.scanner.async.prefetch";
+
+  /**
+   * Default value of {@link #HBASE_CLIENT_SCANNER_ASYNC_PREFETCH}.
+   */
+  public static final boolean DEFAULT_HBASE_CLIENT_SCANNER_ASYNC_PREFETCH = false;
+
   /*
    * -1 means no caching
    */
@@ -135,6 +145,7 @@ public class Scan extends Query {
   private Map<byte [], NavigableSet<byte []>> familyMap =
     new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR);
   private Boolean loadColumnFamiliesOnDemand = null;
+  private Boolean asyncPrefetch = null;
 
   /**
    * Set it true for small scan to get better performance
@@ -769,4 +780,15 @@ public class Scan extends Query {
   public boolean isSmall() {
     return small;
   }
+
+
+  public Boolean isAsyncPrefetch() {
+      return asyncPrefetch;
+  }
+
+  public void setAsyncPrefetch(boolean asyncPrefetch) {
+      this.asyncPrefetch = asyncPrefetch;
+  }
+
+
 }
