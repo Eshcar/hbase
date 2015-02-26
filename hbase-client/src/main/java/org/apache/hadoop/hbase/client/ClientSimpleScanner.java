@@ -7,9 +7,6 @@ import org.apache.hadoop.hbase.ipc.RpcControllerFactory;
 import java.io.IOException;
 import java.util.LinkedList;
 
-/**
- * @author eshcar
- */
 public class ClientSimpleScanner extends ClientScanner {
     public ClientSimpleScanner(Configuration conf, Scan scan, TableName tableName, HConnection connection) throws IOException {
         super(conf, scan, tableName, connection);
