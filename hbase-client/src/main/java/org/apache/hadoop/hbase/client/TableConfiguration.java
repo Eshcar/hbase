@@ -42,7 +42,10 @@ public class TableConfiguration {
   private final int retries;
   private final int maxKeyValueSize;
 
-  /**
+    // toggle for async/sync prefetch
+  private final boolean clientScannerAsyncPrefetch;
+
+    /**
    * Constructor
    * @param conf Configuration object
    */
@@ -68,6 +71,9 @@ public class TableConfiguration {
     this.retries = conf.getInt(
        HConstants.HBASE_CLIENT_RETRIES_NUMBER, HConstants.DEFAULT_HBASE_CLIENT_RETRIES_NUMBER);
 
+    this.clientScannerAsyncPrefetch = conf.getBoolean(
+       Scan.HBASE_CLIENT_SCANNER_ASYNC_PREFETCH, Scan.DEFAULT_HBASE_CLIENT_SCANNER_ASYNC_PREFETCH);
+
     this.maxKeyValueSize = conf.getInt(MAX_KEYVALUE_SIZE_KEY, MAX_KEYVALUE_SIZE_DEFAULT);
   }
 
@@ -85,6 +91,7 @@ public class TableConfiguration {
     this.primaryCallTimeoutMicroSecond = 10000;
     this.replicaCallTimeoutMicroSecondScan = 1000000;
     this.retries = HConstants.DEFAULT_HBASE_CLIENT_RETRIES_NUMBER;
+    this.clientScannerAsyncPrefetch = Scan.DEFAULT_HBASE_CLIENT_SCANNER_ASYNC_PREFETCH;
     this.maxKeyValueSize = MAX_KEYVALUE_SIZE_DEFAULT;
   }
 
@@ -119,4 +126,9 @@ public class TableConfiguration {
   public int getMaxKeyValueSize() {
     return maxKeyValueSize;
   }
+
+  public boolean isClientScannerAsyncPrefetch() {
+    return clientScannerAsyncPrefetch;
+  }
+
 }
