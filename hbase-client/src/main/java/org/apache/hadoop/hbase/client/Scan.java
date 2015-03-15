@@ -152,7 +152,7 @@ public class Scan extends Query {
   /**
    * Default value of {@link #HBASE_CLIENT_SCANNER_ASYNC_PREFETCH}.
    */
-  public static final boolean DEFAULT_HBASE_CLIENT_SCANNER_ASYNC_PREFETCH = false;
+  public static final boolean DEFAULT_HBASE_CLIENT_SCANNER_ASYNC_PREFETCH = true;
 
    /**
    * Set it true for small scan to get better performance
