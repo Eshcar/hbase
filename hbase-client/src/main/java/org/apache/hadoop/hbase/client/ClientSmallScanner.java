@@ -50,7 +50,7 @@ import com.google.protobuf.ServiceException;
  * For small scan, it will get better performance than {@link ClientScanner}
  */
 @InterfaceAudience.Private
-public class ClientSmallScanner extends ClientScanner {
+public class ClientSmallScanner extends ClientSimpleScanner {
   private final Log LOG = LogFactory.getLog(this.getClass());
   private ScannerCallableWithReplicas smallScanCallable = null;
   private SmallScannerCallableFactory callableFactory;
