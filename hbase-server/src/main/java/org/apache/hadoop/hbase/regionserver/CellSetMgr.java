@@ -36,16 +36,46 @@ class CellSetMgr {
   private volatile NavigableSet<Cell> cellSet;
   private volatile MemStoreLAB memStoreLAB;
 
-  CellSetMgr(NavigableSet<Cell> cellSet, MemStoreLAB memStoreLAB) {
+  // private c-tors. Instantiate objects only using factory
+  private CellSetMgr(NavigableSet<Cell> cellSet, MemStoreLAB memStoreLAB) {
     this.cellSet = cellSet;
     this.memStoreLAB = memStoreLAB;
   }
-
-  CellSetMgr(NavigableSet<Cell> cellSet) {
+  private CellSetMgr(NavigableSet<Cell> cellSet) {
     this.cellSet = cellSet;
   }
 
   KeyValueScanner getScanner(long readPoint) {
     return new CellSetScanner(this, readPoint);
+  }
+
+  /**
+   * Types of cell set managers.
+   * This affects the internal implementation of the cell set objects.
+   * This allows using different formats for different purposes.
+   */
+  static enum CellSetMgrType {
+    READ_WRITE,
+    COMPACTED_READ_ONLY
+  }
+
+  /**
+   * A singleton cell set manager factory.
+   * Maps each cell set type to a specific implementation
+   */
+  static class CellSetMgrFactory {
+
+    private CellSetMgrFactory() {}
+    private static CellSetMgrFactory instance = new CellSetMgrFactory();
+    public static CellSetMgrFactory instance() { return instance; }
+
+    public CellSetMgr createCellSetMgr(CellSetMgr type, MemStoreLAB memStoreLAB) {
+      return null;
+    }
+
+    public CellSetMgr createCellSetMgr(CellSetMgr type) {
+      return null;
+    }
+
   }
 }
