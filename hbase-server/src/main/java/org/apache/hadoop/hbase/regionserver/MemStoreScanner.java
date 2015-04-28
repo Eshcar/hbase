@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.htrace.Trace;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -11,24 +12,37 @@ import java.util.List;
 /**
  * This is the scanner for any *MemStore implementation derived from MemStore,
  * currently works for DefaultMemStore and CompactMemStore.
- * The MemStoreScanner uses the set of CellSetMgrScanners
+ * The MemStoreScanner combines CellSetMdgScanners from different CellSetMgrs and
+ * uses the heap and the reversed heap for aggregated key-values set
  *
- * Threads safety: It is assumed that CellSetMgr's underneath key-value set implementations is
- * lock-free, therefore no special synchronization is required for concurrent scanners.
  */
 @InterfaceAudience.Private
-class MemStoreScanner extends NonLazyKeyValueScanner {
-    private KeyValueHeap forwardHeap;
-    private ReversedKeyValueHeap backwardHeap;
-    private long readPoint;
+public class MemStoreScanner extends NonLazyKeyValueScanner {
 
+    private KeyValueHeap forwardHeap;           // heap of scanners used for traversing forward
+
+    private ReversedKeyValueHeap backwardHeap;  // reversed scanners heap for traversing backward
+
+    private long readPoint;
+    final KeyValue.KVComparator comparator;
+
+    /**
+     * Constructor.
+     * @param scanners The list of CellSetMgrScanners participating in the superior scan
+     * @param c Comparator
+     */
     public MemStoreScanner(List<KeyValueScanner> scanners,
-                    KeyValue.KVComparator comparator,
+                    final KeyValue.KVComparator c,
                     long readPoint) throws IOException {
         super();
         this.readPoint = readPoint;
+        this.comparator = c;
         this.forwardHeap = new KeyValueHeap(scanners, comparator);
         this.backwardHeap = new ReversedKeyValueHeap(scanners, comparator);
+
+        if (Trace.isTracing() && Trace.currentSpan() != null) {
+            Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+        }
     }
 
     @Override
@@ -41,8 +55,20 @@ class MemStoreScanner extends NonLazyKeyValueScanner {
         return null;
     }
 
+    /**
+     *  Set the scanner at the seek key.
+     *  Must be called only once: there is no thread safety between the scanner
+     *  and the memStore.
+     * @param key seek value
+     * @return false if the key is null or if there is no data
+     */
     @Override
     public boolean seek(Cell key) throws IOException {
+        if (key == null) {
+            close();
+            return false;
+        }
+
         return false;
     }
 
@@ -58,7 +84,14 @@ class MemStoreScanner extends NonLazyKeyValueScanner {
 
     @Override
     public void close() {
-
+        if (forwardHeap != null) {
+            forwardHeap.close();
+            forwardHeap = null;
+        }
+        if (backwardHeap != null) {
+            backwardHeap.close();
+            backwardHeap = null;
+        }
     }
 
     @Override
