@@ -22,9 +22,10 @@ class MemStoreScanner extends NonLazyKeyValueScanner {
     private ReversedKeyValueHeap backwardHeap;
     private long readPoint;
 
-    MemStoreScanner(List<KeyValueScanner> scanners,
+    public MemStoreScanner(List<KeyValueScanner> scanners,
                     KeyValue.KVComparator comparator,
                     long readPoint) throws IOException {
+        super();
         this.readPoint = readPoint;
         this.forwardHeap = new KeyValueHeap(scanners, comparator);
         this.backwardHeap = new ReversedKeyValueHeap(scanners, comparator);
