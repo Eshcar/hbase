@@ -18,8 +18,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.util.NavigableSet;
 
@@ -42,7 +45,7 @@ class CellSetMgr {
     this.memStoreLAB = memStoreLAB;
   }
   private CellSetMgr(NavigableSet<Cell> cellSet) {
-    this.cellSet = cellSet;
+    this(cellSet,null);
   }
 
   KeyValueScanner getScanner(long readPoint) {
@@ -54,7 +57,7 @@ class CellSetMgr {
    * This affects the internal implementation of the cell set objects.
    * This allows using different formats for different purposes.
    */
-  static enum CellSetMgrType {
+  static public enum CellSetMgrType {
     READ_WRITE,
     COMPACTED_READ_ONLY
   }
@@ -69,12 +72,38 @@ class CellSetMgr {
     private static CellSetMgrFactory instance = new CellSetMgrFactory();
     public static CellSetMgrFactory instance() { return instance; }
 
-    public CellSetMgr createCellSetMgr(CellSetMgr type, MemStoreLAB memStoreLAB) {
-      return null;
+    public CellSetMgr createCellSetMgr(CellSetMgrType type, final Configuration conf,
+        final KeyValue.KVComparator comparator) {
+      MemStoreLAB memStoreLAB = null;
+      if (conf.getBoolean(DefaultMemStore.USEMSLAB_KEY, DefaultMemStore.USEMSLAB_DEFAULT)) {
+        String className = conf.get(DefaultMemStore.MSLAB_CLASS_NAME,
+            HeapMemStoreLAB.class.getName());
+        memStoreLAB = ReflectionUtils.instantiateWithCustomCtor(className,
+            new Class[] { Configuration.class }, new Object[] { conf });
+      }
+      return createCellSetMgr(type,comparator,memStoreLAB);
     }
 
-    public CellSetMgr createCellSetMgr(CellSetMgr type) {
-      return null;
+    public CellSetMgr createCellSetMgr(CellSetMgrType type, KeyValue.KVComparator comparator) {
+      return createCellSetMgr(type,comparator,null);
+    }
+
+    public CellSetMgr createCellSetMgr(CellSetMgrType type, KeyValue.KVComparator comparator,
+        MemStoreLAB memStoreLAB) {
+      return generateCellSetMgrByType(type,comparator,memStoreLAB);
+    }
+
+    private CellSetMgr generateCellSetMgrByType(CellSetMgrType type,
+        KeyValue.KVComparator comparator, MemStoreLAB memStoreLAB) {
+      CellSetMgr obj;
+      NavigableSet<Cell> cellNavigableSet = new CellSkipListSet(comparator);
+      switch (type) {
+      case READ_WRITE:
+      case COMPACTED_READ_ONLY:
+      default:
+        obj = new CellSetMgr(cellNavigableSet, memStoreLAB);
+      }
+      return obj;
     }
 
   }

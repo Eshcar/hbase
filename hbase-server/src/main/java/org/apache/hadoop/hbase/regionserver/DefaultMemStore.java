@@ -69,7 +69,7 @@ import org.apache.htrace.Trace;
 public class DefaultMemStore implements MemStore {
   private static final Log LOG = LogFactory.getLog(DefaultMemStore.class);
   static final String USEMSLAB_KEY = "hbase.hregion.memstore.mslab.enabled";
-  private static final boolean USEMSLAB_DEFAULT = true;
+  static final boolean USEMSLAB_DEFAULT = true;
   static final String MSLAB_CLASS_NAME = "hbase.regionserver.mslab.class";
 
   private Configuration conf;
