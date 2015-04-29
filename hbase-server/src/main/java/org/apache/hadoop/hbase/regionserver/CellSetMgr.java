@@ -64,27 +64,27 @@ class CellSetMgr {
   }
 
   public boolean isEmpty() {
-    return cellSet.isEmpty();
+    return getCellSet().isEmpty();
   }
 
   public int size() {
-    return cellSet.size();
+    return getCellSet().size();
   }
 
   public boolean add(Cell e) {
-    return cellSet.add(e);
+    return getCellSet().add(e);
   }
 
   public boolean remove(Cell e) {
-    return cellSet.remove(e);
+    return getCellSet().remove(e);
   }
 
   public Cell get(Cell cell) {
-    return cellSet.get(cell);
+    return getCellSet().get(cell);
   }
 
   public SortedSet<Cell> tailSet(Cell firstCell) {
-    return cellSet.tailSet(firstCell);
+    return getCellSet().tailSet(firstCell);
   }
 
   public void close() {
@@ -115,6 +115,11 @@ class CellSetMgr {
     KeyValue newKv = new KeyValue(alloc.getBytes(), alloc.getOffset(), len);
     newKv.setSequenceId(cell.getSequenceId());
     return newKv;
+  }
+
+  // methods for tests
+  Cell first() {
+    return this.getCellSet().first();
   }
 
   /**

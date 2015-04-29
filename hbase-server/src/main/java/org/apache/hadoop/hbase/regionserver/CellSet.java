@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * A {@link java.util.Set} of {@link Cell}s implemented on top of a
@@ -44,10 +45,14 @@ import java.util.concurrent.ConcurrentNavigableMap;
 public class CellSet implements NavigableSet<Cell>  {
   private final ConcurrentNavigableMap<Cell, Cell> delegatee;
 
+  CellSet(final KeyValue.KVComparator c) {
+    this(ConcurrentSkipListMap.class.getName(),c);
+  }
+
   CellSet(final String delegateeClassName, final KeyValue.KVComparator c) {
     this.delegatee = ReflectionUtils.instantiateWithCustomCtor(delegateeClassName,
-            new Class[] { KeyValue.KVComparator.class }, new Object[] { c });
-//    this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
+        new Class[] { KeyValue.KVComparator.class }, new Object[] { c });
+    //    this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
   }
 
   CellSet(final ConcurrentNavigableMap<Cell, Cell> m) {
