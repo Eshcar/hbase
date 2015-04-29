@@ -47,7 +47,11 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         }
     }
 
-    @Override
+  public MemStoreScanner(long readPt) {
+    super();
+  }
+
+  @Override
     public Cell peek() {
         return null;
     }

@@ -785,7 +785,7 @@ public class TestDefaultMemStore extends TestCase {
    */
   public void testUpsertMSLAB() throws Exception {
     Configuration conf = HBaseConfiguration.create();
-    conf.setBoolean(DefaultMemStore.USEMSLAB_KEY, true);
+    conf.setBoolean(CellSetMgr.USEMSLAB_KEY, true);
     memstore = new DefaultMemStore(conf, KeyValue.COMPARATOR);
 
     int ROW_SIZE = 2048;
