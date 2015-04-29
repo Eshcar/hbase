@@ -18,17 +18,13 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.NavigableSet;
-import java.util.SortedSet;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ReflectionUtils;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
  * A {@link java.util.Set} of {@link Cell}s implemented on top of a
@@ -45,14 +41,16 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
  * get and set and won't throw ConcurrentModificationException when iterating.
  */
 @InterfaceAudience.Private
-public class CellSkipListSet implements NavigableSet<Cell> {
+public class CellSet implements NavigableSet<Cell>  {
   private final ConcurrentNavigableMap<Cell, Cell> delegatee;
 
-  CellSkipListSet(final KeyValue.KVComparator c) {
-    this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
+  CellSet(final String delegateeClassName, final KeyValue.KVComparator c) {
+    this.delegatee = ReflectionUtils.instantiateWithCustomCtor(delegateeClassName,
+            new Class[] { KeyValue.KVComparator.class }, new Object[] { c });
+//    this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
   }
 
-  CellSkipListSet(final ConcurrentNavigableMap<Cell, Cell> m) {
+  CellSet(final ConcurrentNavigableMap<Cell, Cell> m) {
     this.delegatee = m;
   }
 
@@ -78,7 +76,7 @@ public class CellSkipListSet implements NavigableSet<Cell> {
 
   public NavigableSet<Cell> headSet(final Cell toElement,
       boolean inclusive) {
-    return new CellSkipListSet(this.delegatee.headMap(toElement, inclusive));
+    return new CellSet(this.delegatee.headMap(toElement, inclusive));
   }
 
   public Cell higher(Cell e) {
@@ -115,7 +113,7 @@ public class CellSkipListSet implements NavigableSet<Cell> {
   }
 
   public NavigableSet<Cell> tailSet(Cell fromElement, boolean inclusive) {
-    return new CellSkipListSet(this.delegatee.tailMap(fromElement, inclusive));
+    return new CellSet(this.delegatee.tailMap(fromElement, inclusive));
   }
 
   public Comparator<? super Cell> comparator() {
