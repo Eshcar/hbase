@@ -6,7 +6,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.htrace.Trace;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -25,7 +24,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
     private ScanType type;
     private long readPoint;
-    final KeyValue.KVComparator comparator;
 
     /**
      * Constructor.
@@ -37,9 +35,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                     long readPoint, ScanType type) throws IOException {
         super();
         this.readPoint = readPoint;
-        this.comparator = c;
-        this.forwardHeap = new KeyValueHeap(scanners, comparator);
-        this.backwardHeap = new ReversedKeyValueHeap(scanners, comparator);
+        this.forwardHeap = new KeyValueHeap(scanners, c);
+        this.backwardHeap = new ReversedKeyValueHeap(scanners, c);
         this.type = type;
 
         if (Trace.isTracing() && Trace.currentSpan() != null) {
@@ -47,17 +44,21 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         }
     }
 
-  public MemStoreScanner(long readPt) {
-    super();
-  }
+    public MemStoreScanner(long readPt) {
+        super();
+    }
 
-  @Override
+    @Override
     public Cell peek() {
         return null;
     }
 
     @Override
     public Cell next() throws IOException {
+        Cell currentCell = forwardHeap.peek();
+        if (type == ScanType.COMPACT_DROP_DELETES) {
+            // check if this need to be returned
+        }
         return null;
     }
 

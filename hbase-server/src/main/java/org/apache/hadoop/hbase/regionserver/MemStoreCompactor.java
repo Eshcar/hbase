@@ -2,10 +2,11 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.Cell;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
+
 /**
  * The ongoing MemStore compaction manager, dispatches a solo running compaction
  * and interrupts the compaction if requested.
@@ -13,6 +14,8 @@ import java.util.List;
  *
  * Threads safety: It is assumed that the compaction pipeline is immutable,
  * therefore no special synchronization is required.
+ *
+ * TODO: add LOG for notifications
  */
 @InterfaceAudience.Private
 class MemStoreCompactor {
@@ -20,6 +23,8 @@ class MemStoreCompactor {
     private MemStoreScanner scanner;
     private VersionedCellSetMgrList versionedList;
     private long readPoint;
+    final KeyValue.KVComparator comparator;
+    Thread workerThread = null;
 
     public MemStoreCompactor (CompactionPipeline cp,
                               KeyValue.KVComparator comparator,
@@ -27,37 +32,69 @@ class MemStoreCompactor {
         this.cp = cp;
         this.readPoint = readPoint;
         this.versionedList = cp.getCellSetMgrList();
-
+        this.comparator = comparator;
         ArrayList<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
 
         for (CellSetMgr mgr : this.versionedList.getCellSetMgrList()) {
             scanners.add(mgr.getScanner(readPoint));
         }
 
-        scanner = new MemStoreScanner(scanners,comparator,readPoint, ScanType.COMPACT_DROP_DELETES);
-    }
-
-    public boolean doCompact () {
-        return false;
-    }
-
-    public boolean stopCompact() {
-        return false;
+        scanner =
+                new MemStoreScanner(scanners,comparator,readPoint, ScanType.COMPACT_DROP_DELETES);
     }
 
     /*
-    * The worker thread performs the compaction asynchronously
-    * The thread only reads the compaction pipeline
+    * The request to dispatch the compaction asynchronous task
+    * All the compaction information was provided when constructing the MemStoreCompactor
+    * No input data needed here
     */
-    private static class Worker implements Runnable {
+    public void doCompact() {
+        Runnable worker = new Worker();
+        workerThread = new Thread(worker);
+        workerThread.start();
+        return;
+    }
 
-        public Worker() {
-
+    /*
+    * The request to cancel the compaction asynchronous task
+    * The compaction may still happen if the request was sent too late
+    * Non-blocking request
+    */
+    public void stopCompact() {
+        if (workerThread!=null) {
+            workerThread.interrupt();
         }
+        return;
+    }
+
+    /*
+    * The worker thread performs the compaction asynchronously.
+    * The solo (per compactor) thread only reads the compaction pipeline
+    */
+    private class Worker implements Runnable {
+        private final CellSetMgr resultCellSetMgr =
+                CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.COMPACTED_READ_ONLY,
+                                                                comparator);
 
         @Override
         public void run() {
+            // the compaction processing
+            Cell cell;
+            try {
+                // Phase I: create the compacted CellSetMgr
+                cell = scanner.next();
+                while ((cell!=null) && (!Thread.currentThread().isInterrupted())) {
+                    resultCellSetMgr.add(cell);
+                    cell = scanner.next();
+                }
+                // Phase II: swap the old compaction pipeline
+                cp.swap(versionedList,resultCellSetMgr);
+            } catch (Exception e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
 
         }
     }
+
 }
