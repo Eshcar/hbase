@@ -27,7 +27,6 @@ import org.apache.hadoop.hbase.util.ByteRange;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.util.SortedSet;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * This is an abstraction of a cell set bucket maintained in a memstore, e.g., the active
@@ -130,7 +129,8 @@ class CellSetMgr {
   static public enum Type {
     READ_WRITE,
     EMPTY_SNAPSHOT,
-    COMPACTED_READ_ONLY
+    COMPACTED_READ_ONLY,
+    DEFAULT
   }
 
   /**
@@ -166,7 +166,7 @@ class CellSetMgr {
     private CellSetMgr generateCellSetMgrByType(Type type,
         KeyValue.KVComparator comparator, MemStoreLAB memStoreLAB) {
       CellSetMgr obj;
-      CellSet set = new CellSet(ConcurrentSkipListMap.class.getName(), comparator);
+      CellSet set = new CellSet(type, comparator);
       switch (type) {
       case READ_WRITE:
       case EMPTY_SNAPSHOT:

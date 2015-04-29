@@ -30,26 +30,8 @@ import java.util.List;
  */
 @InterfaceAudience.Private
 public abstract class AbstractMemStore implements MemStore {
-  /**
-   * Creates a snapshot of the current memstore. Snapshot must be cleared by call to
-   * {@link #clearSnapshot(long)}.
-   *
-   * @return {@link MemStoreSnapshot}
-   */
-  @Override public MemStoreSnapshot snapshot() {
-    return null;
-  }
 
-  /**
-   * Clears the current snapshot of the Memstore.
-   *
-   * @param id
-   * @throws org.apache.hadoop.hbase.regionserver.UnexpectedStateException
-   * @see #snapshot()
-   */
-  @Override public void clearSnapshot(long id) throws UnexpectedStateException {
-
-  }
+  volatile private CellSetMgr cellSet;
 
   /**
    * On flush, how much memory we will clear.

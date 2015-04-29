@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -46,13 +45,18 @@ public class CellSet implements NavigableSet<Cell>  {
   private final ConcurrentNavigableMap<Cell, Cell> delegatee;
 
   CellSet(final KeyValue.KVComparator c) {
-    this(ConcurrentSkipListMap.class.getName(),c);
+    this(CellSetMgr.Type.DEFAULT,c);
   }
 
-  CellSet(final String delegateeClassName, final KeyValue.KVComparator c) {
-    this.delegatee = ReflectionUtils.instantiateWithCustomCtor(delegateeClassName,
-        new Class[] { KeyValue.KVComparator.class }, new Object[] { c });
-    //    this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
+  CellSet(final CellSetMgr.Type type, final KeyValue.KVComparator c) {
+    switch (type) {
+    case READ_WRITE:
+    case EMPTY_SNAPSHOT:
+    case COMPACTED_READ_ONLY:
+    case DEFAULT:
+    default:
+      this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
+    }
   }
 
   CellSet(final ConcurrentNavigableMap<Cell, Cell> m) {
