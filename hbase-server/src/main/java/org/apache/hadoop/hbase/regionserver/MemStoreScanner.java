@@ -23,6 +23,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
     private ReversedKeyValueHeap backwardHeap;  // reversed scanners heap for traversing backward
 
+    private ScanType type;
     private long readPoint;
     final KeyValue.KVComparator comparator;
 
@@ -33,12 +34,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      */
     public MemStoreScanner(List<KeyValueScanner> scanners,
                     final KeyValue.KVComparator c,
-                    long readPoint) throws IOException {
+                    long readPoint, ScanType type) throws IOException {
         super();
         this.readPoint = readPoint;
         this.comparator = c;
         this.forwardHeap = new KeyValueHeap(scanners, comparator);
         this.backwardHeap = new ReversedKeyValueHeap(scanners, comparator);
+        this.type = type;
 
         if (Trace.isTracing() && Trace.currentSpan() != null) {
             Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");

@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 /**
@@ -22,7 +23,7 @@ class MemStoreCompactor {
 
     public MemStoreCompactor (CompactionPipeline cp,
                               KeyValue.KVComparator comparator,
-                              long readPoint) {
+                              long readPoint) throws IOException{
         this.cp = cp;
         this.readPoint = readPoint;
         this.versionedList = cp.getCellSetMgrList();
@@ -33,7 +34,7 @@ class MemStoreCompactor {
             scanners.add(mgr.getScanner(readPoint));
         }
 
-        //scanner = new MemStoreScanner(scanners,comparator,readPoint); // create the scanners
+        scanner = new MemStoreScanner(scanners,comparator,readPoint, ScanType.COMPACT_DROP_DELETES);
     }
 
     public boolean doCompact () {
@@ -42,5 +43,21 @@ class MemStoreCompactor {
 
     public boolean stopCompact() {
         return false;
+    }
+
+    /*
+    * The worker thread performs the compaction asynchronously
+    * The thread only reads the compaction pipeline
+    */
+    private static class Worker implements Runnable {
+
+        public Worker() {
+
+        }
+
+        @Override
+        public void run() {
+
+        }
     }
 }
