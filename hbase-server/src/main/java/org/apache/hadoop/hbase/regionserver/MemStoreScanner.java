@@ -14,7 +14,9 @@ import java.util.SortedSet;
  * This is the scanner for any *MemStore implementation derived from MemStore,
  * currently works for DefaultMemStore and CompactMemStore.
  * The MemStoreScanner combines CellSetMdgScanners from different CellSetMgrs and
- * uses the key-value heap and the reversed key-value heap for the aggregated key-values set
+ * uses the key-value heap and the reversed key-value heap for the aggregated key-values set.
+ *
+ * It is assumed only traversing forward or backward is used (without zigzagging in between)
  *
  */
 @InterfaceAudience.Private
@@ -30,10 +32,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     // currently points back for shouldSeek service, though if decided to leave it
     // this way new shouldSeek() method should be added to the abstract
     private DefaultMemStore backwardReferenceToMemStore;
-
-    // A flag represents whether could stop skipping Cells for MVCC
-    // if have encountered the next row. Only used for reversed scan
-    private boolean stopSkippingCellsIfNextRow = false;
 
     /**
      * Constructor.
@@ -156,17 +154,21 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
     @Override
     public boolean backwardSeek(Cell key) throws IOException {
-        return false;
+        return backwardHeap.backwardSeek(key);
     }
 
     @Override
     public boolean seekToPreviousRow(Cell key) throws IOException {
-        return false;
+        return backwardHeap.seekToPreviousRow(key);
     }
 
     @Override
     public boolean seekToLastRow() throws IOException {
-        return false;
+        // TODO: it looks like this is how it should be, however ReversedKeyValueHeap class doesn't
+        // implement seekToLastRow() method :(
+        // however seekToLastRow() was implemented in internal MemStoreScanner
+        // so I wonder whether we need to come with our own workaround, or to update ReversedKeyValueHeap
+        return backwardHeap.seekToLastRow();
     }
 
     /**
