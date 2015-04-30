@@ -44,15 +44,22 @@ class MemStoreCompactor {
     }
 
     /*
-    * The request to dispatch the compaction asynchronous task
+    * The request to dispatch the compaction asynchronous task.
     * All the compaction information was provided when constructing the MemStoreCompactor
-    * No input data needed here
+    * No input data needed here.
+    * The method returns true if compaction was successfully dispatched, or false if there is
+    * already an ongoing compaction.
+    * TODO: Possibly to provide a compaction pipeline also to doCompact in order to allow same
+    *       MemStoreCommactor instance re-usage
     */
-    public void doCompact() {
-        Runnable worker = new Worker();
-        workerThread = new Thread(worker);
-        workerThread.start();
-        return;
+    public boolean doCompact() {
+        if (workerThread == null) {
+            Runnable worker = new Worker();
+            workerThread = new Thread(worker);
+            workerThread.start();
+            return true;
+        }
+        return false;
     }
 
     /*
