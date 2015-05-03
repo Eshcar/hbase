@@ -31,22 +31,19 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     // TODO: to be changed to AbstractMemStore later, to be discussed with Eshcar,
     // currently points back for shouldSeek service, though if decided to leave it
     // this way new shouldSeek() method should be added to the abstract
-    private DefaultMemStore backwardReferenceToMemStore;
+    private AbstractMemStore backwardReferenceToMemStore;
 
     /**
      * Constructor.
-     * @param scanners The list of CellSetMgrScanners participating in the superior scan
-     * @param c Comparator
      */
-    public MemStoreScanner( List<KeyValueScanner> scanners,
-                            final KeyValue.KVComparator c,
+    public MemStoreScanner( AbstractMemStore ms,
                             long readPoint,
-                            ScanType type,
-                            DefaultMemStore ms) throws IOException {
+                            ScanType type) throws IOException {
         super();
         this.readPoint      = readPoint;
-        this.forwardHeap    = new KeyValueHeap(scanners, c);
-        this.backwardHeap   = new ReversedKeyValueHeap(scanners, c);
+        this.forwardHeap    = new KeyValueHeap(ms.getScanners(readPoint), ms.getComparator());
+        this.backwardHeap   = new ReversedKeyValueHeap(ms.getScanners(readPoint),
+            ms.getComparator());
         this.type           = type;
         this.backwardReferenceToMemStore = ms;
 
@@ -55,7 +52,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         }
     }
 
-    public MemStoreScanner(long readPt) {
+    public MemStoreScanner(AbstractMemStore ms, long readPt) {
         super();
     }
 
