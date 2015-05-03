@@ -28,7 +28,7 @@ class MemStoreCompactor {
 
     public MemStoreCompactor (CompactionPipeline cp,
                               KeyValue.KVComparator comparator,
-                              long readPoint) throws IOException{
+                              long readPoint, DefaultMemStore ms) throws IOException{
         this.cp = cp;
         this.readPoint = readPoint;
         this.versionedList = cp.getCellSetMgrList();
@@ -40,7 +40,7 @@ class MemStoreCompactor {
         }
 
         scanner =
-                new MemStoreScanner(scanners,comparator,readPoint, ScanType.COMPACT_DROP_DELETES);
+                new MemStoreScanner(ms,readPoint, MemStoreScanType.COMPACT_FORWARD);
     }
 
     /*

@@ -243,7 +243,7 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(readPt));
+    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this, readPt));
   }
 
   /**
