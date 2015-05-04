@@ -31,8 +31,17 @@ import java.util.SortedSet;
 @InterfaceAudience.Private
 class CellSetScanner implements KeyValueScanner{
 
+  private final CellSetMgr cellSetMgr;
+  private long readPoint;
+
+  // the pre-calculated Cell to be returned by peek() or next()
+  private Cell theNext;
+
   public CellSetScanner(CellSetMgr cellSetMgr, long readPoint) {
     super();
+    this.cellSetMgr = cellSetMgr;
+    this.readPoint = readPoint;
+    this.cellSetMgr.incScannerCount();
   }
 
   /**
@@ -90,7 +99,7 @@ class CellSetScanner implements KeyValueScanner{
    * Close the KeyValue scanner.
    */
   @Override public void close() {
-
+    this.cellSetMgr.decScannerCount();
   }
 
   /**

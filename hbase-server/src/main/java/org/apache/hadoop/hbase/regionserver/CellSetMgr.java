@@ -121,6 +121,18 @@ class CellSetMgr {
     return this.getCellSet().first();
   }
 
+  public void incScannerCount() {
+    if(memStoreLAB != null) {
+      memStoreLAB.incScannerCount();
+    }
+  }
+
+  public void decScannerCount() {
+    if(memStoreLAB != null) {
+      memStoreLAB.decScannerCount();
+    }
+  }
+
   /**
    * Types of cell set managers.
    * This affects the internal implementation of the cell set objects.
