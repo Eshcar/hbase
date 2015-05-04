@@ -30,10 +30,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
     private long readPoint;
 
-    // TODO: to be changed to AbstractMemStore later, to be discussed with Eshcar,
-    // currently points back for shouldSeek service, though if decided to leave it
-    // this way new shouldSeek() method should be added to the abstract
-    private AbstractMemStore backwardReferenceToMemStore;
+    private AbstractMemStore                    // pointer back to the relevant MemStore
+            backwardReferenceToMemStore;        // is needed for shouldSeek() method
 
     /**
      * Constructor.
@@ -47,8 +45,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         super();
         this.readPoint      = readPoint;
         this.forwardHeap    = new KeyValueHeap(ms.getScanners(readPoint), ms.getComparator());
-        this.backwardHeap   = new ReversedKeyValueHeap(ms.getScanners(readPoint),
-            ms.getComparator());
+        this.backwardHeap   = new ReversedKeyValueHeap( ms.getScanners(readPoint),
+                                                        ms.getComparator());
         this.type           = type;
         this.backwardReferenceToMemStore = ms;
 
@@ -57,16 +55,19 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         }
     }
 
+    /* TODO: discuss with Eshcar, why this constructor is needed? */
     public MemStoreScanner(AbstractMemStore ms, long readPt) {
         super();
     }
 
     /**
      * Returns the cell from the top-most scanner without advancing the iterator
+     * assumes backward traversal only if specified explicitly
      */
     @Override
     public Cell peek() {
-        if (type == MemStoreScanType.USER_SCAN_BACKWARD) return backwardHeap.peek();
+        if (type == MemStoreScanType.USER_SCAN_BACKWARD)
+            return backwardHeap.peek();
         return forwardHeap.peek();
     }
 
@@ -135,9 +136,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         *  the reseeked set to at least that point.
         *
         *  TODO: The above comment copied from the original MemStoreScanner
-        *   Good point is raised, but it looks to me it is OK to continue in the same way
-        *   as if something is already flushed to the disc (according to the linearization point)
-        *   it is OK not to find it
         */
         if(type==MemStoreScanType.UNDEFINED) type = MemStoreScanType.USER_SCAN_FORWARD;
         assert (type!=MemStoreScanType.USER_SCAN_BACKWARD);
