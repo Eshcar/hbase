@@ -174,7 +174,8 @@ public class TestMemStoreChunkPool {
     for (KeyValueScanner scanner : scanners) {
       scanner.close();
     }
-    assertTrue(chunkPool.getPoolSize() > 0);
+    assertTrue("chunk pool size is "+ chunkPool.getPoolSize()+" expected to be > 0",
+        chunkPool.getPoolSize() > 0);
 
     // clear chunks
     chunkPool.clearChunks();

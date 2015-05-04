@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
+import org.apache.htrace.Trace;
+
 
 /**
  * The MemStore holds in-memory modifications to the Store.  Modifications
@@ -341,9 +343,9 @@ public class DefaultMemStore extends AbstractMemStore {
 //        this.snapshotAllocatorAtCreation = snapshotAllocator;
 //        this.snapshotAllocatorAtCreation.incScannerCount();
 //      }
-//      if (Trace.isTracing() && Trace.currentSpan() != null) {
-//        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
-//      }
+      if (Trace.isTracing() && Trace.currentSpan() != null) {
+        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+      }
     }
 
     /**
