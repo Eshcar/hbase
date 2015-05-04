@@ -122,11 +122,15 @@ class CellSetMgr {
   }
 
   public void incScannerCount() {
-    memStoreLAB.incScannerCount();
+    if(memStoreLAB != null) {
+      memStoreLAB.incScannerCount();
+    }
   }
 
   public void decScannerCount() {
-    memStoreLAB.decScannerCount();
+    if(memStoreLAB != null) {
+      memStoreLAB.decScannerCount();
+    }
   }
 
   /**
