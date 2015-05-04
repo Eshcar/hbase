@@ -25,10 +25,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.CollectionBackedScanner;
-import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.util.*;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -67,6 +64,16 @@ public class DefaultMemStore extends AbstractMemStore {
 
   volatile long snapshotId;
 
+  public final static long FIXED_OVERHEAD = ClassSize.align(
+      ClassSize.OBJECT +
+      (7 * ClassSize.REFERENCE) + // 2 in DefaultMemStore, 5 in AbstractMemStore
+      (3 * Bytes.SIZEOF_LONG));   // 2 in DefaultMemStore, 1 in AbstractMemStore
+
+  public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
+      ClassSize.ATOMIC_LONG + (2 * ClassSize.TIMERANGE_TRACKER) +
+      (2 * ClassSize.CELL_SKIPLIST_SET) + (2 * ClassSize.CONCURRENT_SKIPLISTMAP));
+
+
   /**
    * Default constructor. Used for tests.
    */
@@ -84,6 +91,10 @@ public class DefaultMemStore extends AbstractMemStore {
         CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c);
     snapshotTimeRangeTracker = new TimeRangeTracker();
     this.snapshotSize = 0;
+  }
+
+  @Override protected long deepOverhead() {
+    return DEEP_OVERHEAD;
   }
 
   void dump() {
