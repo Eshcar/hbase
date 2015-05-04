@@ -67,7 +67,7 @@ public abstract class AbstractMemStore implements MemStore {
   protected AbstractMemStore(final Configuration conf, final KeyValue.KVComparator c) {
     this.conf = conf;
     this.comparator = c;
-    this.size = new AtomicLong(DEEP_OVERHEAD);
+    this.size = new AtomicLong(deepOverhead());
     resetCellSet();
   }
 
@@ -76,7 +76,7 @@ public abstract class AbstractMemStore implements MemStore {
         CellSetMgr.Type.READ_WRITE, conf, comparator);
     this.timeRangeTracker = new TimeRangeTracker();
     // Reset heap to not include any keys
-    this.size.set(DEEP_OVERHEAD);
+    this.size.set(deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -97,13 +97,7 @@ public abstract class AbstractMemStore implements MemStore {
         + CellUtil.estimatedHeapSizeOf(cell)) : 0;
   }
 
-  public final static long FIXED_OVERHEAD = ClassSize.align(
-      ClassSize.OBJECT + (9 * ClassSize.REFERENCE) + (3 * Bytes.SIZEOF_LONG));
-
-  public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
-      ClassSize.ATOMIC_LONG + (2 * ClassSize.TIMERANGE_TRACKER) +
-      (2 * ClassSize.CELL_SKIPLIST_SET) + (2 * ClassSize.CONCURRENT_SKIPLISTMAP));
-
+  protected abstract long deepOverhead();
 
   /**
    * Write an update
@@ -518,7 +512,11 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   protected long keySize() {
-    return heapSize() - DEEP_OVERHEAD;
+    return heapSize() - deepOverhead();
+  }
+
+  public AtomicLong getSize() {
+    return size;
   }
 
   protected KeyValue.KVComparator getComparator() {
