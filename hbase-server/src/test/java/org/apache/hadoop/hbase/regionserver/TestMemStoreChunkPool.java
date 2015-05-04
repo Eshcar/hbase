@@ -145,6 +145,8 @@ public class TestMemStoreChunkPool {
     byte[] qf7 = Bytes.toBytes("testqualifier7");
     byte[] val = Bytes.toBytes("testval");
 
+    System.out.println("chunkPool size at start: "+chunkPool.getPoolSize());
+
     DefaultMemStore memstore = new DefaultMemStore();
 
     // Setting up memstore
@@ -152,9 +154,13 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf2, val));
     memstore.add(new KeyValue(row, fam, qf3, val));
 
+    System.out.println("chunkPool size after memstore1: "+chunkPool.getPoolSize());
+
     // Creating a snapshot
     MemStoreSnapshot snapshot = memstore.snapshot();
     assertEquals(3, memstore.snapshot.size());
+
+    System.out.println("chunkPool size after snapshot: "+chunkPool.getPoolSize());
 
     // Adding value to "new" memstore
     assertEquals(0, memstore.getCellSet().size());
@@ -162,11 +168,15 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf5, val));
     assertEquals(2, memstore.getCellSet().size());
 
+    System.out.println("chunkPool size after memstore2: "+chunkPool.getPoolSize());
+
     // opening scanner before clear the snapshot
     List<KeyValueScanner> scanners = memstore.getScanners(0);
     // Shouldn't putting back the chunks to pool,since some scanners are opening
     // based on their data
     memstore.clearSnapshot(snapshot.getId());
+
+    System.out.println("chunkPool size after clear: "+chunkPool.getPoolSize());
 
     assertTrue(chunkPool.getPoolSize() == 0);
 
@@ -174,6 +184,8 @@ public class TestMemStoreChunkPool {
     for (KeyValueScanner scanner : scanners) {
       scanner.close();
     }
+    System.out.println("chunkPool size after close: "+chunkPool.getPoolSize());
+
     assertTrue(chunkPool.getPoolSize() > 0);
 
     // clear chunks
