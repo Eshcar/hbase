@@ -24,7 +24,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
     private KeyValueHeap forwardHeap;           // heap of scanners used for traversing forward
     private ReversedKeyValueHeap backwardHeap;  // reversed scanners heap for traversing backward
-
+    private List<CellSetScanner> scanners;      // the list of scanners to be used for maintaining the scanner's count
     private MemStoreScanType type               // The type of the scan is defined by con-r for
             = MemStoreScanType.UNDEFINED;       // compaction or according to the first usage
 
@@ -44,9 +44,10 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                             MemStoreScanType type) throws IOException {
         super();
         this.readPoint      = readPoint;
-        this.forwardHeap    = new KeyValueHeap(ms.getScanners(readPoint), ms.getComparator());
-        this.backwardHeap   = new ReversedKeyValueHeap( ms.getScanners(readPoint),
-                                                        ms.getComparator());
+        this.scanners       = ms.getListOfScanners(readPoint);    // compilation error due to not accurate getScanners implementation
+        for (CellSetScanner sc: scanners){ sc.incScannerCount();}   // to be implemented
+        this.forwardHeap    = new KeyValueHeap(scanners, ms.getComparator());
+        this.backwardHeap   = new ReversedKeyValueHeap(scanners, ms.getComparator());
         this.type           = type;
         this.backwardReferenceToMemStore = ms;
 
@@ -55,9 +56,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         }
     }
 
-    /* TODO: discuss with Eshcar, why this constructor is needed? */
-    public MemStoreScanner(AbstractMemStore ms, long readPt) {
-        super();
+    /* Constructor used only for forward scan */
+    public MemStoreScanner(AbstractMemStore ms, long readPt) throws IOException {
+        this(ms, readPt, MemStoreScanType.USER_SCAN_FORWARD);
     }
 
     /**
@@ -161,6 +162,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
             backwardHeap.close();
             backwardHeap = null;
         }
+        for (CellSetScanner sc: scanners){ sc.decScannerCount();}   // to be implemented
     }
 
     /**
