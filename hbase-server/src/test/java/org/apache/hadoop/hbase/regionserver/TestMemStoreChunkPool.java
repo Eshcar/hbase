@@ -147,6 +147,8 @@ public class TestMemStoreChunkPool {
 
     DefaultMemStore memstore = new DefaultMemStore();
 
+    System.out.println("chunk pool size "+chunkPool.getPoolSize());
+
     // Setting up memstore
     memstore.add(new KeyValue(row, fam, qf1, val));
     memstore.add(new KeyValue(row, fam, qf2, val));
@@ -194,7 +196,8 @@ public class TestMemStoreChunkPool {
     // Since no opening scanner, the chunks of snapshot should be put back to
     // pool
     memstore.clearSnapshot(snapshot.getId());
-    assertTrue(chunkPool.getPoolSize() > 0);
+    assertTrue("chunk pool size is "+ chunkPool.getPoolSize()+" expected to be > 0",
+        chunkPool.getPoolSize() > 0);
   }
 
 }
