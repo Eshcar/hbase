@@ -531,4 +531,9 @@ public abstract class AbstractMemStore implements MemStore {
     return timeRangeTracker;
   }
 
+  //TODO: TBD
+  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
+    return null;
+  }
+
 }

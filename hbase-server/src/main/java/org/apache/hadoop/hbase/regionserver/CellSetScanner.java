@@ -209,4 +209,8 @@ class CellSetScanner implements KeyValueScanner{
   @Override public Cell getNextIndexedKey() {
     return null;
   }
+
+  public void incScannerCount() {return;} //TODO: TBD
+  public void decScannerCount() {return;} //TODO: TBD
+
 }
