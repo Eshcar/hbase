@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
-import org.apache.htrace.Trace;
 
 
 /**
@@ -289,15 +288,15 @@ public class DefaultMemStore extends AbstractMemStore {
     private Iterator<Cell> snapshotIt;
 
     // The cellSet and snapshot at the time of creating this scanner
-    private CellSet cellSetAtCreation;
-    private CellSet snapshotAtCreation;
+    private CellSetMgr cellSetAtCreation;
+    private CellSetMgr snapshotAtCreation;
 
     // the pre-calculated Cell to be returned by peek() or next()
     private Cell theNext;
 
     // The allocator and snapshot allocator at the time of creating this scanner
-    volatile MemStoreLAB allocatorAtCreation;
-    volatile MemStoreLAB snapshotAllocatorAtCreation;
+//    volatile MemStoreLAB allocatorAtCreation;
+//    volatile MemStoreLAB snapshotAllocatorAtCreation;
 
     // A flag represents whether could stop skipping Cells for MVCC
     // if have encountered the next row. Only used for reversed scan
@@ -334,21 +333,21 @@ public class DefaultMemStore extends AbstractMemStore {
       ms = defaultMemStore;
       comparator = ms.getComparator();
       this.readPoint = readPoint;
-      cellSetAtCreation = ms.getCellSet().getCellSet();
-//      ms.getCellSet().incScannerCount();
-      snapshotAtCreation = ms.snapshot.getCellSet();
-//      ms.snapshot.incScannerCount();
-      if (ms.getCellSet().getMemStoreLAB() != null) {
-        this.allocatorAtCreation = ms.getCellSet().getMemStoreLAB();
-        this.allocatorAtCreation.incScannerCount();
-      }
-      if (ms.snapshot.getMemStoreLAB() != null) {
-        this.snapshotAllocatorAtCreation = ms.snapshot.getMemStoreLAB();
-        this.snapshotAllocatorAtCreation.incScannerCount();
-      }
-      if (Trace.isTracing() && Trace.currentSpan() != null) {
-        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
-      }
+      cellSetAtCreation = ms.getCellSet();
+      cellSetAtCreation.incScannerCount();
+      snapshotAtCreation = ms.snapshot;
+      snapshotAtCreation.incScannerCount();
+//      if (cellSetAtCreation.getMemStoreLAB() != null) {
+//        this.allocatorAtCreation = cellSetAtCreation.getMemStoreLAB();
+//        this.allocatorAtCreation.incScannerCount();
+//      }
+//      if (snapshotAtCreation.getMemStoreLAB() != null) {
+//        this.snapshotAllocatorAtCreation = snapshotAtCreation.getMemStoreLAB();
+//        this.snapshotAllocatorAtCreation.incScannerCount();
+//      }
+//      if (Trace.isTracing() && Trace.currentSpan() != null) {
+//        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+//      }
     }
 
     /**
@@ -518,17 +517,17 @@ public class DefaultMemStore extends AbstractMemStore {
       this.cellSetIt = null;
       this.snapshotIt = null;
 
-//      ms.getCellSet().decScannerCount();
-//      ms.snapshot.decScannerCount();
+      cellSetAtCreation.decScannerCount();
+      snapshotAtCreation.decScannerCount();
 
-      if (allocatorAtCreation != null) {
-        this.allocatorAtCreation.decScannerCount();
-        this.allocatorAtCreation = null;
-      }
-      if (snapshotAllocatorAtCreation != null) {
-        this.snapshotAllocatorAtCreation.decScannerCount();
-        this.snapshotAllocatorAtCreation = null;
-      }
+//      if (allocatorAtCreation != null) {
+//        this.allocatorAtCreation.decScannerCount();
+//        this.allocatorAtCreation = null;
+//      }
+//      if (snapshotAllocatorAtCreation != null) {
+//        this.snapshotAllocatorAtCreation.decScannerCount();
+//        this.snapshotAllocatorAtCreation = null;
+//      }
 
       this.cellSetItRow = null;
       this.snapshotItRow = null;
@@ -574,8 +573,7 @@ public class DefaultMemStore extends AbstractMemStore {
           key.getRowLength());
       SortedSet<Cell> cellHead = cellSetAtCreation.headSet(firstKeyOnRow);
       Cell cellSetBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
-      SortedSet<Cell> snapshotHead = snapshotAtCreation
-          .headSet(firstKeyOnRow);
+      SortedSet<Cell> snapshotHead = snapshotAtCreation.headSet(firstKeyOnRow);
       Cell snapshotBeforeRow = snapshotHead.isEmpty() ? null : snapshotHead
           .last();
       Cell lastCellBeforeRow = getHighest(cellSetBeforeRow, snapshotBeforeRow);

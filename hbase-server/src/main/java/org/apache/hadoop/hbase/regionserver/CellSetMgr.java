@@ -87,14 +87,9 @@ class CellSetMgr {
   }
 
   public void close() {
-    MemStoreLAB tmpAllocator = null;
-    if (this.memStoreLAB != null) {
-      tmpAllocator = this.memStoreLAB;
-      this.memStoreLAB = null;
-    }
-    if (tmpAllocator != null) {
-      tmpAllocator.close();
-    }
+    getMemStoreLAB().close();
+    // do not set MSLab to null as scanners may still be reading the data here and need to decrease
+    // the counter when they finish
   }
 
   public Cell maybeCloneWithAllocator(Cell cell) {
@@ -119,6 +114,14 @@ class CellSetMgr {
   // methods for tests
   Cell first() {
     return this.getCellSet().first();
+  }
+
+  public SortedSet<Cell> headSet(Cell firstKeyOnRow) {
+    return this.getCellSet().headSet(firstKeyOnRow);
+  }
+
+  public Cell last() {
+    return this.getCellSet().last();
   }
 
   public void incScannerCount() {
