@@ -22,10 +22,18 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.util.*;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.ClassSize;
+import org.apache.hadoop.hbase.util.CollectionBackedScanner;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.Pair;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -141,14 +149,15 @@ public class DefaultMemStore extends AbstractMemStore {
     }
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
+    CellSetMgr oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot.close();
       this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
           CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator());
       this.snapshotTimeRangeTracker = new TimeRangeTracker();
     }
     this.snapshotSize = 0;
     this.snapshotId = -1;
+    oldSnapshot.close();
   }
 
   @Override
