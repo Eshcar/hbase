@@ -144,14 +144,15 @@ public class DefaultMemStore extends AbstractMemStore {
     }
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
+    CellSetMgr oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot.close();
       this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
           CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator());
       this.snapshotTimeRangeTracker = new TimeRangeTracker();
     }
     this.snapshotSize = 0;
     this.snapshotId = -1;
+    oldSnapshot.close();
   }
 
   @Override
@@ -295,8 +296,8 @@ public class DefaultMemStore extends AbstractMemStore {
     private Cell theNext;
 
     // The allocator and snapshot allocator at the time of creating this scanner
-//    volatile MemStoreLAB allocatorAtCreation;
-//    volatile MemStoreLAB snapshotAllocatorAtCreation;
+    volatile MemStoreLAB allocatorAtCreation;
+    volatile MemStoreLAB snapshotAllocatorAtCreation;
 
     // A flag represents whether could stop skipping Cells for MVCC
     // if have encountered the next row. Only used for reversed scan
@@ -304,6 +305,7 @@ public class DefaultMemStore extends AbstractMemStore {
 
     private long readPoint;
 
+    private final DefaultMemStore ms;
     private final KeyValue.KVComparator comparator;
 
     /*
@@ -329,20 +331,21 @@ public class DefaultMemStore extends AbstractMemStore {
 
     MemStoreScanner(DefaultMemStore defaultMemStore, long readPoint) {
       super();
-      comparator = defaultMemStore.getComparator();
+      ms = defaultMemStore;
+      comparator = ms.getComparator();
       this.readPoint = readPoint;
-      cellSetAtCreation = getCellSet().getCellSet();
-      getCellSet().incScannerCount();
-      snapshotAtCreation = snapshot.getCellSet();
-      snapshot.incScannerCount();
-//      if (allocator != null) {
-//        this.allocatorAtCreation = allocator;
-//        this.allocatorAtCreation.incScannerCount();
-//      }
-//      if (snapshotAllocator != null) {
-//        this.snapshotAllocatorAtCreation = snapshotAllocator;
-//        this.snapshotAllocatorAtCreation.incScannerCount();
-//      }
+      cellSetAtCreation = ms.getCellSet().getCellSet();
+//      ms.getCellSet().incScannerCount();
+      snapshotAtCreation = ms.snapshot.getCellSet();
+//      ms.snapshot.incScannerCount();
+      if (ms.getCellSet().getMemStoreLAB() != null) {
+        this.allocatorAtCreation = ms.getCellSet().getMemStoreLAB();
+        this.allocatorAtCreation.incScannerCount();
+      }
+      if (ms.snapshot.getMemStoreLAB() != null) {
+        this.snapshotAllocatorAtCreation = ms.snapshot.getMemStoreLAB();
+        this.snapshotAllocatorAtCreation.incScannerCount();
+      }
       if (Trace.isTracing() && Trace.currentSpan() != null) {
         Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
       }
@@ -515,17 +518,17 @@ public class DefaultMemStore extends AbstractMemStore {
       this.cellSetIt = null;
       this.snapshotIt = null;
 
-      getCellSet().decScannerCount();
-      snapshot.decScannerCount();
+//      ms.getCellSet().decScannerCount();
+//      ms.snapshot.decScannerCount();
 
-//      if (allocatorAtCreation != null) {
-//        this.allocatorAtCreation.decScannerCount();
-//        this.allocatorAtCreation = null;
-//      }
-//      if (snapshotAllocatorAtCreation != null) {
-//        this.snapshotAllocatorAtCreation.decScannerCount();
-//        this.snapshotAllocatorAtCreation = null;
-//      }
+      if (allocatorAtCreation != null) {
+        this.allocatorAtCreation.decScannerCount();
+        this.allocatorAtCreation = null;
+      }
+      if (snapshotAllocatorAtCreation != null) {
+        this.snapshotAllocatorAtCreation.decScannerCount();
+        this.snapshotAllocatorAtCreation = null;
+      }
 
       this.cellSetItRow = null;
       this.snapshotItRow = null;

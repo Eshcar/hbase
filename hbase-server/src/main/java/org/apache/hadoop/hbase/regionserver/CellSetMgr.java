@@ -133,6 +133,10 @@ class CellSetMgr {
     }
   }
 
+  protected MemStoreLAB getMemStoreLAB() {
+    return memStoreLAB;
+  }
+
   /**
    * Types of cell set managers.
    * This affects the internal implementation of the cell set objects.
