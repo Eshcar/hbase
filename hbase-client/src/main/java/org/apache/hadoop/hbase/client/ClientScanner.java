@@ -32,7 +32,11 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -197,6 +201,11 @@ public abstract class ClientScanner extends AbstractClientScanner {
 
     protected long getTimestamp() {
       return lastNext;
+    }
+
+    @VisibleForTesting
+    protected long getMaxResultSize() {
+      return maxScannerResultSize;
     }
 
     // returns true if the passed region endKey
@@ -482,11 +491,10 @@ public abstract class ClientScanner extends AbstractClientScanner {
       if (!resultsToAddToCache.isEmpty()) {
         for (Result rs : resultsToAddToCache) {
           cache.add(rs);
-          // We don't make Iterator here
-          for (Cell cell : rs.rawCells()) {
-            remainingResultSize -= CellUtil.estimatedHeapSizeOf(cell);
-          }
+          long estimatedHeapSizeOfResult = calcEstimatedSize(rs);
           countdown--;
+          remainingResultSize -= estimatedHeapSizeOfResult;
+          addEstimatedSize(estimatedHeapSizeOfResult);
           this.lastResult = rs;
         }
       }
@@ -530,6 +538,24 @@ public abstract class ClientScanner extends AbstractClientScanner {
   private boolean doneWithRegion(long remainingResultSize, int remainingRows,
       boolean regionHasMoreResults) {
     return remainingResultSize > 0 && remainingRows > 0 && !regionHasMoreResults;
+  }
+
+  protected long calcEstimatedSize(Result rs) {
+    long estimatedHeapSizeOfResult = 0;
+    // We don't make Iterator here
+    for (Cell cell : rs.rawCells()) {
+      estimatedHeapSizeOfResult += CellUtil.estimatedHeapSizeOf(cell);
+    }
+    return estimatedHeapSizeOfResult;
+  }
+
+  protected void addEstimatedSize(long estimatedHeapSizeOfResult) {
+    return;
+  }
+
+  @VisibleForTesting
+  public int getCacheCount() {
+    return cache != null ? cache.size() : 0;
   }
 
   /**
