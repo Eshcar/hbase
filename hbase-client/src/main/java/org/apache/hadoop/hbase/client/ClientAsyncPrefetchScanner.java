@@ -43,12 +43,16 @@ import java.util.concurrent.atomic.AtomicLong;
 @InterfaceAudience.Private
 public class ClientAsyncPrefetchScanner extends ClientScanner {
 
+  private static final int ESTIMATED_SINGLE_RESULT_SIZE = 1024;
+
+  private int cacheCapacity;
+  private AtomicLong cacheSizeInBytes;
   // exception queue (from prefetch to main scan execution)
   private Queue<Exception> exceptionsQueue;
   // prefetch runnable object to be executed asynchronously
   private PrefetchRunnable prefetchRunnable;
   // Boolean flag to ensure only a single prefetch is running (per scan)
-  // eshcar: we use atomic boolean to allow multiple concurrent threads to
+  // We use atomic boolean to allow multiple concurrent threads to
   // consume records from the same cache, but still have a single prefetcher thread.
   // For a single consumer thread this can be replace with a native boolean.
   private AtomicBoolean prefetchRunning;
@@ -67,7 +71,9 @@ public class ClientAsyncPrefetchScanner extends ClientScanner {
   @Override
   protected void initCache() {
     // concurrent cache
-    cache = new LinkedBlockingQueue<Result>(getCacheCapacity());
+    cacheCapacity = calcCacheCapacity();
+    cache = new LinkedBlockingQueue<Result>(cacheCapacity);
+    cacheSizeInBytes = new AtomicLong(0);
     exceptionsQueue = new ConcurrentLinkedQueue<Exception>();
     prefetchRunnable = new PrefetchRunnable();
     prefetchRunning = new AtomicBoolean(false);
@@ -81,10 +87,10 @@ public class ClientAsyncPrefetchScanner extends ClientScanner {
       handleException();
 
       // If the scanner is closed and there's nothing left in the cache, next is a no-op.
-      if (getCacheSize() == 0 && this.closed) {
+      if (getCacheCount() == 0 && this.closed) {
         return null;
       }
-      if (getCacheSize() < getThresholdSize()) {
+      if (prefetchCondition()) {
         // run prefetch in the background only if no prefetch is already running
         if (!isPrefetchRunning()) {
           if (prefetchRunning.compareAndSet(false, true)) {
@@ -95,15 +101,18 @@ public class ClientAsyncPrefetchScanner extends ClientScanner {
 
       while (isPrefetchRunning()) {
         // prefetch running or still pending
-        if (getCacheSize() > 0) {
-          return cache.poll();
+        if (getCacheCount() > 0) {
+          Result res = cache.poll();
+          long estimatedSize = calcEstimatedSize(res);
+          addEstimatedSize(-estimatedSize);
+          return res;
         } else {
           // (busy) wait for a record - sleep
           Threads.sleep(1);
         }
       }
 
-      if (getCacheSize() > 0) {
+      if (getCacheCount() > 0) {
         return cache.poll();
       }
 
@@ -126,6 +135,11 @@ public class ClientAsyncPrefetchScanner extends ClientScanner {
     } // else do nothing since the async prefetch still needs this resources
   }
 
+  @Override
+  protected void addEstimatedSize(long estimatedSize) {
+    cacheSizeInBytes.addAndGet(estimatedSize);
+  }
+
   private void handleException() throws IOException {
     //The prefetch task running in the background puts any exception it
     //catches into this exception queue.
@@ -145,17 +159,35 @@ public class ClientAsyncPrefetchScanner extends ClientScanner {
   }
 
   // double buffer - double cache size
-  private int getCacheCapacity() {
+  private int calcCacheCapacity() {
     int capacity = Integer.MAX_VALUE;
-    if(this.caching >= 0 && this.caching < (Integer.MAX_VALUE /2)) {
-      capacity = this.caching * 2 + 1;
+    if(caching > 0 && caching < (Integer.MAX_VALUE /2)) {
+      capacity = caching * 2 + 1;
+    }
+    if(capacity == Integer.MAX_VALUE){
+      capacity = (int) (maxScannerResultSize / ESTIMATED_SINGLE_RESULT_SIZE);
     }
     return capacity;
   }
 
-  private int getThresholdSize() {
-    return getCacheCapacity() / 2 ;
+  private boolean prefetchCondition() {
+    return
+        (getCacheCount() < getCountThreshold()) &&
+        (getCacheSizeInBytes() < getSizeThreshold()) ;
   }
+
+  private int getCountThreshold() {
+    return cacheCapacity / 2 ;
+  }
+
+  private long getSizeThreshold() {
+    return maxScannerResultSize / 2 ;
+  }
+
+  private long getCacheSizeInBytes() {
+    return cacheSizeInBytes.get();
+  }
+
 
   private class PrefetchRunnable implements Runnable {
 
