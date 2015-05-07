@@ -45,7 +45,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         super();
         this.readPoint      = readPoint;
         this.scanners       = ms.getListOfScanners(readPoint);    // compilation error due to not accurate getScanners implementation
-        for (CellSetScanner sc: scanners){ sc.incScannerCount();}   // to be implemented
+
         this.forwardHeap    = new KeyValueHeap(scanners, ms.getComparator());
         this.backwardHeap   = new ReversedKeyValueHeap(scanners, ms.getComparator());
         this.type           = type;
@@ -85,7 +85,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
              currentCell != null;                       // take next value from the forward heap
              currentCell = forwardHeap.next()){
 
-            if (currentCell.getSequenceId() <= readPoint)
+            if (currentCell.getSequenceId() > readPoint)
                 continue;                               // the value too old, take next one
 
             if (type == MemStoreScanType.COMPACT_FORWARD) {
@@ -154,15 +154,17 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
     @Override
     public void close() {
+
         if (forwardHeap != null) {
+            assert((type==MemStoreScanType.USER_SCAN_FORWARD) || (type==MemStoreScanType.COMPACT_FORWARD));
             forwardHeap.close();
             forwardHeap = null;
         }
-        if (backwardHeap != null) {
+        else if (backwardHeap != null) {
+            assert (type==MemStoreScanType.USER_SCAN_BACKWARD);
             backwardHeap.close();
             backwardHeap = null;
         }
-        for (CellSetScanner sc: scanners){ sc.decScannerCount();}   // to be implemented
     }
 
     /**
