@@ -23,24 +23,18 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.ClassSize;
-import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.SortedSet;
 
 /**
  * The MemStore holds in-memory modifications to the Store.  Modifications
@@ -62,23 +56,6 @@ import java.util.SortedSet;
 public class DefaultMemStore extends AbstractMemStore {
   private static final Log LOG = LogFactory.getLog(DefaultMemStore.class);
 
-  // Snapshot of memstore.  Made for flusher.
-  volatile CellSetMgr snapshot;
-
-  // Used to track own heapSize
-  private volatile long snapshotSize;
-
-  volatile long snapshotId;
-
-  public final static long FIXED_OVERHEAD = ClassSize.align(
-      ClassSize.OBJECT +
-      (7 * ClassSize.REFERENCE) + // 2 in DefaultMemStore, 5 in AbstractMemStore
-      (3 * Bytes.SIZEOF_LONG));   // 2 in DefaultMemStore, 1 in AbstractMemStore
-
-  public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
-      ClassSize.ATOMIC_LONG + (2 * ClassSize.TIMERANGE_TRACKER) +
-      (2 * ClassSize.CELL_SKIPLIST_SET) + (2 * ClassSize.CONCURRENT_SKIPLISTMAP));
-
   /**
    * Default constructor. Used for tests.
    */
@@ -92,9 +69,6 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   public DefaultMemStore(final Configuration conf, final KeyValue.KVComparator c) {
     super(conf, c);
-    this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c);
-    this.snapshotSize = 0;
   }
 
   @Override protected long deepOverhead() {
@@ -103,9 +77,6 @@ public class DefaultMemStore extends AbstractMemStore {
 
   void dump() {
     super.dump(LOG);
-    for (Cell cell: this.snapshot.getCellSet()) {
-      LOG.info(cell);
-    }
   }
 
   /**
@@ -114,55 +85,15 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public MemStoreSnapshot snapshot() {
-    // If snapshot currently has entries, then flusher failed or didn't call
-    // cleanup.  Log a warning.
-    if (!this.snapshot.isEmpty()) {
-      LOG.warn("Snapshot called again without clearing previous. " +
-          "Doing nothing. Another ongoing flush or did we fail last attempt?");
-    } else {
-      this.snapshotId = EnvironmentEdgeManager.currentTime();
-      this.snapshotSize = keySize();
-      if (!getCellSet().isEmpty()) {
-        this.snapshot = getCellSet();
-        resetCellSet();
-      }
-    }
-    return new MemStoreSnapshot(this.snapshotId, snapshot.size(), this.snapshotSize, snapshot,
-        getComparator());
-  }
-
-  /**
-   * The passed snapshot was successfully persisted; it can be let go.
-   * @param id Id of the snapshot to clean out.
-   * @throws UnexpectedStateException
-   * @see #snapshot()
-   */
-  @Override
-  public void clearSnapshot(long id) throws UnexpectedStateException {
-    if (this.snapshotId != id) {
-      throw new UnexpectedStateException("Current snapshot id is " + this.snapshotId + ",passed "
-          + id);
-    }
-    // OK. Passed in snapshot is same as current snapshot. If not-empty,
-    // create a new snapshot and let the old one go.
-    CellSetMgr oldSnapshot = this.snapshot;
-    if (!this.snapshot.isEmpty()) {
-      this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-          CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator());
-    }
-    this.snapshotSize = 0;
-    this.snapshotId = -1;
-    oldSnapshot.close();
+    return prepareSnapshot(LOG);
   }
 
   @Override
-  public long getFlushableSize() {
-    return this.snapshotSize > 0 ? this.snapshotSize : keySize();
-  }
-
-  @Override
-  public long getSnapshotSize() {
-    return this.snapshotSize;
+  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
+    List<CellSetScanner> list = new ArrayList<CellSetScanner>(2);
+    list.add(0, getCellSet().getScanner(readPt));
+    list.add(1, getSnapshot().getScanner(readPt));
+    return list;
   }
 
   /**
@@ -175,102 +106,44 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public void rollback(Cell cell) {
-    // If the key is in the snapshot, delete it. We should not update
-    // this.size, because that tracks the size of only the memstore and
-    // not the snapshot. The flush of this snapshot to disk has not
-    // yet started because Store.flush() waits for all rwcc transactions to
-    // commit before starting the flush to disk.
-    Cell found = this.snapshot.get(cell);
-    if (found != null && found.getSequenceId() == cell.getSequenceId()) {
-      this.snapshot.remove(cell);
-      long sz = heapSizeChange(cell, true);
-      this.snapshotSize -= sz;
-    }
-    super.rollback(cell);
+    rollbackSnapshot(cell);
+    rollbackCellSet(cell);
   }
+
+  /**
+   * Find the key that matches <i>row</i> exactly, or the one that immediately precedes it. The
+   * target row key is set in state.
+   *
+   * @param state column/delete tracking state
+   */
+  @Override
+  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
+    getRowKeyAtOrBefore(getCellSet().getCellSet(), state);
+    getRowKeyAtOrBefore(getSnapshot().getCellSet(), state);
+  }
+
+  /**
+   * Check if this cell set may contain the required keys
+   * @param scan
+   * @return False if the key definitely does not exist in this cell set
+   */
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+    return
+        (getCellSet().shouldSeek(scan, oldestUnexpiredTS) ||
+         getSnapshot().shouldSeek(scan,oldestUnexpiredTS));
+  }
+
+  //methods for tests
 
   /**
    * @param cell Find the row that comes after this one.  If null, we return the
    * first.
    * @return Next row or null if none found.
    */
-  @Override
   Cell getNextRow(final Cell cell) {
-    return getLowest(super.getNextRow(cell), getNextRow(cell, this.snapshot.getCellSet()));
-  }
-
-  @Override protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
-    List<CellSetScanner> list = new ArrayList<CellSetScanner>(2);
-    list.add(0, getCellSet().getScanner(readPt));
-    list.add(1, snapshot.getScanner(readPt));
-    return list;
-  }
-
-  /**
-   * @param state column/delete tracking state
-   */
-  @Override
-  public void getRowKeyAtOrBefore(final GetClosestRowBeforeTracker state) {
-    super.getRowKeyAtOrBefore(state);
-    getRowKeyAtOrBefore(snapshot.getCellSet(), state);
-  }
-
-  /**
-   * Only used by tests. TODO: Remove
-   *
-   * Given the specs of a column, update it, first by inserting a new record,
-   * then removing the old one.  Since there is only 1 KeyValue involved, the memstoreTS
-   * will be set to 0, thus ensuring that they instantly appear to anyone. The underlying
-   * store will ensure that the insert/delete each are atomic. A scanner/reader will either
-   * get the new value, or the old value and all readers will eventually only see the new
-   * value after the old was removed.
-   *
-   * @param row
-   * @param family
-   * @param qualifier
-   * @param newValue
-   * @param now
-   * @return  Timestamp
-   */
-  @Override
-  public long updateColumnValue(byte[] row,
-                                byte[] family,
-                                byte[] qualifier,
-                                long newValue,
-                                long now) {
-    Cell firstCell = KeyValueUtil.createFirstOnRow(row, family, qualifier);
-    // Is there a Cell in 'snapshot' with the same TS? If so, upgrade the timestamp a bit.
-    SortedSet<Cell> snSs = snapshot.tailSet(firstCell);
-    if (!snSs.isEmpty()) {
-      Cell snc = snSs.first();
-      // is there a matching Cell in the snapshot?
-      if (CellUtil.matchingRow(snc, firstCell) && CellUtil.matchingQualifier(snc, firstCell)) {
-        if (snc.getTimestamp() == now) {
-          // poop,
-          now += 1;
-        }
-      }
-    }
-    return super.updateColumnValue(row, family, qualifier, newValue, now, firstCell);
-  }
-
-  /**
-   * @return scanner on memstore and snapshot in this order.
-   */
-  @Override
-  public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this, readPt));
-  }
-
-  /**
-   * Check if this memstore may contain the required keys
-   * @param scan
-   * @return False if the key definitely does not exist in this Memstore
-   */
-  @Override
-  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
-    return (super.shouldSeek(scan, oldestUnexpiredTS) ||
-            snapshot.shouldSeek(scan,oldestUnexpiredTS));
+    return getLowest(
+        getNextRow(cell, getCellSet().getCellSet()),
+        getNextRow(cell, getSnapshot().getCellSet()));
   }
 
   /*
