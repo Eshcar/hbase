@@ -18,10 +18,13 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Pair;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -39,7 +42,12 @@ import java.util.List;
  * them.
  */
 @InterfaceAudience.Private
-public class CompactedMemStore implements MemStore {
+public class CompactedMemStore extends AbstractMemStore {
+  protected CompactedMemStore(Configuration conf,
+      KeyValue.KVComparator c) {
+    super(conf, c);
+  }
+
   /**
    * Creates a snapshot of the current memstore. Snapshot must be cleared by call to
    * {@link #clearSnapshot(long)}.
@@ -79,6 +87,10 @@ public class CompactedMemStore implements MemStore {
    * @return size of the memstore snapshot
    */
   @Override public long getSnapshotSize() {
+    return 0;
+  }
+
+  @Override protected long deepOverhead() {
     return 0;
   }
 
@@ -189,5 +201,9 @@ public class CompactedMemStore implements MemStore {
    */
   @Override public long heapSize() {
     return 0;
+  }
+
+  @Override protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
+    return null;
   }
 }

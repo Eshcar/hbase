@@ -297,14 +297,4 @@ class CellSetScanner implements KeyValueScanner{
     return null;
   }
 
-  /**
-   * increase the scanners reference count so the underlying structure will not be deallocated
-   */
- // public void incScannerCount() {cellSetMgr.incScannerCount();}
-
-  /**
-   * decrease the scanners reference count so the underlying structure could not be deallocated
-   */
-  public void decScannerCount() {cellSetMgr.decScannerCount();}
-
 }

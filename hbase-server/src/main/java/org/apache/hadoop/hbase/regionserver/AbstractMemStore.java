@@ -406,6 +406,10 @@ public abstract class AbstractMemStore implements MemStore {
         oldestUnexpiredTS));
   }
 
+  public AtomicLong getSize() {
+    return size;
+  }
+
   /*
    * @param a
    * @param b
@@ -515,10 +519,6 @@ public abstract class AbstractMemStore implements MemStore {
     return heapSize() - deepOverhead();
   }
 
-  public AtomicLong getSize() {
-    return size;
-  }
-
   protected KeyValue.KVComparator getComparator() {
     return comparator;
   }
@@ -531,9 +531,6 @@ public abstract class AbstractMemStore implements MemStore {
     return timeRangeTracker;
   }
 
-  //TODO: TBD
-  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
-    return null;
-  }
+  abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;
 
 }

@@ -38,6 +38,7 @@ import org.apache.hadoop.hbase.util.Pair;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
@@ -204,6 +205,12 @@ public class DefaultMemStore extends AbstractMemStore {
     return getLowest(super.getNextRow(cell), getNextRow(cell, this.snapshot.getCellSet()));
   }
 
+  @Override protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
+    List<CellSetScanner> list = new ArrayList<CellSetScanner>(2);
+    list.add(0, getCellSet().getScanner(readPt));
+    list.add(1, snapshot.getScanner(readPt));
+    return list;
+  }
 
   /**
    * @param state column/delete tracking state

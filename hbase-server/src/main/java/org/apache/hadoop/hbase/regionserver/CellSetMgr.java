@@ -54,7 +54,7 @@ class CellSetMgr {
     this(cellSet,null);
   }
 
-  public KeyValueScanner getScanner(long readPoint) {
+  public CellSetScanner getScanner(long readPoint) {
     return new CellSetScanner(this, readPoint);
   }
 
