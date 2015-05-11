@@ -59,8 +59,6 @@ public abstract class AbstractMemStore implements MemStore {
   // Used to track own heapSize
   private final AtomicLong size;
 
-  private TimeRangeTracker timeRangeTracker;
-
   // Used to track when to flush
   private volatile long timeOfOldestEdit;
 
@@ -74,7 +72,6 @@ public abstract class AbstractMemStore implements MemStore {
   protected void resetCellSet() {
     this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(
         CellSetMgr.Type.READ_WRITE, conf, comparator);
-    this.timeRangeTracker = new TimeRangeTracker();
     // Reset heap to not include any keys
     this.size.set(deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
@@ -153,7 +150,7 @@ public abstract class AbstractMemStore implements MemStore {
     long s = 0;
     Cell toAdd = maybeCloneWithAllocator(deleteCell);
     s += heapSizeChange(toAdd, addToCellSet(toAdd));
-    timeRangeTracker.includeTimestamp(toAdd);
+    cellSet.includeTimestamp(toAdd);
     this.size.addAndGet(s);
     return s;
   }
@@ -401,9 +398,7 @@ public abstract class AbstractMemStore implements MemStore {
    * @return False if the key definitely does not exist in this cell set
    */
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
-    return (timeRangeTracker.includesTimeRange(scan.getTimeRange())
-        && (timeRangeTracker.getMaximumTimestamp() >=
-        oldestUnexpiredTS));
+    return cellSet.shouldSeek(scan, oldestUnexpiredTS);
   }
 
   public AtomicLong getSize() {
@@ -498,7 +493,7 @@ public abstract class AbstractMemStore implements MemStore {
    */
   private long internalAdd(final Cell toAdd) {
     long s = heapSizeChange(toAdd, addToCellSet(toAdd));
-    timeRangeTracker.includeTimestamp(toAdd);
+    cellSet.includeTimestamp(toAdd);
     this.size.addAndGet(s);
     return s;
   }
@@ -525,10 +520,6 @@ public abstract class AbstractMemStore implements MemStore {
 
   protected CellSetMgr getCellSet() {
     return cellSet;
-  }
-
-  protected TimeRangeTracker getTimeRangeTracker() {
-    return timeRangeTracker;
   }
 
   abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;

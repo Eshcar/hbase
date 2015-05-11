@@ -31,7 +31,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
-import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 
@@ -69,8 +68,6 @@ public class DefaultMemStore extends AbstractMemStore {
   // Used to track own heapSize
   private volatile long snapshotSize;
 
-  TimeRangeTracker snapshotTimeRangeTracker;
-
   volatile long snapshotId;
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
@@ -97,7 +94,6 @@ public class DefaultMemStore extends AbstractMemStore {
     super(conf, c);
     this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
         CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c);
-    snapshotTimeRangeTracker = new TimeRangeTracker();
     this.snapshotSize = 0;
   }
 
@@ -128,12 +124,11 @@ public class DefaultMemStore extends AbstractMemStore {
       this.snapshotSize = keySize();
       if (!getCellSet().isEmpty()) {
         this.snapshot = getCellSet();
-        this.snapshotTimeRangeTracker = this.getTimeRangeTracker();
         resetCellSet();
       }
     }
-    return new MemStoreSnapshot(this.snapshotId, snapshot.size(), this.snapshotSize,
-        this.snapshotTimeRangeTracker, new CollectionBackedScanner(snapshot.getCellSet(), getComparator()));
+    return new MemStoreSnapshot(this.snapshotId, snapshot.size(), this.snapshotSize, snapshot,
+        getComparator());
   }
 
   /**
@@ -154,7 +149,6 @@ public class DefaultMemStore extends AbstractMemStore {
     if (!this.snapshot.isEmpty()) {
       this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
           CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator());
-      this.snapshotTimeRangeTracker = new TimeRangeTracker();
     }
     this.snapshotSize = 0;
     this.snapshotId = -1;
@@ -276,9 +270,7 @@ public class DefaultMemStore extends AbstractMemStore {
   @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return (super.shouldSeek(scan, oldestUnexpiredTS) ||
-        ((snapshotTimeRangeTracker.includesTimeRange(scan.getTimeRange()))
-        && (snapshotTimeRangeTracker.getMaximumTimestamp() >=
-            oldestUnexpiredTS)));
+            snapshot.shouldSeek(scan,oldestUnexpiredTS));
   }
 
   /*

@@ -23,6 +23,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.ByteRange;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
@@ -44,11 +45,13 @@ class CellSetMgr {
 
   private volatile CellSet cellSet;
   private volatile MemStoreLAB memStoreLAB;
+  private TimeRangeTracker timeRangeTracker;
 
   // private c-tors. Instantiate objects only using factory
   private CellSetMgr(CellSet cellSet, MemStoreLAB memStoreLAB) {
     this.cellSet = cellSet;
     this.memStoreLAB = memStoreLAB;
+    this.timeRangeTracker = new TimeRangeTracker();
   }
   private CellSetMgr(CellSet cellSet) {
     this(cellSet,null);
@@ -138,6 +141,20 @@ class CellSetMgr {
 
   protected MemStoreLAB getMemStoreLAB() {
     return memStoreLAB;
+  }
+
+  public void includeTimestamp(Cell toAdd) {
+    timeRangeTracker.includeTimestamp(toAdd);
+  }
+
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+    return (timeRangeTracker.includesTimeRange(scan.getTimeRange())
+        && (timeRangeTracker.getMaximumTimestamp() >=
+        oldestUnexpiredTS));
+  }
+
+  public TimeRangeTracker getTimeRangeTracker() {
+    return timeRangeTracker;
   }
 
   /**
