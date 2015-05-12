@@ -70,7 +70,7 @@ public abstract class AbstractMemStore implements MemStore {
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
-          (7 * ClassSize.REFERENCE) +
+          (5 * ClassSize.REFERENCE) +
           (3 * Bytes.SIZEOF_LONG));
 
   public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
