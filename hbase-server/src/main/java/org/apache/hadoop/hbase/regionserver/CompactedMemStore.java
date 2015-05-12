@@ -22,6 +22,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Scan;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,6 +46,10 @@ public class CompactedMemStore extends AbstractMemStore {
   protected CompactedMemStore(Configuration conf,
       KeyValue.KVComparator c) {
     super(conf, c);
+  }
+
+  @Override public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+    return false;
   }
 
   @Override protected long deepOverhead() {

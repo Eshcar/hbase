@@ -127,6 +127,7 @@ public class DefaultMemStore extends AbstractMemStore {
    * @param scan
    * @return False if the key definitely does not exist in this cell set
    */
+  @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return
         (getCellSet().shouldSeek(scan, oldestUnexpiredTS) ||

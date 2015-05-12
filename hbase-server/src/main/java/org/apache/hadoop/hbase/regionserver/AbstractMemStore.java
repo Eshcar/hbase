@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -106,6 +107,8 @@ public abstract class AbstractMemStore implements MemStore {
     return notpresent ? ClassSize.align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY
         + CellUtil.estimatedHeapSizeOf(cell)) : 0;
   }
+
+  public abstract boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
   protected abstract long deepOverhead();
 

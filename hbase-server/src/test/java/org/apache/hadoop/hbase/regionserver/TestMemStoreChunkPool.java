@@ -117,7 +117,7 @@ public class TestMemStoreChunkPool {
 
     // Creating a snapshot
     MemStoreSnapshot snapshot = memstore.snapshot();
-    assertEquals(3, memstore.snapshot.size());
+    assertEquals(3, memstore.getSnapshot().size());
 
     // Adding value to "new" memstore
     assertEquals(0, memstore.getCellSet().size());
@@ -154,7 +154,7 @@ public class TestMemStoreChunkPool {
 
     // Creating a snapshot
     MemStoreSnapshot snapshot = memstore.snapshot();
-    assertEquals(3, memstore.snapshot.size());
+    assertEquals(3, memstore.getSnapshot().size());
 
     // Adding value to "new" memstore
     assertEquals(0, memstore.getCellSet().size());
