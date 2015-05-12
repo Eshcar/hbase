@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -39,8 +40,6 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static org.apache.hadoop.hbase.regionserver.DefaultMemStore.MemStoreScanner;
 
 /**
  * An abstract class, which implements the behaviour shared by all concrete memstore instances.
@@ -108,6 +107,8 @@ public abstract class AbstractMemStore implements MemStore {
     return notpresent ? ClassSize.align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY
         + CellUtil.estimatedHeapSizeOf(cell)) : 0;
   }
+
+  public abstract boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
   protected abstract long deepOverhead();
 
@@ -220,8 +221,7 @@ public abstract class AbstractMemStore implements MemStore {
    */
   @Override
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this,
-        readPt));
+    return Collections.<KeyValueScanner> singletonList(new DefaultMemStore.MemStoreScanner(this, readPt));
   }
 
   public AtomicLong getSize() {

@@ -98,7 +98,7 @@ public class DefaultMemStore extends AbstractMemStore {
     list.add(0, getCellSet().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
     return list;
-    }
+  }
 
   /**
    * Remove n key from the memstore. Only cells that have the same key and the
@@ -131,6 +131,7 @@ public class DefaultMemStore extends AbstractMemStore {
    * @param scan
    * @return False if the key definitely does not exist in this cell set
    */
+  @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return
         (getCellSet().shouldSeek(scan, oldestUnexpiredTS) ||
@@ -427,7 +428,7 @@ public class DefaultMemStore extends AbstractMemStore {
     @Override
     public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
         long oldestUnexpiredTS) {
-      return ((DefaultMemStore)ms).shouldSeek(scan, oldestUnexpiredTS);
+      return ms.shouldSeek(scan, oldestUnexpiredTS);
     }
 
     /**
