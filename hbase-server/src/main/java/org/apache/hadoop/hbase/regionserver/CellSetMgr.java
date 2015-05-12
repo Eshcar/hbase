@@ -23,6 +23,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.ByteRange;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
@@ -44,17 +45,19 @@ class CellSetMgr {
 
   private volatile CellSet cellSet;
   private volatile MemStoreLAB memStoreLAB;
+  private TimeRangeTracker timeRangeTracker;
 
   // private c-tors. Instantiate objects only using factory
   private CellSetMgr(CellSet cellSet, MemStoreLAB memStoreLAB) {
     this.cellSet = cellSet;
     this.memStoreLAB = memStoreLAB;
+    this.timeRangeTracker = new TimeRangeTracker();
   }
   private CellSetMgr(CellSet cellSet) {
     this(cellSet,null);
   }
 
-  public KeyValueScanner getScanner(long readPoint) {
+  public CellSetScanner getScanner(long readPoint) {
     return new CellSetScanner(this, readPoint);
   }
 
@@ -111,11 +114,6 @@ class CellSetMgr {
     return newKv;
   }
 
-  // methods for tests
-  Cell first() {
-    return this.getCellSet().first();
-  }
-
   public SortedSet<Cell> headSet(Cell firstKeyOnRow) {
     return this.getCellSet().headSet(firstKeyOnRow);
   }
@@ -136,8 +134,27 @@ class CellSetMgr {
     }
   }
 
+  // methods for tests
+  Cell first() {
+    return this.getCellSet().first();
+  }
+
   protected MemStoreLAB getMemStoreLAB() {
     return memStoreLAB;
+  }
+
+  public void includeTimestamp(Cell toAdd) {
+    timeRangeTracker.includeTimestamp(toAdd);
+  }
+
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+    return (timeRangeTracker.includesTimeRange(scan.getTimeRange())
+        && (timeRangeTracker.getMaximumTimestamp() >=
+        oldestUnexpiredTS));
+  }
+
+  public TimeRangeTracker getTimeRangeTracker() {
+    return timeRangeTracker;
   }
 
   /**
