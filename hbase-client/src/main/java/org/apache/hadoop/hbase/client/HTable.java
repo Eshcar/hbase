@@ -18,30 +18,13 @@
  */
 package org.apache.hadoop.hbase.client;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.InvalidProtocolBufferException;
-
+import com.google.protobuf.Message;
+import com.google.protobuf.Service;
+import com.google.protobuf.ServiceException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
@@ -54,6 +37,8 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.client.coprocessor.Batch;
 import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
@@ -74,10 +59,23 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
 
-import com.google.protobuf.Descriptors;
-import com.google.protobuf.Message;
-import com.google.protobuf.Service;
-import com.google.protobuf.ServiceException;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>Used to communicate with a single HBase table.  An implementation of
@@ -766,6 +764,11 @@ public class HTable implements HTableInterface {
       scan.setMaxResultSize(scannerMaxResultSize);
     }
 
+    Boolean async = scan.isAsyncPrefetch();
+    if (async == null) {
+      async = tableConfiguration.isClientScannerAsyncPrefetch();
+    }
+
     if (scan.isReversed()) {
       if (scan.isSmall()) {
         return new ClientSmallReversedScanner(getConfiguration(), scan, getName(),
@@ -778,7 +781,13 @@ public class HTable implements HTableInterface {
     if (scan.isSmall()) {
       return new ClientSmallScanner(getConfiguration(), scan, getName(), this.connection);
     } else {
-      return new ClientScanner(getConfiguration(), scan, getName(), this.connection);
+      if (async) {
+        return new ClientAsyncPrefetchScanner(getConfiguration(), scan, getName(), this.connection,
+            this.rpcCallerFactory, this.rpcControllerFactory);
+      } else {
+        return new ClientSimpleScanner(getConfiguration(), scan, getName(), this.connection,
+            this.rpcCallerFactory, this.rpcControllerFactory);
+      }
     }
   }
 

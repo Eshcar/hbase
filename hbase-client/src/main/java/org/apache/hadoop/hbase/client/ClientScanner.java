@@ -17,14 +17,9 @@
  */
 package org.apache.hadoop.hbase.client;
 
-import java.io.IOException;
-import java.util.LinkedList;
-
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
@@ -35,12 +30,18 @@ import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.UnknownScannerException;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.exceptions.OutOfOrderScannerNextException;
 import org.apache.hadoop.hbase.ipc.RpcControllerFactory;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.MapReduceProtos;
 import org.apache.hadoop.hbase.regionserver.RegionServerStoppedException;
 import org.apache.hadoop.hbase.util.Bytes;
+
+import java.io.IOException;
+import java.util.LinkedList;
+import java.util.Queue;
 
 /**
  * Implements the scanner interface for the HBase client.
@@ -49,7 +50,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
-public class ClientScanner extends AbstractClientScanner {
+public abstract class ClientScanner extends AbstractClientScanner {
     private final Log LOG = LogFactory.getLog(this.getClass());
     protected Scan scan;
     protected boolean closed = false;
@@ -57,7 +58,7 @@ public class ClientScanner extends AbstractClientScanner {
     // wonky: e.g. if it splits on us.
     protected HRegionInfo currentRegion = null;
     protected ScannerCallable callable = null;
-    protected final LinkedList<Result> cache = new LinkedList<Result>();
+    protected Queue<Result> cache;
     protected final int caching;
     protected long lastNext;
     // Keep lastResult returned successfully in case we have to reset scanner.
@@ -167,6 +168,7 @@ public class ClientScanner extends AbstractClientScanner {
         HConstants.HBASE_REGIONSERVER_LEASE_PERIOD_KEY,
         HConstants.DEFAULT_HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD);
 
+      initCache();
       // check if application wants to collect scan metrics
       initScanMetrics(scan);
 
@@ -184,6 +186,8 @@ public class ClientScanner extends AbstractClientScanner {
 
       initializeScannerInConstruction();
     }
+
+    protected abstract void initCache();
 
     protected void initializeScannerInConstruction() throws IOException{
       // initialize the scanner
@@ -328,8 +332,11 @@ public class ClientScanner extends AbstractClientScanner {
       scanMetricsPublished = true;
     }
 
-    @Override
-    public Result next() throws IOException {
+    protected void initSyncCache() {
+    cache = new LinkedList<Result>();
+  }
+
+    protected Result nextWithSyncCache() throws IOException {
       // If the scanner is closed and there's nothing left in the cache, next is a no-op.
       if (cache.size() == 0 && this.closed) {
         return null;
@@ -356,6 +363,8 @@ public class ClientScanner extends AbstractClientScanner {
    * Contact the servers to load more {@link Result}s in the cache.
    */
   protected void loadCache() throws IOException {
+    // check if scanner was closed during previous prefetch
+    if (closed) return;
     Result [] values = null;
     long remainingResultSize = maxScannerResultSize;
     int countdown = this.caching;
@@ -457,11 +466,10 @@ public class ClientScanner extends AbstractClientScanner {
       if (values != null && values.length > 0) {
         for (Result rs : values) {
           cache.add(rs);
-          for (Cell kv : rs.rawCells()) {
-            // TODO make method in Cell or CellUtil
-            remainingResultSize -= KeyValueUtil.ensureKeyValue(kv).heapSize();
-          }
+          long estimatedHeapSizeOfResult = calcEstimatedSize(rs);
           countdown--;
+          remainingResultSize -= estimatedHeapSizeOfResult;
+          addEstimatedSize(estimatedHeapSizeOfResult);
           this.lastResult = rs;
         }
       }
@@ -500,7 +508,25 @@ public class ClientScanner extends AbstractClientScanner {
         callable = null;
       }
       closed = true;
+   }
+
+  protected long calcEstimatedSize(Result rs) {
+    long estimatedHeapSizeOfResult = 0;
+    // We don't make Iterator here
+    for (Cell cell : rs.rawCells()) {
+      estimatedHeapSizeOfResult += KeyValueUtil.ensureKeyValue(cell).heapSize();
     }
+    return estimatedHeapSizeOfResult;
+  }
+
+  protected void addEstimatedSize(long estimatedHeapSizeOfResult) {
+    return;
+  }
+
+  @VisibleForTesting
+  public int getCacheCount() {
+    return cache != null ? cache.size() : 0;
+  }
 
     @Override
     public boolean renewLease() {

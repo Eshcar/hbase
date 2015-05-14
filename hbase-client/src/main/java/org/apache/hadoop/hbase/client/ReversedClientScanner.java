@@ -37,7 +37,7 @@ import org.apache.hadoop.hbase.util.ExceptionUtil;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
-public class ReversedClientScanner extends ClientScanner {
+public class ReversedClientScanner extends ClientSimpleScanner {
   private static final Log LOG = LogFactory.getLog(ReversedClientScanner.class);
   // A byte array in which all elements are the max byte, and it is used to
   // construct closest front row

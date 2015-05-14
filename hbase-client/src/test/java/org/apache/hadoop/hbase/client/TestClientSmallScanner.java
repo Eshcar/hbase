@@ -26,12 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.KeyValue.Type;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ClientSmallScanner.SmallScannerCallableFactory;
 import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hbase.ipc.RpcControllerFactory;
@@ -43,6 +39,15 @@ import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Queue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test the ClientSmallScanner.
@@ -175,10 +180,10 @@ public class TestClientSmallScanner {
 
       css.loadCache();
 
-      List<Result> results = css.cache;
+      Queue<Result> results = css.cache;
       assertEquals(3, results.size());
       for (int i = 1; i <= 3; i++) {
-        Result result = results.get(i - 1);
+        Result result = results.poll();
         byte[] row = result.getRow();
         assertEquals("row" + i, new String(row, "UTF-8"));
         assertEquals(1, result.getMap().size());
@@ -246,10 +251,10 @@ public class TestClientSmallScanner {
 
       css.loadCache();
 
-      List<Result> results = css.cache;
+      Queue<Result> results = css.cache;
       assertEquals(2, results.size());
       for (int i = 1; i <= 2; i++) {
-        Result result = results.get(i - 1);
+        Result result = results.poll();
         byte[] row = result.getRow();
         assertEquals("row" + i, new String(row, "UTF-8"));
         assertEquals(1, result.getMap().size());
@@ -261,7 +266,7 @@ public class TestClientSmallScanner {
       css.loadCache();
 
       assertEquals(1, results.size());
-      Result result = results.get(0);
+      Result result = results.peek();
       assertEquals("row3", new String(result.getRow(), "UTF-8"));
       assertEquals(1, result.getMap().size());
       assertTrue(css.closed);

@@ -138,8 +138,23 @@ public class Scan extends Query {
   private Map<byte [], NavigableSet<byte []>> familyMap =
     new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR);
   private Boolean loadColumnFamiliesOnDemand = null;
+  private Boolean asyncPrefetch = null;
 
   /**
+   * Parameter name for client scanner sync/async prefetch toggle.
+   * When using async scanner, prefetching data from the server is done at the background.
+   * The parameter currently won't have any effect in the case that the user has set
+   * Scan#setSmall or Scan#setReversed
+   */
+  public static final String HBASE_CLIENT_SCANNER_ASYNC_PREFETCH =
+      "hbase.client.scanner.async.prefetch";
+
+  /**
+   * Default value of {@link #HBASE_CLIENT_SCANNER_ASYNC_PREFETCH}.
+   */
+  public static final boolean DEFAULT_HBASE_CLIENT_SCANNER_ASYNC_PREFETCH = false;
+
+   /**
    * Set it true for small scan to get better performance
    * 
    * Small scan should use pread and big scan can use seek + read
@@ -247,6 +262,7 @@ public class Scan extends Query {
     this.tr = get.getTimeRange();
     this.familyMap = get.getFamilyMap();
     this.getScan = true;
+    this.asyncPrefetch = false;
     for (Map.Entry<String, byte[]> attr : get.getAttributesMap().entrySet()) {
       setAttribute(attr.getKey(), attr.getValue());
     }
@@ -771,5 +787,14 @@ public class Scan extends Query {
    */
   public boolean isSmall() {
     return small;
+  }
+  
+ public Boolean isAsyncPrefetch() {
+    return asyncPrefetch;
+  }
+
+  public Scan setAsyncPrefetch(boolean asyncPrefetch) {
+    this.asyncPrefetch = asyncPrefetch;
+    return this;
   }
 }
