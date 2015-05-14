@@ -22,7 +22,6 @@ import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -39,7 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An abstract class, which implements the behaviour shared by all concrete memstore instances.
@@ -56,43 +54,34 @@ public abstract class AbstractMemStore implements MemStore {
   // different.  Value is not important -- just make sure always same
   // reference passed.
   private volatile CellSetMgr cellSet;
-  // Used to track own heapSize
-  private final AtomicLong size;
-
   // Snapshot of memstore.  Made for flusher.
   volatile private CellSetMgr snapshot;
-  // Used to track own heapSize
-  private volatile long snapshotSize;
   volatile long snapshotId;
-
   // Used to track when to flush
   private volatile long timeOfOldestEdit;
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
-          (7 * ClassSize.REFERENCE) +
-          (3 * Bytes.SIZEOF_LONG));
+          (4 * ClassSize.REFERENCE) +
+          (2 * Bytes.SIZEOF_LONG));
 
   public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
-      ClassSize.ATOMIC_LONG + (2 * ClassSize.TIMERANGE_TRACKER) +
-      (2 * ClassSize.CELL_SKIPLIST_SET) + (2 * ClassSize.CONCURRENT_SKIPLISTMAP));
+      2 * (ClassSize.ATOMIC_LONG + ClassSize.TIMERANGE_TRACKER +
+      ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP));
 
   protected AbstractMemStore(final Configuration conf, final KeyValue.KVComparator c) {
     this.conf = conf;
     this.comparator = c;
-    this.size = new AtomicLong(deepOverhead());
     resetCellSet();
     this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c);
-    this.snapshotSize = 0;
+        CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c, 0);
 
   }
 
   protected void resetCellSet() {
-    this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.READ_WRITE, conf, comparator);
     // Reset heap to not include any keys
-    this.size.set(deepOverhead());
+    this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(
+        CellSetMgr.Type.READ_WRITE, conf, comparator, deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -170,8 +159,7 @@ public abstract class AbstractMemStore implements MemStore {
     long s = 0;
     Cell toAdd = maybeCloneWithAllocator(deleteCell);
     s += heapSizeChange(toAdd, addToCellSet(toAdd));
-    cellSet.includeTimestamp(toAdd);
-    this.size.addAndGet(s);
+    cellSet.includeCell(toAdd, s);
     return s;
   }
 
@@ -192,9 +180,8 @@ public abstract class AbstractMemStore implements MemStore {
     CellSetMgr oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
       this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-          CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator());
+          CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator(), 0);
     }
-    this.snapshotSize = 0;
     this.snapshotId = -1;
     oldSnapshot.close();
   }
@@ -213,7 +200,7 @@ public abstract class AbstractMemStore implements MemStore {
    */
   @Override
   public long heapSize() {
-    return size.get();
+    return getCellSet().getSize();
   }
 
   /**
@@ -224,36 +211,9 @@ public abstract class AbstractMemStore implements MemStore {
     return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this, readPt));
   }
 
-  public AtomicLong getSize() {
-    return size;
-  }
-
-  @Override
-  public long getFlushableSize() {
-    return this.snapshotSize > 0 ? this.snapshotSize : keySize();
-  }
-
   @Override
   public long getSnapshotSize() {
-    return this.snapshotSize;
-  }
-
-  protected MemStoreSnapshot prepareSnapshot(Log log) {
-    // If snapshot currently has entries, then flusher failed or didn't call
-    // cleanup.  Log a warning.
-    if (!this.snapshot.isEmpty()) {
-      log.warn("Snapshot called again without clearing previous. " +
-          "Doing nothing. Another ongoing flush or did we fail last attempt?");
-    } else {
-      this.snapshotId = EnvironmentEdgeManager.currentTime();
-      this.snapshotSize = keySize();
-      if (!getCellSet().isEmpty()) {
-        this.snapshot = getCellSet();
-        resetCellSet();
-      }
-    }
-    return new MemStoreSnapshot(this.snapshotId, snapshot.size(), this.snapshotSize, snapshot,
-        getComparator());
+    return getSnapshot().getSize();
   }
 
   protected void rollbackSnapshot(Cell cell) {
@@ -262,24 +222,17 @@ public abstract class AbstractMemStore implements MemStore {
     // not the snapshot. The flush of this snapshot to disk has not
     // yet started because Store.flush() waits for all rwcc transactions to
     // commit before starting the flush to disk.
-    Cell found = this.snapshot.get(cell);
-    if (found != null && found.getSequenceId() == cell.getSequenceId()) {
-      this.snapshot.remove(cell);
-      long sz = heapSizeChange(cell, true);
-      this.snapshotSize -= sz;
-    }
+    snapshot.rollback(cell);
   }
 
   protected void rollbackCellSet(Cell cell) {
     // If the key is in the memstore, delete it. Update this.size.
-    Cell found = this.cellSet.get(cell);
-    if (found != null && found.getSequenceId() == cell.getSequenceId()) {
-      removeFromCellSet(cell);
-      long s = heapSizeChange(cell, true);
-      this.size.addAndGet(-s);
+    long sz = cellSet.rollback(cell);
+    if (sz != 0) {
+      setOldestEditTimeToNow();
     }
-
   }
+
 
   protected void dump(Log log) {
     for (Cell cell: this.cellSet.getCellSet()) {
@@ -290,118 +243,6 @@ public abstract class AbstractMemStore implements MemStore {
     }
   }
 
-
-  private boolean removeFromCellSet(Cell e) {
-    boolean b = this.cellSet.remove(e);
-    setOldestEditTimeToNow();
-    return b;
-  }
-
-  /*
-   * @param set
-   * @param state Accumulates deletes and candidates.
-   */
-  protected void getRowKeyAtOrBefore(final NavigableSet<Cell> set,
-      final GetClosestRowBeforeTracker state) {
-    if (set.isEmpty()) {
-      return;
-    }
-    if (!walkForwardInSingleRow(set, state.getTargetKey(), state)) {
-      // Found nothing in row.  Try backing up.
-      getRowKeyBefore(set, state);
-    }
-  }
-
-  /*
-   * Walk forward in a row from <code>firstOnRow</code>.  Presumption is that
-   * we have been passed the first possible key on a row.  As we walk forward
-   * we accumulate deletes until we hit a candidate on the row at which point
-   * we return.
-   * @param set
-   * @param firstOnRow First possible key on this row.
-   * @param state
-   * @return True if we found a candidate walking this row.
-   */
-  private boolean walkForwardInSingleRow(final SortedSet<Cell> set,
-      final Cell firstOnRow, final GetClosestRowBeforeTracker state) {
-    boolean foundCandidate = false;
-    SortedSet<Cell> tail = set.tailSet(firstOnRow);
-    if (tail.isEmpty()) return foundCandidate;
-    for (Iterator<Cell> i = tail.iterator(); i.hasNext();) {
-      Cell kv = i.next();
-      // Did we go beyond the target row? If so break.
-      if (state.isTooFar(kv, firstOnRow)) break;
-      if (state.isExpired(kv)) {
-        i.remove();
-        continue;
-      }
-      // If we added something, this row is a contender. break.
-      if (state.handle(kv)) {
-        foundCandidate = true;
-        break;
-      }
-    }
-    return foundCandidate;
-  }
-
-  /*
-   * Walk backwards through the passed set a row at a time until we run out of
-   * set or until we get a candidate.
-   * @param set
-   * @param state
-   */
-  private void getRowKeyBefore(NavigableSet<Cell> set,
-      final GetClosestRowBeforeTracker state) {
-    Cell firstOnRow = state.getTargetKey();
-    for (Member p = memberOfPreviousRow(set, state, firstOnRow);
-         p != null; p = memberOfPreviousRow(p.set, state, firstOnRow)) {
-      // Make sure we don't fall out of our table.
-      if (!state.isTargetTable(p.cell)) break;
-      // Stop looking if we've exited the better candidate range.
-      if (!state.isBetterCandidate(p.cell)) break;
-      // Make into firstOnRow
-      firstOnRow = new KeyValue(p.cell.getRowArray(), p.cell.getRowOffset(), p.cell.getRowLength(),
-          HConstants.LATEST_TIMESTAMP);
-      // If we find something, break;
-      if (walkForwardInSingleRow(p.set, firstOnRow, state)) break;
-    }
-  }
-
-  /*
-  * Immutable data structure to hold member found in set and the set it was
-  * found in. Include set because it is carrying context.
-  */
-  private static class Member {
-    final Cell cell;
-    final NavigableSet<Cell> set;
-    Member(final NavigableSet<Cell> s, final Cell kv) {
-      this.cell = kv;
-      this.set = s;
-    }
-  }
-
-  /*
-   * @param set Set to walk back in.  Pass a first in row or we'll return
-   * same row (loop).
-   * @param state Utility and context.
-   * @param firstOnRow First item on the row after the one we want to find a
-   * member in.
-   * @return Null or member of row previous to <code>firstOnRow</code>
-   */
-  private Member memberOfPreviousRow(NavigableSet<Cell> set,
-      final GetClosestRowBeforeTracker state, final Cell firstOnRow) {
-    NavigableSet<Cell> head = set.headSet(firstOnRow, false);
-    if (head.isEmpty()) return null;
-    for (Iterator<Cell> i = head.descendingIterator(); i.hasNext();) {
-      Cell found = i.next();
-      if (state.isExpired(found)) {
-        i.remove();
-        continue;
-      }
-      return new Member(head, found);
-    }
-    return null;
-  }
 
   /**
    * Inserts the specified KeyValue into MemStore and deletes any existing
@@ -455,7 +296,7 @@ public abstract class AbstractMemStore implements MemStore {
             // false means there was a change, so give us the size.
             long delta = heapSizeChange(cur, true);
             addedSize -= delta;
-            this.size.addAndGet(-delta);
+            cellSet.incSize(-delta);
             it.remove();
             setOldestEditTimeToNow();
           } else {
@@ -579,9 +420,9 @@ public abstract class AbstractMemStore implements MemStore {
    * Callers should ensure they already have the read lock taken
    */
   private long internalAdd(final Cell toAdd) {
-    long s = heapSizeChange(toAdd, addToCellSet(toAdd));
-    cellSet.includeTimestamp(toAdd);
-    this.size.addAndGet(s);
+    boolean succ = addToCellSet(toAdd);
+    long s = heapSizeChange(toAdd, succ);
+    cellSet.includeCell(toAdd, s);
     return s;
   }
 
@@ -613,6 +454,18 @@ public abstract class AbstractMemStore implements MemStore {
     return snapshot;
   }
 
+  protected void setSnapshot(CellSetMgr snapshot) {
+    this.snapshot = snapshot;
+  }
+
+  protected void setSnapshotSize(long snapshotSize) {
+    getSnapshot().setSize(snapshotSize);
+  }
+
   abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;
+
+  //methods for tests
+  abstract long getSize();
+
 
 }

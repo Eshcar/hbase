@@ -28,6 +28,7 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 
 import java.io.IOException;
@@ -85,7 +86,21 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public MemStoreSnapshot snapshot() {
-    return prepareSnapshot(LOG);
+    // If snapshot currently has entries, then flusher failed or didn't call
+    // cleanup.  Log a warning.
+    if (!getSnapshot().isEmpty()) {
+      LOG.warn("Snapshot called again without clearing previous. " +
+          "Doing nothing. Another ongoing flush or did we fail last attempt?");
+    } else {
+      this.snapshotId = EnvironmentEdgeManager.currentTime();
+      if (!getCellSet().isEmpty()) {
+        setSnapshot(getCellSet());
+        setSnapshotSize(keySize());
+        resetCellSet();
+      }
+    }
+    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
+
   }
 
   @Override
@@ -118,20 +133,26 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-    getRowKeyAtOrBefore(getCellSet().getCellSet(), state);
-    getRowKeyAtOrBefore(getSnapshot().getCellSet(), state);
+    getCellSet().getRowKeyAtOrBefore(state);
+    getSnapshot().getRowKeyAtOrBefore(state);
   }
 
   /**
-   * Check if this cell set may contain the required keys
+   * Check if this memstore may contain the required keys
    * @param scan
-   * @return False if the key definitely does not exist in this cell set
+   * @return False if the key definitely does not exist in this memstore
    */
   @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return
         (getCellSet().shouldSeek(scan, oldestUnexpiredTS) ||
          getSnapshot().shouldSeek(scan,oldestUnexpiredTS));
+  }
+
+  @Override
+  public long getFlushableSize() {
+    long snapshotSize = getSnapshot().getSize();
+    return snapshotSize > 0 ? snapshotSize : keySize();
   }
 
   //methods for tests
@@ -146,6 +167,11 @@ public class DefaultMemStore extends AbstractMemStore {
         getNextRow(cell, getCellSet().getCellSet()),
         getNextRow(cell, getSnapshot().getCellSet()));
   }
+
+  @Override long getSize() {
+    return getCellSet().getSize();
+  }
+
 
   /*
    * MemStoreScanner implements the KeyValueScanner.

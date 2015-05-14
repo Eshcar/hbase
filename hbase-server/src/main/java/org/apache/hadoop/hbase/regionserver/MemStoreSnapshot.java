@@ -35,20 +35,10 @@ public class MemStoreSnapshot {
   private final TimeRangeTracker timeRangeTracker;
   private final KeyValueScanner scanner;
 
-  public MemStoreSnapshot(long id, int cellsCount, long size, TimeRangeTracker timeRangeTracker,
-      KeyValueScanner scanner) {
+  public MemStoreSnapshot(long id, CellSetMgr snapshot, KeyValue.KVComparator comparator) {
     this.id = id;
-    this.cellsCount = cellsCount;
-    this.size = size;
-    this.timeRangeTracker = timeRangeTracker;
-    this.scanner = scanner;
-  }
-
-  public MemStoreSnapshot(long id, int cellsCount, long size, CellSetMgr snapshot,
-      KeyValue.KVComparator comparator) {
-    this.id = id;
-    this.cellsCount = cellsCount;
-    this.size = size;
+    this.cellsCount = snapshot.getCellsCount();
+    this.size = snapshot.getSize();
     this.timeRangeTracker = snapshot.getTimeRangeTracker();
     this.scanner = new CollectionBackedScanner(snapshot.getCellSet(),comparator);
   }

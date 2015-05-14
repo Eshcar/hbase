@@ -20,7 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
-import java.util.List;
+import java.util.LinkedList;
 
 /**
  * A list of cell set managers coupled with the version of the memstore version at the time it was
@@ -35,20 +35,20 @@ import java.util.List;
 @InterfaceAudience.Private
 public class VersionedCellSetMgrList {
 
-  private final List<CellSetMgr> cellSetMgrList;
-  private final long id;
+  private final LinkedList<CellSetMgr> cellSetMgrList;
+  private final long version;
 
   public VersionedCellSetMgrList(
-      List<CellSetMgr> cellSetMgrList, long id) {
+      LinkedList<CellSetMgr> cellSetMgrList, long version) {
     this.cellSetMgrList = cellSetMgrList;
-    this.id = id;
+    this.version = version;
   }
 
-  public List<CellSetMgr> getCellSetMgrList() {
+  public LinkedList<CellSetMgr> getCellSetMgrList() {
     return cellSetMgrList;
   }
 
-  public long getId() {
-    return id;
+  public long getVersion() {
+    return version;
   }
 }

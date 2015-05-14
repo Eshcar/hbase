@@ -18,10 +18,16 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
 /**
- * The compaction queue of a {@link CompactedMemStore}, is a kind of a FIFO of cell set buckets.
+ * The compaction pipeline of a {@link CompactedMemStore}, is a FIFO queue of cell set buckets.
  * It supports pushing a cell set bucket at the head of the pipeline and pulling a bucket from the
  * tail to flush to disk.
  * It also supports swap operation to allow the compactor swap a subset of the buckets with a new
@@ -32,19 +38,149 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 @InterfaceAudience.Private
 public class CompactionPipeline {
 
-  boolean pushHead(CellSetMgr cellSetMgr) {
-    return false;
+  private LinkedList<CellSetMgr> pipeline;
+  private long version;
+  // a lock to protect critical sections changing the structure of the list
+  private final Lock lock;
+
+  private static final CellSetMgr EMPTY_CELL_SET_MGR = CellSetMgr.Factory.instance()
+      .createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, null);
+
+  public CompactionPipeline() {
+    this.pipeline = new LinkedList<CellSetMgr>();
+    this.version = 0;
+    this.lock = new ReentrantLock(true);
   }
 
-  CellSetMgr pullTail() {
-    return null;
+  public boolean pushHead(CellSetMgr cellSetMgr) {
+    lock.lock();
+    try {
+      return addFirst(cellSetMgr);
+    } finally {
+      lock.unlock();
+    }
   }
 
-  VersionedCellSetMgrList getCellSetMgrList() {
-    return null;
+  public CellSetMgr pullTail() {
+    lock.lock();
+    try {
+      if(pipeline.isEmpty()) {
+        return EMPTY_CELL_SET_MGR;
+      }
+      return removeLast();
+    } finally {
+      lock.unlock();
+    }
   }
 
-  boolean swap(VersionedCellSetMgrList versionedList, CellSetMgr cellSetMgr) {
-    return false;
+  public VersionedCellSetMgrList getVersionedList() {
+    lock.lock();
+    try {
+      LinkedList<CellSetMgr> cellSetMgrList = new LinkedList<CellSetMgr>(pipeline);
+      VersionedCellSetMgrList res = new VersionedCellSetMgrList(cellSetMgrList, version);
+      return res;
+    } finally {
+      lock.unlock();
+    }
   }
+
+  public boolean swap(VersionedCellSetMgrList versionedList, CellSetMgr cellSetMgr) {
+    if(versionedList.getVersion() != version) {
+      return false;
+    }
+    lock.lock();
+    try {
+      if(versionedList.getVersion() != version) {
+        return false;
+      }
+      LinkedList<CellSetMgr> suffix = versionedList.getCellSetMgrList();
+      boolean valid = validateSufixList(suffix);
+      if(!valid) return false;
+      swapSuffix(suffix,cellSetMgr);
+      return true;
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  public long rollback(Cell cell) {
+    lock.lock();
+    long sz = 0;
+    try {
+      if(!pipeline.isEmpty()) {
+        Iterator<CellSetMgr> pipelineBackwardIterator = pipeline.descendingIterator();
+        CellSetMgr current = pipelineBackwardIterator.next();
+        for (; pipelineBackwardIterator.hasNext(); current = pipelineBackwardIterator.next()) {
+          sz += current.rollback(cell);
+        }
+        if(sz != 0) {
+          incVersion();
+        }
+      }
+      return sz;
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
+    for(CellSetMgr item : getCellSetMgrList()) {
+      item.getRowKeyAtOrBefore(state);
+    }
+  }
+
+  public LinkedList<CellSetMgr> getCellSetMgrList() {
+    return pipeline;
+  }
+
+  public long size() {
+    return pipeline.size();
+  }
+
+  private boolean validateSufixList(LinkedList<CellSetMgr> suffix) {
+    if(suffix.isEmpty()) {
+      // empty suffix is always valid
+      return true;
+    }
+
+    Iterator<CellSetMgr> pipelineBackwardIterator = pipeline.descendingIterator();
+    Iterator<CellSetMgr> suffixBackwardIterator = suffix.descendingIterator();
+    CellSetMgr suffixCurrent;
+    CellSetMgr pipelineCurrent;
+    for( ; suffixBackwardIterator.hasNext(); ) {
+      if(!pipelineBackwardIterator.hasNext()) {
+        // a suffix longer than pipeline is invalid
+        return false;
+      }
+      suffixCurrent = suffixBackwardIterator.next();
+      pipelineCurrent = pipelineBackwardIterator.next();
+      if(suffixCurrent != pipelineCurrent) {
+        // non-matching suffix
+        return false;
+      }
+    }
+    // suffix matches pipeline suffix
+    return true;
+  }
+
+  private void swapSuffix(LinkedList<CellSetMgr> suffix, CellSetMgr cellSetMgr) {
+    version++;
+    pipeline.removeAll(suffix);
+    pipeline.addLast(cellSetMgr);
+  }
+
+  private CellSetMgr removeLast() {
+    version++;
+    return pipeline.removeLast();
+  }
+
+  private boolean addFirst(CellSetMgr cellSetMgr) {
+    pipeline.add(0,cellSetMgr);
+    return true;
+  }
+
+  private void incVersion() {
+    version++;
+  }
+
 }

@@ -31,7 +31,7 @@ class MemStoreCompactor {
                               long readPoint, AbstractMemStore ms) throws IOException{
         this.cp = cp;
         this.readPoint = readPoint;
-        this.versionedList = cp.getCellSetMgrList();
+        this.versionedList = cp.getVersionedList();
         this.comparator = comparator;
         ArrayList<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
 
@@ -81,7 +81,7 @@ class MemStoreCompactor {
     private class Worker implements Runnable {
         private final CellSetMgr resultCellSetMgr =
                 CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.COMPACTED_READ_ONLY,
-                                                                comparator);
+                                                                comparator, 0);
 
         @Override
         public void run() {
