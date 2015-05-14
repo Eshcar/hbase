@@ -789,6 +789,11 @@ public class HTable implements HTableInterface, RegionLocator {
       scan.setMaxResultSize(scannerMaxResultSize);
     }
 
+    Boolean async = scan.isAsyncPrefetch();
+    if (async == null) {
+      async = tableConfiguration.isClientScannerAsyncPrefetch();
+    }
+
     if (scan.isReversed()) {
       if (scan.isSmall()) {
         return new ClientSmallReversedScanner(getConfiguration(), scan, getName(),
@@ -806,9 +811,15 @@ public class HTable implements HTableInterface, RegionLocator {
           this.connection, this.rpcCallerFactory, this.rpcControllerFactory,
           pool, tableConfiguration.getReplicaCallTimeoutMicroSecondScan());
     } else {
-      return new ClientScanner(getConfiguration(), scan, getName(), this.connection,
-          this.rpcCallerFactory, this.rpcControllerFactory,
-          pool, tableConfiguration.getReplicaCallTimeoutMicroSecondScan());
+      if (async) {
+        return new ClientAsyncPrefetchScanner(getConfiguration(), scan, getName(), this.connection,
+            this.rpcCallerFactory, this.rpcControllerFactory,
+            pool, tableConfiguration.getReplicaCallTimeoutMicroSecondScan());
+      } else {
+        return new ClientSimpleScanner(getConfiguration(), scan, getName(), this.connection,
+            this.rpcCallerFactory, this.rpcControllerFactory,
+            pool, tableConfiguration.getReplicaCallTimeoutMicroSecondScan());
+      }
     }
   }
 

@@ -17,14 +17,7 @@
  */
 package org.apache.hadoop.hbase.client;
 
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -46,7 +39,14 @@ import org.apache.hadoop.hbase.protobuf.generated.MapReduceProtos;
 import org.apache.hadoop.hbase.regionserver.RegionServerStoppedException;
 import org.apache.hadoop.hbase.util.Bytes;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Implements the scanner interface for the HBase client.
@@ -54,7 +54,7 @@ import com.google.common.annotations.VisibleForTesting;
  * through them all.
  */
 @InterfaceAudience.Private
-public class ClientScanner extends AbstractClientScanner {
+public abstract class ClientScanner extends AbstractClientScanner {
     private static final Log LOG = LogFactory.getLog(ClientScanner.class);
     // A byte array in which all elements are the max byte, and it is used to
     // construct closest front row
@@ -65,7 +65,7 @@ public class ClientScanner extends AbstractClientScanner {
     // wonky: e.g. if it splits on us.
     protected HRegionInfo currentRegion = null;
     protected ScannerCallableWithReplicas callable = null;
-    protected final LinkedList<Result> cache = new LinkedList<Result>();
+    protected Queue<Result> cache;
     /**
      * A list of partial results that have been returned from the server. This list should only
      * contain results if this scanner does not have enough partial results to form the complete
@@ -152,8 +152,11 @@ public class ClientScanner extends AbstractClientScanner {
       this.rpcControllerFactory = controllerFactory;
 
       this.conf = conf;
+      initCache();
       initializeScannerInConstruction();
     }
+
+    protected abstract void initCache();
 
     protected void initializeScannerInConstruction() throws IOException{
       // initialize the scanner
@@ -354,8 +357,11 @@ public class ClientScanner extends AbstractClientScanner {
       scanMetricsPublished = true;
     }
 
-    @Override
-    public Result next() throws IOException {
+    protected void initSyncCache() {
+    cache = new LinkedList<Result>();
+  }
+
+    protected Result nextWithSyncCache() throws IOException {
       // If the scanner is closed and there's nothing left in the cache, next is a no-op.
       if (cache.size() == 0 && this.closed) {
         return null;
@@ -382,6 +388,8 @@ public class ClientScanner extends AbstractClientScanner {
    * Contact the servers to load more {@link Result}s in the cache.
    */
   protected void loadCache() throws IOException {
+    // check if scanner was closed during previous prefetch
+    if (closed) return;
     Result[] values = null;
     long remainingResultSize = maxScannerResultSize;
     int countdown = this.caching;
@@ -494,11 +502,10 @@ public class ClientScanner extends AbstractClientScanner {
       if (!resultsToAddToCache.isEmpty()) {
         for (Result rs : resultsToAddToCache) {
           cache.add(rs);
-          // We don't make Iterator here
-          for (Cell cell : rs.rawCells()) {
-            remainingResultSize -= CellUtil.estimatedHeapSizeOf(cell);
-          }
+          long estimatedHeapSizeOfResult = calcEstimatedSize(rs);
           countdown--;
+          remainingResultSize -= estimatedHeapSizeOfResult;
+          addEstimatedSize(estimatedHeapSizeOfResult);
           this.lastResult = rs;
         }
       }
@@ -542,6 +549,24 @@ public class ClientScanner extends AbstractClientScanner {
   private boolean doneWithRegion(long remainingResultSize, int remainingRows,
       boolean regionHasMoreResults) {
     return remainingResultSize > 0 && remainingRows > 0 && !regionHasMoreResults;
+  }
+
+  protected long calcEstimatedSize(Result rs) {
+    long estimatedHeapSizeOfResult = 0;
+    // We don't make Iterator here
+    for (Cell cell : rs.rawCells()) {
+      estimatedHeapSizeOfResult += CellUtil.estimatedHeapSizeOf(cell);
+    }
+    return estimatedHeapSizeOfResult;
+  }
+
+  protected void addEstimatedSize(long estimatedHeapSizeOfResult) {
+    return;
+  }
+
+  @VisibleForTesting
+  public int getCacheCount() {
+    return cache != null ? cache.size() : 0;
   }
 
   /**
