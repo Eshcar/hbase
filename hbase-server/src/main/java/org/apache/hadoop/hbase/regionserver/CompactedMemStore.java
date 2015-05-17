@@ -93,7 +93,10 @@ public class CompactedMemStore extends AbstractMemStore {
     return list;
   }
 
-  @Override long getSize() {
+  /**
+   * @return Total memory occupied by this MemStore.
+   */
+  @Override public long size() {
     return 0;
   }
 
@@ -129,7 +132,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override public void rollback(Cell cell) {
     rollbackSnapshot(cell);
-    rollbackPipeline(cell);
+    pipeline.rollback(cell);
     rollbackCellSet(cell);
   }
 
@@ -154,8 +157,5 @@ public class CompactedMemStore extends AbstractMemStore {
     return list;
   }
 
-  private void rollbackPipeline(Cell cell) {
-    long sz = pipeline.rollback(cell);
-  }
 
 }

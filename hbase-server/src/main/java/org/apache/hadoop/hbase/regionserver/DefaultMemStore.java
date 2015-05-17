@@ -168,8 +168,11 @@ public class DefaultMemStore extends AbstractMemStore {
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 
-  @Override long getSize() {
-    return getCellSet().getSize();
+  /**
+   * @return Total memory occupied by this MemStore.
+   */
+  @Override public long size() {
+    return heapSize();
   }
 
 

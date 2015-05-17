@@ -187,14 +187,6 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
-   * @return Total memory occupied by this MemStore.
-   */
-  @Override
-  public long size() {
-    return heapSize();
-  }
-
-  /**
    * Get the entire heap usage for this MemStore not including keys in the
    * snapshot.
    */
@@ -463,9 +455,5 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;
-
-  //methods for tests
-  abstract long getSize();
-
 
 }

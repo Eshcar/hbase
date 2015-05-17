@@ -26,7 +26,20 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.KeepDeletedCells;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueTestUtil;
+import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.TableDescriptor;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
@@ -48,7 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** memstore test case */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestDefaultMemStore extends TestCase {
-  private final Log LOG = LogFactory.getLog(this.getClass());
+  private static final Log LOG = LogFactory.getLog(TestDefaultMemStore.class);
   private DefaultMemStore memstore;
   private static final int ROW_COUNT = 10;
   private static final int QUALIFIER_COUNT = ROW_COUNT;
@@ -813,7 +826,7 @@ public class TestDefaultMemStore extends TestCase {
   public void testUpsertMemstoreSize() throws Exception {
     Configuration conf = HBaseConfiguration.create();
     memstore = new DefaultMemStore(conf, KeyValue.COMPARATOR);
-    long oldSize = memstore.getSize().get();
+    long oldSize = memstore.size();
 
     List<Cell> l = new ArrayList<Cell>();
     KeyValue kv1 = KeyValueTestUtil.create("r", "f", "q", 100, "v");
@@ -824,7 +837,7 @@ public class TestDefaultMemStore extends TestCase {
     l.add(kv1); l.add(kv2); l.add(kv3);
 
     this.memstore.upsert(l, 2);// readpoint is 2
-    long newSize = this.memstore.getSize().get();
+    long newSize = this.memstore.size();
     assert(newSize > oldSize);
     //The kv1 should be removed.
     assert(memstore.getCellSet().getCellsCount() == 2);
@@ -833,7 +846,7 @@ public class TestDefaultMemStore extends TestCase {
     kv4.setSequenceId(1);
     l.clear(); l.add(kv4);
     this.memstore.upsert(l, 3);
-    assertEquals(newSize, this.memstore.getSize().get());
+    assertEquals(newSize, this.memstore.size());
     //The kv2 should be removed.
     assert(memstore.getCellSet().getCellsCount() == 2);
     //this.memstore = null;
