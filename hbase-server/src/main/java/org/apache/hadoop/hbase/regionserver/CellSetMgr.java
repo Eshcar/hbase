@@ -50,19 +50,25 @@ class CellSetMgr {
 
   private volatile CellSet cellSet;
   private volatile MemStoreLAB memStoreLAB;
+  private final CellComparator comparator;
   private TimeRangeTracker timeRangeTracker;
   private final AtomicLong size;
 
   // private c-tors. Instantiate objects only using factory
-  private CellSetMgr(CellSet cellSet, MemStoreLAB memStoreLAB, long size) {
+  private CellSetMgr(CellSet cellSet, MemStoreLAB memStoreLAB, long size, CellComparator comparator) {
     this.cellSet = cellSet;
     this.memStoreLAB = memStoreLAB;
+    this.comparator = comparator;
     this.timeRangeTracker = new TimeRangeTracker();
     this.size = new AtomicLong(size);
   }
 
-  private CellSetMgr(CellSet cellSet, long size) {
-    this(cellSet, null, size);
+  private CellSetMgr(CellSet cellSet, long size, CellComparator comparator) {
+    this(cellSet, null, size, comparator);
+  }
+
+  public CellComparator getComparator() {
+    return comparator;
   }
 
   /**
@@ -326,7 +332,7 @@ class CellSetMgr {
       case EMPTY_SNAPSHOT:
       case COMPACTED_READ_ONLY:
       default:
-        obj = new CellSetMgr(set, memStoreLAB, size);
+        obj = new CellSetMgr(set, memStoreLAB, size, comparator);
       }
       return obj;
     }

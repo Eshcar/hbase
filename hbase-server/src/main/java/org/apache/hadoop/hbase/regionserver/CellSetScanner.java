@@ -104,7 +104,7 @@ class CellSetScanner implements KeyValueScanner{
   @Override public boolean reseek(Cell key) throws IOException {
     while(iter.hasNext()){
       Cell next = iter.next();
-      int ret = cellSetMgr.getCellSet().comparator().compare(next, key);
+      int ret = cellSetMgr.getComparator().compare(next, key);
       if(ret >= 0){
         current = next;
         return true;
