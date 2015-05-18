@@ -93,6 +93,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                 // the initial MemStoreScanner. In future implementation ScanQueryMatcher need
                 // to be used
             }
+
+            return currentCell;
         }
         return null;
     }
