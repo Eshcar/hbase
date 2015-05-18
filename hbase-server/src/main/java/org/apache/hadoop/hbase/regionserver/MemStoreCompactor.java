@@ -20,7 +20,7 @@ import java.util.ArrayList;
 @InterfaceAudience.Private
 class MemStoreCompactor {
     private CompactionPipeline cp;
-    private MemStoreScanner scanner;
+    private DefaultMemStore.MemStoreScanner scanner;
     private VersionedCellSetMgrList versionedList;
     private long readPoint;
     final CellComparator comparator;
@@ -39,8 +39,8 @@ class MemStoreCompactor {
             scanners.add(mgr.getScanner(readPoint));
         }
 
-        scanner =
-                new MemStoreScanner(ms,readPoint, MemStoreScanType.COMPACT_FORWARD);
+//        scanner =
+//                new MemStoreScanner(ms,readPoint, MemStoreScanType.COMPACT_FORWARD);
     }
 
     /*
