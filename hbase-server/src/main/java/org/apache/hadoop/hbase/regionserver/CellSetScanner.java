@@ -185,7 +185,7 @@ class CellSetScanner implements KeyValueScanner{
    * the function signature no exception is thrown.
    */
   @Override public boolean realSeekDone() {
-    return false;
+    return true;
   }
 
   /**
