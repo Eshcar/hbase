@@ -44,7 +44,7 @@ public class CompactionPipeline {
   private final Lock lock;
 
   private static final CellSetMgr EMPTY_CELL_SET_MGR = CellSetMgr.Factory.instance()
-      .createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, null);
+      .createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, null,0);
 
   public CompactionPipeline() {
     this.pipeline = new LinkedList<CellSetMgr>();
@@ -68,6 +68,18 @@ public class CompactionPipeline {
         return EMPTY_CELL_SET_MGR;
       }
       return removeLast();
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  public CellSetMgr peekTail() {
+    lock.lock();
+    try {
+      if(pipeline.isEmpty()) {
+        return EMPTY_CELL_SET_MGR;
+      }
+      return peekLast();
     } finally {
       lock.unlock();
     }
@@ -172,6 +184,10 @@ public class CompactionPipeline {
   private CellSetMgr removeLast() {
     version++;
     return pipeline.removeLast();
+  }
+
+  private CellSetMgr peekLast() {
+    return pipeline.peekLast();
   }
 
   private boolean addFirst(CellSetMgr cellSetMgr) {

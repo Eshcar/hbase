@@ -18,6 +18,8 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
@@ -25,6 +27,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +51,10 @@ import java.util.List;
 @InterfaceAudience.Private
 public class CompactedMemStore extends AbstractMemStore {
 
+  private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
+  private static final int CELLS_COUNT_MIN_THRESHOLD = 1000;
+  private static final int CELLS_SIZE_MIN_THRESHOLD = 4 * 1024 * 1024; //4MB
+
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private boolean forceFlush;
@@ -56,7 +63,8 @@ public class CompactedMemStore extends AbstractMemStore {
           (2 * ClassSize.REFERENCE) +
           (1 * Bytes.SIZEOF_BOOLEAN));
 
-  private final static long DEEP_OVERHEAD_PER_ITEM = ClassSize.align(ClassSize.TIMERANGE_TRACKER +
+  private final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
+      .TIMERANGE_TRACKER +
       ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
 
   protected CompactedMemStore(Configuration conf,
@@ -79,7 +87,7 @@ public class CompactedMemStore extends AbstractMemStore {
 
   @Override protected long deepOverhead() {
     return DEEP_OVERHEAD + ADDITIONAL_FIXED_OVERHEAD +
-        (pipeline.size() * DEEP_OVERHEAD_PER_ITEM);
+        (pipeline.size() * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
   }
 
   @Override protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
@@ -95,9 +103,15 @@ public class CompactedMemStore extends AbstractMemStore {
 
   /**
    * @return Total memory occupied by this MemStore.
+   * This is not thread safe and the memstore may be changed while computing its size.
+   * It is the responsibility of the caller to make sure this doesn't happen.
    */
   @Override public long size() {
-    return 0;
+    long res = 0;
+    for(CellSetMgr item : getCellSetMgrList()) {
+      res += item.getSize();
+    }
+    return res;
   }
 
   /**
@@ -109,19 +123,46 @@ public class CompactedMemStore extends AbstractMemStore {
    * @return {@link MemStoreSnapshot}
    */
   @Override public MemStoreSnapshot snapshot() {
-    return null;
+    if(!forceFlush) {
+      LOG.info("Snapshot called without forcing flush. ");
+      CellSetMgr active = getCellSet();
+      if(active.getCellsCount() > CELLS_COUNT_MIN_THRESHOLD ||
+          active.getSize() > CELLS_SIZE_MIN_THRESHOLD) {
+        LOG.info("Pushing active set into compaction pipeline.");
+        pipeline.pushHead(active);
+        resetCellSet();
+        compactor.doCompact();
+      }
+    } else {
+      // If snapshot currently has entries, then flusher failed or didn't call
+      // cleanup.  Log a warning.
+      if (!getSnapshot().isEmpty()) {
+        LOG.warn("Snapshot called again without clearing previous. " +
+            "Doing nothing. Another ongoing flush or did we fail last attempt?");
+      } else {
+        this.snapshotId = EnvironmentEdgeManager.currentTime();
+        CellSetMgr tail = pipeline.pullTail();
+        setSnapshot(tail);
+        setSnapshotSize(tail.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+      }
+    }
+    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
+
   }
 
   /**
    * On flush, how much memory we will clear.
-   * Flush will first clear out the data in snapshot if any (It will take a second flush
-   * invocation to clear the current Cell set). If snapshot is empty, current
-   * Cell set will be flushed.
+   * If force flush flag is one flush will first clear out the data in snapshot if any.
+   * If snapshot is empty, tail of pipeline will be flushed.
    *
    * @return size of data that is going to be flushed
    */
   @Override public long getFlushableSize() {
-    return 0;
+    long snapshotSize = getSnapshot().getSize();
+    if(forceFlush && snapshotSize == 0) {
+      snapshotSize = pipeline.peekTail().getSize();
+    }
+    return snapshotSize;
   }
 
   /**
