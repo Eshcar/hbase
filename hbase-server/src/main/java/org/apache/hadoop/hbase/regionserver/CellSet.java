@@ -18,17 +18,13 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.NavigableSet;
-import java.util.SortedSet;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * A {@link java.util.Set} of {@link Cell}s implemented on top of a
@@ -45,14 +41,25 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
  * get and set and won't throw ConcurrentModificationException when iterating.
  */
 @InterfaceAudience.Private
-public class CellSkipListSet implements NavigableSet<Cell> {
+public class CellSet implements NavigableSet<Cell>  {
   private final ConcurrentNavigableMap<Cell, Cell> delegatee;
 
-  CellSkipListSet(final CellComparator c) {
-    this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
+  CellSet(final CellComparator c) {
+    this(CellSetMgr.Type.DEFAULT,c);
   }
 
-  CellSkipListSet(final ConcurrentNavigableMap<Cell, Cell> m) {
+  CellSet(final CellSetMgr.Type type, final CellComparator c) {
+    switch (type) {
+    case READ_WRITE:
+    case EMPTY_SNAPSHOT:
+    case COMPACTED_READ_ONLY:
+    case DEFAULT:
+    default:
+      this.delegatee = new ConcurrentSkipListMap<Cell, Cell>(c);
+    }
+  }
+
+  CellSet(final ConcurrentNavigableMap<Cell, Cell> m) {
     this.delegatee = m;
   }
 
@@ -78,7 +85,7 @@ public class CellSkipListSet implements NavigableSet<Cell> {
 
   public NavigableSet<Cell> headSet(final Cell toElement,
       boolean inclusive) {
-    return new CellSkipListSet(this.delegatee.headMap(toElement, inclusive));
+    return new CellSet(this.delegatee.headMap(toElement, inclusive));
   }
 
   public Cell higher(Cell e) {
@@ -115,7 +122,7 @@ public class CellSkipListSet implements NavigableSet<Cell> {
   }
 
   public NavigableSet<Cell> tailSet(Cell fromElement, boolean inclusive) {
-    return new CellSkipListSet(this.delegatee.tailMap(fromElement, inclusive));
+    return new CellSet(this.delegatee.tailMap(fromElement, inclusive));
   }
 
   public Comparator<? super Cell> comparator() {
