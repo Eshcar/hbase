@@ -90,6 +90,7 @@ public class TestWideScanner extends HBaseTestCase {
   @Test
   public void testWideScanBatching() throws IOException {
     final int batch = 256;
+    LOG.error("  -----vv-----  \n");
     try {
       this.r = createNewHRegion(TESTTABLEDESC, null, null);
       int inserted = addWideContent(this.r);
@@ -135,7 +136,7 @@ public class TestWideScanner extends HBaseTestCase {
 
       // assert that the scanner returned all values
       LOG.info("inserted " + inserted + ", scanned " + total);
-      assertEquals(total, inserted);
+      assertEquals(("inserted " + inserted + ", scanned " + total) ,total, inserted);
 
       s.close();
     } finally {

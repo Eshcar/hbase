@@ -5402,6 +5402,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         // to the StoreScanner to ensure that any progress made thus far is not wiped away.
         scannerContext.setKeepProgress(true);
         heap.next(results, scannerContext);
+
+        //Anastasia's addition for debugging start
+//        if (results.size() > 100) {
+//          throw new AssertionError("\nRegion Scanner found 100 cells\n");
+//        }
+        //Anastasia's addition for debugging end
+
         scannerContext.setKeepProgress(tmpKeepProgress);
 
         nextKv = heap.peek();

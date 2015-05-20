@@ -19,6 +19,7 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
@@ -75,15 +76,15 @@ public class DefaultMemStore implements MemStore {
 
   private Configuration conf;
 
-  // MemStore.  Use a CellSkipListSet rather than SkipListSet because of the
+  // MemStore.  Use a CellSetMgr rather than SkipListSet because of the
   // better semantics.  The Map will overwrite if passed a key it already had
   // whereas the Set will not add new Cell if key is same though value might be
   // different.  Value is not important -- just make sure always same
   // reference passed.
-  volatile CellSkipListSet cellSet;
+  volatile CellSetMgr cellSet;
 
   // Snapshot of memstore.  Made for flusher.
-  volatile CellSkipListSet snapshot;
+  volatile CellSetMgr snapshot;
 
   final CellComparator comparator;
 
@@ -97,8 +98,8 @@ public class DefaultMemStore implements MemStore {
   TimeRangeTracker timeRangeTracker;
   TimeRangeTracker snapshotTimeRangeTracker;
 
-  volatile MemStoreLAB allocator;
-  volatile MemStoreLAB snapshotAllocator;
+  //volatile MemStoreLAB allocator;
+  //volatile MemStoreLAB snapshotAllocator;
   volatile long snapshotId;
 
   /**
@@ -116,26 +117,26 @@ public class DefaultMemStore implements MemStore {
                   final CellComparator c) {
     this.conf = conf;
     this.comparator = c;
-    this.cellSet = new CellSkipListSet(c);
-    this.snapshot = new CellSkipListSet(c);
+    this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.READ_WRITE, conf, KeyValue.COMPARATOR);
+    this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, conf, KeyValue.COMPARATOR);
     timeRangeTracker = new TimeRangeTracker();
     snapshotTimeRangeTracker = new TimeRangeTracker();
     this.size = new AtomicLong(DEEP_OVERHEAD);
     this.snapshotSize = 0;
-    if (conf.getBoolean(USEMSLAB_KEY, USEMSLAB_DEFAULT)) {
-      String className = conf.get(MSLAB_CLASS_NAME, HeapMemStoreLAB.class.getName());
-      this.allocator = ReflectionUtils.instantiateWithCustomCtor(className,
-          new Class[] { Configuration.class }, new Object[] { conf });
-    } else {
-      this.allocator = null;
-    }
+//    if (conf.getBoolean(USEMSLAB_KEY, USEMSLAB_DEFAULT)) {
+//      String className = conf.get(MSLAB_CLASS_NAME, HeapMemStoreLAB.class.getName());
+//      this.allocator = ReflectionUtils.instantiateWithCustomCtor(className,
+//          new Class[] { Configuration.class }, new Object[] { conf });
+//    } else {
+//      this.allocator = null;
+//    }
   }
 
   void dump() {
-    for (Cell cell: this.cellSet) {
+    for (Cell cell: this.cellSet.getCellSet()) {
       LOG.info(cell);
     }
-    for (Cell cell: this.snapshot) {
+    for (Cell cell: this.snapshot.getCellSet()) {
       LOG.info(cell);
     }
   }
@@ -156,23 +157,24 @@ public class DefaultMemStore implements MemStore {
       this.snapshotSize = keySize();
       if (!this.cellSet.isEmpty()) {
         this.snapshot = this.cellSet;
-        this.cellSet = new CellSkipListSet(this.comparator);
+        this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(
+                CellSetMgr.Type.READ_WRITE, conf, KeyValue.COMPARATOR);
         this.snapshotTimeRangeTracker = this.timeRangeTracker;
         this.timeRangeTracker = new TimeRangeTracker();
         // Reset heap to not include any keys
         this.size.set(DEEP_OVERHEAD);
-        this.snapshotAllocator = this.allocator;
-        // Reset allocator so we get a fresh buffer for the new memstore
-        if (allocator != null) {
-          String className = conf.get(MSLAB_CLASS_NAME, HeapMemStoreLAB.class.getName());
-          this.allocator = ReflectionUtils.instantiateWithCustomCtor(className,
-              new Class[] { Configuration.class }, new Object[] { conf });
-        }
+//        this.snapshotAllocator = this.allocator;
+//        // Reset allocator so we get a fresh buffer for the new memstore
+//        if (allocator != null) {
+//          String className = conf.get(MSLAB_CLASS_NAME, HeapMemStoreLAB.class.getName());
+//          this.allocator = ReflectionUtils.instantiateWithCustomCtor(className,
+//              new Class[] { Configuration.class }, new Object[] { conf });
+//        }
         timeOfOldestEdit = Long.MAX_VALUE;
       }
     }
     return new MemStoreSnapshot(this.snapshotId, snapshot.size(), this.snapshotSize,
-        this.snapshotTimeRangeTracker, new CollectionBackedScanner(snapshot, this.comparator));
+        this.snapshotTimeRangeTracker, new CollectionBackedScanner(snapshot.getCellSet(), this.comparator));
   }
 
   /**
@@ -191,18 +193,20 @@ public class DefaultMemStore implements MemStore {
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = new CellSkipListSet(this.comparator);
+      this.snapshot.close();
+      this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
+              CellSetMgr.Type.EMPTY_SNAPSHOT, conf, KeyValue.COMPARATOR);
       this.snapshotTimeRangeTracker = new TimeRangeTracker();
     }
     this.snapshotSize = 0;
     this.snapshotId = -1;
-    if (this.snapshotAllocator != null) {
-      tmpAllocator = this.snapshotAllocator;
-      this.snapshotAllocator = null;
-    }
-    if (tmpAllocator != null) {
-      tmpAllocator.close();
-    }
+//    if (this.snapshotAllocator != null) {
+//      tmpAllocator = this.snapshotAllocator;
+//      this.snapshotAllocator = null;
+//    }
+//    if (tmpAllocator != null) {
+//      tmpAllocator.close();
+//    }
   }
 
   @Override
@@ -223,7 +227,7 @@ public class DefaultMemStore implements MemStore {
    */
   @Override
   public Pair<Long, Cell> add(Cell cell) {
-    Cell toAdd = maybeCloneWithAllocator(cell);
+    Cell toAdd = cellSet.maybeCloneWithAllocator(cell);
     return new Pair<Long, Cell>(internalAdd(toAdd), toAdd);
   }
 
@@ -263,24 +267,24 @@ public class DefaultMemStore implements MemStore {
     return s;
   }
 
-  private Cell maybeCloneWithAllocator(Cell cell) {
-    if (allocator == null) {
-      return cell;
-    }
-
-    int len = KeyValueUtil.length(cell);
-    ByteRange alloc = allocator.allocateBytes(len);
-    if (alloc == null) {
-      // The allocation was too large, allocator decided
-      // not to do anything with it.
-      return cell;
-    }
-    assert alloc.getBytes() != null;
-    KeyValueUtil.appendToByteArray(cell, alloc.getBytes(), alloc.getOffset());
-    KeyValue newKv = new KeyValue(alloc.getBytes(), alloc.getOffset(), len);
-    newKv.setSequenceId(cell.getSequenceId());
-    return newKv;
-  }
+//  private Cell maybeCloneWithAllocator(Cell cell) {
+//    if (allocator == null) {
+//      return cell;
+//    }
+//
+//    int len = KeyValueUtil.length(cell);
+//    ByteRange alloc = allocator.allocateBytes(len);
+//    if (alloc == null) {
+//      // The allocation was too large, allocator decided
+//      // not to do anything with it.
+//      return cell;
+//    }
+//    assert alloc.getBytes() != null;
+//    KeyValueUtil.appendToByteArray(cell, alloc.getBytes(), alloc.getOffset());
+//    KeyValue newKv = new KeyValue(alloc.getBytes(), alloc.getOffset(), len);
+//    newKv.setSequenceId(cell.getSequenceId());
+//    return newKv;
+//  }
 
   /**
    * Remove n key from the memstore. Only cells that have the same key and the
@@ -320,7 +324,7 @@ public class DefaultMemStore implements MemStore {
   @Override
   public long delete(Cell deleteCell) {
     long s = 0;
-    Cell toAdd = maybeCloneWithAllocator(deleteCell);
+    Cell toAdd = cellSet.maybeCloneWithAllocator(deleteCell);
     s += heapSizeChange(toAdd, addToCellSet(toAdd));
     timeRangeTracker.includeTimestamp(toAdd);
     this.size.addAndGet(s);
@@ -333,7 +337,7 @@ public class DefaultMemStore implements MemStore {
    * @return Next row or null if none found.
    */
   Cell getNextRow(final Cell cell) {
-    return getLowest(getNextRow(cell, this.cellSet), getNextRow(cell, this.snapshot));
+    return getLowest(getNextRow(cell, this.cellSet.getCellSet()), getNextRow(cell, this.snapshot.getCellSet()));
   }
 
   /*
@@ -378,8 +382,8 @@ public class DefaultMemStore implements MemStore {
    */
   @Override
   public void getRowKeyAtOrBefore(final GetClosestRowBeforeTracker state) {
-    getRowKeyAtOrBefore(cellSet, state);
-    getRowKeyAtOrBefore(snapshot, state);
+    getRowKeyAtOrBefore(cellSet.getCellSet(), state);
+    getRowKeyAtOrBefore(snapshot.getCellSet(), state);
   }
 
   /*
@@ -651,9 +655,21 @@ public class DefaultMemStore implements MemStore {
    * @return scanner on memstore and snapshot in this order.
    */
   @Override
-  public List<KeyValueScanner> getScanners(long readPt) {
-    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(readPt));
+  public List<KeyValueScanner> getScanners(long readPt) throws IOException{
+    return Collections.<KeyValueScanner> singletonList(
+            new MemStoreScanner(this, readPt, MemStoreScanType.USER_SCAN_FORWARD));
   }
+
+
+  public List<CellSetScanner> getListOfScanners(long readPt){
+    ArrayList scanners = new ArrayList<CellSetScanner>();
+    scanners.add(cellSet.getScanner(readPt));
+    scanners.add(snapshot.getScanner(readPt));
+    return scanners;
+  }
+
+
+
 
   /**
    * Check if this memstore may contain the required keys
@@ -674,340 +690,340 @@ public class DefaultMemStore implements MemStore {
    * map and snapshot.
    * This behaves as if it were a real scanner but does not maintain position.
    */
-  protected class MemStoreScanner extends NonLazyKeyValueScanner {
-    // Next row information for either cellSet or snapshot
-    private Cell cellSetNextRow = null;
-    private Cell snapshotNextRow = null;
-
-    // last iterated Cells for cellSet and snapshot (to restore iterator state after reseek)
-    private Cell cellSetItRow = null;
-    private Cell snapshotItRow = null;
-    
-    // iterator based scanning.
-    private Iterator<Cell> cellSetIt;
-    private Iterator<Cell> snapshotIt;
-
-    // The cellSet and snapshot at the time of creating this scanner
-    private CellSkipListSet cellSetAtCreation;
-    private CellSkipListSet snapshotAtCreation;
-
-    // the pre-calculated Cell to be returned by peek() or next()
-    private Cell theNext;
-
-    // The allocator and snapshot allocator at the time of creating this scanner
-    volatile MemStoreLAB allocatorAtCreation;
-    volatile MemStoreLAB snapshotAllocatorAtCreation;
-    
-    // A flag represents whether could stop skipping Cells for MVCC
-    // if have encountered the next row. Only used for reversed scan
-    private boolean stopSkippingCellsIfNextRow = false;
-
-    private long readPoint;
-
-    /*
-    Some notes...
-
-     So memstorescanner is fixed at creation time. this includes pointers/iterators into
-    existing kvset/snapshot.  during a snapshot creation, the kvset is null, and the
-    snapshot is moved.  since kvset is null there is no point on reseeking on both,
-      we can save us the trouble. During the snapshot->hfile transition, the memstore
-      scanner is re-created by StoreScanner#updateReaders().  StoreScanner should
-      potentially do something smarter by adjusting the existing memstore scanner.
-
-      But there is a greater problem here, that being once a scanner has progressed
-      during a snapshot scenario, we currently iterate past the kvset then 'finish' up.
-      if a scan lasts a little while, there is a chance for new entries in kvset to
-      become available but we will never see them.  This needs to be handled at the
-      StoreScanner level with coordination with MemStoreScanner.
-
-      Currently, this problem is only partly managed: during the small amount of time
-      when the StoreScanner has not yet created a new MemStoreScanner, we will miss
-      the adds to kvset in the MemStoreScanner.
-    */
-
-    MemStoreScanner(long readPoint) {
-      super();
-
-      this.readPoint = readPoint;
-      cellSetAtCreation = cellSet;
-      snapshotAtCreation = snapshot;
-      if (allocator != null) {
-        this.allocatorAtCreation = allocator;
-        this.allocatorAtCreation.incScannerCount();
-      }
-      if (snapshotAllocator != null) {
-        this.snapshotAllocatorAtCreation = snapshotAllocator;
-        this.snapshotAllocatorAtCreation.incScannerCount();
-      }
-      if (Trace.isTracing() && Trace.currentSpan() != null) {
-        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
-      }
-    }
-
-    /**
-     * Lock on 'this' must be held by caller.
-     * @param it
-     * @return Next Cell
-     */
-    private Cell getNext(Iterator<Cell> it) {
-      Cell startCell = theNext;
-      Cell v = null;
-      try {
-        while (it.hasNext()) {
-          v = it.next();
-          if (v.getSequenceId() <= this.readPoint) {
-            return v;
-          }
-          if (stopSkippingCellsIfNextRow && startCell != null
-              && comparator.compareRows(v, startCell) > 0) {
-            return null;
-          }
-        }
-
-        return null;
-      } finally {
-        if (v != null) {
-          // in all cases, remember the last Cell iterated to
-          if (it == snapshotIt) {
-            snapshotItRow = v;
-          } else {
-            cellSetItRow = v;
-          }
-        }
-      }
-    }
-
-    /**
-     *  Set the scanner at the seek key.
-     *  Must be called only once: there is no thread safety between the scanner
-     *   and the memStore.
-     * @param key seek value
-     * @return false if the key is null or if there is no data
-     */
-    @Override
-    public synchronized boolean seek(Cell key) {
-      if (key == null) {
-        close();
-        return false;
-      }
-      // kvset and snapshot will never be null.
-      // if tailSet can't find anything, SortedSet is empty (not null).
-      cellSetIt = cellSetAtCreation.tailSet(key).iterator();
-      snapshotIt = snapshotAtCreation.tailSet(key).iterator();
-      cellSetItRow = null;
-      snapshotItRow = null;
-
-      return seekInSubLists(key);
-    }
-
-
-    /**
-     * (Re)initialize the iterators after a seek or a reseek.
-     */
-    private synchronized boolean seekInSubLists(Cell key){
-      cellSetNextRow = getNext(cellSetIt);
-      snapshotNextRow = getNext(snapshotIt);
-
-      // Calculate the next value
-      theNext = getLowest(cellSetNextRow, snapshotNextRow);
-
-      // has data
-      return (theNext != null);
-    }
-
-
-    /**
-     * Move forward on the sub-lists set previously by seek.
-     * @param key seek value (should be non-null)
-     * @return true if there is at least one KV to read, false otherwise
-     */
-    @Override
-    public synchronized boolean reseek(Cell key) {
-      /*
-      See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
-      This code is executed concurrently with flush and puts, without locks.
-      Two points must be known when working on this code:
-      1) It's not possible to use the 'kvTail' and 'snapshot'
-       variables, as they are modified during a flush.
-      2) The ideal implementation for performance would use the sub skip list
-       implicitly pointed by the iterators 'kvsetIt' and
-       'snapshotIt'. Unfortunately the Java API does not offer a method to
-       get it. So we remember the last keys we iterated to and restore
-       the reseeked set to at least that point.
-       */
-      cellSetIt = cellSetAtCreation.tailSet(getHighest(key, cellSetItRow)).iterator();
-      snapshotIt = snapshotAtCreation.tailSet(getHighest(key, snapshotItRow)).iterator();
-
-      return seekInSubLists(key);
-    }
-
-
-    @Override
-    public synchronized Cell peek() {
-      //DebugPrint.println(" MS@" + hashCode() + " peek = " + getLowest());
-      return theNext;
-    }
-
-    @Override
-    public synchronized Cell next() {
-      if (theNext == null) {
-          return null;
-      }
-
-      final Cell ret = theNext;
-
-      // Advance one of the iterators
-      if (theNext == cellSetNextRow) {
-        cellSetNextRow = getNext(cellSetIt);
-      } else {
-        snapshotNextRow = getNext(snapshotIt);
-      }
-
-      // Calculate the next value
-      theNext = getLowest(cellSetNextRow, snapshotNextRow);
-
-      //long readpoint = ReadWriteConsistencyControl.getThreadReadPoint();
-      //DebugPrint.println(" MS@" + hashCode() + " next: " + theNext + " next_next: " +
-      //    getLowest() + " threadpoint=" + readpoint);
-      return ret;
-    }
-
-    /*
-     * Returns the lower of the two key values, or null if they are both null.
-     * This uses comparator.compare() to compare the KeyValue using the memstore
-     * comparator.
-     */
-    private Cell getLowest(Cell first, Cell second) {
-      if (first == null && second == null) {
-        return null;
-      }
-      if (first != null && second != null) {
-        int compare = comparator.compare(first, second);
-        return (compare <= 0 ? first : second);
-      }
-      return (first != null ? first : second);
-    }
-
-    /*
-     * Returns the higher of the two cells, or null if they are both null.
-     * This uses comparator.compare() to compare the Cell using the memstore
-     * comparator.
-     */
-    private Cell getHighest(Cell first, Cell second) {
-      if (first == null && second == null) {
-        return null;
-      }
-      if (first != null && second != null) {
-        int compare = comparator.compare(first, second);
-        return (compare > 0 ? first : second);
-      }
-      return (first != null ? first : second);
-    }
-
-    public synchronized void close() {
-      this.cellSetNextRow = null;
-      this.snapshotNextRow = null;
-
-      this.cellSetIt = null;
-      this.snapshotIt = null;
-      
-      if (allocatorAtCreation != null) {
-        this.allocatorAtCreation.decScannerCount();
-        this.allocatorAtCreation = null;
-      }
-      if (snapshotAllocatorAtCreation != null) {
-        this.snapshotAllocatorAtCreation.decScannerCount();
-        this.snapshotAllocatorAtCreation = null;
-      }
-
-      this.cellSetItRow = null;
-      this.snapshotItRow = null;
-    }
-
-    /**
-     * MemStoreScanner returns max value as sequence id because it will
-     * always have the latest data among all files.
-     */
-    @Override
-    public long getSequenceID() {
-      return Long.MAX_VALUE;
-    }
-
-    @Override
-    public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
-        long oldestUnexpiredTS) {
-      return shouldSeek(scan, oldestUnexpiredTS);
-    }
-
-    /**
-     * Seek scanner to the given key first. If it returns false(means
-     * peek()==null) or scanner's peek row is bigger than row of given key, seek
-     * the scanner to the previous row of given key
-     */
-    @Override
-    public synchronized boolean backwardSeek(Cell key) {
-      seek(key);
-      if (peek() == null || comparator.compareRows(peek(), key) > 0) {
-        return seekToPreviousRow(key);
-      }
-      return true;
-    }
-
-    /**
-     * Separately get the KeyValue before the specified key from kvset and
-     * snapshotset, and use the row of higher one as the previous row of
-     * specified key, then seek to the first KeyValue of previous row
-     */
-    @Override
-    public synchronized boolean seekToPreviousRow(Cell key) {
-      Cell firstKeyOnRow = KeyValueUtil.createFirstOnRow(key.getRowArray(), key.getRowOffset(),
-          key.getRowLength());
-      SortedSet<Cell> cellHead = cellSetAtCreation.headSet(firstKeyOnRow);
-      Cell cellSetBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
-      SortedSet<Cell> snapshotHead = snapshotAtCreation
-          .headSet(firstKeyOnRow);
-      Cell snapshotBeforeRow = snapshotHead.isEmpty() ? null : snapshotHead
-          .last();
-      Cell lastCellBeforeRow = getHighest(cellSetBeforeRow, snapshotBeforeRow);
-      if (lastCellBeforeRow == null) {
-        theNext = null;
-        return false;
-      }
-      Cell firstKeyOnPreviousRow = KeyValueUtil.createFirstOnRow(lastCellBeforeRow.getRowArray(),
-          lastCellBeforeRow.getRowOffset(), lastCellBeforeRow.getRowLength());
-      this.stopSkippingCellsIfNextRow = true;
-      seek(firstKeyOnPreviousRow);
-      this.stopSkippingCellsIfNextRow = false;
-      if (peek() == null
-          || comparator.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
-        return seekToPreviousRow(lastCellBeforeRow);
-      }
-      return true;
-    }
-
-    @Override
-    public synchronized boolean seekToLastRow() {
-      Cell first = cellSetAtCreation.isEmpty() ? null : cellSetAtCreation
-          .last();
-      Cell second = snapshotAtCreation.isEmpty() ? null
-          : snapshotAtCreation.last();
-      Cell higherCell = getHighest(first, second);
-      if (higherCell == null) {
-        return false;
-      }
-      Cell firstCellOnLastRow = KeyValueUtil.createFirstOnRow(higherCell.getRowArray(),
-          higherCell.getRowOffset(), higherCell.getRowLength());
-      if (seek(firstCellOnLastRow)) {
-        return true;
-      } else {
-        return seekToPreviousRow(higherCell);
-      }
-
-    }
-  }
+//  protected class MemStoreScanner extends NonLazyKeyValueScanner {
+//    // Next row information for either cellSet or snapshot
+//    private Cell cellSetNextRow = null;
+//    private Cell snapshotNextRow = null;
+//
+//    // last iterated Cells for cellSet and snapshot (to restore iterator state after reseek)
+//    private Cell cellSetItRow = null;
+//    private Cell snapshotItRow = null;
+//
+//    // iterator based scanning.
+//    private Iterator<Cell> cellSetIt;
+//    private Iterator<Cell> snapshotIt;
+//
+//    // The cellSet and snapshot at the time of creating this scanner
+//    private CellSetMgr cellSetAtCreation;
+//    private CellSetMgr snapshotAtCreation;
+//
+//    // the pre-calculated Cell to be returned by peek() or next()
+//    private Cell theNext;
+//
+//    // The allocator and snapshot allocator at the time of creating this scanner
+//    volatile MemStoreLAB allocatorAtCreation;
+//    volatile MemStoreLAB snapshotAllocatorAtCreation;
+//
+//    // A flag represents whether could stop skipping Cells for MVCC
+//    // if have encountered the next row. Only used for reversed scan
+//    private boolean stopSkippingCellsIfNextRow = false;
+//
+//    private long readPoint;
+//
+//    /*
+//    Some notes...
+//
+//     So memstorescanner is fixed at creation time. this includes pointers/iterators into
+//    existing kvset/snapshot.  during a snapshot creation, the kvset is null, and the
+//    snapshot is moved.  since kvset is null there is no point on reseeking on both,
+//      we can save us the trouble. During the snapshot->hfile transition, the memstore
+//      scanner is re-created by StoreScanner#updateReaders().  StoreScanner should
+//      potentially do something smarter by adjusting the existing memstore scanner.
+//
+//      But there is a greater problem here, that being once a scanner has progressed
+//      during a snapshot scenario, we currently iterate past the kvset then 'finish' up.
+//      if a scan lasts a little while, there is a chance for new entries in kvset to
+//      become available but we will never see them.  This needs to be handled at the
+//      StoreScanner level with coordination with MemStoreScanner.
+//
+//      Currently, this problem is only partly managed: during the small amount of time
+//      when the StoreScanner has not yet created a new MemStoreScanner, we will miss
+//      the adds to kvset in the MemStoreScanner.
+//    */
+//
+//    MemStoreScanner(long readPoint) {
+//      super();
+//
+//      this.readPoint = readPoint;
+//      cellSetAtCreation = cellSet;
+//      snapshotAtCreation = snapshot;
+//      if (allocator != null) {
+//        this.allocatorAtCreation = allocator;
+//        this.allocatorAtCreation.incScannerCount();
+//      }
+//      if (snapshotAllocator != null) {
+//        this.snapshotAllocatorAtCreation = snapshotAllocator;
+//        this.snapshotAllocatorAtCreation.incScannerCount();
+//      }
+//      if (Trace.isTracing() && Trace.currentSpan() != null) {
+//        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+//      }
+//    }
+//
+//    /**
+//     * Lock on 'this' must be held by caller.
+//     * @param it
+//     * @return Next Cell
+//     */
+//    private Cell getNext(Iterator<Cell> it) {
+//      Cell startCell = theNext;
+//      Cell v = null;
+//      try {
+//        while (it.hasNext()) {
+//          v = it.next();
+//          if (v.getSequenceId() <= this.readPoint) {
+//            return v;
+//          }
+//          if (stopSkippingCellsIfNextRow && startCell != null
+//              && comparator.compareRows(v, startCell) > 0) {
+//            return null;
+//          }
+//        }
+//
+//        return null;
+//      } finally {
+//        if (v != null) {
+//          // in all cases, remember the last Cell iterated to
+//          if (it == snapshotIt) {
+//            snapshotItRow = v;
+//          } else {
+//            cellSetItRow = v;
+//          }
+//        }
+//      }
+//    }
+//
+//    /**
+//     *  Set the scanner at the seek key.
+//     *  Must be called only once: there is no thread safety between the scanner
+//     *   and the memStore.
+//     * @param key seek value
+//     * @return false if the key is null or if there is no data
+//     */
+//    @Override
+//    public synchronized boolean seek(Cell key) {
+//      if (key == null) {
+//        close();
+//        return false;
+//      }
+//      // kvset and snapshot will never be null.
+//      // if tailSet can't find anything, SortedSet is empty (not null).
+//      cellSetIt = cellSetAtCreation.tailSet(key).iterator();
+//      snapshotIt = snapshotAtCreation.tailSet(key).iterator();
+//      cellSetItRow = null;
+//      snapshotItRow = null;
+//
+//      return seekInSubLists(key);
+//    }
+//
+//
+//    /**
+//     * (Re)initialize the iterators after a seek or a reseek.
+//     */
+//    private synchronized boolean seekInSubLists(Cell key){
+//      cellSetNextRow = getNext(cellSetIt);
+//      snapshotNextRow = getNext(snapshotIt);
+//
+//      // Calculate the next value
+//      theNext = getLowest(cellSetNextRow, snapshotNextRow);
+//
+//      // has data
+//      return (theNext != null);
+//    }
+//
+//
+//    /**
+//     * Move forward on the sub-lists set previously by seek.
+//     * @param key seek value (should be non-null)
+//     * @return true if there is at least one KV to read, false otherwise
+//     */
+//    @Override
+//    public synchronized boolean reseek(Cell key) {
+//      /*
+//      See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
+//      This code is executed concurrently with flush and puts, without locks.
+//      Two points must be known when working on this code:
+//      1) It's not possible to use the 'kvTail' and 'snapshot'
+//       variables, as they are modified during a flush.
+//      2) The ideal implementation for performance would use the sub skip list
+//       implicitly pointed by the iterators 'kvsetIt' and
+//       'snapshotIt'. Unfortunately the Java API does not offer a method to
+//       get it. So we remember the last keys we iterated to and restore
+//       the reseeked set to at least that point.
+//       */
+//      cellSetIt = cellSetAtCreation.tailSet(getHighest(key, cellSetItRow)).iterator();
+//      snapshotIt = snapshotAtCreation.tailSet(getHighest(key, snapshotItRow)).iterator();
+//
+//      return seekInSubLists(key);
+//    }
+//
+//
+//    @Override
+//    public synchronized Cell peek() {
+//      //DebugPrint.println(" MS@" + hashCode() + " peek = " + getLowest());
+//      return theNext;
+//    }
+//
+//    @Override
+//    public synchronized Cell next() {
+//      if (theNext == null) {
+//          return null;
+//      }
+//
+//      final Cell ret = theNext;
+//
+//      // Advance one of the iterators
+//      if (theNext == cellSetNextRow) {
+//        cellSetNextRow = getNext(cellSetIt);
+//      } else {
+//        snapshotNextRow = getNext(snapshotIt);
+//      }
+//
+//      // Calculate the next value
+//      theNext = getLowest(cellSetNextRow, snapshotNextRow);
+//
+//      //long readpoint = ReadWriteConsistencyControl.getThreadReadPoint();
+//      //DebugPrint.println(" MS@" + hashCode() + " next: " + theNext + " next_next: " +
+//      //    getLowest() + " threadpoint=" + readpoint);
+//      return ret;
+//    }
+//
+//    /*
+//     * Returns the lower of the two key values, or null if they are both null.
+//     * This uses comparator.compare() to compare the KeyValue using the memstore
+//     * comparator.
+//     */
+//    private Cell getLowest(Cell first, Cell second) {
+//      if (first == null && second == null) {
+//        return null;
+//      }
+//      if (first != null && second != null) {
+//        int compare = comparator.compare(first, second);
+//        return (compare <= 0 ? first : second);
+//      }
+//      return (first != null ? first : second);
+//    }
+//
+//    /*
+//     * Returns the higher of the two cells, or null if they are both null.
+//     * This uses comparator.compare() to compare the Cell using the memstore
+//     * comparator.
+//     */
+//    private Cell getHighest(Cell first, Cell second) {
+//      if (first == null && second == null) {
+//        return null;
+//      }
+//      if (first != null && second != null) {
+//        int compare = comparator.compare(first, second);
+//        return (compare > 0 ? first : second);
+//      }
+//      return (first != null ? first : second);
+//    }
+//
+//    public synchronized void close() {
+//      this.cellSetNextRow = null;
+//      this.snapshotNextRow = null;
+//
+//      this.cellSetIt = null;
+//      this.snapshotIt = null;
+//
+//      if (allocatorAtCreation != null) {
+//        this.allocatorAtCreation.decScannerCount();
+//        this.allocatorAtCreation = null;
+//      }
+//      if (snapshotAllocatorAtCreation != null) {
+//        this.snapshotAllocatorAtCreation.decScannerCount();
+//        this.snapshotAllocatorAtCreation = null;
+//      }
+//
+//      this.cellSetItRow = null;
+//      this.snapshotItRow = null;
+//    }
+//
+//    /**
+//     * MemStoreScanner returns max value as sequence id because it will
+//     * always have the latest data among all files.
+//     */
+//    @Override
+//    public long getSequenceID() {
+//      return Long.MAX_VALUE;
+//    }
+//
+//    @Override
+//    public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
+//        long oldestUnexpiredTS) {
+//      return shouldSeek(scan, oldestUnexpiredTS);
+//    }
+//
+//    /**
+//     * Seek scanner to the given key first. If it returns false(means
+//     * peek()==null) or scanner's peek row is bigger than row of given key, seek
+//     * the scanner to the previous row of given key
+//     */
+//    @Override
+//    public synchronized boolean backwardSeek(Cell key) {
+//      seek(key);
+//      if (peek() == null || comparator.compareRows(peek(), key) > 0) {
+//        return seekToPreviousRow(key);
+//      }
+//      return true;
+//    }
+//
+//    /**
+//     * Separately get the KeyValue before the specified key from kvset and
+//     * snapshotset, and use the row of higher one as the previous row of
+//     * specified key, then seek to the first KeyValue of previous row
+//     */
+//    @Override
+//    public synchronized boolean seekToPreviousRow(Cell key) {
+//      Cell firstKeyOnRow = KeyValueUtil.createFirstOnRow(key.getRowArray(), key.getRowOffset(),
+//          key.getRowLength());
+//      SortedSet<Cell> cellHead = cellSetAtCreation.headSet(firstKeyOnRow);
+//      Cell cellSetBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
+//      SortedSet<Cell> snapshotHead = snapshotAtCreation
+//          .headSet(firstKeyOnRow);
+//      Cell snapshotBeforeRow = snapshotHead.isEmpty() ? null : snapshotHead
+//          .last();
+//      Cell lastCellBeforeRow = getHighest(cellSetBeforeRow, snapshotBeforeRow);
+//      if (lastCellBeforeRow == null) {
+//        theNext = null;
+//        return false;
+//      }
+//      Cell firstKeyOnPreviousRow = KeyValueUtil.createFirstOnRow(lastCellBeforeRow.getRowArray(),
+//          lastCellBeforeRow.getRowOffset(), lastCellBeforeRow.getRowLength());
+//      this.stopSkippingCellsIfNextRow = true;
+//      seek(firstKeyOnPreviousRow);
+//      this.stopSkippingCellsIfNextRow = false;
+//      if (peek() == null
+//          || comparator.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
+//        return seekToPreviousRow(lastCellBeforeRow);
+//      }
+//      return true;
+//    }
+//
+//    @Override
+//    public synchronized boolean seekToLastRow() {
+//      Cell first = cellSetAtCreation.isEmpty() ? null : cellSetAtCreation
+//          .last();
+//      Cell second = snapshotAtCreation.isEmpty() ? null
+//          : snapshotAtCreation.last();
+//      Cell higherCell = getHighest(first, second);
+//      if (higherCell == null) {
+//        return false;
+//      }
+//      Cell firstCellOnLastRow = KeyValueUtil.createFirstOnRow(higherCell.getRowArray(),
+//          higherCell.getRowOffset(), higherCell.getRowLength());
+//      if (seek(firstCellOnLastRow)) {
+//        return true;
+//      } else {
+//        return seekToPreviousRow(higherCell);
+//      }
+//
+//    }
+//  }
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
-      ClassSize.OBJECT + (9 * ClassSize.REFERENCE) + (3 * Bytes.SIZEOF_LONG));
+      ClassSize.OBJECT + (7 * ClassSize.REFERENCE) + (3 * Bytes.SIZEOF_LONG));
 
   public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
       ClassSize.ATOMIC_LONG + (2 * ClassSize.TIMERANGE_TRACKER) +
@@ -1042,6 +1058,8 @@ public class DefaultMemStore implements MemStore {
   public long size() {
     return heapSize();
   }
+
+  public CellComparator getComparator() { return comparator;}
 
   /**
    * Code to help figure if our approximation of object heap sizes is close

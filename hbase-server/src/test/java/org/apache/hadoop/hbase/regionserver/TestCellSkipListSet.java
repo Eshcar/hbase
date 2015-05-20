@@ -33,19 +33,19 @@ import org.junit.experimental.categories.Category;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestCellSkipListSet extends TestCase {
-  private final CellSkipListSet csls =
-    new CellSkipListSet(CellComparator.COMPARATOR);
+  private final CellSetMgr csls =
+    CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.READ_WRITE, KeyValue.COMPARATOR);
 
   protected void setUp() throws Exception {
     super.setUp();
-    this.csls.clear();
+    this.csls.getCellSet().clear();
   }
 
   public void testAdd() throws Exception {
     byte [] bytes = Bytes.toBytes(getName());
     KeyValue kv = new KeyValue(bytes, bytes, bytes, bytes);
     this.csls.add(kv);
-    assertTrue(this.csls.contains(kv));
+    assertTrue(this.csls.getCellSet().contains(kv));
     assertEquals(1, this.csls.size());
     Cell first = this.csls.first();
     assertTrue(kv.equals(first));
@@ -70,7 +70,7 @@ public class TestCellSkipListSet extends TestCase {
     }
     // Assert that we added 'total' values and that they are in order
     int count = 0;
-    for (Cell kv: this.csls) {
+    for (Cell kv: this.csls.getCellSet()) {
       assertEquals("" + count, Bytes.toString(kv.getQualifier()));
       assertTrue(Bytes.equals(kv.getValue(), value1));
       count++;
@@ -83,7 +83,7 @@ public class TestCellSkipListSet extends TestCase {
     // Assert that we added 'total' values and that they are in order and that
     // we are getting back value2
     count = 0;
-    for (Cell kv: this.csls) {
+    for (Cell kv: this.csls.getCellSet()) {
       assertEquals("" + count, Bytes.toString(kv.getQualifier()));
       assertTrue(Bytes.equals(kv.getValue(), value2));
       count++;
@@ -101,7 +101,7 @@ public class TestCellSkipListSet extends TestCase {
     }
     // Assert that we added 'total' values and that they are in order
     int count = 0;
-    for (Iterator<Cell> i = this.csls.descendingIterator(); i.hasNext();) {
+    for (Iterator<Cell> i = this.csls.getCellSet().descendingIterator(); i.hasNext();) {
       Cell kv = i.next();
       assertEquals("" + (total - (count + 1)), Bytes.toString(kv.getQualifier()));
       assertTrue(Bytes.equals(kv.getValue(), value1));
@@ -115,7 +115,7 @@ public class TestCellSkipListSet extends TestCase {
     // Assert that we added 'total' values and that they are in order and that
     // we are getting back value2
     count = 0;
-    for (Iterator<Cell> i = this.csls.descendingIterator(); i.hasNext();) {
+    for (Iterator<Cell> i = this.csls.getCellSet().descendingIterator(); i.hasNext();) {
       Cell kv = i.next();
       assertEquals("" + (total - (count + 1)), Bytes.toString(kv.getQualifier()));
       assertTrue(Bytes.equals(kv.getValue(), value2));

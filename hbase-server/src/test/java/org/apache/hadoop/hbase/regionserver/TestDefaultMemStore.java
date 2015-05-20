@@ -603,7 +603,7 @@ public class TestDefaultMemStore extends TestCase {
 
     assertEquals(4, memstore.cellSet.size());
     int i = 0;
-    for(Cell cell : memstore.cellSet) {
+    for(Cell cell : memstore.cellSet.getCellSet()) {
       assertEquals(expected.get(i++), cell);
     }
   }
@@ -639,7 +639,7 @@ public class TestDefaultMemStore extends TestCase {
 
     assertEquals(4, memstore.cellSet.size());
     int i = 0;
-    for (Cell cell: memstore.cellSet) {
+    for (Cell cell: memstore.cellSet.getCellSet()) {
       assertEquals(expected.get(i++), cell);
     }
   }
@@ -679,7 +679,7 @@ public class TestDefaultMemStore extends TestCase {
 
     assertEquals(5, memstore.cellSet.size());
     int i = 0;
-    for (Cell cell: memstore.cellSet) {
+    for (Cell cell: memstore.cellSet.getCellSet()) {
       assertEquals(expected.get(i++), cell);
     }
   }

@@ -2317,7 +2317,7 @@ public class TestHRegion {
       Cell firstCell = memstore.cellSet.first();
       assertTrue(firstCell.getTimestamp() <= now);
       now = firstCell.getTimestamp();
-      for (Cell cell : memstore.cellSet) {
+      for (Cell cell : memstore.cellSet.getCellSet()) {
         assertTrue(cell.getTimestamp() <= now);
         now = cell.getTimestamp();
       }

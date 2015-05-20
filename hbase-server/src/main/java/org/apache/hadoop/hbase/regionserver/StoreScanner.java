@@ -571,6 +571,13 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
           if (this.countPerRow > storeOffset) {
             outResult.add(cell);
 
+            //Anastasia's addition for debugging start
+//            if (outResult.size() > 10) {
+//              throw new AssertionError("\nStore Scanner found 10 cells\n");
+//            }
+            //Anastasia's addition for debugging end
+
+
             // Update local tracking information
             count++;
             totalBytesRead += CellUtil.estimatedSerializedSizeOf(cell);

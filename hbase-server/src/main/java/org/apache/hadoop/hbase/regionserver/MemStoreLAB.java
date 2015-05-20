@@ -60,4 +60,6 @@ public interface MemStoreLAB {
    * Called when closing a scanner on the data of this MemStoreLAB
    */
   void decScannerCount();
+
+  int getScannerCount();
 }

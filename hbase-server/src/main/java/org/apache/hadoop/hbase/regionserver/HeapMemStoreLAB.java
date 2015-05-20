@@ -161,6 +161,11 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     }
   }
 
+  @Override
+  public int getScannerCount() {
+    return openScannerCount.get();
+  }
+
   /**
    * Try to retire the current chunk if it is still
    * <code>c</code>. Postcondition is that curChunk.get()

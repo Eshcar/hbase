@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 
@@ -151,9 +152,13 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf2, val));
     memstore.add(new KeyValue(row, fam, qf3, val));
 
+    int cps1 = chunkPool.getPoolSize(); // for debugging
+
     // Creating a snapshot
     MemStoreSnapshot snapshot = memstore.snapshot();
     assertEquals(3, memstore.snapshot.size());
+
+    int cps2 = chunkPool.getPoolSize(); // for debugging
 
     // Adding value to "new" memstore
     assertEquals(0, memstore.cellSet.size());
@@ -161,12 +166,34 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf5, val));
     assertEquals(2, memstore.cellSet.size());
 
+    int cellSetCnt1 = memstore.cellSet.getReferenceCount();
+    int snapshotCnt1 = (memstore.snapshot!=null)?memstore.snapshot.getReferenceCount():-1;
+
     // opening scanner before clear the snapshot
-    List<KeyValueScanner> scanners = memstore.getScanners(0);
+    List<KeyValueScanner> scanners;
+    try {
+      scanners = memstore.getScanners(0);
+    } catch (IOException e) {
+      assert(false);
+      return;
+    }
+
+    int cellSetCnt2 = memstore.cellSet.getReferenceCount();
+    int snapshotCnt2 = (memstore.snapshot!=null)?memstore.snapshot.getReferenceCount():-1;
+    int cps3 = chunkPool.getPoolSize(); // for debugging
+
     // Shouldn't putting back the chunks to pool,since some scanners are opening
     // based on their data
     memstore.clearSnapshot(snapshot.getId());
 
+    int cellSetCnt3 = memstore.cellSet.getReferenceCount();
+    int snapshotCnt3 = (memstore.snapshot!=null)?memstore.snapshot.getReferenceCount():-1;
+    int cps4 = chunkPool.getPoolSize(); // for debugging
+
+    String s = "\nChunk pull sizes: " + cps1 + ", " + cps2 + ", " + cps3 + ", " + cps4 +
+            "; cellSet reference counters: " + cellSetCnt1 + ", " + cellSetCnt2 + ", " + cellSetCnt3 +
+            "; snapshot reference counters: " + snapshotCnt1 + ", " + snapshotCnt2 + ", " + snapshotCnt3 + "\n";
+    assertTrue(s,(chunkPool.getPoolSize() == 0));
     assertTrue(chunkPool.getPoolSize() == 0);
 
     // Chunks will be put back to pool after close scanners;
@@ -184,7 +211,12 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf6, val));
     memstore.add(new KeyValue(row, fam, qf7, val));
     // opening scanners
-    scanners = memstore.getScanners(0);
+    try {
+      scanners = memstore.getScanners(0);
+    } catch (IOException e) {
+      assert(false);
+      return;
+    }
     // close scanners before clear the snapshot
     for (KeyValueScanner scanner : scanners) {
       scanner.close();

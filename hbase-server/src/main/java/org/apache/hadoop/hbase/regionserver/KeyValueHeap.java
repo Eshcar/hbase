@@ -45,7 +45,7 @@ import org.apache.hadoop.hbase.regionserver.ScannerContext.NextState;
 public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
     implements KeyValueScanner, InternalScanner {
   protected PriorityQueue<KeyValueScanner> heap = null;
-
+  private int currentIdx = 0; // current iteration of the scanner's next step, for debug (Anastasia)
   /**
    * The current sub-scanner, i.e. the one that contains the next key/value
    * to return to the client. This scanner is NOT included in {@link #heap}
@@ -102,6 +102,12 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
   }
 
   public Cell next()  throws IOException {
+    currentIdx++;
+
+//    if(currentIdx > 900) {
+//      throw new AssertionError("\n from heap\n");
+//    }
+
     if(this.current == null) {
       return null;
     }
