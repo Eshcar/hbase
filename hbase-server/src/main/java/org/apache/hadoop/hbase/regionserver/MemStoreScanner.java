@@ -1,10 +1,8 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.htrace.Trace;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,9 +49,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         this.type           = type;
         this.backwardReferenceToMemStore = ms;
 
-        if (Trace.isTracing() && Trace.currentSpan() != null) {
-            Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
-        }
+//        if (Trace.isTracing() && Trace.currentSpan() != null) {
+//            Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+//        }
     }
 
     /* Constructor used only for forward scan */
@@ -161,6 +159,10 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
             assert((type==MemStoreScanType.USER_SCAN_FORWARD) || (type==MemStoreScanType.COMPACT_FORWARD));
             forwardHeap.close();
             forwardHeap = null;
+          if (backwardHeap != null) {
+            backwardHeap.close();
+            backwardHeap = null;
+          }
         }
         else if (backwardHeap != null) {
             assert (type==MemStoreScanType.USER_SCAN_BACKWARD);

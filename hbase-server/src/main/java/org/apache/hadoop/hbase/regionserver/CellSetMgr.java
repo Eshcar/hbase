@@ -67,10 +67,6 @@ class CellSetMgr {
     this(cellSet, null, size, comparator);
   }
 
-  public CellComparator getComparator() {
-    return comparator;
-  }
-
   /**
    * Types of cell set managers.
    * This affects the internal implementation of the cell set objects.
@@ -174,6 +170,20 @@ class CellSetMgr {
         oldestUnexpiredTS));
   }
 
+  /*
+ * @param set
+ * @param state Accumulates deletes and candidates.
+ */
+  public void getRowKeyAtOrBefore(final GetClosestRowBeforeTracker state) {
+    if (isEmpty()) {
+      return;
+    }
+    if (!walkForwardInSingleRow(state.getTargetKey(), state)) {
+      // Found nothing in row.  Try backing up.
+      getRowKeyBefore(state);
+    }
+  }
+
   public void incSize(long delta) {
     size.addAndGet(delta);
   }
@@ -194,27 +204,17 @@ class CellSetMgr {
     return size.get();
   }
 
-  /*
- * @param set
- * @param state Accumulates deletes and candidates.
- */
-  public void getRowKeyAtOrBefore(final GetClosestRowBeforeTracker state) {
-    if (isEmpty()) {
-      return;
-    }
-    if (!walkForwardInSingleRow(state.getTargetKey(), state)) {
-      // Found nothing in row.  Try backing up.
-      getRowKeyBefore(state);
-    }
+  public CellComparator getComparator() {
+    return comparator;
+  }
+
+  protected MemStoreLAB getMemStoreLAB() {
+    return memStoreLAB;
   }
 
   // methods for tests
   Cell first() {
     return this.getCellSet().first();
-  }
-
-  protected MemStoreLAB getMemStoreLAB() {
-    return memStoreLAB;
   }
 
   /*
