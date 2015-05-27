@@ -18,18 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Random;
-
+import com.google.common.collect.Lists;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -41,7 +30,6 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeepDeletedCells;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -56,12 +44,21 @@ import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.io.hfile.HFileContext;
 import org.apache.hadoop.hbase.io.hfile.HFileContextBuilder;
+import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Random;
+
+import static org.junit.Assert.*;
 /**
  * Test cases against ReversibleKeyValueScanner
  */
@@ -120,7 +117,7 @@ public class TestReversibleScanners {
 
   @Test
   public void testReversibleMemstoreScanner() throws IOException {
-    MemStore memstore = new MemStore();
+    DefaultMemStore memstore = new DefaultMemStore();
     writeMemstore(memstore);
     List<KeyValueScanner> scanners = memstore.getScanners(Long.MAX_VALUE);
     seekTestOfReversibleKeyValueScanner(scanners.get(0));
@@ -150,7 +147,7 @@ public class TestReversibleScanners {
         TEST_UTIL.getConfiguration(), cacheConf, fs).withOutputDir(
         hfilePath).withFileContext(hFileContext).build();
 
-    MemStore memstore = new MemStore();
+    DefaultMemStore memstore = new DefaultMemStore();
     writeMemstoreAndStoreFiles(memstore, new StoreFile.Writer[] { writer1,
         writer2 });
 
@@ -240,7 +237,7 @@ public class TestReversibleScanners {
         TEST_UTIL.getConfiguration(), cacheConf, fs).withOutputDir(
         hfilePath).withFileContext(hFileContext).build();
 
-    MemStore memstore = new MemStore();
+    DefaultMemStore memstore = new DefaultMemStore();
     writeMemstoreAndStoreFiles(memstore, new StoreFile.Writer[] { writer1,
         writer2 });
 
@@ -409,7 +406,7 @@ public class TestReversibleScanners {
     verifyCountAndOrder(scanner, expectedRowNum * 2 * 2, expectedRowNum, false);
   }
 
-  private StoreScanner getReversibleStoreScanner(MemStore memstore,
+  private StoreScanner getReversibleStoreScanner(DefaultMemStore memstore,
       StoreFile sf1, StoreFile sf2, Scan scan, ScanType scanType,
       ScanInfo scanInfo, int readPoint) throws IOException {
     List<KeyValueScanner> scanners = getScanners(memstore, sf1, sf2, null,
@@ -478,7 +475,7 @@ public class TestReversibleScanners {
     assertEquals(null, kvHeap.peek());
   }
 
-  private ReversedKeyValueHeap getReversibleKeyValueHeap(MemStore memstore,
+  private ReversedKeyValueHeap getReversibleKeyValueHeap(DefaultMemStore memstore,
       StoreFile sf1, StoreFile sf2, byte[] startRow, int readPoint)
       throws IOException {
     List<KeyValueScanner> scanners = getScanners(memstore, sf1, sf2, startRow,
@@ -488,7 +485,7 @@ public class TestReversibleScanners {
     return kvHeap;
   }
 
-  private List<KeyValueScanner> getScanners(MemStore memstore, StoreFile sf1,
+  private List<KeyValueScanner> getScanners(DefaultMemStore memstore, StoreFile sf1,
       StoreFile sf2, byte[] startRow, boolean doSeek, int readPoint)
       throws IOException {
     List<StoreFileScanner> fileScanners = StoreFileScanner
@@ -631,7 +628,7 @@ public class TestReversibleScanners {
     }
   }
 
-  private static void writeMemstoreAndStoreFiles(MemStore memstore,
+  private static void writeMemstoreAndStoreFiles(DefaultMemStore memstore,
       final StoreFile.Writer[] writers) throws IOException {
     Random rand = new Random();
     try {
@@ -664,7 +661,7 @@ public class TestReversibleScanners {
     }
   }
 
-  private static void writeMemstore(MemStore memstore) throws IOException {
+  private static void writeMemstore(DefaultMemStore memstore) throws IOException {
     // Add half of the keyvalues to memstore
     for (int i = 0; i < ROWSIZE; i++) {
       for (int j = 0; j < QUALSIZE; j++) {

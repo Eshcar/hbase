@@ -19,18 +19,6 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.lang.ref.SoftReference;
-import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableSet;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -82,6 +70,18 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.lang.ref.SoftReference;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableSet;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Test class for the Store
@@ -532,7 +532,7 @@ public class TestStore {
     this.store.snapshot();
     flushStore(store, id++);
     Assert.assertEquals(storeFilessize, this.store.getStorefiles().size());
-    Assert.assertEquals(0, this.store.memstore.kvset.size());
+    Assert.assertEquals(0, ((DefaultMemStore)this.store.memstore).getCellSet().getCellsCount());
   }
 
   private void assertCheck() {
@@ -577,7 +577,7 @@ public class TestStore {
     flushStore(store, id++);
     Assert.assertEquals(1, this.store.getStorefiles().size());
     // from the one we inserted up there, and a new one
-    Assert.assertEquals(2, this.store.memstore.kvset.size());
+    Assert.assertEquals(2, ((DefaultMemStore)this.store.memstore).getCellSet().getCellsCount());
 
     // how many key/values for this row are there?
     Get get = new Get(row);
@@ -651,8 +651,8 @@ public class TestStore {
     }
 
     long computedSize=0;
-    for (KeyValue kv : this.store.memstore.kvset) {
-      long kvsize = MemStore.heapSizeChange(kv, true);
+    for (KeyValue cell : ((DefaultMemStore)this.store.memstore).getCellSet().getCellSet()) {
+      long kvsize = DefaultMemStore.heapSizeChange(cell, true);
       //System.out.println(kv + " size= " + kvsize + " kvsize= " + kv.heapSize());
       computedSize += kvsize;
     }
@@ -683,7 +683,7 @@ public class TestStore {
     // then flush.
     flushStore(store, id++);
     Assert.assertEquals(1, this.store.getStorefiles().size());
-    Assert.assertEquals(1, this.store.memstore.kvset.size());
+    Assert.assertEquals(1, ((DefaultMemStore)this.store.memstore).getCellSet().getCellsCount());
 
     // now increment again:
     newValue += 1;

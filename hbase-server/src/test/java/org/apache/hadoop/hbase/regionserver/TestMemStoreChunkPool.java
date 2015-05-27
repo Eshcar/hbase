@@ -18,13 +18,6 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.rmi.UnexpectedException;
-import java.util.List;
-import java.util.Random;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.regionserver.MemStoreLAB.Allocation;
@@ -35,6 +28,14 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import java.io.IOException;
+import java.rmi.UnexpectedException;
+import java.util.List;
+import java.util.Random;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test the {@link MemStoreChunkPool} class
@@ -47,7 +48,7 @@ public class TestMemStoreChunkPool {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    conf.setBoolean(MemStore.USEMSLAB_KEY, true);
+    conf.setBoolean(CellSetMgr.USEMSLAB_KEY, true);
     conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
     chunkPoolDisabledBeforeTest = MemStoreChunkPool.chunkPoolDisabled;
     MemStoreChunkPool.chunkPoolDisabled = false;
@@ -107,7 +108,7 @@ public class TestMemStoreChunkPool {
     byte[] qf5 = Bytes.toBytes("testqualifier5");
     byte[] val = Bytes.toBytes("testval");
 
-    MemStore memstore = new MemStore();
+    DefaultMemStore memstore = new DefaultMemStore();
 
     // Setting up memstore
     memstore.add(new KeyValue(row, fam, qf1, val));
@@ -116,14 +117,14 @@ public class TestMemStoreChunkPool {
 
     // Creating a snapshot
     memstore.snapshot();
-    KeyValueSkipListSet snapshot = memstore.getSnapshot();
-    assertEquals(3, memstore.snapshot.size());
+    CellSet snapshot = memstore.getSnapshot().getCellSet();
+    assertEquals(3, memstore.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
-    assertEquals(0, memstore.kvset.size());
+    assertEquals(0, memstore.getCellSet().getCellsCount());
     memstore.add(new KeyValue(row, fam, qf4, val));
     memstore.add(new KeyValue(row, fam, qf5, val));
-    assertEquals(2, memstore.kvset.size());
+    assertEquals(2, memstore.getCellSet().getCellsCount());
     memstore.clearSnapshot(snapshot);
 
     int chunkCount = chunkPool.getPoolSize();
@@ -133,7 +134,7 @@ public class TestMemStoreChunkPool {
 
   @Test
   public void testPuttingBackChunksWithOpeningScanner()
-      throws UnexpectedException {
+      throws IOException {
     byte[] row = Bytes.toBytes("testrow");
     byte[] fam = Bytes.toBytes("testfamily");
     byte[] qf1 = Bytes.toBytes("testqualifier1");
@@ -145,7 +146,7 @@ public class TestMemStoreChunkPool {
     byte[] qf7 = Bytes.toBytes("testqualifier7");
     byte[] val = Bytes.toBytes("testval");
 
-    MemStore memstore = new MemStore();
+    DefaultMemStore memstore = new DefaultMemStore();
 
     // Setting up memstore
     memstore.add(new KeyValue(row, fam, qf1, val));
@@ -154,14 +155,14 @@ public class TestMemStoreChunkPool {
 
     // Creating a snapshot
     memstore.snapshot();
-    KeyValueSkipListSet snapshot = memstore.getSnapshot();
-    assertEquals(3, memstore.snapshot.size());
+    CellSet snapshot = memstore.getSnapshot().getCellSet();
+    assertEquals(3, memstore.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
-    assertEquals(0, memstore.kvset.size());
+    assertEquals(0, memstore.getCellSet().getCellsCount());
     memstore.add(new KeyValue(row, fam, qf4, val));
     memstore.add(new KeyValue(row, fam, qf5, val));
-    assertEquals(2, memstore.kvset.size());
+    assertEquals(2, memstore.getCellSet().getCellsCount());
 
     // opening scanner before clear the snapshot
     List<KeyValueScanner> scanners = memstore.getScanners(0);
@@ -182,7 +183,7 @@ public class TestMemStoreChunkPool {
 
     // Creating another snapshot
     memstore.snapshot();
-    snapshot = memstore.getSnapshot();
+    snapshot = memstore.getSnapshot().getCellSet();
     // Adding more value
     memstore.add(new KeyValue(row, fam, qf6, val));
     memstore.add(new KeyValue(row, fam, qf7, val));

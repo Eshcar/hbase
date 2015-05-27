@@ -19,6 +19,26 @@
 
 package org.apache.hadoop.hbase.io;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.io.hfile.BlockCacheKey;
+import org.apache.hadoop.hbase.io.hfile.LruBlockCache;
+import org.apache.hadoop.hbase.io.hfile.LruCachedBlock;
+import org.apache.hadoop.hbase.regionserver.CellSet;
+import org.apache.hadoop.hbase.regionserver.HRegion;
+import org.apache.hadoop.hbase.regionserver.HStore;
+import org.apache.hadoop.hbase.regionserver.KeyValueSkipListSet;
+import org.apache.hadoop.hbase.regionserver.DefaultMemStore;
+import org.apache.hadoop.hbase.regionserver.TimeRangeTracker;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.util.ClassSize;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -34,25 +54,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.io.hfile.BlockCacheKey;
-import org.apache.hadoop.hbase.io.hfile.LruCachedBlock;
-import org.apache.hadoop.hbase.io.hfile.LruBlockCache;
-import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.HStore;
-import org.apache.hadoop.hbase.regionserver.KeyValueSkipListSet;
-import org.apache.hadoop.hbase.regionserver.MemStore;
-import org.apache.hadoop.hbase.regionserver.TimeRangeTracker;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
-import org.apache.hadoop.hbase.util.ClassSize;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 import static org.junit.Assert.assertEquals;
 
@@ -292,8 +293,8 @@ public class TestHeapSize  {
     }
 
     // MemStore Overhead
-    cl = MemStore.class;
-    actual = MemStore.FIXED_OVERHEAD;
+    cl = DefaultMemStore.class;
+    actual = DefaultMemStore.FIXED_OVERHEAD;
     expected = ClassSize.estimateBase(cl, false);
     if(expected != actual) {
       ClassSize.estimateBase(cl, true);
@@ -301,17 +302,17 @@ public class TestHeapSize  {
     }
 
     // MemStore Deep Overhead
-    actual = MemStore.DEEP_OVERHEAD;
+    actual = DefaultMemStore.DEEP_OVERHEAD;
     expected = ClassSize.estimateBase(cl, false);
-    expected += ClassSize.estimateBase(AtomicLong.class, false);
-    expected += (2 * ClassSize.estimateBase(KeyValueSkipListSet.class, false));
+    expected += (2 * ClassSize.estimateBase(AtomicLong.class, false));
+    expected += (2 * ClassSize.estimateBase(CellSet.class, false));
     expected += (2 * ClassSize.estimateBase(ConcurrentSkipListMap.class, false));
     expected += (2 * ClassSize.estimateBase(TimeRangeTracker.class, false));
     if(expected != actual) {
       ClassSize.estimateBase(cl, true);
       ClassSize.estimateBase(AtomicLong.class, true);
-      ClassSize.estimateBase(KeyValueSkipListSet.class, true);
-      ClassSize.estimateBase(KeyValueSkipListSet.class, true);
+      ClassSize.estimateBase(CellSet.class, true);
+      ClassSize.estimateBase(CellSet.class, true);
       ClassSize.estimateBase(ConcurrentSkipListMap.class, true);
       ClassSize.estimateBase(ConcurrentSkipListMap.class, true);
       ClassSize.estimateBase(TimeRangeTracker.class, true);

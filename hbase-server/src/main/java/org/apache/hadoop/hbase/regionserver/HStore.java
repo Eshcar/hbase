@@ -18,30 +18,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.net.InetSocketAddress;
-import java.security.Key;
-import java.security.KeyException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionService;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -77,10 +58,10 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.CompactionDescriptor
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
+import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
 import org.apache.hadoop.hbase.regionserver.compactions.OffPeakHours;
 import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.security.EncryptionUtil;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -89,11 +70,29 @@ import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.util.StringUtils;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.InetSocketAddress;
+import java.security.Key;
+import java.security.KeyException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * A Store holds a column family in a Region.  Its a memstore and a set of zero
@@ -128,7 +127,7 @@ public class HStore implements Store {
 
   static final Log LOG = LogFactory.getLog(HStore.class);
 
-  protected final MemStore memstore;
+  protected final AbstractMemStore memstore;
   // This stores directory in the filesystem.
   private final HRegion region;
   private final HColumnDescriptor family;
@@ -236,7 +235,7 @@ public class HStore implements Store {
     // Why not just pass a HColumnDescriptor in here altogether?  Even if have
     // to clone it?
     scanInfo = new ScanInfo(family, ttl, timeToPurgeDeletes, this.comparator);
-    this.memstore = new MemStore(conf, this.comparator);
+    this.memstore = new DefaultMemStore(conf, this.comparator);
     this.offPeakHours = OffPeakHours.getInstance(conf);
 
     // Setting up cache configuration for this family
@@ -1613,7 +1612,7 @@ public class HStore implements Store {
   }
 
   /**
-   * @param kv
+   * @param cell
    * @param oldestTimestamp
    * @return true if the cell is expired
    */
@@ -2045,8 +2044,8 @@ public class HStore implements Store {
     @Override
     public void prepare() {
       memstore.snapshot();
-      this.snapshot = memstore.getSnapshot();
-      this.snapshotTimeRangeTracker = memstore.getSnapshotTimeRangeTracker();
+      this.snapshot = memstore.getSnapshot().getCellSet();
+      this.snapshotTimeRangeTracker = memstore.getSnapshot().getTimeRangeTracker();
       this.flushedCount = this.snapshot.size();
     }
 
