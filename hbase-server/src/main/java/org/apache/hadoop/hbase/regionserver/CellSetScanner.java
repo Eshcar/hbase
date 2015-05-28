@@ -39,14 +39,14 @@ class CellSetScanner implements KeyValueScanner{
   private KeyValue current = null;
 
   /**
-   * C-tor without comparator, as default comparator from KeyValue is used.
+   * C-tor
    */
   public CellSetScanner(CellSetMgr cellSetMgr, long readPoint) {
     super();
     this.cellSetMgr   = cellSetMgr;
     this.readPoint    = readPoint;
 
-    iter = cellSetMgr.getCellSet().iterator();
+    iter = cellSetMgr.iterator();
     if(iter.hasNext()){
       current = iter.next();
     }
@@ -86,7 +86,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public boolean seek(KeyValue key) throws IOException {
     // restart iterator
-    iter = cellSetMgr.getCellSet().iterator();
+    iter = cellSetMgr.iterator();
     return reseek(key);
   }
 
@@ -102,7 +102,7 @@ class CellSetScanner implements KeyValueScanner{
   @Override public boolean reseek(KeyValue key) throws IOException {
     while(iter.hasNext()){
       KeyValue next = iter.next();
-      int ret = cellSetMgr.getComparator().compare(next, key);
+      int ret = cellSetMgr.compare(next, key);
       if(ret >= 0){
         current = next;
         return true;
@@ -219,7 +219,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public boolean backwardSeek(KeyValue key) throws IOException {
     seek(key);    // seek forward then go backward
-    if (peek() == null || KeyValue.COMPARATOR.compareRows(peek(), key) > 0) {
+    if (peek() == null || cellSetMgr.compareRows(peek(), key) > 0) {
       return seekToPreviousRow(key);
     }
     return true;
@@ -239,7 +239,7 @@ class CellSetScanner implements KeyValueScanner{
             KeyValue.createFirstOnRow(key.getRowArray(), key.getRowOffset(),
             key.getRowLength());
     SortedSet<KeyValue> cellHead =    // here the search is hidden
-            cellSetMgr.getCellSet().headSet(firstKeyOnRow);
+            cellSetMgr.headSet(firstKeyOnRow);
     KeyValue lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
 
     // end of recursion
@@ -258,7 +258,7 @@ class CellSetScanner implements KeyValueScanner{
     // if nothing found or we searched beyond the needed, take one more step backward
     // TODO: unclear how can we get to this point... ?
     if (peek() == null
-            || KeyValue.COMPARATOR.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
+            || cellSetMgr.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
       return seekToPreviousRow(lastCellBeforeRow);
     }
     return true;
@@ -272,7 +272,7 @@ class CellSetScanner implements KeyValueScanner{
    * @throws java.io.IOException
    */
   @Override public boolean seekToLastRow() throws IOException {
-    KeyValue higherCell = cellSetMgr.getCellSet().isEmpty() ? null : cellSetMgr.getCellSet().last();
+    KeyValue higherCell = cellSetMgr.isEmpty() ? null : cellSetMgr.last();
     if (higherCell == null) {
       return false;
     }

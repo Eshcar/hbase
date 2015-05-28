@@ -101,6 +101,18 @@ class CellSetMgr {
     return getCellSet().get(cell);
   }
 
+  public KeyValue last() {
+    return this.getCellSet().last();
+  }
+
+  public Iterator<KeyValue> iterator() {
+    return cellSet.iterator();
+  }
+
+  public SortedSet<KeyValue> headSet(KeyValue firstKeyOnRow) {
+    return cellSet.headSet(firstKeyOnRow);
+  }
+
   public SortedSet<KeyValue> tailSet(KeyValue firstCell) {
     return getCellSet().tailSet(firstCell);
   }
@@ -128,10 +140,6 @@ class CellSetMgr {
     KeyValue newKv = new KeyValue(alloc.getData(), alloc.getOffset(), len);
     newKv.setMvccVersion(cell.getMvccVersion());
     return newKv;
-  }
-
-  public Cell last() {
-    return this.getCellSet().last();
   }
 
   public void incScannerCount() {
@@ -180,6 +188,15 @@ class CellSetMgr {
       // Found nothing in row.  Try backing up.
       getRowKeyBefore(state);
     }
+  }
+
+  // methods for cell set scanner
+  public int compare(KeyValue left, KeyValue right) {
+    return getComparator().compare(left, right);
+  }
+
+  public int compareRows(KeyValue left, KeyValue right) {
+    return getComparator().compareRows(left, right);
   }
 
   public void incSize(long delta) {
