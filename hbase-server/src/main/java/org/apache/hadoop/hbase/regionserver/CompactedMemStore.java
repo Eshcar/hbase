@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
@@ -66,14 +67,22 @@ public class CompactedMemStore extends AbstractMemStore {
       .TIMERANGE_TRACKER +
       ClassSize.KEYVALUE_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
 
-  protected CompactedMemStore(Configuration conf, KeyValue.KVComparator c) throws IOException {
+  /**
+   * Default constructor. Used for tests.
+   */
+  CompactedMemStore() throws IOException {
+    this(HBaseConfiguration.create(), KeyValue.COMPARATOR);
+  }
+
+  public CompactedMemStore(Configuration conf, KeyValue.KVComparator c) throws IOException {
     super(conf, c);
     this.pipeline = new CompactionPipeline();
     this.compactor = new MemStoreCompactor(pipeline, c, 0, this);
     this.forceFlush = false;
   }
 
-  @Override public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+  @Override
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     LinkedList<CellSetMgr> list = getCellSetMgrList();
     for(CellSetMgr item : list) {
       if(item.shouldSeek(scan, oldestUnexpiredTS)) {
@@ -83,12 +92,14 @@ public class CompactedMemStore extends AbstractMemStore {
     return false;
   }
 
-  @Override protected long deepOverhead() {
+  @Override
+  protected long deepOverhead() {
     return DEEP_OVERHEAD + ADDITIONAL_FIXED_OVERHEAD +
         (pipeline.size() * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
   }
 
-  @Override protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
+  @Override
+  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
     LinkedList<CellSetMgr> pipelineList = pipeline.getCellSetMgrList();
     List<CellSetScanner> list = new ArrayList<CellSetScanner>(2+pipelineList.size());
     list.add(getCellSet().getScanner(readPt));
@@ -113,12 +124,13 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   /**
-   * Creates a snapshot of the current memstore when force-flush flag is on,
-   * otherwise ignores requests.
-   * Snapshot must be cleared by call to
-   * {@link #clearSnapshot}.
+   * The semantics of the snapshot method are changed to do the following:
+   * When force-flush flag is on, create a snapshot of the tail of current compaction pipeline
+   * otherwise, push the current active memstore bucket into the pipeline.
+   * Snapshot must be cleared by call to {@link #clearSnapshot}.
    */
-  @Override public void snapshot() {
+  @Override
+  public void snapshot() {
     if(!forceFlush) {
       LOG.info("Snapshot called without forcing flush. ");
       CellSetMgr active = getCellSet();
@@ -129,7 +141,7 @@ public class CompactedMemStore extends AbstractMemStore {
         resetCellSet();
         compactor.doCompact();
       }
-    } else {
+    } else { //**** FORCE FLUSH MODE ****//
       // If snapshot currently has entries, then flusher failed or didn't call
       // cleanup.  Log a warning.
       if (!getSnapshot().isEmpty()) {
@@ -140,6 +152,7 @@ public class CompactedMemStore extends AbstractMemStore {
         CellSetMgr tail = pipeline.pullTail();
         setSnapshot(tail);
         setSnapshotSize(tail.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+        resetForceFlush();
       }
     }
 //    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
@@ -153,7 +166,8 @@ public class CompactedMemStore extends AbstractMemStore {
    *
    * @return size of data that is going to be flushed
    */
-  @Override public long getFlushableSize() {
+  @Override
+  public long getFlushableSize() {
     long snapshotSize = getSnapshot().getSize();
     if(forceFlush && snapshotSize == 0) {
       snapshotSize = pipeline.peekTail().getSize();
@@ -167,7 +181,8 @@ public class CompactedMemStore extends AbstractMemStore {
    *
    * @param cell
    */
-  @Override public void rollback(KeyValue cell) {
+  @Override
+  public void rollback(KeyValue cell) {
     rollbackSnapshot(cell);
     pipeline.rollback(cell);
     rollbackCellSet(cell);
@@ -179,10 +194,23 @@ public class CompactedMemStore extends AbstractMemStore {
    *
    * @param state column/delete tracking state
    */
-  @Override public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
+  @Override
+  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
     getCellSet().getRowKeyAtOrBefore(state);
     pipeline.getRowKeyAtOrBefore(state);
     getSnapshot().getRowKeyAtOrBefore(state);
+  }
+
+  public CompactedMemStore setForceFlush() {
+    forceFlush = true;
+    // stop compactor if currently working, to avoid possible conflict in pipeline
+    compactor.stopCompact();
+    return this;
+  }
+
+  private CompactedMemStore resetForceFlush() {
+    forceFlush = false;
+    return this;
   }
 
   private LinkedList<CellSetMgr> getCellSetMgrList() {
