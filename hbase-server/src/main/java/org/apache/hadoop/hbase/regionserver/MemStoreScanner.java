@@ -191,7 +191,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     public void close() {
 
         if (forwardHeap != null) {
-            assert((type==MemStoreScanType.USER_SCAN_FORWARD) || (type==MemStoreScanType.COMPACT_FORWARD));
+            assert((type==MemStoreScanType.USER_SCAN_FORWARD) ||
+                    (type==MemStoreScanType.COMPACT_FORWARD) || (type==MemStoreScanType.UNDEFINED));
             forwardHeap.close();
             forwardHeap = null;
             if (backwardHeap != null) {
