@@ -5,7 +5,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.SortedSet;
 
 /**
@@ -104,7 +103,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * The backward traversal is assumed, only if specified explicitly
      */
     @Override
-    public KeyValue peek() {
+    public synchronized KeyValue peek() {
         if (type == MemStoreScanType.USER_SCAN_BACKWARD)
             return backwardHeap.peek();
         return forwardHeap.peek();
@@ -114,7 +113,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * Gets the next cell from the top-most scanner. Assumed forward scanning.
      */
     @Override
-    public KeyValue next() throws IOException {
+    public synchronized KeyValue next() throws IOException {
         assertForward();
         for (KeyValue currentCell = forwardHeap.next();     // loop over till the next suitable value
              currentCell != null;                       // take next value from the forward heap
@@ -142,7 +141,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * @return false if the key is null or if there is no data
      */
     @Override
-    public boolean seek(KeyValue key) throws IOException {
+    public synchronized boolean seek(KeyValue key) throws IOException {
         assertForward();
 
         if (key == null) {
@@ -159,7 +158,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * @return true if there is at least one KV to read, false otherwise
      */
     @Override
-    public boolean reseek(KeyValue key) throws IOException {
+    public synchronized boolean reseek(KeyValue key) throws IOException {
         /*
         * See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
         * This code is executed concurrently with flush and puts, without locks.
@@ -183,12 +182,12 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * always have the latest data among all files.
      */
     @Override
-    public long getSequenceID() {
+    public synchronized long getSequenceID() {
         return Long.MAX_VALUE;
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
 
         if (forwardHeap != null) {
             assert((type==MemStoreScanType.USER_SCAN_FORWARD) ||
@@ -213,7 +212,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * @return false if the key is null or if there is no data
      */
     @Override
-    public boolean backwardSeek(KeyValue key) throws IOException {
+    public synchronized boolean backwardSeek(KeyValue key) throws IOException {
         assertBackward();
         return backwardHeap.backwardSeek(key);
     }
@@ -224,13 +223,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * @return false if the key is null or if there is no data
      */
     @Override
-    public boolean seekToPreviousRow(KeyValue key) throws IOException {
+    public synchronized boolean seekToPreviousRow(KeyValue key) throws IOException {
         assertBackward();
         return backwardHeap.seekToPreviousRow(key);
     }
 
     @Override
-    public boolean seekToLastRow() throws IOException {
+    public synchronized boolean seekToLastRow() throws IOException {
         // TODO: it looks like this is how it should be, however ReversedKeyValueHeap class doesn't
         // implement seekToLastRow() method :(
         // however seekToLastRow() was implemented in internal MemStoreScanner
@@ -245,7 +244,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * @return False if the key definitely does not exist in this Memstore
      */
     @Override
-    public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
+    public synchronized boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
                                     long oldestUnexpiredTS) {
 
         return backwardReferenceToMemStore.shouldSeek(scan,oldestUnexpiredTS);
