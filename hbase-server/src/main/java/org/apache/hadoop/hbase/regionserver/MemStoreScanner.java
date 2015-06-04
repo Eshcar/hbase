@@ -5,6 +5,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.SortedSet;
 
 /**
@@ -22,19 +23,20 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     private KeyValueHeap forwardHeap;           // heap of scanners used for traversing forward
     private ReversedKeyValueHeap backwardHeap;  // reversed scanners heap for traversing backward
 
-    private MemStoreScanType type               // The type of the scan is defined by con-r for
-            = MemStoreScanType.UNDEFINED;       // compaction or according to the first usage
+    private MemStoreScanType type               // The type of the scan is defined by constructor
+            = MemStoreScanType.UNDEFINED;       // or according to the first usage
 
     private long readPoint;
 
     private AbstractMemStore                    // pointer back to the relevant MemStore
             backwardReferenceToMemStore;        // is needed for shouldSeek() method
 
+
     /**
      * Constructor.
-     * If UNDEFINED type for MemStoreScanner is provided - the USER_FORWARD type is used as default!
+     * If UNDEFINED type for MemStoreScanner is provided, the forward heap is used as default!
      * After constructor only one heap is going to be initialized for entire lifespan
-     * of the MemStoreScanner. As a specific scanner ca only be one directed.
+     * of the MemStoreScanner. A specific scanner ca only be one directed!
      *
      * @param readPoint Read point below which we can safely remove duplicate KVs
      * @param type The scan type COMPACT_FORWARD should be used for compaction
@@ -62,10 +64,12 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 //        }
     }
 
+
     /* Constructor used only when the scan usage is unknown and need to be defined according to the first move */
     public MemStoreScanner(AbstractMemStore ms, long readPt) throws IOException {
         this(ms, readPt, MemStoreScanType.UNDEFINED);
     }
+
 
     /**
      * Checks whether the type of the scan suits the assumption of moving forward
@@ -77,10 +81,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         assert (type!=MemStoreScanType.USER_SCAN_BACKWARD);
     }
 
+
     /**
      * Checks whether the type of the scan suits the assumption of moving forward
      * */
-    private void assertBackward() throws IOException{
+    private boolean assertBackward(KeyValue k, boolean toLast) throws IOException{
+        boolean res = false;
+        if ( toLast && (type!=MemStoreScanType.UNDEFINED)) assert(false);
         if(type==MemStoreScanType.UNDEFINED) {
             // In case we started from peek, release the forward heap
             // and build backward. Set the correct type. Thus this turn
@@ -88,14 +95,19 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
             if ((backwardHeap==null)&&(forwardHeap!=null)){
                 forwardHeap.close();
                 forwardHeap = null;
+                // before building the heap seek for the relevant key on the scanners,
+                // for the heap to be built from the scanners correctly
+                List<CellSetScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
+                for(CellSetScanner scan : scanners)
+                    if (toLast) res |= scan.seekToLastRow(); else res |= scan.backwardSeek(k);
                 this.backwardHeap   =
-                        new ReversedKeyValueHeap(   backwardReferenceToMemStore.getListOfScanners(readPoint),
-                                backwardReferenceToMemStore.getComparator());
+                        new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
                 type = MemStoreScanType.USER_SCAN_BACKWARD;
             }
         }
 
         assert (type!=MemStoreScanType.USER_SCAN_FORWARD);
+        return res;
     }
 
     /**
@@ -114,13 +126,14 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      */
     @Override
     public synchronized KeyValue next() throws IOException {
-        assertForward();
-        for (KeyValue currentCell = forwardHeap.next();     // loop over till the next suitable value
-             currentCell != null;                       // take next value from the forward heap
-             currentCell = forwardHeap.next()){
+        KeyValueHeap heap = (MemStoreScanType.USER_SCAN_BACKWARD==type)?backwardHeap:forwardHeap;
 
-            if (currentCell.getMvccVersion() > readPoint)
-                continue;                               // the value too old, take next one
+        for (KeyValue currentCell = heap.next();     // loop over till the next suitable value
+             currentCell != null;                       // take next value from the forward heap
+             currentCell = heap.next()){
+
+            //if (currentCell.getMvccVersion() > readPoint) --- moved to CellSetScanner
+            //    continue;                               // the value too old, take next one
 
             if (type == MemStoreScanType.COMPACT_FORWARD) {
                 // check the returned cell, skipping this code for now as it was not supported in
@@ -213,7 +226,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      */
     @Override
     public synchronized boolean backwardSeek(KeyValue key) throws IOException {
-        assertBackward();
+        assertBackward(key, false);
         return backwardHeap.backwardSeek(key);
     }
 
@@ -224,7 +237,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      */
     @Override
     public synchronized boolean seekToPreviousRow(KeyValue key) throws IOException {
-        assertBackward();
+        assertBackward(key, false);
         return backwardHeap.seekToPreviousRow(key);
     }
 
@@ -234,8 +247,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         // implement seekToLastRow() method :(
         // however seekToLastRow() was implemented in internal MemStoreScanner
         // so I wonder whether we need to come with our own workaround, or to update ReversedKeyValueHeap
-        assertBackward();
-        return backwardHeap.seekToLastRow();
+        return assertBackward(KeyValue.LOWESTKEY, true);
+        //return backwardHeap.seekToLastRow();
     }
 
     /**
