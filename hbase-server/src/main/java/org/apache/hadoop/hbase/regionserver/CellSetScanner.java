@@ -142,7 +142,8 @@ class CellSetScanner implements KeyValueScanner{
     // restart iterator from new key
     iter = cellSetMgr.getCellSet().tailSet(key).iterator();
     last = null;
-    return (getNext()!=null);
+    current = getNext();
+    return (current!=null);
   }
 
   /**---------------------------------------------------------
