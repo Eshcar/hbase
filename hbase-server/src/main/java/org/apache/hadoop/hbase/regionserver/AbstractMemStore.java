@@ -34,7 +34,6 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import java.io.IOException;
 import java.rmi.UnexpectedException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
@@ -234,9 +233,7 @@ public abstract class AbstractMemStore implements HeapSize {
   /**
    * @return scanner on memstore and snapshot in this order.
    */
-  public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this, readPt));
-  }
+  abstract public List<KeyValueScanner> getScanners(long readPt) throws IOException;
 
   public long getSnapshotSize() {
     return getSnapshot().getSize();

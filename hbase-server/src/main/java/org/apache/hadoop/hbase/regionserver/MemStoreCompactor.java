@@ -19,7 +19,7 @@ import java.util.ArrayList;
 @InterfaceAudience.Private
 class MemStoreCompactor {
     private CompactionPipeline cp;
-    private MemStoreScanner scanner;
+//    private MemStoreScanner scanner;
     private VersionedCellSetMgrList versionedList;
     private long readPoint;
     final KeyValue.KVComparator comparator;
@@ -38,8 +38,8 @@ class MemStoreCompactor {
             scanners.add(mgr.getScanner(readPoint));
         }
 
-        scanner =
-                new MemStoreScanner(ms,readPoint, MemStoreScanType.COMPACT_FORWARD);
+//        scanner =
+//                new MemStoreScanner(ms,readPoint, MemStoreScanType.COMPACT_FORWARD);
     }
 
     /*
@@ -88,12 +88,12 @@ class MemStoreCompactor {
           KeyValue cell;
             try {
                 // Phase I: create the compacted CellSetMgr
-                cell = scanner.next();
-                while ((cell!=null) && (!Thread.currentThread().isInterrupted())) {
-                    resultCellSetMgr.add(cell);
-                    cell = scanner.next();
-                }
-                // Phase II: swap the old compaction pipeline
+//                cell = scanner.next();
+//                while ((cell!=null) && (!Thread.currentThread().isInterrupted())) {
+//                    resultCellSetMgr.add(cell);
+//                    cell = scanner.next();
+//                }
+//                // Phase II: swap the old compaction pipeline
                 cp.swap(versionedList,resultCellSetMgr);
             } catch (Exception e) {
                 Thread.currentThread().interrupt();

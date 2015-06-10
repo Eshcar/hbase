@@ -98,6 +98,14 @@ public class CompactedMemStore extends AbstractMemStore {
         (pipeline.size() * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
   }
 
+  /**
+   * @param readPt
+   * @return scanner on memstore and snapshot in this order.
+   */
+  @Override public List<KeyValueScanner> getScanners(long readPt) throws IOException {
+    return null;
+  }
+
   @Override
   protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
     LinkedList<CellSetMgr> pipelineList = pipeline.getCellSetMgrList();

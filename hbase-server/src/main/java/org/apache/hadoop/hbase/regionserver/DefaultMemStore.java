@@ -28,12 +28,16 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.cloudera.htrace.Trace;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.SortedSet;
 
 /**
  * The MemStore holds in-memory modifications to the Store.  Modifications
@@ -174,70 +178,83 @@ public class DefaultMemStore extends AbstractMemStore {
     return heapSize();
   }
 
+  /**
+   * @return scanner on memstore and snapshot in this order.
+   */
+  public List<KeyValueScanner> getScanners(long readPt) throws IOException {
+    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this,
+        readPt));
+  }
 
-//  /*
-//   * MemStoreScanner implements the KeyValueScanner.
-//   * It lets the caller scan the contents of a memstore -- both current
-//   * map and snapshot.
-//   * This behaves as if it were a real scanner but does not maintain position.
-//   */
-//  protected class MemStoreScanner extends NonLazyKeyValueScanner {
-//    // Next row information for either kvset or snapshot
-//    private KeyValue kvsetNextRow = null;
-//    private KeyValue snapshotNextRow = null;
-//
-//    // last iterated KVs for kvset and snapshot (to restore iterator state after reseek)
-//    private KeyValue kvsetItRow = null;
-//    private KeyValue snapshotItRow = null;
-//
-//    // iterator based scanning.
-//    private Iterator<KeyValue> kvsetIt;
-//    private Iterator<KeyValue> snapshotIt;
-//
-//    // The kvset and snapshot at the time of creating this scanner
-//    private KeyValueSkipListSet kvsetAtCreation;
-//    private KeyValueSkipListSet snapshotAtCreation;
-//
-//    // the pre-calculated KeyValue to be returned by peek() or next()
-//    private KeyValue theNext;
-//
-//    // The allocator and snapshot allocator at the time of creating this scanner
+  /*
+   * MemStoreScanner implements the KeyValueScanner.
+   * It lets the caller scan the contents of a memstore -- both current
+   * map and snapshot.
+   * This behaves as if it were a real scanner but does not maintain position.
+   */
+  protected class MemStoreScanner extends NonLazyKeyValueScanner {
+    // Next row information for either kvset or snapshot
+    private KeyValue kvsetNextRow = null;
+    private KeyValue snapshotNextRow = null;
+
+    // last iterated KVs for kvset and snapshot (to restore iterator state after reseek)
+    private KeyValue kvsetItRow = null;
+    private KeyValue snapshotItRow = null;
+
+    // iterator based scanning.
+    private Iterator<KeyValue> kvsetIt;
+    private Iterator<KeyValue> snapshotIt;
+
+    // The kvset and snapshot at the time of creating this scanner
+    private CellSetMgr kvsetAtCreation;
+    private CellSetMgr snapshotAtCreation;
+
+    // the pre-calculated KeyValue to be returned by peek() or next()
+    private KeyValue theNext;
+
+    // The allocator and snapshot allocator at the time of creating this scanner
 //    volatile MemStoreLAB allocatorAtCreation;
 //    volatile MemStoreLAB snapshotAllocatorAtCreation;
-//
-//    // A flag represents whether could stop skipping KeyValues for MVCC
-//    // if have encountered the next row. Only used for reversed scan
-//    private boolean stopSkippingKVsIfNextRow = false;
-//
-//    private long readPoint;
-//
-//    /*
-//    Some notes...
-//
-//     So memstorescanner is fixed at creation time. this includes pointers/iterators into
-//    existing kvset/snapshot.  during a snapshot creation, the kvset is null, and the
-//    snapshot is moved.  since kvset is null there is no point on reseeking on both,
-//      we can save us the trouble. During the snapshot->hfile transition, the memstore
-//      scanner is re-created by StoreScanner#updateReaders().  StoreScanner should
-//      potentially do something smarter by adjusting the existing memstore scanner.
-//
-//      But there is a greater problem here, that being once a scanner has progressed
-//      during a snapshot scenario, we currently iterate past the kvset then 'finish' up.
-//      if a scan lasts a little while, there is a chance for new entries in kvset to
-//      become available but we will never see them.  This needs to be handled at the
-//      StoreScanner level with coordination with MemStoreScanner.
-//
-//      Currently, this problem is only partly managed: during the small amount of time
-//      when the StoreScanner has not yet created a new MemStoreScanner, we will miss
-//      the adds to kvset in the MemStoreScanner.
-//    */
-//
-//    MemStoreScanner(long readPoint) {
-//      super();
-//
-//      this.readPoint = readPoint;
-//      kvsetAtCreation = kvset;
-//      snapshotAtCreation = snapshot;
+
+    // A flag represents whether could stop skipping KeyValues for MVCC
+    // if have encountered the next row. Only used for reversed scan
+    private boolean stopSkippingKVsIfNextRow = false;
+
+    private long readPoint;
+
+    private final AbstractMemStore ms;
+    private final KeyValue.KVComparator comparator;
+
+    /*
+    Some notes...
+
+     So memstorescanner is fixed at creation time. this includes pointers/iterators into
+    existing kvset/snapshot.  during a snapshot creation, the kvset is null, and the
+    snapshot is moved.  since kvset is null there is no point on reseeking on both,
+      we can save us the trouble. During the snapshot->hfile transition, the memstore
+      scanner is re-created by StoreScanner#updateReaders().  StoreScanner should
+      potentially do something smarter by adjusting the existing memstore scanner.
+
+      But there is a greater problem here, that being once a scanner has progressed
+      during a snapshot scenario, we currently iterate past the kvset then 'finish' up.
+      if a scan lasts a little while, there is a chance for new entries in kvset to
+      become available but we will never see them.  This needs to be handled at the
+      StoreScanner level with coordination with MemStoreScanner.
+
+      Currently, this problem is only partly managed: during the small amount of time
+      when the StoreScanner has not yet created a new MemStoreScanner, we will miss
+      the adds to kvset in the MemStoreScanner.
+    */
+
+    MemStoreScanner(AbstractMemStore memStore, long readPoint) {
+      super();
+      ms = memStore;
+      comparator = ms.getComparator();
+      this.readPoint = readPoint;
+      kvsetAtCreation = ms.getCellSet();
+      kvsetAtCreation.incScannerCount();
+      snapshotAtCreation = ms.getSnapshot();
+      snapshotAtCreation.incScannerCount();
 //      if (allocator != null) {
 //        this.allocatorAtCreation = allocator;
 //        this.allocatorAtCreation.incScannerCount();
@@ -246,175 +263,178 @@ public class DefaultMemStore extends AbstractMemStore {
 //        this.snapshotAllocatorAtCreation = snapshotAllocator;
 //        this.snapshotAllocatorAtCreation.incScannerCount();
 //      }
-//      if (Trace.isTracing() && Trace.currentSpan() != null) {
-//        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
-//      }
-//    }
-//
-//    private KeyValue getNext(Iterator<KeyValue> it) {
-//      KeyValue startKV = theNext;
-//      KeyValue v = null;
-//      try {
-//        while (it.hasNext()) {
-//          v = it.next();
-//          if (v.getMvccVersion() <= this.readPoint) {
-//            return v;
-//          }
-//          if (stopSkippingKVsIfNextRow && startKV != null
-//              && comparator.compareRows(v, startKV) > 0) {
-//            return null;
-//          }
-//        }
-//
-//        return null;
-//      } finally {
-//        if (v != null) {
-//          // in all cases, remember the last KV iterated to
-//          if (it == snapshotIt) {
-//            snapshotItRow = v;
-//          } else {
-//            kvsetItRow = v;
-//          }
-//        }
-//      }
-//    }
-//
-//    /**
-//     *  Set the scanner at the seek key.
-//     *  Must be called only once: there is no thread safety between the scanner
-//     *   and the memStore.
-//     * @param key seek value
-//     * @return false if the key is null or if there is no data
-//     */
-//    @Override
-//    public synchronized boolean seek(KeyValue key) {
-//      if (key == null) {
-//        close();
-//        return false;
-//      }
-//
-//      // kvset and snapshot will never be null.
-//      // if tailSet can't find anything, SortedSet is empty (not null).
-//      kvsetIt = kvsetAtCreation.tailSet(key).iterator();
-//      snapshotIt = snapshotAtCreation.tailSet(key).iterator();
-//      kvsetItRow = null;
-//      snapshotItRow = null;
-//
-//      return seekInSubLists(key);
-//    }
-//
-//
-//    /**
-//     * (Re)initialize the iterators after a seek or a reseek.
-//     */
-//    private synchronized boolean seekInSubLists(KeyValue key){
-//      kvsetNextRow = getNext(kvsetIt);
-//      snapshotNextRow = getNext(snapshotIt);
-//
-//      // Calculate the next value
-//      theNext = getLowest(kvsetNextRow, snapshotNextRow);
-//
-//      // has data
-//      return (theNext != null);
-//    }
-//
-//
-//    /**
-//     * Move forward on the sub-lists set previously by seek.
-//     * @param key seek value (should be non-null)
-//     * @return true if there is at least one KV to read, false otherwise
-//     */
-//    @Override
-//    public synchronized boolean reseek(KeyValue key) {
-//      /*
-//      See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
-//      This code is executed concurrently with flush and puts, without locks.
-//      Two points must be known when working on this code:
-//      1) It's not possible to use the 'kvTail' and 'snapshot'
-//       variables, as they are modified during a flush.
-//      2) The ideal implementation for performance would use the sub skip list
-//       implicitly pointed by the iterators 'kvsetIt' and
-//       'snapshotIt'. Unfortunately the Java API does not offer a method to
-//       get it. So we remember the last keys we iterated to and restore
-//       the reseeked set to at least that point.
-//       */
-//
-//      kvsetIt = kvsetAtCreation.tailSet(getHighest(key, kvsetItRow)).iterator();
-//      snapshotIt = snapshotAtCreation.tailSet(getHighest(key, snapshotItRow)).iterator();
-//
-//      return seekInSubLists(key);
-//    }
-//
-//
-//    @Override
-//    public synchronized KeyValue peek() {
-//      //DebugPrint.println(" MS@" + hashCode() + " peek = " + getLowest());
-//      return theNext;
-//    }
-//
-//    @Override
-//    public synchronized KeyValue next() {
-//      if (theNext == null) {
-//          return null;
-//      }
-//
-//      final KeyValue ret = theNext;
-//
-//      // Advance one of the iterators
-//      if (theNext == kvsetNextRow) {
-//        kvsetNextRow = getNext(kvsetIt);
-//      } else {
-//        snapshotNextRow = getNext(snapshotIt);
-//      }
-//
-//      // Calculate the next value
-//      theNext = getLowest(kvsetNextRow, snapshotNextRow);
-//
-//      //long readpoint = ReadWriteConsistencyControl.getThreadReadPoint();
-//      //DebugPrint.println(" MS@" + hashCode() + " next: " + theNext + " next_next: " +
-//      //    getLowest() + " threadpoint=" + readpoint);
-//      return ret;
-//    }
-//
-//    /*
-//     * Returns the lower of the two key values, or null if they are both null.
-//     * This uses comparator.compare() to compare the KeyValue using the memstore
-//     * comparator.
-//     */
-//    private KeyValue getLowest(KeyValue first, KeyValue second) {
-//      if (first == null && second == null) {
-//        return null;
-//      }
-//      if (first != null && second != null) {
-//        int compare = comparator.compare(first, second);
-//        return (compare <= 0 ? first : second);
-//      }
-//      return (first != null ? first : second);
-//    }
-//
-//    /*
-//     * Returns the higher of the two key values, or null if they are both null.
-//     * This uses comparator.compare() to compare the KeyValue using the memstore
-//     * comparator.
-//     */
-//    private KeyValue getHighest(KeyValue first, KeyValue second) {
-//      if (first == null && second == null) {
-//        return null;
-//      }
-//      if (first != null && second != null) {
-//        int compare = comparator.compare(first, second);
-//        return (compare > 0 ? first : second);
-//      }
-//      return (first != null ? first : second);
-//    }
-//
-//    public synchronized void close() {
-//      this.kvsetNextRow = null;
-//      this.snapshotNextRow = null;
-//
-//      this.kvsetIt = null;
-//      this.snapshotIt = null;
-//
+      if (Trace.isTracing() && Trace.currentSpan() != null) {
+        Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+      }
+    }
+
+    private KeyValue getNext(Iterator<KeyValue> it) {
+      KeyValue startKV = theNext;
+      KeyValue v = null;
+      try {
+        while (it.hasNext()) {
+          v = it.next();
+          if (v.getMvccVersion() <= this.readPoint) {
+            return v;
+          }
+          if (stopSkippingKVsIfNextRow && startKV != null
+              && comparator.compareRows(v, startKV) > 0) {
+            return null;
+          }
+        }
+
+        return null;
+      } finally {
+        if (v != null) {
+          // in all cases, remember the last KV iterated to
+          if (it == snapshotIt) {
+            snapshotItRow = v;
+          } else {
+            kvsetItRow = v;
+          }
+        }
+      }
+    }
+
+    /**
+     *  Set the scanner at the seek key.
+     *  Must be called only once: there is no thread safety between the scanner
+     *   and the memStore.
+     * @param key seek value
+     * @return false if the key is null or if there is no data
+     */
+    @Override
+    public synchronized boolean seek(KeyValue key) {
+      if (key == null) {
+        close();
+        return false;
+      }
+
+      // kvset and snapshot will never be null.
+      // if tailSet can't find anything, SortedSet is empty (not null).
+      kvsetIt = kvsetAtCreation.tailSet(key).iterator();
+      snapshotIt = snapshotAtCreation.tailSet(key).iterator();
+      kvsetItRow = null;
+      snapshotItRow = null;
+
+      return seekInSubLists(key);
+    }
+
+
+    /**
+     * (Re)initialize the iterators after a seek or a reseek.
+     */
+    private synchronized boolean seekInSubLists(KeyValue key){
+      kvsetNextRow = getNext(kvsetIt);
+      snapshotNextRow = getNext(snapshotIt);
+
+      // Calculate the next value
+      theNext = getLowest(kvsetNextRow, snapshotNextRow);
+
+      // has data
+      return (theNext != null);
+    }
+
+
+    /**
+     * Move forward on the sub-lists set previously by seek.
+     * @param key seek value (should be non-null)
+     * @return true if there is at least one KV to read, false otherwise
+     */
+    @Override
+    public synchronized boolean reseek(KeyValue key) {
+      /*
+      See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
+      This code is executed concurrently with flush and puts, without locks.
+      Two points must be known when working on this code:
+      1) It's not possible to use the 'kvTail' and 'snapshot'
+       variables, as they are modified during a flush.
+      2) The ideal implementation for performance would use the sub skip list
+       implicitly pointed by the iterators 'kvsetIt' and
+       'snapshotIt'. Unfortunately the Java API does not offer a method to
+       get it. So we remember the last keys we iterated to and restore
+       the reseeked set to at least that point.
+       */
+
+      kvsetIt = kvsetAtCreation.tailSet(getHighest(key, kvsetItRow)).iterator();
+      snapshotIt = snapshotAtCreation.tailSet(getHighest(key, snapshotItRow)).iterator();
+
+      return seekInSubLists(key);
+    }
+
+
+    @Override
+    public synchronized KeyValue peek() {
+      //DebugPrint.println(" MS@" + hashCode() + " peek = " + getLowest());
+      return theNext;
+    }
+
+    @Override
+    public synchronized KeyValue next() {
+      if (theNext == null) {
+          return null;
+      }
+
+      final KeyValue ret = theNext;
+
+      // Advance one of the iterators
+      if (theNext == kvsetNextRow) {
+        kvsetNextRow = getNext(kvsetIt);
+      } else {
+        snapshotNextRow = getNext(snapshotIt);
+      }
+
+      // Calculate the next value
+      theNext = getLowest(kvsetNextRow, snapshotNextRow);
+
+      //long readpoint = ReadWriteConsistencyControl.getThreadReadPoint();
+      //DebugPrint.println(" MS@" + hashCode() + " next: " + theNext + " next_next: " +
+      //    getLowest() + " threadpoint=" + readpoint);
+      return ret;
+    }
+
+    /*
+     * Returns the lower of the two key values, or null if they are both null.
+     * This uses comparator.compare() to compare the KeyValue using the memstore
+     * comparator.
+     */
+    private KeyValue getLowest(KeyValue first, KeyValue second) {
+      if (first == null && second == null) {
+        return null;
+      }
+      if (first != null && second != null) {
+        int compare = comparator.compare(first, second);
+        return (compare <= 0 ? first : second);
+      }
+      return (first != null ? first : second);
+    }
+
+    /*
+     * Returns the higher of the two key values, or null if they are both null.
+     * This uses comparator.compare() to compare the KeyValue using the memstore
+     * comparator.
+     */
+    private KeyValue getHighest(KeyValue first, KeyValue second) {
+      if (first == null && second == null) {
+        return null;
+      }
+      if (first != null && second != null) {
+        int compare = comparator.compare(first, second);
+        return (compare > 0 ? first : second);
+      }
+      return (first != null ? first : second);
+    }
+
+    public synchronized void close() {
+      this.kvsetNextRow = null;
+      this.snapshotNextRow = null;
+
+      this.kvsetIt = null;
+      this.snapshotIt = null;
+
+      kvsetAtCreation.decScannerCount();
+      snapshotAtCreation.decScannerCount();
+
 //      if (allocatorAtCreation != null) {
 //        this.allocatorAtCreation.decScannerCount();
 //        this.allocatorAtCreation = null;
@@ -423,91 +443,91 @@ public class DefaultMemStore extends AbstractMemStore {
 //        this.snapshotAllocatorAtCreation.decScannerCount();
 //        this.snapshotAllocatorAtCreation = null;
 //      }
-//
-//      this.kvsetItRow = null;
-//      this.snapshotItRow = null;
-//    }
-//
-//    /**
-//     * MemStoreScanner returns max value as sequence id because it will
-//     * always have the latest data among all files.
-//     */
-//    @Override
-//    public long getSequenceID() {
-//      return Long.MAX_VALUE;
-//    }
-//
-//    @Override
-//    public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
-//        long oldestUnexpiredTS) {
-//      return shouldSeek(scan, oldestUnexpiredTS);
-//    }
-//
-//    /**
-//     * Seek scanner to the given key first. If it returns false(means
-//     * peek()==null) or scanner's peek row is bigger than row of given key, seek
-//     * the scanner to the previous row of given key
-//     */
-//    @Override
-//    public synchronized boolean backwardSeek(KeyValue key) {
-//      seek(key);
-//      if (peek() == null || comparator.compareRows(peek(), key) > 0) {
-//        return seekToPreviousRow(key);
-//      }
-//      return true;
-//    }
-//
-//    /**
-//     * Separately get the KeyValue before the specified key from kvset and
-//     * snapshotset, and use the row of higher one as the previous row of
-//     * specified key, then seek to the first KeyValue of previous row
-//     */
-//    @Override
-//    public synchronized boolean seekToPreviousRow(KeyValue key) {
-//      KeyValue firstKeyOnRow = KeyValue.createFirstOnRow(key.getRow());
-//      SortedSet<KeyValue> kvHead = kvsetAtCreation.headSet(firstKeyOnRow);
-//      KeyValue kvsetBeforeRow = kvHead.isEmpty() ? null : kvHead.last();
-//      SortedSet<KeyValue> snapshotHead = snapshotAtCreation
-//          .headSet(firstKeyOnRow);
-//      KeyValue snapshotBeforeRow = snapshotHead.isEmpty() ? null : snapshotHead
-//          .last();
-//      KeyValue lastKVBeforeRow = getHighest(kvsetBeforeRow, snapshotBeforeRow);
-//      if (lastKVBeforeRow == null) {
-//        theNext = null;
-//        return false;
-//      }
-//      KeyValue firstKeyOnPreviousRow = KeyValue
-//          .createFirstOnRow(lastKVBeforeRow.getRow());
-//      this.stopSkippingKVsIfNextRow = true;
-//      seek(firstKeyOnPreviousRow);
-//      this.stopSkippingKVsIfNextRow = false;
-//      if (peek() == null
-//          || comparator.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
-//        return seekToPreviousRow(lastKVBeforeRow);
-//      }
-//      return true;
-//    }
-//
-//    @Override
-//    public synchronized boolean seekToLastRow() {
-//      KeyValue first = kvsetAtCreation.isEmpty() ? null : kvsetAtCreation
-//          .last();
-//      KeyValue second = snapshotAtCreation.isEmpty() ? null
-//          : snapshotAtCreation.last();
-//      KeyValue higherKv = getHighest(first, second);
-//      if (higherKv == null) {
-//        return false;
-//      }
-//      KeyValue firstKvOnLastRow = KeyValue.createFirstOnRow(higherKv.getRow());
-//      if (seek(firstKvOnLastRow)) {
-//        return true;
-//      } else {
-//        return seekToPreviousRow(higherKv);
-//      }
-//
-//    }
-//  }
-//
+
+      this.kvsetItRow = null;
+      this.snapshotItRow = null;
+    }
+
+    /**
+     * MemStoreScanner returns max value as sequence id because it will
+     * always have the latest data among all files.
+     */
+    @Override
+    public long getSequenceID() {
+      return Long.MAX_VALUE;
+    }
+
+    @Override
+    public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
+        long oldestUnexpiredTS) {
+      return shouldSeek(scan, oldestUnexpiredTS);
+    }
+
+    /**
+     * Seek scanner to the given key first. If it returns false(means
+     * peek()==null) or scanner's peek row is bigger than row of given key, seek
+     * the scanner to the previous row of given key
+     */
+    @Override
+    public synchronized boolean backwardSeek(KeyValue key) {
+      seek(key);
+      if (peek() == null || comparator.compareRows(peek(), key) > 0) {
+        return seekToPreviousRow(key);
+      }
+      return true;
+    }
+
+    /**
+     * Separately get the KeyValue before the specified key from kvset and
+     * snapshotset, and use the row of higher one as the previous row of
+     * specified key, then seek to the first KeyValue of previous row
+     */
+    @Override
+    public synchronized boolean seekToPreviousRow(KeyValue key) {
+      KeyValue firstKeyOnRow = KeyValue.createFirstOnRow(key.getRow());
+      SortedSet<KeyValue> kvHead = kvsetAtCreation.headSet(firstKeyOnRow);
+      KeyValue kvsetBeforeRow = kvHead.isEmpty() ? null : kvHead.last();
+      SortedSet<KeyValue> snapshotHead = snapshotAtCreation
+          .headSet(firstKeyOnRow);
+      KeyValue snapshotBeforeRow = snapshotHead.isEmpty() ? null : snapshotHead
+          .last();
+      KeyValue lastKVBeforeRow = getHighest(kvsetBeforeRow, snapshotBeforeRow);
+      if (lastKVBeforeRow == null) {
+        theNext = null;
+        return false;
+      }
+      KeyValue firstKeyOnPreviousRow = KeyValue
+          .createFirstOnRow(lastKVBeforeRow.getRow());
+      this.stopSkippingKVsIfNextRow = true;
+      seek(firstKeyOnPreviousRow);
+      this.stopSkippingKVsIfNextRow = false;
+      if (peek() == null
+          || comparator.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
+        return seekToPreviousRow(lastKVBeforeRow);
+      }
+      return true;
+    }
+
+    @Override
+    public synchronized boolean seekToLastRow() {
+      KeyValue first = kvsetAtCreation.isEmpty() ? null : kvsetAtCreation
+          .last();
+      KeyValue second = snapshotAtCreation.isEmpty() ? null
+          : snapshotAtCreation.last();
+      KeyValue higherKv = getHighest(first, second);
+      if (higherKv == null) {
+        return false;
+      }
+      KeyValue firstKvOnLastRow = KeyValue.createFirstOnRow(higherKv.getRow());
+      if (seek(firstKvOnLastRow)) {
+        return true;
+      } else {
+        return seekToPreviousRow(higherKv);
+      }
+
+    }
+  }
+
 
   /**
    * Code to help figure if our approximation of object heap sizes is close
