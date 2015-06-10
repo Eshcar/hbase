@@ -22,6 +22,7 @@ import org.apache.commons.lang.ObjectUtils;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -35,15 +36,15 @@ class CellSetScanner implements KeyValueScanner{
 
   private final CellSetMgr cellSetMgr;    // the observed structure
   private long readPoint;
-  private Iterator<KeyValue> iter;
-  // the pre-calculated Cell to be returned by peek() or next()
-  private KeyValue current = null;
+  private Iterator<KeyValue> iter;        // the current iterator that can be reinitialized by seek(),
+                                          // backwardSeek(), or reseek()
+
+  private KeyValue current = null;        // the pre-calculated cell to be returned by peek() or next()
+
   // A flag represents whether could stop skipping KeyValues for MVCC
   // if have encountered the next row. Only used for reversed scan
   private boolean stopSkippingKVsIfNextRow = false;
-  // A flag that represents whether the iterator was initialized from
-  // seek or backwardSeek or just dummy constructor initialization
-  private boolean seekInitialized = false;
+
   // last iterated KVs by seek (to restore iterator state after reseek)
   private KeyValue last = null;
 
@@ -53,14 +54,12 @@ class CellSetScanner implements KeyValueScanner{
   public CellSetScanner(CellSetMgr cellSetMgr, long readPoint) {
     super();
     this.cellSetMgr   = cellSetMgr;
-    this.readPoint    = readPoint;
+    this.readPoint    = readPoint;  // the highest relevant MVCC
 
     iter = cellSetMgr.iterator();
-    if(iter.hasNext()){           // current is initiated to null, assuming seek or
-      current = iter.next();      // backwardSeek is going to be first operation
-    }
-
-    //increase the scanners reference count so the underlying structure will not be de-allocated
+    current = getNext();            // initialize the current at the start
+                                    // is required for working with heap of CellSetScanners
+    //increase the reference count so the underlying structure will not be de-allocated
     this.cellSetMgr.incScannerCount();
   }
 
@@ -69,17 +68,18 @@ class CellSetScanner implements KeyValueScanner{
    * Private internal method for iterating over the CellSet
    * */
   private KeyValue getNext() {
-    KeyValue startKV = (seekInitialized) ? current : null;
+    KeyValue startKV = current;
     KeyValue next = null;
-    try {
 
+    try {
       while (iter.hasNext()) {
         next = iter.next();
-        if (next.getMvccVersion() <= this.readPoint) {
+        if (next.getMvccVersion() <= this.readPoint) { // skip irrelevant versions
           return next;
         }
-        if (stopSkippingKVsIfNextRow && startKV != null
-                && cellSetMgr.compareRows(next, startKV) > 0) {
+        if (stopSkippingKVsIfNextRow &&                // for backwardSeek() stay in the
+                startKV != null &&                     // boundaries of single row
+                cellSetMgr.compareRows(next, startKV) > 0) {
           return null;
         }
       } // end of while
@@ -87,9 +87,7 @@ class CellSetScanner implements KeyValueScanner{
       return null; // nothing found
     } finally {
       if (next != null) {
-        // in all cases, remember the last KV iterated to
-        current = next;
-        seekInitialized = true; // current is not-compiler initialized
+        // in all cases, remember the last KV we iterated to, needed for reseek()+
         last = next;
       }
     }
@@ -117,6 +115,10 @@ class CellSetScanner implements KeyValueScanner{
    * @return the next Cell
    */
   @Override public KeyValue peek() {
+    if (current!=null && current.getMvccVersion() > readPoint) {
+      ;
+      assert (false);
+    }
     return current;
   }
 
@@ -126,7 +128,6 @@ class CellSetScanner implements KeyValueScanner{
    * @return the next Cell
    */
   @Override public KeyValue next() throws IOException {
-    if (current==null) return null;
     KeyValue oldCurrent = current;
     current = getNext();
     return oldCurrent;
@@ -141,9 +142,28 @@ class CellSetScanner implements KeyValueScanner{
   @Override public boolean seek(KeyValue key) throws IOException {
     // restart iterator from new key
     iter = cellSetMgr.getCellSet().tailSet(key).iterator();
-    last = null;
+    last = null;      // last is going to be reinitialized in the next getNext() call
     current = getNext();
     return (current!=null);
+  }
+
+  /**---------------------------------------------------------
+   * For Debug
+   */
+  public boolean checkForHigerMVCC(KeyValue key, long rPfound, long rPglobal) throws IOException {
+    // restart iterator from new key
+    Iterator<KeyValue> iter = cellSetMgr.getCellSet().tailSet(key).iterator();
+
+    while (iter.hasNext()) {
+      KeyValue curr = iter.next();
+      //if (Bytes.compareTo(curr.getKey(), key.getKey())!=0) curr.createKeyOnly(true)
+      if ((curr.getMvccVersion() > rPfound)&&
+              (curr.getMvccVersion() <= rPglobal)) {
+        return true;
+      }
+    } // end of while
+
+    return false;
   }
 
   /**---------------------------------------------------------
@@ -164,7 +184,8 @@ class CellSetScanner implements KeyValueScanner{
     * the reseeked set to at least that point.
     */
     iter = cellSetMgr.getCellSet().tailSet(getHighest(key, last)).iterator();
-    return (getNext()!=null);
+    current = getNext();
+    return (current!=null);
   }
 
   /**---------------------------------------------------------
@@ -273,7 +294,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public boolean backwardSeek(KeyValue key) throws IOException {
     seek(key);    // seek forward then go backward
-    if ((!seekInitialized) || peek()==null || cellSetMgr.compareRows(peek(), key) > 0) {
+    if (peek()==null || cellSetMgr.compareRows(peek(), key) > 0) {
       return seekToPreviousRow(key);
     }
     return true;
@@ -310,7 +331,7 @@ class CellSetScanner implements KeyValueScanner{
     stopSkippingKVsIfNextRow = false;
 
     // if nothing found or we searched beyond the needed, take one more step backward
-    if ((!seekInitialized) || peek()==null || cellSetMgr.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
+    if ( peek()==null || cellSetMgr.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
       return seekToPreviousRow(lastCellBeforeRow);
     }
     return true;
