@@ -487,4 +487,5 @@ public abstract class AbstractMemStore implements HeapSize {
 
   abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;
 
+  public abstract AbstractMemStore setForceFlush();
 }

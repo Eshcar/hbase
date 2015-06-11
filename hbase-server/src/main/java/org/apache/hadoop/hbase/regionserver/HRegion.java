@@ -479,6 +479,7 @@ public class HRegion implements HeapSize { // , Writable{
   private long flushCheckInterval;
   // flushPerChanges is to prevent too many changes in memstore
   private long flushPerChanges;
+  private long memstoreForceFlushsize;
   private long blockingMemStoreSize;
   final long threadWakeFrequency;
   // Used to guard closes
@@ -665,6 +666,8 @@ public class HRegion implements HeapSize { // , Writable{
     this.memstoreFlushSize = flushSize;
     this.blockingMemStoreSize = this.memstoreFlushSize *
         conf.getLong("hbase.hregion.memstore.block.multiplier", 2);
+    // set force flush size to be between flush size and blocking size
+    this.memstoreForceFlushsize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
   }
 
   /**
@@ -1725,6 +1728,7 @@ public class HRegion implements HeapSize { // , Writable{
     // block waiting for the lock for internal flush
     this.updatesLock.writeLock().lock();
     long totalFlushableSize = 0;
+    long actualFlushedSize = 0;
     status.setStatus("Preparing to flush by snapshotting stores");
     List<StoreFlushContext> storeFlushCtxs = new ArrayList<StoreFlushContext>(stores.size());
     long flushSeqId = -1L;
@@ -1793,6 +1797,7 @@ public class HRegion implements HeapSize { // , Writable{
 
       for (StoreFlushContext flush : storeFlushCtxs) {
         flush.flushCache(status);
+        actualFlushedSize += flush.getActualFlushedSize();
       }
 
       // Switch snapshot (in memstore) -> new hfile (thus causing
@@ -1806,7 +1811,7 @@ public class HRegion implements HeapSize { // , Writable{
       storeFlushCtxs.clear();
 
       // Set down the memstore size by amount of flush.
-      this.addAndGetGlobalMemstoreSize(-totalFlushableSize);
+      this.addAndGetGlobalMemstoreSize(-actualFlushedSize);
     } catch (Throwable t) {
       // An exception here means that the snapshot was not persisted.
       // The hlog needs to be replayed so its content is restored to memstore.
@@ -1844,7 +1849,7 @@ public class HRegion implements HeapSize { // , Writable{
     long time = EnvironmentEdgeManager.currentTimeMillis() - startTime;
     long memstoresize = this.memstoreSize.get();
     String msg = "Finished memstore flush of ~" +
-      StringUtils.humanReadableInt(totalFlushableSize) + "/" + totalFlushableSize +
+      StringUtils.humanReadableInt(actualFlushedSize) + "/" + actualFlushedSize +
       ", currentsize=" +
       StringUtils.humanReadableInt(memstoresize) + "/" + memstoresize +
       " for region " + this + " in " + time + "ms, sequenceid=" + flushSeqId +
@@ -1852,7 +1857,7 @@ public class HRegion implements HeapSize { // , Writable{
       ((wal == null)? "; wal=null": "");
     LOG.info(msg);
     status.setStatus(msg);
-    this.recentFlushes.add(new Pair<Long,Long>(time/1000, totalFlushableSize));
+    this.recentFlushes.add(new Pair<Long,Long>(time/1000, actualFlushedSize));
 
     return new FlushResult(compactionRequested ? FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
         FlushResult.Result.FLUSHED_NO_COMPACTION_NEEDED, flushSeqId);
@@ -2275,10 +2280,8 @@ public class HRegion implements HeapSize { // , Writable{
           initialized = true;
         }
         long addedSize = doMiniBatchMutation(batchOp);
-        long newSize = this.addAndGetGlobalMemstoreSize(addedSize);
-        if (isFlushSize(newSize)) {
-          requestFlush();
-        }
+        this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded();
       }
     } finally {
       closeRegionOperation(op);
@@ -3007,17 +3010,41 @@ public class HRegion implements HeapSize { // , Writable{
     // If catalog region, do not impose resource constraints or block updates.
     if (this.getRegionInfo().isMetaRegion()) return;
 
-    if (this.memstoreSize.get() > this.blockingMemStoreSize) {
+    requestFlushIfNeeded();
+  }
+
+  private void requestFlushIfNeeded() throws RegionTooBusyException {
+    long memstoreSize = this.memstoreSize.get();
+
+    // block writes and force flush
+    if (memstoreSize > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
-      requestFlush();
+      requestAndForceFlush();
       throw new RegionTooBusyException("Above memstore limit, " +
           "regionName=" + (this.getRegionInfo() == null ? "unknown" :
           this.getRegionInfo().getRegionNameAsString()) +
           ", server=" + (this.getRegionServerServices() == null ? "unknown" :
           this.getRegionServerServices().getServerName()) +
-          ", memstoreSize=" + memstoreSize.get() +
+          ", memstoreSize=" + memstoreSize +
           ", blockingMemStoreSize=" + blockingMemStoreSize);
     }
+
+    // force flush
+    if (memstoreSize > this.memstoreForceFlushsize) {
+      requestAndForceFlush();
+    }
+
+    // (regular) flush
+    if (memstoreSize > this.memstoreFlushSize) {
+      requestFlush();
+    }
+  }
+
+  private void requestAndForceFlush() {
+    for (Store s : stores.values()) {
+      s.setForceFlush();
+    }
+    requestFlush();
   }
 
   /**
@@ -5234,9 +5261,9 @@ public class HRegion implements HeapSize { // , Writable{
       throw e;
     } finally {
       closeRegionOperation();
-      if (!mutations.isEmpty() &&
-          isFlushSize(this.addAndGetGlobalMemstoreSize(addedSize))) {
-        requestFlush();
+      if (!mutations.isEmpty()) {
+        this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded();
       }
     }
   }
@@ -5309,7 +5336,6 @@ public class HRegion implements HeapSize { // , Writable{
       throws IOException {
     byte[] row = append.getRow();
     checkRow(row, "append");
-    boolean flush = false;
     Durability durability = getEffectiveDurability(append.getDurability());
     boolean writeToWAL = durability != Durability.SKIP_WAL;
     WALEdit walEdits = null;
@@ -5505,8 +5531,7 @@ public class HRegion implements HeapSize { // , Writable{
             }
             allKVs.addAll(entry.getValue());
           }
-          size = this.addAndGetGlobalMemstoreSize(size);
-          flush = isFlushSize(size);
+          this.addAndGetGlobalMemstoreSize(size);
         } finally {
           this.updatesLock.readLock().unlock();
         }
@@ -5528,10 +5553,8 @@ public class HRegion implements HeapSize { // , Writable{
       this.metricsRegion.updateAppend();
     }
 
-    if (flush) {
-      // Request a cache flush. Do it outside update lock.
-      requestFlush();
-    }
+    // Request a cache flush. Do it outside update lock.
+    requestFlushIfNeeded();
 
 
     return append.isReturnResults() ? Result.create(allKVs) : null;
@@ -5555,7 +5578,6 @@ public class HRegion implements HeapSize { // , Writable{
     byte [] row = increment.getRow();
     checkRow(row, "increment");
     TimeRange tr = increment.getTimeRange();
-    boolean flush = false;
     Durability durability = getEffectiveDurability(increment.getDurability());
     boolean writeToWAL = durability != Durability.SKIP_WAL;
     WALEdit walEdits = null;
@@ -5726,8 +5748,7 @@ public class HRegion implements HeapSize { // , Writable{
                 }
               }
             }
-            size = this.addAndGetGlobalMemstoreSize(size);
-            flush = isFlushSize(size);
+            this.addAndGetGlobalMemstoreSize(size);
           }
         } finally {
           this.updatesLock.readLock().unlock();
@@ -5749,10 +5770,8 @@ public class HRegion implements HeapSize { // , Writable{
       }
     }
 
-    if (flush) {
-      // Request a cache flush.  Do it outside update lock.
-      requestFlush();
-    }
+    // Request a cache flush.  Do it outside update lock.
+    requestFlushIfNeeded();
 
     return Result.create(allKVs);
   }

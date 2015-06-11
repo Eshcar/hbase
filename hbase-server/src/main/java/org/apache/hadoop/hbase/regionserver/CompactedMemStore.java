@@ -156,6 +156,10 @@ public class CompactedMemStore extends AbstractMemStore {
         LOG.warn("Snapshot called again without clearing previous. " +
             "Doing nothing. Another ongoing flush or did we fail last attempt?");
       } else {
+        LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
+            "and pipeline tail into snapshot.");
+        CellSetMgr active = getCellSet();
+        pipeline.pushHead(active);
         this.snapshotId = EnvironmentEdgeManager.currentTimeMillis();
         CellSetMgr tail = pipeline.pullTail();
         setSnapshot(tail);
@@ -209,7 +213,8 @@ public class CompactedMemStore extends AbstractMemStore {
     getSnapshot().getRowKeyAtOrBefore(state);
   }
 
-  public CompactedMemStore setForceFlush() {
+  @Override
+  public AbstractMemStore setForceFlush() {
     forceFlush = true;
     // stop compactor if currently working, to avoid possible conflict in pipeline
     compactor.stopCompact();

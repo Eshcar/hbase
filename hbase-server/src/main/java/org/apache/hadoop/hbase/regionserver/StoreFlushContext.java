@@ -18,10 +18,10 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
+
+import java.io.IOException;
 
 /**
  * A package protected interface for a store flushing.
@@ -61,4 +61,6 @@ interface StoreFlushContext {
    * @throws IOException
    */
   boolean commit(MonitoredTask status) throws IOException;
+
+  long getActualFlushedSize();
 }

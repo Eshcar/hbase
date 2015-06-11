@@ -114,6 +114,11 @@ public class DefaultMemStore extends AbstractMemStore {
     return list;
   }
 
+  @Override public AbstractMemStore setForceFlush() {
+    // do nothing
+    return this;
+  }
+
   /**
    * Remove n key from the memstore. Only cells that have the same key and the
    * same memstoreTS are removed.  It is ok to not update timeRangeTracker
