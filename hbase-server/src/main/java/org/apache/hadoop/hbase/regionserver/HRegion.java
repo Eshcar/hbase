@@ -3008,12 +3008,7 @@ public class HRegion implements HeapSize { // , Writable{
     // If catalog region, do not impose resource constraints or block updates.
     if (this.getRegionInfo().isMetaRegion()) return;
 
-    requestFlushIfNeeded();
-  }
-
-  private void requestFlushIfNeeded() throws RegionTooBusyException {
     long memstoreSize = this.memstoreSize.get();
-
     // block writes and force flush
     if (memstoreSize > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
@@ -3026,6 +3021,10 @@ public class HRegion implements HeapSize { // , Writable{
           ", memstoreSize=" + memstoreSize +
           ", blockingMemStoreSize=" + blockingMemStoreSize);
     }
+  }
+
+  private void requestFlushIfNeeded() throws RegionTooBusyException {
+    long memstoreSize = this.memstoreSize.get();
 
     // force flush
     if (memstoreSize > this.memstoreForceFlushsize) {
