@@ -73,6 +73,10 @@ class MemStoreCompactor {
         return;
     }
 
+    public boolean isInCompaction() {
+        return (workerThread!=null);
+    }
+
     /*
     * The worker thread performs the compaction asynchronously.
     * The solo (per compactor) thread only reads the compaction pipeline

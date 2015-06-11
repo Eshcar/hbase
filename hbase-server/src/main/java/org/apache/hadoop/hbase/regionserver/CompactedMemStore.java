@@ -222,5 +222,25 @@ public class CompactedMemStore extends AbstractMemStore {
     return list;
   }
 
+  //methods for tests
+
+  /**
+   * @param cell Find the row that comes after this one.  If null, we return the
+   * first.
+   * @return Next row or null if none found.
+   */
+  KeyValue getNextRow(final KeyValue cell) {
+    KeyValue lowest = null;
+    LinkedList<CellSetMgr> mgrs = getCellSetMgrList();
+    for (CellSetMgr mgr : mgrs) {
+      if (lowest==null) {
+        lowest = getNextRow(cell, mgr.getCellSet());
+      } else {
+        lowest = getLowest(lowest, getNextRow(cell, mgr.getCellSet()));
+      }
+    }
+    return lowest;
+  }
+
 
 }
