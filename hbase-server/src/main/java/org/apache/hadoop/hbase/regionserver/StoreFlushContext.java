@@ -62,5 +62,4 @@ interface StoreFlushContext {
    */
   boolean commit(MonitoredTask status) throws IOException;
 
-  long getActualFlushedSize();
 }

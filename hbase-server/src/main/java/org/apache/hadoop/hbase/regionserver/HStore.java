@@ -2094,9 +2094,6 @@ public class HStore implements Store {
       return HStore.this.updateStorefiles(storeFiles, snapshot);
     }
 
-    @Override public long getActualFlushedSize() {
-      return flushedSize.get();
-    }
   }
 
   @Override

@@ -1728,8 +1728,7 @@ public class HRegion implements HeapSize { // , Writable{
     // block waiting for the lock for internal flush
     this.updatesLock.writeLock().lock();
     long totalFlushableSize = 0;
-    long actualFlushedSize = 0;
-    status.setStatus("Preparing to flush by snapshotting stores");
+     status.setStatus("Preparing to flush by snapshotting stores");
     List<StoreFlushContext> storeFlushCtxs = new ArrayList<StoreFlushContext>(stores.size());
     long flushSeqId = -1L;
     try {
@@ -1797,7 +1796,6 @@ public class HRegion implements HeapSize { // , Writable{
 
       for (StoreFlushContext flush : storeFlushCtxs) {
         flush.flushCache(status);
-        actualFlushedSize += flush.getActualFlushedSize();
       }
 
       // Switch snapshot (in memstore) -> new hfile (thus causing
@@ -1811,7 +1809,7 @@ public class HRegion implements HeapSize { // , Writable{
       storeFlushCtxs.clear();
 
       // Set down the memstore size by amount of flush.
-      this.addAndGetGlobalMemstoreSize(-actualFlushedSize);
+      this.addAndGetGlobalMemstoreSize(-totalFlushableSize);
     } catch (Throwable t) {
       // An exception here means that the snapshot was not persisted.
       // The hlog needs to be replayed so its content is restored to memstore.
@@ -1849,7 +1847,7 @@ public class HRegion implements HeapSize { // , Writable{
     long time = EnvironmentEdgeManager.currentTimeMillis() - startTime;
     long memstoresize = this.memstoreSize.get();
     String msg = "Finished memstore flush of ~" +
-      StringUtils.humanReadableInt(actualFlushedSize) + "/" + actualFlushedSize +
+      StringUtils.humanReadableInt(totalFlushableSize) + "/" + totalFlushableSize +
       ", currentsize=" +
       StringUtils.humanReadableInt(memstoresize) + "/" + memstoresize +
       " for region " + this + " in " + time + "ms, sequenceid=" + flushSeqId +
@@ -1857,7 +1855,7 @@ public class HRegion implements HeapSize { // , Writable{
       ((wal == null)? "; wal=null": "");
     LOG.info(msg);
     status.setStatus(msg);
-    this.recentFlushes.add(new Pair<Long,Long>(time/1000, actualFlushedSize));
+    this.recentFlushes.add(new Pair<Long,Long>(time/1000, totalFlushableSize));
 
     return new FlushResult(compactionRequested ? FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
         FlushResult.Result.FLUSHED_NO_COMPACTION_NEEDED, flushSeqId);
