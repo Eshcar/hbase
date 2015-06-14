@@ -94,8 +94,9 @@ public class CompactedMemStore extends AbstractMemStore {
 
   @Override
   protected long deepOverhead() {
+    long pipelineSize = (pipeline == null ? 0 : pipeline.size());
     return DEEP_OVERHEAD + ADDITIONAL_FIXED_OVERHEAD +
-        (pipeline.size() * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+        (pipelineSize * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
   }
 
   @Override
@@ -131,9 +132,9 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override
   public void snapshot() {
+    CellSetMgr active = getCellSet();
     if(!forceFlush) {
       LOG.info("Snapshot called without forcing flush. ");
-      CellSetMgr active = getCellSet();
       if(active.getCellsCount() > CELLS_COUNT_MIN_THRESHOLD ||
           active.getSize() > CELLS_SIZE_MIN_THRESHOLD) {
         LOG.info("Pushing active set into compaction pipeline.");
@@ -148,6 +149,10 @@ public class CompactedMemStore extends AbstractMemStore {
         LOG.warn("Snapshot called again without clearing previous. " +
             "Doing nothing. Another ongoing flush or did we fail last attempt?");
       } else {
+        LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
+            "and pipeline tail into snapshot.");
+        pipeline.pushHead(active);
+        resetCellSet();
         this.snapshotId = EnvironmentEdgeManager.currentTimeMillis();
         CellSetMgr tail = pipeline.pullTail();
         setSnapshot(tail);
@@ -201,7 +206,8 @@ public class CompactedMemStore extends AbstractMemStore {
     getSnapshot().getRowKeyAtOrBefore(state);
   }
 
-  public CompactedMemStore setForceFlush() {
+  @Override
+  public AbstractMemStore setForceFlush() {
     forceFlush = true;
     // stop compactor if currently working, to avoid possible conflict in pipeline
     compactor.stopCompact();

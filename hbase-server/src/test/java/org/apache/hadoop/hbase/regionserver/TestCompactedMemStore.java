@@ -1,3 +1,21 @@
+/*
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.base.Joiner;
@@ -7,30 +25,20 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeepDeletedCells;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueTestUtil;
-import org.apache.hadoop.hbase.KeyValueUtil;
-
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.protobuf.generated.CellProtos;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
-
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdge;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-
 import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
@@ -49,7 +57,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TestCompactedMemStore extends TestCase {
     private static final Log LOG = LogFactory.getLog(TestCompactedMemStore.class);
     private CompactedMemStore cms;
-
     private static final int ROW_COUNT = 10;
     private static final int QUALIFIER_COUNT = ROW_COUNT;
     private static final byte [] FAMILY = Bytes.toBytes("column");
@@ -88,9 +95,7 @@ public class TestCompactedMemStore extends TestCase {
                 new ScanInfo(null, 0, 1, HConstants.LATEST_TIMESTAMP, KeepDeletedCells.FALSE, 0,
                         this.cms.getComparator());
         ScanType scanType = ScanType.USER_SCAN;
-
         StoreScanner s = new StoreScanner(scan, scanInfo, scanType, null, memstorescanners);
-
         int count = 0;
         try {
             while (s.next(result)) {
@@ -103,16 +108,12 @@ public class TestCompactedMemStore extends TestCase {
         } finally {
             s.close();
         }
-
         assertEquals(rowCount, count);
-
-
         for (KeyValueScanner scanner : memstorescanners) {
             scanner.close();
         }
 
         memstorescanners = this.cms.getScanners(mvcc.memstoreReadPoint());
-
         // Now assert can count same number even if a snapshot mid-scan.
         s = new StoreScanner(scan, scanInfo, scanType, null, memstorescanners);
         count = 0;
@@ -136,43 +137,39 @@ public class TestCompactedMemStore extends TestCase {
             s.close();
         }
 
-        // TODO: snapshot immediately starts compaction, but even with the compaction nothing
-        // TODO: should be compacted (unique keys) and the test should still be correct...
+        // snapshot immediately starts compaction, but even with the compaction nothing
+        // should be compacted (unique keys) and the test should still be correct...
         assertEquals(rowCount, count);
-
         for (KeyValueScanner scanner : memstorescanners) {
             scanner.close();
         }
-
-        //memstorescanners = this.cms.getScanners(mvcc.memstoreReadPoint());
-
+    memstorescanners = this.cms.getScanners(mvcc.memstoreReadPoint());
         // Assert that new values are seen in kvset as we scan.
-        // no clearSnapshot to compacted mem store, but why?
-//        long ts = System.currentTimeMillis();
-//        s = new StoreScanner(scan, scanInfo, scanType, null, memstorescanners);
-//        count = 0;
-//        int snapshotIndex = 5;
-//        try {
-//            while (s.next(result)) {
-//                LOG.info(result);
-//                // Assert the stuff is coming out in right order.
-//                assertTrue(CellUtil.matchingRow(result.get(0), Bytes.toBytes(count)));
-//                // Row count is same as column count.
-//                assertEquals("count=" + count + ", result=" + result, rowCount, result.size());
-//                count++;
-//                if (count == snapshotIndex) {
-//                    MemStoreSnapshot snapshot = this.memstore.snapshot();
-//                    this.memstore.clearSnapshot(snapshot.getId());
-//                    // Added more rows into kvset.  But the scanner wont see these rows.
-//                    addRows(this.memstore, ts);
-//                    LOG.info("Snapshotted, cleared it and then added values (which wont be seen)");
-//                }
-//                result.clear();
-//            }
-//        } finally {
-//            s.close();
-//        }
-//        assertEquals(rowCount, count);
+        long ts = System.currentTimeMillis();
+        s = new StoreScanner(scan, scanInfo, scanType, null, memstorescanners);
+        count = 0;
+        int snapshotIndex = 5;
+        try {
+            while (s.next(result)) {
+                LOG.info(result);
+                // Assert the stuff is coming out in right order.
+                assertTrue(CellUtil.matchingRow(result.get(0), Bytes.toBytes(count)));
+                // Row count is same as column count.
+                assertEquals("count=" + count + ", result=" + result, rowCount, result.size());
+                count++;
+                if (count == snapshotIndex) {
+                    this.cms.snapshot();
+                    this.cms.clearSnapshot(this.cms.getSnapshot().getCellSet());
+                    // Added more rows into kvset.  But the scanner wont see these rows.
+                    addRows(this.cms, ts);
+                    LOG.info("Snapshotted, cleared it and then added values (which wont be seen)");
+                }
+                result.clear();
+            }
+        } finally {
+            s.close();
+        }
+        assertEquals(rowCount, count);
     }
 
     /**
@@ -226,7 +223,7 @@ public class TestCompactedMemStore extends TestCase {
         List<Cell> returned = Lists.newArrayList();
 
         while (true) {
-            Cell next = scanner.next();
+      		KeyValue next = scanner.next();
             if (next == null) break;
             returned.add(next);
         }
@@ -393,10 +390,10 @@ public class TestCompactedMemStore extends TestCase {
 
 
         public ReadOwnWritesTester(int id,
-                                   CompactedMemStore memstore,
-                                   MultiVersionConsistencyControl mvcc,
-                                   AtomicReference<Throwable> caughtException,
-                                   AtomicLong startSeqNum)
+            CompactedMemStore memstore,
+            MultiVersionConsistencyControl mvcc,
+            AtomicReference<Throwable> caughtException,
+            AtomicLong startSeqNum)
         {
             this.mvcc = mvcc;
             this.compmemstore = memstore;
@@ -430,7 +427,7 @@ public class TestCompactedMemStore extends TestCase {
                 KeyValueScanner s = this.compmemstore.getScanners(mvcc.memstoreReadPoint()).get(0);
                 s.seek(kv);
 
-                Cell ret = s.next();
+                KeyValue ret = s.next();
                 assertNotNull("Didnt find own write at all", ret);
                 assertEquals("Didnt read own writes",
                         kv.getTimestamp(), ret.getTimestamp());
@@ -463,16 +460,15 @@ public class TestCompactedMemStore extends TestCase {
      * Test memstore snapshots
      * @throws IOException
      */
-    /* As clearSnapshot should currently not be used for compacted MemStore, I am removing this test */
-//    public void testSnapshotting() throws IOException {
-//        final int snapshotCount = 5;
-//        // Add some rows, run a snapshot. Do it a few times.
-//        for (int i = 0; i < snapshotCount; i++) {
-//            addRows(this.memstore);
-//            runSnapshot(this.memstore);
-//            assertEquals("History not being cleared", 0, this.memstore.getSnapshot().getCellsCount());
-//        }
-//    }
+    public void testSnapshotting() throws IOException {
+        final int snapshotCount = 5;
+        // Add some rows, run a snapshot. Do it a few times.
+        for (int i = 0; i < snapshotCount; i++) {
+            addRows(this.cms);
+            runSnapshot(this.cms, true);
+            assertEquals("History not being cleared", 0, this.cms.getSnapshot().getCellsCount());
+        }
+    }
 
     public void testMultipleVersionsSimple() throws Exception {
         CompactedMemStore m = new CompactedMemStore(new Configuration(), KeyValue.COMPARATOR);
@@ -506,7 +502,7 @@ public class TestCompactedMemStore extends TestCase {
         // Add more versions to make it a little more interesting.
         Thread.sleep(1);
         addRows(this.cms);
-        KeyValue closestToEmpty = this.cms.getNextRow(KeyValue.LOWESTKEY);  //TODO: resolve getNextRow interface
+        KeyValue closestToEmpty = this.cms.getNextRow(KeyValue.LOWESTKEY);
         assertTrue(KeyValue.COMPARATOR.compareRows(closestToEmpty,
                 new KeyValue(Bytes.toBytes(0), System.currentTimeMillis())) == 0);
         for (int i = 0; i < ROW_COUNT; i++) {
@@ -532,8 +528,7 @@ public class TestCompactedMemStore extends TestCase {
                 int rowId = startRowId + i;
                 Cell left = results.get(0);
                 byte[] row1 = Bytes.toBytes(rowId);
-                assertTrue(
-                        "Row name",
+                assertTrue("Row name",
                         KeyValue.COMPARATOR.compareRows(left.getRowArray(), left.getRowOffset(),
                                 (int)left.getRowLength(), row1, 0, row1.length) == 0);
                 assertEquals("Count of columns", QUALIFIER_COUNT, results.size());
@@ -548,31 +543,31 @@ public class TestCompactedMemStore extends TestCase {
         }
     }
 
+    public void testGet_memstoreAndSnapShot() throws IOException {
+        byte [] row = Bytes.toBytes("testrow");
+        byte [] fam = Bytes.toBytes("testfamily");
+        byte [] qf1 = Bytes.toBytes("testqualifier1");
+        byte [] qf2 = Bytes.toBytes("testqualifier2");
+        byte [] qf3 = Bytes.toBytes("testqualifier3");
+        byte [] qf4 = Bytes.toBytes("testqualifier4");
+        byte [] qf5 = Bytes.toBytes("testqualifier5");
+        byte [] val = Bytes.toBytes("testval");
 
-    /* Removing this test as getSnapshot is not supported by CompactedMemStore */
-//    public void testGet_memstoreAndSnapShot() throws IOException {
-//        byte [] row = Bytes.toBytes("testrow");
-//        byte [] fam = Bytes.toBytes("testfamily");
-//        byte [] qf1 = Bytes.toBytes("testqualifier1");
-//        byte [] qf2 = Bytes.toBytes("testqualifier2");
-//        byte [] qf3 = Bytes.toBytes("testqualifier3");
-//        byte [] qf4 = Bytes.toBytes("testqualifier4");
-//        byte [] qf5 = Bytes.toBytes("testqualifier5");
-//        byte [] val = Bytes.toBytes("testval");
-//
-//        //Setting up memstore
-//        memstore.add(new KeyValue(row, fam ,qf1, val));
-//        memstore.add(new KeyValue(row, fam ,qf2, val));
-//        memstore.add(new KeyValue(row, fam ,qf3, val));
-//        //Creating a snapshot
-//        memstore.snapshot();
-//        assertEquals(3, memstore.getSnapshot().getCellsCount());
-//        //Adding value to "new" memstore
-//        assertEquals(0, memstore.getCellSet().getCellsCount());
-//        memstore.add(new KeyValue(row, fam ,qf4, val));
-//        memstore.add(new KeyValue(row, fam ,qf5, val));
-//        assertEquals(2, memstore.getCellSet().getCellsCount());
-//    }
+        //Setting up memstore
+        cms.add(new KeyValue(row, fam ,qf1, val));
+        cms.add(new KeyValue(row, fam ,qf2, val));
+      	cms.add(new KeyValue(row, fam ,qf3, val));
+        //Creating a snapshot
+      	cms.snapshot();
+        assertEquals(0, cms.getSnapshot().getCellsCount());
+        cms.setForceFlush().snapshot();
+        assertEquals(3, cms.getSnapshot().getCellsCount());
+        //Adding value to "new" memstore
+        assertEquals(0, cms.getCellSet().getCellsCount());
+      	cms.add(new KeyValue(row, fam ,qf4, val));
+      	cms.add(new KeyValue(row, fam ,qf5, val));
+        assertEquals(2, cms.getCellSet().getCellsCount());
+    }
 
     //////////////////////////////////////////////////////////////////////////////
     // Delete tests
@@ -712,8 +707,6 @@ public class TestCompactedMemStore extends TestCase {
         assertEquals(2, cms.getCellSet().getCellsCount());
         assertEquals(delete, cms.getCellSet().first());
     }
-
-
     public void testRetainsDeleteColumn() throws IOException {
         // add a put to memstore
         cms.add(KeyValueTestUtil.create("row1", "fam", "a", 100, "dont-care"));
@@ -726,8 +719,6 @@ public class TestCompactedMemStore extends TestCase {
         assertEquals(2, cms.getCellSet().getCellsCount());
         assertEquals(delete, cms.getCellSet().first());
     }
-
-
     public void testRetainsDeleteFamily() throws IOException {
         // add a put to memstore
         cms.add(KeyValueTestUtil.create("row1", "fam", "a", 100, "dont-care"));
@@ -886,7 +877,7 @@ public class TestCompactedMemStore extends TestCase {
             // snapshot() after setForceFlush() will reset timeOfOldestEdit. The method will also assert
             // the value is reset to Long.MAX_VALUE
 
-            t = runSnapshot(compacmemstore, false);
+ //           t = runSnapshot(compacmemstore, false);
             t = runSnapshot(compacmemstore, true);
 
             // test the case that the timeOfOldestEdit is updated after a KV delete
@@ -939,7 +930,7 @@ public class TestCompactedMemStore extends TestCase {
             edge.setCurrentTimeMillis(1234);
             s.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
             edge.setCurrentTimeMillis(1234 + 100);
-            assertTrue(region.shouldFlush() == false);
+            assertTrue(!region.shouldFlush());
             edge.setCurrentTimeMillis(1234 + 10000);
             assertTrue(region.shouldFlush() == expected);
         } finally {
@@ -947,46 +938,15 @@ public class TestCompactedMemStore extends TestCase {
         }
     }
 
-//    public void testShouldFlushMeta() throws Exception {
-//        // write an edit in the META and ensure the shouldFlush (that the periodic memstore
-//        // flusher invokes) returns true after META_CACHE_FLUSH_INTERVAL (even though
-//        // the MEMSTORE_PERIODIC_FLUSH_INTERVAL is set to a higher value)
-//        Configuration conf = new Configuration();
-//        conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, HRegion.META_CACHE_FLUSH_INTERVAL * 10);
-//        HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
-//        Path testDir = hbaseUtility.getDataTestDir();
-//        EnvironmentEdgeForMemstoreTest edge = new EnvironmentEdgeForMemstoreTest();
-//        EnvironmentEdgeManager.injectEdge(edge);
-//        edge.setCurrentTimeMillis(1234);
-//        WALFactory wFactory = new WALFactory(conf, null, "1234");
-//        HRegion meta = HRegion.createHRegion(HRegionInfo.FIRST_META_REGIONINFO, testDir,
-//                conf, TableDescriptor.metaTableDescriptor(conf),
-//                wFactory.getMetaWAL(HRegionInfo.FIRST_META_REGIONINFO.
-//                        getEncodedNameAsBytes()));
-//        HRegionInfo hri = new HRegionInfo(TableName.valueOf("testShouldFlushMeta"),
-//                Bytes.toBytes("row_0200"), Bytes.toBytes("row_0300"));
-//        HTableDescriptor desc = new HTableDescriptor(TableName.valueOf("testShouldFlushMeta"));
-//        desc.addFamily(new HColumnDescriptor("foo".getBytes()));
-//        HRegion r =
-//                HRegion.createHRegion(hri, testDir, conf, desc,
-//                        wFactory.getWAL(hri.getEncodedNameAsBytes()));
-//        HRegion.addRegionToMETA(meta, r);
-//        edge.setCurrentTimeMillis(1234 + 100);
-//        assertTrue(meta.shouldFlush() == false);
-//        edge.setCurrentTimeMillis(edge.currentTime() + HRegion.META_CACHE_FLUSH_INTERVAL + 1);
-//        assertTrue(meta.shouldFlush() == true);
-//    }
-
     private class EnvironmentEdgeForMemstoreTest implements EnvironmentEdge {
         long t = 1234;
-        public void setCurrentTimeMillis(long t) {
-            this.t = t;
-        }
-
         @Override
         public long currentTimeMillis() {
             return t;
         }
+      public void setCurrentTimeMillis(long t) {
+        this.t = t;
+      }
     }
 
     /**
@@ -1021,18 +981,18 @@ public class TestCompactedMemStore extends TestCase {
     private long runSnapshot(final CompactedMemStore hmc, boolean useForce) throws UnexpectedException {
         // Save off old state.
         long oldHistorySize = hmc.getSnapshot().getSize();
-        long prevTimeStamp = cms.timeOfOldestEdit();
+        long prevTimeStamp = hmc.timeOfOldestEdit();
         if (useForce) hmc.setForceFlush();
         hmc.snapshot();
         CellSet ss = hmc.getSnapshot().getCellSet();
         if (useForce) {
             // Make some assertions about what just happened.
             assertTrue("History size has not increased", oldHistorySize < ss.size());
-            long t = cms.timeOfOldestEdit();
+            long t = hmc.timeOfOldestEdit();
             assertTrue("Time of oldest edit is not Long.MAX_VALUE", t == Long.MAX_VALUE);
             hmc.clearSnapshot(ss);
         } else {
-            long t = cms.timeOfOldestEdit();
+            long t = hmc.timeOfOldestEdit();
             assertTrue("Time of oldest edit didn't remain the same", t == prevTimeStamp);
         }
         return prevTimeStamp;
@@ -1052,7 +1012,16 @@ public class TestCompactedMemStore extends TestCase {
         }
     }
 
-    private static void addRows(int count, final AbstractMemStore mem) {
+  private KeyValue getDeleteKV(byte [] row) {
+    return new KeyValue(row, Bytes.toBytes("test_col"), null,
+      HConstants.LATEST_TIMESTAMP, KeyValue.Type.Delete, null);
+  }
+
+  private KeyValue getKV(byte [] row, byte [] value) {
+    return new KeyValue(row, Bytes.toBytes("test_col"), null,
+      HConstants.LATEST_TIMESTAMP, value);
+  }
+  private static void addRows(int count, final CompactedMemStore mem) {
         long nanos = System.nanoTime();
 
         for (int i = 0 ; i < count ; i++) {

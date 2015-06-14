@@ -174,8 +174,12 @@ public class DefaultMemStore extends AbstractMemStore {
     return heapSize();
   }
 
+  @Override public AbstractMemStore setForceFlush() {
+    // do nothing
+    return this;
+  }
 
-//  /*
+  //  /*
 //   * MemStoreScanner implements the KeyValueScanner.
 //   * It lets the caller scan the contents of a memstore -- both current
 //   * map and snapshot.
