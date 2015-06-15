@@ -81,6 +81,19 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         assert (type!=MemStoreScanType.USER_SCAN_BACKWARD);
     }
 
+    /**
+     * Restructure the ended backward heap after rerunning a seekToPreviousRow()
+     * on each scanner
+     * */
+    private boolean restructBackwHeap(KeyValue k) throws IOException {
+        boolean res = false;
+        List<CellSetScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
+        for(CellSetScanner scan : scanners)
+            res |= scan.seekToPreviousRow(k);
+        this.backwardHeap   =
+                new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
+        return res;
+    }
 
     /**
      * Checks whether the type of the scan suits the assumption of moving forward
@@ -99,7 +112,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                 // for the heap to be built from the scanners correctly
                 List<CellSetScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
                 for(CellSetScanner scan : scanners)
-                    if (toLast) res |= scan.seekToLastRow(); else res |= scan.backwardSeek(k);
+                    if (toLast) res |= scan.seekToLastRow();
+                    else res |= scan.backwardSeek(k);
                 this.backwardHeap   =
                         new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
                 type = MemStoreScanType.USER_SCAN_BACKWARD;
@@ -238,6 +252,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     @Override
     public synchronized boolean seekToPreviousRow(KeyValue key) throws IOException {
         assertBackward(key, false);
+        if(backwardHeap.peek()==null) restructBackwHeap(key);
         return backwardHeap.seekToPreviousRow(key);
     }
 
