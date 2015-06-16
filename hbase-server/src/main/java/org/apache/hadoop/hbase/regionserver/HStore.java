@@ -2093,6 +2093,7 @@ public class HStore implements Store {
       // Add new file to store files.  Clear snapshot too while we have the Store write lock.
       return HStore.this.updateStorefiles(storeFiles, snapshot);
     }
+
   }
 
   @Override
@@ -2176,5 +2177,9 @@ public class HStore implements Store {
   @Override
   public double getCompactionPressure() {
     return storeEngine.getStoreFileManager().getCompactionPressure();
+  }
+
+  @Override public void setForceFlush() {
+    this.memstore.setForceFlush();
   }
 }

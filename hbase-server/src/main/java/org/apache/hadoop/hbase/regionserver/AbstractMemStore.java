@@ -54,12 +54,12 @@ public abstract class AbstractMemStore implements HeapSize {
   // whereas the Set will not add new Cell if key is same though value might be
   // different.  Value is not important -- just make sure always same
   // reference passed.
-  private volatile CellSetMgr cellSet;
+  volatile private CellSetMgr cellSet;
   // Snapshot of memstore.  Made for flusher.
   volatile private CellSetMgr snapshot;
   volatile long snapshotId;
   // Used to track when to flush
-  private volatile long timeOfOldestEdit;
+  volatile private long timeOfOldestEdit;
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
