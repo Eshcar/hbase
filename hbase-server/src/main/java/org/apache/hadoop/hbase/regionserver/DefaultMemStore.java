@@ -179,6 +179,10 @@ public class DefaultMemStore extends AbstractMemStore {
     return this;
   }
 
+  @Override public boolean isMemstoreCompaction() {
+    return false;
+  }
+
   //  /*
 //   * MemStoreScanner implements the KeyValueScanner.
 //   * It lets the caller scan the contents of a memstore -- both current

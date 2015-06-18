@@ -137,6 +137,7 @@ public abstract class AbstractMemStore implements HeapSize {
   public abstract long size();
 
   public abstract AbstractMemStore setForceFlush();
+  public abstract boolean isMemstoreCompaction();
 
   protected abstract long deepOverhead();
 

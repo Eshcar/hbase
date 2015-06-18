@@ -18,11 +18,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import org.apache.commons.lang.ObjectUtils;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 import java.util.Iterator;

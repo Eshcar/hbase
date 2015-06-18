@@ -35,7 +35,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * A memstore implementation which supports its in-memory compaction.
+ * A memstore implementation which supports in-memory compaction.
  * A compaction pipeline is added between the active set and the snapshot data structures;
  * it consists of a list of kv-sets that are subject to compaction.
  * The semantics of the prepare-for-flush phase are changed: instead of shifting the current active
@@ -52,9 +52,10 @@ import java.util.List;
 public class CompactedMemStore extends AbstractMemStore {
 
   private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
-  private static final int CELLS_COUNT_MIN_THRESHOLD = 1000;
-  private static final int CELLS_SIZE_MIN_THRESHOLD = 4 * 1024 * 1024; //4MB
+  //private static final int CELLS_COUNT_MIN_THRESHOLD = 1000;
+  //private static final int CELLS_SIZE_MIN_THRESHOLD = 4 * 1024 * 1024; //4MB
 
+  private HRegion region;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private boolean forceFlush;
@@ -67,17 +68,31 @@ public class CompactedMemStore extends AbstractMemStore {
       .TIMERANGE_TRACKER +
       ClassSize.KEYVALUE_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
 
+  public static long getCellSetMgrSize(CellSetMgr cellSetMgr) {
+    return cellSetMgr.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
+  }
+
+  public static long getCellSetMgrListSize(LinkedList<CellSetMgr> list) {
+    long res = 0;
+    for(CellSetMgr cellSetMgr : list) {
+      res += getCellSetMgrSize(cellSetMgr);
+    }
+    return res;
+  }
+
   /**
    * Default constructor. Used for tests.
    */
   CompactedMemStore() throws IOException {
-    this(HBaseConfiguration.create(), KeyValue.COMPARATOR);
+    this(HBaseConfiguration.create(), KeyValue.COMPARATOR, null);
   }
 
-  public CompactedMemStore(Configuration conf, KeyValue.KVComparator c) throws IOException {
+  public CompactedMemStore(Configuration conf, KeyValue.KVComparator c,
+      HRegion region) throws IOException {
     super(conf, c);
-    this.pipeline = new CompactionPipeline();
-    this.compactor = new MemStoreCompactor(pipeline, c, 0, this);
+    this.region = region;
+    this.pipeline = new CompactionPipeline(region);
+    this.compactor = new MemStoreCompactor(this, pipeline, c);
     this.forceFlush = false;
   }
 
@@ -135,12 +150,13 @@ public class CompactedMemStore extends AbstractMemStore {
     CellSetMgr active = getCellSet();
     if(!forceFlush) {
       LOG.info("Snapshot called without forcing flush. ");
-      if(active.getCellsCount() > CELLS_COUNT_MIN_THRESHOLD ||
-          active.getSize() > CELLS_SIZE_MIN_THRESHOLD) {
-        LOG.info("Pushing active set into compaction pipeline.");
-        pipeline.pushHead(active);
-        resetCellSet();
-        compactor.doCompact();
+      LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
+      pushActiveToPipeline(active);
+      try {
+//        compactor.doCompact(region.getReadpoint(IsolationLevel.READ_COMMITTED));
+        compactor.doCompact(Long.MAX_VALUE);
+      } catch (IOException e) {
+        LOG.error("Unable to run memstore compaction", e);
       }
     } else { //**** FORCE FLUSH MODE ****//
       // If snapshot currently has entries, then flusher failed or didn't call
@@ -151,17 +167,23 @@ public class CompactedMemStore extends AbstractMemStore {
       } else {
         LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
             "and pipeline tail into snapshot.");
-        pipeline.pushHead(active);
-        resetCellSet();
+        pushActiveToPipeline(active);
         this.snapshotId = EnvironmentEdgeManager.currentTimeMillis();
         CellSetMgr tail = pipeline.pullTail();
         setSnapshot(tail);
-        setSnapshotSize(tail.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+        setSnapshotSize(getCellSetMgrSize(tail));
         resetForceFlush();
       }
     }
 //    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
 
+  }
+
+  private void pushActiveToPipeline(CellSetMgr active) {
+    if(!active.isEmpty()) {
+      pipeline.pushHead(active);
+      resetCellSet();
+    }
   }
 
   /**
@@ -175,7 +197,12 @@ public class CompactedMemStore extends AbstractMemStore {
   public long getFlushableSize() {
     long snapshotSize = getSnapshot().getSize();
     if(forceFlush && snapshotSize == 0) {
-      snapshotSize = pipeline.peekTail().getSize();
+      if(!pipeline.isEmpty()) {
+        snapshotSize = pipeline.peekTail().getSize();
+      } else {
+        snapshotSize = getCellSet().getSize();
+      }
+      snapshotSize -= deepOverhead();
     }
     return snapshotSize;
   }
@@ -212,6 +239,10 @@ public class CompactedMemStore extends AbstractMemStore {
     // stop compactor if currently working, to avoid possible conflict in pipeline
     compactor.stopCompact();
     return this;
+  }
+
+  @Override public boolean isMemstoreCompaction() {
+    return compactor.isInCompaction();
   }
 
   private CompactedMemStore resetForceFlush() {

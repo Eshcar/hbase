@@ -408,4 +408,6 @@ public interface Store extends HeapSize, StoreConfigInformation {
 
   // turn on the force flush flag to make sure data is flushed to disk
   void setForceFlush();
+  // check whether memstore compaction is in progress
+  boolean isMemstoreCompaction();
 }

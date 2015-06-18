@@ -197,8 +197,11 @@ public class TestIOFencing {
     }
 
     @Override public void setForceFlush() {
-      // do nothing
       return;
+    }
+
+    @Override public boolean isMemstoreCompaction() {
+      return false;
     }
   }
 

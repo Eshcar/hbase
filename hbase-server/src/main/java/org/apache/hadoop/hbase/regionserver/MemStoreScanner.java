@@ -45,23 +45,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     public MemStoreScanner( AbstractMemStore ms,
                             long readPoint,
                             MemStoreScanType type) throws IOException {
-        super();
-        this.readPoint      = readPoint;
-        this.type = type;
-        switch (type){
-            case UNDEFINED:
-            case USER_SCAN_FORWARD:
-            case COMPACT_FORWARD:
-                this.forwardHeap    = new KeyValueHeap(ms.getListOfScanners(readPoint), ms.getComparator());
-                break;
-            case USER_SCAN_BACKWARD:
-                this.backwardHeap   = new ReversedKeyValueHeap(ms.getListOfScanners(readPoint), ms.getComparator());
-                break;
-        }
-        this.backwardReferenceToMemStore = ms;
-//        if (Trace.isTracing() && Trace.currentSpan() != null) {
-//            Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
-//        }
+      this(ms, ms.getListOfScanners(readPoint),readPoint,type);
     }
 
 
@@ -70,8 +54,29 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         this(ms, readPt, MemStoreScanType.UNDEFINED);
     }
 
+  public MemStoreScanner(AbstractMemStore ms, List<? extends KeyValueScanner> scanners,
+      long readPoint,
+      MemStoreScanType type) throws IOException {
+    super();
+    this.readPoint      = readPoint;
+    this.type = type;
+    switch (type){
+    case UNDEFINED:
+    case USER_SCAN_FORWARD:
+    case COMPACT_FORWARD:
+      this.forwardHeap    = new KeyValueHeap(scanners, ms.getComparator());
+      break;
+    case USER_SCAN_BACKWARD:
+      this.backwardHeap   = new ReversedKeyValueHeap(scanners, ms.getComparator());
+      break;
+    }
+    this.backwardReferenceToMemStore = ms;
+    //        if (Trace.isTracing() && Trace.currentSpan() != null) {
+    //            Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
+    //        }
+  }
 
-    /**
+  /**
      * Checks whether the type of the scan suits the assumption of moving forward
      * */
     private void assertForward(){

@@ -18,6 +18,8 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
@@ -37,7 +39,9 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @InterfaceAudience.Private
 public class CompactionPipeline {
+  private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
 
+  private final HRegion region;
   private LinkedList<CellSetMgr> pipeline;
   private long version;
   // a lock to protect critical sections changing the structure of the list
@@ -46,7 +50,8 @@ public class CompactionPipeline {
   private static final CellSetMgr EMPTY_CELL_SET_MGR = CellSetMgr.Factory.instance()
       .createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, null,0);
 
-  public CompactionPipeline() {
+  public CompactionPipeline(HRegion region) {
+    this.region = region;
     this.pipeline = new LinkedList<CellSetMgr>();
     this.version = 0;
     this.lock = new ReentrantLock(true);
@@ -108,7 +113,17 @@ public class CompactionPipeline {
       LinkedList<CellSetMgr> suffix = versionedList.getCellSetMgrList();
       boolean valid = validateSufixList(suffix);
       if(!valid) return false;
+      LOG.info("Swapping pipeline suffix with compacted item.");
       swapSuffix(suffix,cellSetMgr);
+      if(region != null) {
+        // update the global memstore size counter
+        long suffixSize = CompactedMemStore.getCellSetMgrListSize(suffix);
+        long newSize = CompactedMemStore.getCellSetMgrSize(cellSetMgr);
+        long delta = suffixSize - newSize;
+        long globalSize = region.addAndGetGlobalMemstoreSize(-delta);
+        LOG.info("Suffix size: "+ suffixSize+" compacted item size: "+newSize+
+            " globalSize: "+globalSize);
+      }
       return true;
     } finally {
       lock.unlock();
@@ -139,6 +154,10 @@ public class CompactionPipeline {
     for(CellSetMgr item : getCellSetMgrList()) {
       item.getRowKeyAtOrBefore(state);
     }
+  }
+
+  public boolean isEmpty() {
+    return pipeline.isEmpty();
   }
 
   public LinkedList<CellSetMgr> getCellSetMgrList() {

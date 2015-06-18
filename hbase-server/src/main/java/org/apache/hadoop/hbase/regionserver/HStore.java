@@ -235,7 +235,11 @@ public class HStore implements Store {
     // Why not just pass a HColumnDescriptor in here altogether?  Even if have
     // to clone it?
     scanInfo = new ScanInfo(family, ttl, timeToPurgeDeletes, this.comparator);
-    this.memstore = new DefaultMemStore(conf, this.comparator);
+    if(family.isInMemory()) {
+      this.memstore = new CompactedMemStore(conf, this.comparator, this.region);
+    } else {
+      this.memstore = new DefaultMemStore(conf, this.comparator);
+    }
     this.offPeakHours = OffPeakHours.getInstance(conf);
 
     // Setting up cache configuration for this family
@@ -2181,5 +2185,9 @@ public class HStore implements Store {
 
   @Override public void setForceFlush() {
     this.memstore.setForceFlush();
+  }
+
+  @Override public boolean isMemstoreCompaction() {
+    return memstore.isMemstoreCompaction();
   }
 }

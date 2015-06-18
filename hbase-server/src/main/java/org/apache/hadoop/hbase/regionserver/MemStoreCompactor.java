@@ -5,6 +5,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The ongoing MemStore compaction manager, dispatches a solo running compaction
@@ -19,27 +20,20 @@ import java.util.ArrayList;
 @InterfaceAudience.Private
 class MemStoreCompactor {
     private CompactionPipeline cp;
+    private AbstractMemStore ms;
     private MemStoreScanner scanner;
     private VersionedCellSetMgrList versionedList;
-    private long readPoint;
     final KeyValue.KVComparator comparator;
     Thread workerThread = null;
 
-    public MemStoreCompactor (CompactionPipeline cp,
-        KeyValue.KVComparator comparator,
-        long readPoint, AbstractMemStore ms) throws IOException{
+    public MemStoreCompactor (
+        AbstractMemStore ms,
+        CompactionPipeline cp,
+        KeyValue.KVComparator comparator) {
+        this.ms = ms;
         this.cp = cp;
-        this.readPoint = readPoint;
-        this.versionedList = cp.getVersionedList();
         this.comparator = comparator;
-        ArrayList<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
 
-        for (CellSetMgr mgr : this.versionedList.getCellSetMgrList()) {
-            scanners.add(mgr.getScanner(readPoint));
-        }
-
-        scanner =
-                new MemStoreScanner(ms,readPoint, MemStoreScanType.COMPACT_FORWARD);
     }
 
     /*
@@ -51,7 +45,15 @@ class MemStoreCompactor {
     * TODO: Possibly to provide a compaction pipeline also to doCompact in order to allow same
     *       MemStoreCommactor instance re-usage
     */
-    public boolean doCompact() {
+    public boolean doCompact(long readPoint) throws IOException {
+        this.versionedList = cp.getVersionedList();
+        List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
+
+        for (CellSetMgr mgr : this.versionedList.getCellSetMgrList()) {
+          scanners.add(mgr.getScanner(readPoint));
+        }
+        scanner =
+          new MemStoreScanner(ms,scanners,readPoint, MemStoreScanType.COMPACT_FORWARD);
         if (workerThread == null) {
             Runnable worker = new Worker();
             workerThread = new Thread(worker);
@@ -82,12 +84,12 @@ class MemStoreCompactor {
     * The solo (per compactor) thread only reads the compaction pipeline
     */
     private class Worker implements Runnable {
-        private final CellSetMgr resultCellSetMgr =
-                CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.COMPACTED_READ_ONLY,
-                                                                comparator, 0);
 
         @Override
         public void run() {
+          CellSetMgr resultCellSetMgr =
+              CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.COMPACTED_READ_ONLY,
+                  comparator, 0);
             // the compaction processing
           KeyValue cell;
             try {
@@ -98,7 +100,9 @@ class MemStoreCompactor {
                     cell = scanner.next();
                 }
                 // Phase II: swap the old compaction pipeline
-                cp.swap(versionedList,resultCellSetMgr);
+                if(!Thread.currentThread().isInterrupted()) {
+                  cp.swap(versionedList, resultCellSetMgr);
+                }
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
                 return;
