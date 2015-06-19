@@ -1169,7 +1169,7 @@ public class HRegion implements HeapSize { // , Writable{
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
             }
-            internalFlushcache(status);
+            internalFlushcache(status, true); // force flush on close
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
             synchronized (writestate) {
@@ -1678,7 +1678,22 @@ public class HRegion implements HeapSize { // , Writable{
    */
   protected FlushResult internalFlushcache(MonitoredTask status)
       throws IOException {
-    return internalFlushcache(this.log, -1, status);
+    return internalFlushcache(status, false); // default is not to force flush
+  }
+
+  /**
+   * @param status
+   * @param forceFlush
+   *
+   * @return object describing the flush's state
+   *
+   * @throws IOException general io exceptions
+   * @throws DroppedSnapshotException Thrown when replay of hlog is required
+   * because a Snapshot was not properly persisted.
+   */
+  protected FlushResult internalFlushcache(MonitoredTask status, boolean forceFlush)
+      throws IOException {
+    return internalFlushcache(this.log, -1, status, forceFlush);
   }
 
   /**
@@ -1691,7 +1706,7 @@ public class HRegion implements HeapSize { // , Writable{
    * @see #internalFlushcache(MonitoredTask)
    */
   protected FlushResult internalFlushcache(
-      final HLog wal, final long myseqid, MonitoredTask status)
+      final HLog wal, final long myseqid, MonitoredTask status, boolean forceFlush)
   throws IOException {
     if (this.rsServices != null && this.rsServices.isAborted()) {
       // Don't flush when server aborting, it's unsafe
@@ -1750,6 +1765,9 @@ public class HRegion implements HeapSize { // , Writable{
       }
 
       for (Store s : stores.values()) {
+        if(forceFlush) {
+          s.setForceFlush();
+        }
         totalFlushableSize += s.getFlushableSize();
         storeFlushCtxs.add(s.createFlushContext(flushSeqId));
       }
@@ -3364,7 +3382,7 @@ public class HRegion implements HeapSize { // , Writable{
     }
     if (seqid > minSeqIdForTheRegion) {
       // Then we added some edits to memory. Flush and cleanup split edit files.
-      internalFlushcache(null, seqid, status);
+      internalFlushcache(null, seqid, status,true);
     }
     // Now delete the content of recovered edits.  We're done w/ them.
     for (Path file: files) {
@@ -3505,7 +3523,7 @@ public class HRegion implements HeapSize { // , Writable{
             editsCount++;
           }
           if (flush) {
-            internalFlushcache(null, currentEditSeqId, status);
+            internalFlushcache(null, currentEditSeqId, status,true);
           }
 
           if (coprocessorHost != null) {
