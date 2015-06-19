@@ -820,7 +820,7 @@ public class TestWALReplay {
             throws IOException {
               LOG.info("InternalFlushCache Invoked");
               FlushResult fs = super.internalFlushcache(wal, myseqid,
-                  Mockito.mock(MonitoredTask.class));
+                  Mockito.mock(MonitoredTask.class),true);
               flushcount.incrementAndGet();
               return fs;
             };
