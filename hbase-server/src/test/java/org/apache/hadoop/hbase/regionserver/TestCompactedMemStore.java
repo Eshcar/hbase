@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TestCompactedMemStore extends TestCase {
     private static final Log LOG = LogFactory.getLog(TestCompactedMemStore.class);
     private CompactedMemStore cms;
+    private HRegion region;
     private static final int ROW_COUNT = 10;
     private static final int QUALIFIER_COUNT = ROW_COUNT;
     private static final byte [] FAMILY = Bytes.toBytes("column");
@@ -67,9 +68,13 @@ public class TestCompactedMemStore extends TestCase {
 
     @Override
     public void setUp() throws Exception {
-        super.setUp();
-        this.mvcc = new MultiVersionConsistencyControl();
-        this.cms = new CompactedMemStore();     // default constructor fot test
+      super.setUp();
+      this.mvcc = new MultiVersionConsistencyControl();
+      Configuration conf = new Configuration();
+      conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
+      HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
+      this.region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
+      this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region);
     }
 
     public void testPutSameKey() {
@@ -201,7 +206,7 @@ public class TestCompactedMemStore extends TestCase {
         verifyScanAcrossSnapshot2(kv1, kv2);
 
         // use case 3: first in snapshot second in kvset
-        this.cms = new CompactedMemStore(); // is it OK to use default constructor?
+        this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region);
         this.cms.add(kv1.clone());
         this.cms.snapshot();                    // As compaction is starting in the background the repetition
         this.cms.add(kv2.clone());              // of the k1 might be removed BUT the scanners created earlier
@@ -1018,29 +1023,24 @@ public class TestCompactedMemStore extends TestCase {
   // Compaction tests
   //////////////////////////////////////////////////////////////////////////////
   public void testCompaction() throws IOException {
-      Configuration conf = new Configuration();
-      conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
-      HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
-      HRegion region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
-      this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region);
 
       String[] keys1 = {"A","A","B","C"}; //A1, A2, B3, C4
 
-      final byte[] row = Bytes.toBytes(1);      // Add keys wiw different MVCC
-      final byte[] f = Bytes.toBytes("family");
-      final byte[] q1 = Bytes.toBytes("q1");
-      final byte[] q2 = Bytes.toBytes("q2");
-      final byte[] v = Bytes.toBytes("value");
+//      final byte[] row = Bytes.toBytes(1);      // Add keys wiw different MVCC
+//      final byte[] f = Bytes.toBytes("family");
+//      final byte[] q1 = Bytes.toBytes("q1");
+//      final byte[] q2 = Bytes.toBytes("q2");
+//      final byte[] v = Bytes.toBytes("value");
 
       MultiVersionConsistencyControl.WriteEntry w =
               mvcc.beginMemstoreInsert();
 
-      KeyValue kv1 = new KeyValue(row, f, q1, v);
-      kv1.setMvccVersion(w.getWriteNumber());
-      KeyValue kv2 = new KeyValue(row, f, q1, v);
-      kv2.setMvccVersion(w.getWriteNumber()+1);
-      cms.add(kv1);
-      cms.add(kv2);
+//      KeyValue kv1 = new KeyValue(row, f, q1, v);
+//      kv1.setMvccVersion(w.getWriteNumber());
+//      KeyValue kv2 = new KeyValue(row, f, q1, v);
+//      kv2.setMvccVersion(w.getWriteNumber()+1);
+//      cms.add(kv1);
+//      cms.add(kv2);
 
       // test 1 bucket
       addRowsByKeys(cms, keys1);
@@ -1053,7 +1053,7 @@ public class TestCompactedMemStore extends TestCase {
       cms.snapshot(); // push keys to snapshot
       CellSetMgr s = cms.getSnapshot();
       SortedSet<KeyValue> ss = s.getCellSet();
-      assertEquals(4, s.getCellsCount());
+      assertEquals(3, s.getCellsCount());
       cms.clearSnapshot(ss);
   }
 
