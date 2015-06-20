@@ -149,12 +149,13 @@ public class CompactedMemStore extends AbstractMemStore {
   public void snapshot() {
     CellSetMgr active = getCellSet();
     if(!forceFlush) {
+      KeyValue k1 = active.first(); KeyValue k2 = active.last(); // for debug
       LOG.info("Snapshot called without forcing flush. ");
       LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
       pushActiveToPipeline(active);
       try {
-//        compactor.doCompact(region.getReadpoint(IsolationLevel.READ_COMMITTED));
-        compactor.doCompact(Long.MAX_VALUE);
+        compactor.doCompact(region.getSmallestReadPoint());
+        // compactor.doCompact(Long.MAX_VALUE);
       } catch (IOException e) {
         LOG.error("Unable to run memstore compaction", e);
       }
