@@ -6,6 +6,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The ongoing MemStore compaction manager, dispatches a solo running compaction
@@ -25,6 +26,7 @@ class MemStoreCompactor {
     private VersionedCellSetMgrList versionedList;
     final KeyValue.KVComparator comparator;
     Thread workerThread = null;
+    private final AtomicBoolean inCompaction = new AtomicBoolean(false);
 
     public MemStoreCompactor (
         AbstractMemStore ms,
@@ -58,6 +60,7 @@ class MemStoreCompactor {
             Runnable worker = new Worker();
             workerThread = new Thread(worker);
             workerThread.start();
+            inCompaction.set(true);
             return true;
         }
         return false;
@@ -69,14 +72,15 @@ class MemStoreCompactor {
     * Non-blocking request
     */
     public void stopCompact() {
+        inCompaction.set(false);
         if (workerThread!=null) {
             workerThread.interrupt();
+            workerThread=null;
         }
-        return;
     }
 
     public boolean isInCompaction() {
-        return (workerThread!=null);
+        return inCompaction.get();
     }
 
     /*
@@ -106,6 +110,8 @@ class MemStoreCompactor {
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
                 return;
+            } finally {
+              stopCompact();
             }
 
         }

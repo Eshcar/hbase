@@ -39,6 +39,7 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdge;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.Threads;
 import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -143,7 +145,7 @@ public class TestCompactedMemStore extends TestCase {
         for (KeyValueScanner scanner : memstorescanners) {
             scanner.close();
         }
-    memstorescanners = this.cms.getScanners(mvcc.memstoreReadPoint());
+        memstorescanners = this.cms.getScanners(mvcc.memstoreReadPoint());
         // Assert that new values are seen in kvset as we scan.
         long ts = System.currentTimeMillis();
         s = new StoreScanner(scan, scanInfo, scanType, null, memstorescanners);
@@ -1012,15 +1014,51 @@ public class TestCompactedMemStore extends TestCase {
         }
     }
 
-  private KeyValue getDeleteKV(byte [] row) {
-    return new KeyValue(row, Bytes.toBytes("test_col"), null,
-      HConstants.LATEST_TIMESTAMP, KeyValue.Type.Delete, null);
+  //////////////////////////////////////////////////////////////////////////////
+  // Compaction tests
+  //////////////////////////////////////////////////////////////////////////////
+  public void testCompaction() throws IOException {
+    String[] keys1 = {"A","A","B","C"}; //A1, A2, B3, C4
+
+    // test 1 bucket
+    addRowsByKeys(cms, keys1);
+    cms.snapshot(); // push keys to pipeline and compact
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    cms.setForceFlush();
+    cms.snapshot(); // push keys to snapshot
+    CellSetMgr s = cms.getSnapshot();
+    SortedSet<KeyValue> ss = s.getCellSet();
+    assertEquals(3, s.getCellsCount());
+    cms.clearSnapshot(ss);
   }
 
-  private KeyValue getKV(byte [] row, byte [] value) {
-    return new KeyValue(row, Bytes.toBytes("test_col"), null,
-      HConstants.LATEST_TIMESTAMP, value);
+  private void addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
+    byte[] fam = Bytes.toBytes("testfamily");
+    byte[] qf = Bytes.toBytes("testqualifier");
+    for (int i = 0; i < keys.length; i++) {
+      long timestamp = System.currentTimeMillis();
+      byte [] row = Bytes.toBytes(keys[i]);
+      byte [] val = Bytes.toBytes(keys[i]+i);
+      hmc.add(new KeyValue(row, fam, qf, timestamp, val));
+    }
   }
+
+
+
+
+
+  //  private KeyValue getDeleteKV(byte [] row) {
+//    return new KeyValue(row, Bytes.toBytes("test_col"), null,
+//      HConstants.LATEST_TIMESTAMP, KeyValue.Type.Delete, null);
+//  }
+//
+//  private KeyValue getKV(byte [] row, byte [] value) {
+//    return new KeyValue(row, Bytes.toBytes("test_col"), null,
+//      HConstants.LATEST_TIMESTAMP, value);
+//  }
   private static void addRows(int count, final CompactedMemStore mem) {
         long nanos = System.nanoTime();
 
