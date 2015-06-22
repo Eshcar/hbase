@@ -1720,16 +1720,16 @@ public class HRegion implements HeapSize { // , Writable{
     // Clear flush flag.
     // If nothing to flush, return and avoid logging start/stop flush.
     if (this.memstoreSize.get() <= 0) {
-      if(LOG.isDebugEnabled()) {
-        LOG.debug("Empty memstore size for the current region "+this);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Empty memstore size for the current region " + this);
       }
       return new FlushResult(FlushResult.Result.CANNOT_FLUSH_MEMSTORE_EMPTY, "Nothing to flush");
     }
 
     LOG.info("Started memstore flush for " + this +
-      ", current region memstore size " +
-      StringUtils.humanReadableInt(this.memstoreSize.get()) +
-      ((wal != null)? "": "; wal is null, using passed sequenceid=" + myseqid));
+        ", current region memstore size " +
+        StringUtils.humanReadableInt(this.memstoreSize.get()) +
+        ((wal != null) ? "" : "; wal is null, using passed sequenceid=" + myseqid));
 
     // Stop updates while we snapshot the memstore of all stores. We only have
     // to do this for a moment.  Its quick.  The subsequent sequence id that
@@ -1747,7 +1747,7 @@ public class HRegion implements HeapSize { // , Writable{
     // block waiting for the lock for internal flush
     this.updatesLock.writeLock().lock();
     long totalFlushableSize = 0;
-     status.setStatus("Preparing to flush by snapshotting stores");
+    status.setStatus("Preparing to flush by snapshotting stores");
     List<StoreFlushContext> storeFlushCtxs = new ArrayList<StoreFlushContext>(stores.size());
     long flushSeqId = -1L;
     try {
@@ -1769,7 +1769,7 @@ public class HRegion implements HeapSize { // , Writable{
       }
 
       for (Store s : stores.values()) {
-        if(forceFlush) {
+        if (forceFlush) {
           s.setForceFlush();
         }
         totalFlushableSize += s.getFlushableSize();
@@ -1786,7 +1786,7 @@ public class HRegion implements HeapSize { // , Writable{
     boolean compactionRequested = false;
     try {
       String s = "Finished memstore snapshotting " + this +
-        ", syncing WAL and waiting on mvcc, flushsize=" + totalFlushableSize;
+          ", syncing WAL and waiting on mvcc, flushsize=" + totalFlushableSize;
       status.setStatus(s);
       if (LOG.isTraceEnabled()) LOG.trace(s);
 
@@ -1869,15 +1869,15 @@ public class HRegion implements HeapSize { // , Writable{
     long time = EnvironmentEdgeManager.currentTimeMillis() - startTime;
     long memstoresize = this.memstoreSize.get();
     String msg = "Finished memstore flush of ~" +
-      StringUtils.humanReadableInt(totalFlushableSize) + "/" + totalFlushableSize +
-      ", currentsize=" +
-      StringUtils.humanReadableInt(memstoresize) + "/" + memstoresize +
-      " for region " + this + " in " + time + "ms, sequenceid=" + flushSeqId +
-      ", compaction requested=" + compactionRequested +
-      ((wal == null)? "; wal=null": "");
+        StringUtils.humanReadableInt(totalFlushableSize) + "/" + totalFlushableSize +
+        ", currentsize=" +
+        StringUtils.humanReadableInt(memstoresize) + "/" + memstoresize +
+        " for region " + this + " in " + time + "ms, sequenceid=" + flushSeqId +
+        ", compaction requested=" + compactionRequested +
+        ((wal == null) ? "; wal=null" : "");
     LOG.info(msg);
     status.setStatus(msg);
-    this.recentFlushes.add(new Pair<Long,Long>(time/1000, totalFlushableSize));
+    this.recentFlushes.add(new Pair<Long, Long>(time / 1000, totalFlushableSize));
 
     return new FlushResult(compactionRequested ? FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
         FlushResult.Result.FLUSHED_NO_COMPACTION_NEEDED, flushSeqId);

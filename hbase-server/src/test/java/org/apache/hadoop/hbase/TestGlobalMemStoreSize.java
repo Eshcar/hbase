@@ -135,7 +135,7 @@ public class TestGlobalMemStoreSize {
   }
 
   /**
-   * Flush and log stats on flush
+   * Flush (force) and log stats on flush
    * @param r
    * @param server
    * @throws IOException
@@ -143,7 +143,7 @@ public class TestGlobalMemStoreSize {
   private void flush(final HRegion r, final HRegionServer server)
   throws IOException {
     LOG.info("Flush " + r.toString() + " on " + server.getServerName() +
-      ", " +  r.flushcache() + ", size=" +
+      ", " +  r.flushcache(true) + ", size=" +
       server.getRegionServerAccounting().getGlobalMemstoreSize());
   }
 
