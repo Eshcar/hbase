@@ -93,7 +93,7 @@ class MemStoreCompactor {
         public void run() {
           CellSetMgr resultCellSetMgr =
               CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.COMPACTED_READ_ONLY,
-                  comparator, 0);
+                  comparator, CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
             // the compaction processing
           KeyValue cell;
             try {

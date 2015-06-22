@@ -64,7 +64,7 @@ public class CompactedMemStore extends AbstractMemStore {
           (2 * ClassSize.REFERENCE) +
           (1 * Bytes.SIZEOF_BOOLEAN));
 
-  private final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
       .TIMERANGE_TRACKER +
       ClassSize.KEYVALUE_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
 
@@ -107,12 +107,25 @@ public class CompactedMemStore extends AbstractMemStore {
     return false;
   }
 
+  /**
+   * Get the entire heap usage for this MemStore not including keys in the
+   * snapshot.
+   */
   @Override
-  protected long deepOverhead() {
-    long pipelineSize = (pipeline == null ? 0 : pipeline.size());
-    return DEEP_OVERHEAD + ADDITIONAL_FIXED_OVERHEAD +
-        (pipelineSize * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+  public long heapSize() {
+    long size = getCellSet().getSize();
+    for(CellSetMgr cellSetMgr : pipeline.getCellSetMgrList()) {
+      size += cellSetMgr.getSize();
+    }
+    return size;
   }
+
+  //  @Override
+//  protected long deepOverhead() {
+//    long pipelineSize = (pipeline == null ? 0 : pipeline.size());
+//    return DEEP_OVERHEAD + ADDITIONAL_FIXED_OVERHEAD +
+//        (pipelineSize * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+//  }
 
   @Override
   protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
@@ -149,7 +162,6 @@ public class CompactedMemStore extends AbstractMemStore {
   public void snapshot() {
     CellSetMgr active = getCellSet();
     if(!forceFlush) {
-      KeyValue k1 = active.first(); KeyValue k2 = active.last(); // for debug
       LOG.info("Snapshot called without forcing flush. ");
       LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
       pushActiveToPipeline(active);
@@ -183,6 +195,7 @@ public class CompactedMemStore extends AbstractMemStore {
   private void pushActiveToPipeline(CellSetMgr active) {
     if(!active.isEmpty()) {
       pipeline.pushHead(active);
+      active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       resetCellSet();
     }
   }
@@ -199,11 +212,10 @@ public class CompactedMemStore extends AbstractMemStore {
     long snapshotSize = getSnapshot().getSize();
     if(forceFlush && snapshotSize == 0) {
       if(!pipeline.isEmpty()) {
-        snapshotSize = pipeline.peekTail().getSize();
+        snapshotSize = pipeline.peekTail().getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
       } else {
-        snapshotSize = getCellSet().getSize();
+        snapshotSize = keySize();
       }
-      snapshotSize -= deepOverhead();
     }
     return snapshotSize;
   }

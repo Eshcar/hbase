@@ -70,9 +70,9 @@ public class DefaultMemStore extends AbstractMemStore {
     super(conf, c);
   }
 
-  @Override protected long deepOverhead() {
-    return DEEP_OVERHEAD;
-  }
+//  @Override protected long deepOverhead() {
+//    return DEEP_OVERHEAD;
+//  }
 
   void dump() {
     super.dump(LOG);

@@ -1050,10 +1050,13 @@ public class TestCompactedMemStore extends TestCase {
       }
       assertEquals(0, cms.getSnapshot().getCellsCount());
       cms.setForceFlush();
+      long size = cms.getFlushableSize();
       cms.snapshot(); // push keys to snapshot
+      region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
       CellSetMgr s = cms.getSnapshot();
       SortedSet<KeyValue> ss = s.getCellSet();
-      assertEquals(3, s.getCellsCount());
+//      assertEquals(3, s.getCellsCount());
+      assertEquals(0, region.getMemstoreSize().longValue());
       cms.clearSnapshot(ss);
   }
 
@@ -1064,7 +1067,10 @@ public class TestCompactedMemStore extends TestCase {
       long timestamp = System.currentTimeMillis();
       byte [] row = Bytes.toBytes(keys[i]);
       byte [] val = Bytes.toBytes(keys[i]+i);
-      hmc.add(new KeyValue(row, fam, qf, timestamp, val));
+      KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
+      hmc.add(kv);
+      long size = AbstractMemStore.heapSizeChange(kv,true);
+      region.addAndGetGlobalMemstoreSize(size);
     }
   }
 

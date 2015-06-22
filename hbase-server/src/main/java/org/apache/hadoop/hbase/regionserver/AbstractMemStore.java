@@ -139,7 +139,10 @@ public abstract class AbstractMemStore implements HeapSize {
   public abstract AbstractMemStore setForceFlush();
   public abstract boolean isMemstoreCompaction();
 
-  protected abstract long deepOverhead();
+//  protected abstract long deepOverhead();
+  protected long deepOverhead() {
+    return DEEP_OVERHEAD;
+  }
 
   /**
    * Write an update
@@ -193,10 +196,8 @@ public abstract class AbstractMemStore implements HeapSize {
    * @return approximate size of the passed key and value.
    */
   public long delete(KeyValue deleteCell) {
-    long s = 0;
     KeyValue toAdd = maybeCloneWithAllocator(deleteCell);
-    s += heapSizeChange(toAdd, addToCellSet(toAdd));
-    cellSet.includeCell(toAdd, s);
+    long s = internalAdd(toAdd);
     return s;
   }
 
@@ -449,16 +450,9 @@ public abstract class AbstractMemStore implements HeapSize {
    * Callers should ensure they already have the read lock taken
    */
   private long internalAdd(final KeyValue toAdd) {
-    boolean succ = addToCellSet(toAdd);
-    long s = heapSizeChange(toAdd, succ);
-    cellSet.includeCell(toAdd, s);
-    return s;
-  }
-
-  private boolean addToCellSet(KeyValue e) {
-    boolean b = cellSet.add(e);
+    long s = cellSet.add(toAdd);
     setOldestEditTimeToNow();
-    return b;
+    return s;
   }
 
   private void setOldestEditTimeToNow() {
