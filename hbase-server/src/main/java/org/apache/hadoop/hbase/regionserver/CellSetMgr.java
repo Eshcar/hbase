@@ -89,8 +89,11 @@ class CellSetMgr {
     return getCellSet().size();
   }
 
-  public boolean add(KeyValue e) {
-    return getCellSet().add(e);
+  public long add(KeyValue e) {
+    boolean succ = getCellSet().add(e);
+    long s = AbstractMemStore.heapSizeChange(e, succ);
+    updateMetaInfo(e, s);
+    return s;
   }
 
   public boolean remove(KeyValue e) {
@@ -118,7 +121,10 @@ class CellSetMgr {
   }
 
   public void close() {
-    getMemStoreLAB().close();
+    MemStoreLAB mslab = getMemStoreLAB();
+    if(mslab != null ) {
+      mslab.close();
+    }
     // do not set MSLab to null as scanners may still be reading the data here and need to decrease
     // the counter when they finish
   }
@@ -165,7 +171,7 @@ class CellSetMgr {
     return 0;
   }
 
-  public void includeCell(KeyValue toAdd, long s) {
+  public void updateMetaInfo(KeyValue toAdd, long s) {
     timeRangeTracker.includeTimestamp(toAdd);
     size.addAndGet(s);
   }

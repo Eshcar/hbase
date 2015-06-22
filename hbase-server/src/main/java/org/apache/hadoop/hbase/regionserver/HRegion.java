@@ -1549,6 +1549,10 @@ public class HRegion implements HeapSize { // , Writable{
    * because a Snapshot was not properly persisted.
    */
   public FlushResult flushcache() throws IOException {
+    return flushcache(false);
+  }
+
+  public FlushResult flushcache(boolean forceFlush) throws IOException {
     // fail-fast instead of waiting on the lock
     if (this.closing.get()) {
       String msg = "Skipping flush on " + this + " because closing";
@@ -1591,7 +1595,7 @@ public class HRegion implements HeapSize { // , Writable{
         }
       }
       try {
-        FlushResult fs = internalFlushcache(status);
+        FlushResult fs = internalFlushcache(status, forceFlush);
 
         if (coprocessorHost != null) {
           status.setStatus("Running post-flush coprocessor hooks");
