@@ -161,7 +161,14 @@ public class CompactionPipeline {
   }
 
   public LinkedList<CellSetMgr> getCellSetMgrList() {
-    return pipeline;
+    lock.lock();
+    try {
+      LinkedList<CellSetMgr> res = new LinkedList<CellSetMgr>(pipeline);
+      return res;
+    } finally {
+      lock.unlock();
+    }
+
   }
 
   public long size() {

@@ -46,6 +46,7 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.MasterNotRunningException;
+import org.apache.hadoop.hbase.regionserver.HRegionFileSystem;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
@@ -815,8 +816,9 @@ public class TestWALReplay {
         try {
           final HRegion region =
               new HRegion(basedir, newWal, newFS, newConf, hri, htd, null) {
+            @Override
             protected FlushResult internalFlushcache(
-                final HLog wal, final long myseqid, MonitoredTask status)
+                final HLog wal, final long myseqid, MonitoredTask status, boolean forceFlush)
             throws IOException {
               LOG.info("InternalFlushCache Invoked");
               FlushResult fs = super.internalFlushcache(wal, myseqid,
