@@ -1,24 +1,18 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.monitoring.MonitoredTask;
-import org.apache.hadoop.hbase.util.CollectionBackedScanner;
-import org.apache.hadoop.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
@@ -117,10 +111,10 @@ class MemStoreCompactor {
         return inCompaction.get();
     }
 
-    /*
-    * The worker thread performs the compaction asynchronously.
-    * The solo (per compactor) thread only reads the compaction pipeline
-    */
+  /*
+  * The worker thread performs the compaction asynchronously.
+  * The solo (per compactor) thread only reads the compaction pipeline
+  */
     private class Worker implements Runnable {
 
         @Override
@@ -198,4 +192,15 @@ class MemStoreCompactor {
 
 
     }
+
+  // methods for tests
+  void toggleCompaction(boolean on) {
+    if(on) {
+      workerThread = null;
+    } else {
+      workerThread = new Thread();
+    }
+  }
+
+
 }

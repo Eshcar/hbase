@@ -1022,31 +1022,115 @@ public class TestCompactedMemStore extends TestCase {
   //////////////////////////////////////////////////////////////////////////////
   // Compaction tests
   //////////////////////////////////////////////////////////////////////////////
-  public void testCompaction() throws IOException {
+  public void testCompaction1Bucket() throws IOException {
 
-      String[] keys1 = {"A","A","B","C"}; //A1, A2, B3, C4
+    String[] keys1 = {"A","A","B","C"}; //A1, A2, B3, C4
 
-      // test 1 bucket
-      addRowsByKeys(cms, keys1);
-      assertEquals(704, region.getMemstoreSize().longValue());
+    // test 1 bucket
+    addRowsByKeys(cms, keys1);
+    assertEquals(704, region.getMemstoreSize().longValue());
 
-      cms.snapshot(); // push keys to pipeline and compact
-      while(cms.isMemstoreCompaction()) {
-          Threads.sleep(10);
-      }
-      assertEquals(0, cms.getSnapshot().getCellsCount());
-//      assertEquals(528, region.getMemstoreSize().longValue());
+    cms.snapshot(); // push keys to pipeline and compact
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(528, region.getMemstoreSize().longValue());
 
-      cms.setForceFlush();
-      long size = cms.getFlushableSize();
-      cms.snapshot(); // push keys to snapshot
-      region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
-      CellSetMgr s = cms.getSnapshot();
-      SortedSet<KeyValue> ss = s.getCellSet();
-      assertEquals(3, s.getCellsCount());
-      assertEquals(0, region.getMemstoreSize().longValue());
+    cms.setForceFlush();
+    long size = cms.getFlushableSize();
+    cms.snapshot(); // push keys to snapshot
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
+    CellSetMgr s = cms.getSnapshot();
+    SortedSet<KeyValue> ss = s.getCellSet();
+    assertEquals(3, s.getCellsCount());
+    assertEquals(0, region.getMemstoreSize().longValue());
 
-      cms.clearSnapshot(ss);
+    cms.clearSnapshot(ss);
+  }
+
+  public void testCompaction2Buckets() throws IOException {
+
+    String[] keys1 = {"A","A","B","C"};
+    String[] keys2 = {"A","B","D"};
+
+    addRowsByKeys(cms, keys1);
+    assertEquals(704, region.getMemstoreSize().longValue());
+
+    cms.snapshot(); // push keys to pipeline and compact
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(528, region.getMemstoreSize().longValue());
+
+    addRowsByKeys(cms, keys2);
+    assertEquals(1056, region.getMemstoreSize().longValue());
+
+    cms.snapshot(); // push keys to pipeline and compact
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(704, region.getMemstoreSize().longValue());
+
+    cms.setForceFlush();
+    long size = cms.getFlushableSize();
+    cms.snapshot(); // push keys to snapshot
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
+    CellSetMgr s = cms.getSnapshot();
+    SortedSet<KeyValue> ss = s.getCellSet();
+    assertEquals(4, s.getCellsCount());
+    assertEquals(0, region.getMemstoreSize().longValue());
+
+    cms.clearSnapshot(ss);
+  }
+
+  public void testCompaction3Buckets() throws IOException {
+
+    String[] keys1 = {"A","A","B","C"};
+    String[] keys2 = {"A","B","D"};
+    String[] keys3 = {"D","B","B"};
+
+    addRowsByKeys(cms, keys1);
+    assertEquals(704, region.getMemstoreSize().longValue());
+
+    cms.snapshot(); // push keys to pipeline and compact
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(528, region.getMemstoreSize().longValue());
+
+    addRowsByKeys(cms, keys2);
+    assertEquals(1056, region.getMemstoreSize().longValue());
+
+    cms.disableCompaction();
+    cms.snapshot(); // push keys to pipeline without compaction
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(1056, region.getMemstoreSize().longValue());
+
+    addRowsByKeys(cms, keys3);
+    assertEquals(1584, region.getMemstoreSize().longValue());
+
+    cms.enableCompaction();
+    cms.snapshot(); // push keys to pipeline and compact
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+    assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(704, region.getMemstoreSize().longValue());
+
+    cms.setForceFlush();
+    long size = cms.getFlushableSize();
+    cms.snapshot(); // push keys to snapshot
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
+    CellSetMgr s = cms.getSnapshot();
+    SortedSet<KeyValue> ss = s.getCellSet();
+    assertEquals(4, s.getCellsCount());
+    assertEquals(0, region.getMemstoreSize().longValue());
+
+    cms.clearSnapshot(ss);
   }
 
   private void addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
@@ -1054,10 +1138,12 @@ public class TestCompactedMemStore extends TestCase {
     byte[] qf = Bytes.toBytes("testqualifier");
     for (int i = 0; i < keys.length; i++) {
       long timestamp = System.currentTimeMillis();
+      Threads.sleep(1); // to make sure each kv gets a different ts
       byte [] row = Bytes.toBytes(keys[i]);
       byte [] val = Bytes.toBytes(keys[i]+i);
       KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
       hmc.add(kv);
+      LOG.debug("added kv: "+kv.getKeyString()+", timestamp"+kv.getTimestamp());
       long size = AbstractMemStore.heapSizeChange(kv, true);
       region.addAndGetGlobalMemstoreSize(size);
     }

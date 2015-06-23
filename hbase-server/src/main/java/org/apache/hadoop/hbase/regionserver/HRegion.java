@@ -3055,6 +3055,12 @@ public class HRegion implements HeapSize { // , Writable{
 
     // (regular) flush
     if (memstoreSize > this.memstoreFlushSize) {
+      for (Store s : stores.values()) {
+        if(s.isMemstoreCompaction()) {
+          // do not flush if memstore compaction is in progress
+          return;
+        }
+      }
       requestFlush();
     }
   }

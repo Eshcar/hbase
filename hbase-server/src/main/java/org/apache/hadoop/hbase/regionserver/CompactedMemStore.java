@@ -295,5 +295,11 @@ public class CompactedMemStore extends AbstractMemStore {
     return lowest;
   }
 
+  void disableCompaction() {
+    compactor.toggleCompaction(false);
+  }
+  void enableCompaction() {
+    compactor.toggleCompaction(true);
+  }
 
 }
