@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A memstore implementation which supports in-memory compaction.
@@ -92,7 +93,7 @@ public class CompactedMemStore extends AbstractMemStore {
     super(conf, c);
     this.region = region;
     this.pipeline = new CompactionPipeline(region);
-    this.compactor = new MemStoreCompactor(this, pipeline, c);
+    this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
     this.forceFlush = false;
   }
 
@@ -166,7 +167,9 @@ public class CompactedMemStore extends AbstractMemStore {
       LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
       pushActiveToPipeline(active);
       try {
-        compactor.doCompact(region.getSmallestReadPoint());
+        Map<byte[], Store> stores = region.getStores();
+        Store store = stores.entrySet().iterator().next().getValue();
+        compactor.doCompact(store);
         // compactor.doCompact(Long.MAX_VALUE);
       } catch (IOException e) {
         LOG.error("Unable to run memstore compaction", e);

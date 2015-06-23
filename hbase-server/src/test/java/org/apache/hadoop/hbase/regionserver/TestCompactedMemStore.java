@@ -193,8 +193,8 @@ public class TestCompactedMemStore extends TestCase {
         final byte[] q = Bytes.toBytes("q");
         final byte[] v = Bytes.toBytes(3);
 
-        final KeyValue kv1 = new KeyValue(one, f, q, v);
-        final KeyValue kv2 = new KeyValue(two, f, q, v);
+        final KeyValue kv1 = new KeyValue(one, f, q, 10, v);
+        final KeyValue kv2 = new KeyValue(two, f, q, 10, v);
 
         // use case 1: both kvs in kvset
         this.cms.add(kv1.clone());
@@ -1043,7 +1043,7 @@ public class TestCompactedMemStore extends TestCase {
       region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
       CellSetMgr s = cms.getSnapshot();
       SortedSet<KeyValue> ss = s.getCellSet();
-//      assertEquals(3, s.getCellsCount());
+      assertEquals(3, s.getCellsCount());
       assertEquals(0, region.getMemstoreSize().longValue());
 
       cms.clearSnapshot(ss);
@@ -1058,7 +1058,7 @@ public class TestCompactedMemStore extends TestCase {
       byte [] val = Bytes.toBytes(keys[i]+i);
       KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
       hmc.add(kv);
-      long size = AbstractMemStore.heapSizeChange(kv,true);
+      long size = AbstractMemStore.heapSizeChange(kv, true);
       region.addAndGetGlobalMemstoreSize(size);
     }
   }

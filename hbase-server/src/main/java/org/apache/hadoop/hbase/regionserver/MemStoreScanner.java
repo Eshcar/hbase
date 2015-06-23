@@ -280,6 +280,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     public synchronized boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
                                     long oldestUnexpiredTS) {
 
+        if (type == MemStoreScanType.COMPACT_FORWARD)
+            return true;
+
         return backwardReferenceToMemStore.shouldSeek(scan,oldestUnexpiredTS);
 
     }
