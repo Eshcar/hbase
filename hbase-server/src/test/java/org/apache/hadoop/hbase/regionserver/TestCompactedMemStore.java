@@ -1028,14 +1028,14 @@ public class TestCompactedMemStore extends TestCase {
 
     // test 1 bucket
     addRowsByKeys(cms, keys1);
-    assertEquals(704, region.getMemstoreSize().longValue());
+    assertEquals(704, region.getMemstoreTotalSize());
 
     cms.snapshot(); // push keys to pipeline and compact
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
-    assertEquals(528, region.getMemstoreSize().longValue());
+    assertEquals(528, region.getMemstoreTotalSize());
 
     cms.setForceFlush();
     long size = cms.getFlushableSize();
@@ -1044,7 +1044,7 @@ public class TestCompactedMemStore extends TestCase {
     CellSetMgr s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(3, s.getCellsCount());
-    assertEquals(0, region.getMemstoreSize().longValue());
+    assertEquals(0, region.getMemstoreTotalSize());
 
     cms.clearSnapshot(ss);
   }
@@ -1055,24 +1055,24 @@ public class TestCompactedMemStore extends TestCase {
     String[] keys2 = {"A","B","D"};
 
     addRowsByKeys(cms, keys1);
-    assertEquals(704, region.getMemstoreSize().longValue());
+    assertEquals(704, region.getMemstoreTotalSize());
 
     cms.snapshot(); // push keys to pipeline and compact
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
-    assertEquals(528, region.getMemstoreSize().longValue());
+    assertEquals(528, region.getMemstoreTotalSize());
 
     addRowsByKeys(cms, keys2);
-    assertEquals(1056, region.getMemstoreSize().longValue());
+    assertEquals(1056, region.getMemstoreTotalSize());
 
     cms.snapshot(); // push keys to pipeline and compact
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
-    assertEquals(704, region.getMemstoreSize().longValue());
+    assertEquals(704, region.getMemstoreTotalSize());
 
     cms.setForceFlush();
     long size = cms.getFlushableSize();
@@ -1081,7 +1081,7 @@ public class TestCompactedMemStore extends TestCase {
     CellSetMgr s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
-    assertEquals(0, region.getMemstoreSize().longValue());
+    assertEquals(0, region.getMemstoreTotalSize());
 
     cms.clearSnapshot(ss);
   }
@@ -1093,25 +1093,25 @@ public class TestCompactedMemStore extends TestCase {
     String[] keys3 = {"D","B","B"};
 
     addRowsByKeys(cms, keys1);
-    assertEquals(704, region.getMemstoreSize().longValue());
+    assertEquals(704, region.getMemstoreTotalSize());
 
     cms.snapshot(); // push keys to pipeline and compact
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
-    assertEquals(528, region.getMemstoreSize().longValue());
+    assertEquals(528, region.getMemstoreTotalSize());
 
     addRowsByKeys(cms, keys2);
-    assertEquals(1056, region.getMemstoreSize().longValue());
+    assertEquals(1056, region.getMemstoreTotalSize());
 
     cms.disableCompaction();
     cms.snapshot(); // push keys to pipeline without compaction
     assertEquals(0, cms.getSnapshot().getCellsCount());
-    assertEquals(1056, region.getMemstoreSize().longValue());
+    assertEquals(1056, region.getMemstoreTotalSize());
 
     addRowsByKeys(cms, keys3);
-    assertEquals(1584, region.getMemstoreSize().longValue());
+    assertEquals(1584, region.getMemstoreTotalSize());
 
     cms.enableCompaction();
     cms.snapshot(); // push keys to pipeline and compact
@@ -1119,7 +1119,7 @@ public class TestCompactedMemStore extends TestCase {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
-    assertEquals(704, region.getMemstoreSize().longValue());
+    assertEquals(704, region.getMemstoreTotalSize());
 
     cms.setForceFlush();
     long size = cms.getFlushableSize();
@@ -1128,7 +1128,7 @@ public class TestCompactedMemStore extends TestCase {
     CellSetMgr s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
-    assertEquals(0, region.getMemstoreSize().longValue());
+    assertEquals(0, region.getMemstoreTotalSize());
 
     cms.clearSnapshot(ss);
   }

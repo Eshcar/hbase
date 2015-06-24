@@ -18,6 +18,23 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.base.Preconditions;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.DroppedSnapshotException;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.RemoteExceptionHandler;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.HasThread;
+import org.apache.hadoop.hbase.util.Threads;
+import org.apache.hadoop.util.StringUtils;
+import org.cliffc.high_scale_lib.Counter;
+import org.cloudera.htrace.Trace;
+import org.cloudera.htrace.TraceScope;
+
 import java.io.IOException;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.management.ManagementFactory;
@@ -34,24 +51,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.DroppedSnapshotException;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.RemoteExceptionHandler;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.hbase.util.HasThread;
-import org.apache.hadoop.hbase.util.Threads;
-import org.apache.hadoop.util.StringUtils;
-import org.cliffc.high_scale_lib.Counter;
-
-import com.google.common.base.Preconditions;
-import org.cloudera.htrace.Trace;
-import org.cloudera.htrace.TraceScope;
 
 /**
  * Thread that flushes cache on request
@@ -182,7 +181,7 @@ class MemStoreFlusher implements FlushRequester {
 
       HRegion regionToFlush;
       if (bestFlushableRegion != null &&
-          bestAnyRegion.memstoreSize.get() > 2 * bestFlushableRegion.memstoreSize.get()) {
+          bestAnyRegion.getMemstoreTotalSize() > 2 * bestFlushableRegion.getMemstoreTotalSize()) {
         // Even if it's not supposed to be flushed, pick a region if it's more than twice
         // as big as the best flushable one - otherwise when we're under pressure we make
         // lots of little flushes and cause lots of compactions, etc, which just makes
@@ -191,9 +190,9 @@ class MemStoreFlusher implements FlushRequester {
           LOG.debug("Under global heap pressure: " +
             "Region " + bestAnyRegion.getRegionNameAsString() + " has too many " +
             "store files, but is " +
-            StringUtils.humanReadableInt(bestAnyRegion.memstoreSize.get()) +
+            StringUtils.humanReadableInt(bestAnyRegion.getMemstoreTotalSize()) +
             " vs best flushable region's " +
-            StringUtils.humanReadableInt(bestFlushableRegion.memstoreSize.get()) +
+            StringUtils.humanReadableInt(bestFlushableRegion.getMemstoreTotalSize()) +
             ". Choosing the bigger.");
         }
         regionToFlush = bestAnyRegion;
@@ -205,7 +204,7 @@ class MemStoreFlusher implements FlushRequester {
         }
       }
 
-      Preconditions.checkState(regionToFlush.memstoreSize.get() > 0);
+      Preconditions.checkState(regionToFlush.getMemstoreTotalSize() > 0);
 
       LOG.info("Flush of region " + regionToFlush + " due to global heap pressure");
       flushedOne = flushRegion(regionToFlush, true);

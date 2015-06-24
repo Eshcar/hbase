@@ -200,7 +200,7 @@ public class TestHRegion {
     region.put(put);
     // Close with something in memstore and something in the snapshot.  Make sure all is cleared.
     region.close();
-    assertEquals(0, region.getMemstoreSize().get());
+    assertEquals(0, region.getMemstoreSize());
     HRegion.closeHRegion(region);
   }
 
@@ -291,13 +291,13 @@ public class TestHRegion {
         try {
           // Initialize region
           region = initHRegion(tableName, name.getMethodName(), conf, COLUMN_FAMILY_BYTES);
-          long size = region.getMemstoreSize().get();
+          long size = region.getMemstoreSize();
           Assert.assertEquals(0, size);
           // Put one item into memstore.  Measure the size of one item in memstore.
           Put p1 = new Put(row);
           p1.add(new KeyValue(row, COLUMN_FAMILY_BYTES, qual1, 1, (byte[])null));
           region.put(p1);
-          final long sizeOfOnePut = region.getMemstoreSize().get();
+          final long sizeOfOnePut = region.getMemstoreSize();
           // Fail a flush which means the current memstore will hang out as memstore 'snapshot'.
           try {
             LOG.info("Flushing");
@@ -309,20 +309,20 @@ public class TestHRegion {
           // Make it so all writes succeed from here on out
           ffs.fault.set(false);
           // Check sizes.  Should still be the one entry.
-          Assert.assertEquals(sizeOfOnePut, region.getMemstoreSize().get());
+          Assert.assertEquals(sizeOfOnePut, region.getMemstoreSize());
           // Now add two entries so that on this next flush that fails, we can see if we
           // subtract the right amount, the snapshot size only.
           Put p2 = new Put(row);
           p2.add(new KeyValue(row, COLUMN_FAMILY_BYTES, qual2, 2, (byte[])null));
           p2.add(new KeyValue(row, COLUMN_FAMILY_BYTES, qual3, 3, (byte[])null));
           region.put(p2);
-          Assert.assertEquals(sizeOfOnePut * 3, region.getMemstoreSize().get());
+          Assert.assertEquals(sizeOfOnePut * 3, region.getMemstoreSize());
           // Do a successful flush.  It will clear the snapshot only.  Thats how flushes work.
           // If already a snapshot, we clear it else we move the memstore to be snapshot and flush
           // it
           region.flushcache();
           // Make sure our memory accounting is right.
-          Assert.assertEquals(sizeOfOnePut * 2, region.getMemstoreSize().get());
+          Assert.assertEquals(sizeOfOnePut * 2, region.getMemstoreSize());
         } finally {
           HRegion.closeHRegion(region);
         }

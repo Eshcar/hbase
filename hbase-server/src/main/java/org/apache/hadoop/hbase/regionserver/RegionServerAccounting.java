@@ -33,7 +33,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RegionServerAccounting {
 
   private final AtomicLong atomicGlobalMemstoreSize = new AtomicLong(0);
-  
+  private final AtomicLong atomicGlobalMemstorAdditionaleSize = new AtomicLong(0);
+
   // Store the edits size during replaying HLog. Use this to roll back the  
   // global memstore size once a region opening failed.
   private final ConcurrentMap<byte[], AtomicLong> replayEditsPerRegion = 
@@ -54,7 +55,11 @@ public class RegionServerAccounting {
   public long addAndGetGlobalMemstoreSize(long memStoreSize) {
     return atomicGlobalMemstoreSize.addAndGet(memStoreSize);
   }
-  
+
+  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+    return atomicGlobalMemstorAdditionaleSize.addAndGet(size);
+  }
+
   /***
    * Add memStoreSize to replayEditsPerRegion.
    * 

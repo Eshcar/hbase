@@ -241,7 +241,9 @@ public class HRegion implements HeapSize { // , Writable{
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  public final AtomicLong memstoreSize = new AtomicLong(0);
+  public final AtomicLong memstoreSize = new AtomicLong(0); // size of active set in memstore
+  // size of additional memstore buckets, e.g., in compaction pipeline
+  public final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
 
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
@@ -906,8 +908,16 @@ public class HRegion implements HeapSize { // , Writable{
     return hdfsBlocksDistribution;
   }
 
-  public AtomicLong getMemstoreSize() {
-    return memstoreSize;
+  public long getMemstoreSize() {
+    return memstoreSize.get();
+  }
+
+  private long getMemstoreAdditionalSize() {
+    return memstoreAdditionalSize.get();
+  }
+
+  public long getMemstoreTotalSize() {
+    return getMemstoreSize()+getMemstoreAdditionalSize();
   }
 
   /**
@@ -921,6 +931,13 @@ public class HRegion implements HeapSize { // , Writable{
       rsAccounting.addAndGetGlobalMemstoreSize(memStoreSize);
     }
     return this.memstoreSize.addAndGet(memStoreSize);
+  }
+
+  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+    if (this.rsAccounting != null) {
+      rsAccounting.addAndGetGlobalMemstoreAdditionalSize(size);
+    }
+    return this.memstoreAdditionalSize.addAndGet(size);
   }
 
   /** @return a HRegionInfo object for this region */
@@ -1156,7 +1173,7 @@ public class HRegion implements HeapSize { // , Writable{
       // Don't flush the cache if we are aborting
       if (!abort) {
         int flushCount = 0;
-        while (this.getMemstoreSize().get() > 0) {
+        while (this.getMemstoreTotalSize() > 0) {
           try {
             if (flushCount++ > 0) {
               int actualFlushes = flushCount - 1;
@@ -1222,7 +1239,7 @@ public class HRegion implements HeapSize { // , Writable{
         }
       }
       this.closed.set(true);
-      if (memstoreSize.get() != 0) LOG.error("Memstore size is " + memstoreSize.get());
+      if (getMemstoreTotalSize() != 0) LOG.error("Memstore size is " + memstoreSize.get());
       if (coprocessorHost != null) {
         status.setStatus("Running coprocessor post-close hooks");
         this.coprocessorHost.postClose(abort);
@@ -3030,7 +3047,7 @@ public class HRegion implements HeapSize { // , Writable{
     // If catalog region, do not impose resource constraints or block updates.
     if (this.getRegionInfo().isMetaRegion()) return;
 
-    long memstoreSize = this.memstoreSize.get();
+    long memstoreSize = this.getMemstoreTotalSize();
     // block writes and force flush
     if (memstoreSize > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
@@ -3046,21 +3063,22 @@ public class HRegion implements HeapSize { // , Writable{
   }
 
   private void requestFlushIfNeeded() throws RegionTooBusyException {
-    long memstoreSize = this.memstoreSize.get();
+    long memstoreSize = this.getMemstoreSize();
+    long memstoreTotalSize = this.getMemstoreTotalSize(); // including compaction pipelines
 
     // force flush
-    if (memstoreSize > this.memstoreForceFlushsize) {
+    if (memstoreTotalSize > this.memstoreForceFlushsize) {
       requestAndForceFlush(true);
     }
 
     // (regular) flush
     if (memstoreSize > this.memstoreFlushSize) {
-      for (Store s : stores.values()) {
-        if(s.isMemstoreCompaction()) {
-          // do not flush if memstore compaction is in progress
-          return;
-        }
-      }
+//      for (Store s : stores.values()) {
+//        if(s.isMemstoreCompaction()) {
+//          // do not flush if memstore compaction is in progress
+//          return;
+//        }
+//      }
       requestFlush();
     }
   }
@@ -5127,7 +5145,7 @@ public class HRegion implements HeapSize { // , Writable{
       return null;
     }
     ClientProtos.RegionLoadStats.Builder stats = ClientProtos.RegionLoadStats.newBuilder();
-    stats.setMemstoreLoad((int) (Math.min(100, (this.memstoreSize.get() * 100) / this
+    stats.setMemstoreLoad((int) (Math.min(100, (this.getMemstoreTotalSize() * 100) / this
         .memstoreFlushSize)));
     stats.setHeapOccupancy((int)rsServices.getHeapMemoryManager().getHeapOccupancyPercent()*100);
     return stats.build();
