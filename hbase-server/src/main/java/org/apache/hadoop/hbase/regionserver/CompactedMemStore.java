@@ -112,14 +112,14 @@ public class CompactedMemStore extends AbstractMemStore {
    * Get the entire heap usage for this MemStore not including keys in the
    * snapshot.
    */
-  @Override
-  public long heapSize() {
-    long size = getCellSet().getSize();
-    for(CellSetMgr cellSetMgr : pipeline.getCellSetMgrList()) {
-      size += cellSetMgr.getSize();
-    }
-    return size;
-  }
+//  @Override
+//  public long heapSize() {
+//    long size = getCellSet().getSize();
+//    for(CellSetMgr cellSetMgr : pipeline.getCellSetMgrList()) {
+//      size += cellSetMgr.getSize();
+//    }
+//    return size;
+//  }
 
   //  @Override
 //  protected long deepOverhead() {
@@ -185,9 +185,7 @@ public class CompactedMemStore extends AbstractMemStore {
             "and pipeline tail into snapshot.");
         pushActiveToPipeline(active);
         this.snapshotId = EnvironmentEdgeManager.currentTimeMillis();
-        CellSetMgr tail = pipeline.pullTail();
-        setSnapshot(tail);
-        setSnapshotSize(getCellSetMgrSize(tail));
+        pushTailToSnapshot();
         resetForceFlush();
       }
     }
@@ -201,30 +199,44 @@ public class CompactedMemStore extends AbstractMemStore {
       active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       long size = getCellSetMgrSize(active);
       resetCellSet();
-      getRegion().addAndGetGlobalMemstoreAdditionalSize(size);
-      long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(-size);
-      LOG.info(" globalMemstoreSize: "+globalMemstoreSize);
+      updateRegionCounters(size);
+    }
+  }
+
+  private void pushTailToSnapshot() {
+    CellSetMgr tail = pipeline.pullTail();
+    setSnapshot(tail);
+    long size = getCellSetMgrSize(tail);
+    setSnapshotSize(size);
+    updateRegionCounters(-size);
+  }
+
+  private void updateRegionCounters(long size) {
+    if(getRegion() != null) {
+      long globalMemstoreAdditionalSize = getRegion().addAndGetGlobalMemstoreAdditionalSize(size);
+      // no need to update global memstore size as it is updated by the flusher
+//      long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(-size);
+      LOG.info(" globalMemstoreAdditionalSize: "+globalMemstoreAdditionalSize);
     }
   }
 
   /**
-   * On flush, how much memory we will clear.
-   * If force flush flag is one flush will first clear out the data in snapshot if any.
-   * If snapshot is empty, tail of pipeline will be flushed.
+   * On flush, how much memory we will clear from the active cell set.
    *
-   * @return size of data that is going to be flushed
+   * @return size of data that is going to be flushed from active set
    */
   @Override
   public long getFlushableSize() {
-    long snapshotSize = getSnapshot().getSize();
-    if(forceFlush && snapshotSize == 0) {
-      if(!pipeline.isEmpty()) {
-        snapshotSize = pipeline.peekTail().getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
-      } else {
-        snapshotSize = keySize();
-      }
-    }
-    return snapshotSize;
+//    long snapshotSize = getSnapshot().getSize();
+//    if(forceFlush && snapshotSize == 0) {
+//      if(!pipeline.isEmpty()) {
+//        snapshotSize = pipeline.peekTail().getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
+//      } else {
+//        snapshotSize = keySize();
+//      }
+//    }
+//    return snapshotSize;
+    return keySize();
   }
 
   /**

@@ -1030,7 +1030,9 @@ public class TestCompactedMemStore extends TestCase {
     addRowsByKeys(cms, keys1);
     assertEquals(704, region.getMemstoreTotalSize());
 
+    long size = cms.getFlushableSize();
     cms.snapshot(); // push keys to pipeline and compact
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
@@ -1038,9 +1040,9 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(528, region.getMemstoreTotalSize());
 
     cms.setForceFlush();
-    long size = cms.getFlushableSize();
+    size = cms.getFlushableSize();
     cms.snapshot(); // push keys to snapshot
-    region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     CellSetMgr s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(3, s.getCellsCount());
@@ -1057,7 +1059,9 @@ public class TestCompactedMemStore extends TestCase {
     addRowsByKeys(cms, keys1);
     assertEquals(704, region.getMemstoreTotalSize());
 
+    long size = cms.getFlushableSize();
     cms.snapshot(); // push keys to pipeline and compact
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
@@ -1067,7 +1071,9 @@ public class TestCompactedMemStore extends TestCase {
     addRowsByKeys(cms, keys2);
     assertEquals(1056, region.getMemstoreTotalSize());
 
+    size = cms.getFlushableSize();
     cms.snapshot(); // push keys to pipeline and compact
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
@@ -1075,9 +1081,9 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(704, region.getMemstoreTotalSize());
 
     cms.setForceFlush();
-    long size = cms.getFlushableSize();
+    size = cms.getFlushableSize();
     cms.snapshot(); // push keys to snapshot
-    region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     CellSetMgr s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
@@ -1093,41 +1099,53 @@ public class TestCompactedMemStore extends TestCase {
     String[] keys3 = {"D","B","B"};
 
     addRowsByKeys(cms, keys1);
-    assertEquals(704, region.getMemstoreTotalSize());
+    assertEquals(704, region.getMemstoreSize());
 
+    long size = cms.getFlushableSize();
     cms.snapshot(); // push keys to pipeline and compact
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(0, region.getMemstoreSize());
     assertEquals(528, region.getMemstoreTotalSize());
 
     addRowsByKeys(cms, keys2);
+    assertEquals(528, region.getMemstoreSize());
     assertEquals(1056, region.getMemstoreTotalSize());
 
     cms.disableCompaction();
+    size = cms.getFlushableSize();
     cms.snapshot(); // push keys to pipeline without compaction
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(0, region.getMemstoreSize());
     assertEquals(1056, region.getMemstoreTotalSize());
 
     addRowsByKeys(cms, keys3);
+    assertEquals(528, region.getMemstoreSize());
     assertEquals(1584, region.getMemstoreTotalSize());
 
     cms.enableCompaction();
+    size = cms.getFlushableSize();
     cms.snapshot(); // push keys to pipeline and compact
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
+    assertEquals(0, region.getMemstoreSize());
     assertEquals(704, region.getMemstoreTotalSize());
 
     cms.setForceFlush();
-    long size = cms.getFlushableSize();
+    size = cms.getFlushableSize();
     cms.snapshot(); // push keys to snapshot
-    region.addAndGetGlobalMemstoreSize(-size);  // simulate flush to disk
+    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     CellSetMgr s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
+    assertEquals(0, region.getMemstoreSize());
     assertEquals(0, region.getMemstoreTotalSize());
 
     cms.clearSnapshot(ss);
