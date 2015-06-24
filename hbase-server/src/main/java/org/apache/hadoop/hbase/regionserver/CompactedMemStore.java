@@ -196,10 +196,14 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   private void pushActiveToPipeline(CellSetMgr active) {
-    if(!active.isEmpty()) {
+    if (!active.isEmpty()) {
       pipeline.pushHead(active);
       active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+      long size = getCellSetMgrSize(active);
       resetCellSet();
+      getRegion().addAndGetGlobalMemstoreAdditionalSize(size);
+      long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(-size);
+      LOG.info(" globalMemstoreSize: "+globalMemstoreSize);
     }
   }
 
@@ -302,4 +306,7 @@ public class CompactedMemStore extends AbstractMemStore {
     compactor.toggleCompaction(true);
   }
 
+  public HRegion getRegion() {
+    return region;
+  }
 }

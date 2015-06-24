@@ -120,10 +120,8 @@ public class CompactionPipeline {
         long suffixSize = CompactedMemStore.getCellSetMgrListSize(suffix);
         long newSize = CompactedMemStore.getCellSetMgrSize(cellSetMgr);
         long delta = suffixSize - newSize;
-        long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreAdditionalSize(newSize);
-        long globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-suffixSize);
+        long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreAdditionalSize(-delta);
         LOG.info("Suffix size: "+ suffixSize+" compacted item size: "+newSize+
-            " globalMemstoreSize: "+globalMemstoreSize+
             " globalMemstoreAdditionalSize: "+globalMemstoreAdditionalSize);
       }
       return true;
