@@ -75,7 +75,7 @@ public abstract class AbstractMemStore implements HeapSize {
     this.comparator = c;
     resetCellSet();
     this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c, 0);
+        CellSetMgr.Type.EMPTY, conf,c, 0);
 
   }
 
@@ -219,7 +219,7 @@ public abstract class AbstractMemStore implements HeapSize {
     CellSetMgr oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
       this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-          CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator(), 0);
+          CellSetMgr.Type.EMPTY, getComparator(), 0);
     }
     this.snapshotId = -1;
     oldSnapshot.close();

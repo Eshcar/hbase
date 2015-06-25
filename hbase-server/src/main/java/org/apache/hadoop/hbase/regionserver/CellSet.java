@@ -55,7 +55,7 @@ public class CellSet implements NavigableSet<KeyValue>  {
   CellSet(final CellSetMgr.Type type, final KeyValue.KVComparator c) {
     switch (type) {
     case READ_WRITE:
-    case EMPTY_SNAPSHOT:
+    case EMPTY:
     case COMPACTED_READ_ONLY:
     case DEFAULT:
     default:

@@ -1152,7 +1152,7 @@ public class HRegion implements HeapSize { // , Writable{
       status.setStatus("Pre-flushing region before close");
       LOG.info("Running close preflush of " + this.getRegionNameAsString());
       try {
-        internalFlushcache(status);
+        internalFlushcache(status,true);
       } catch (IOException ioe) {
         // Failed to flush the region. Keep going.
         status.setStatus("Failed pre-flush " + this + "; " + ioe.getMessage());
@@ -1181,10 +1181,12 @@ public class HRegion implements HeapSize { // , Writable{
                 // If we tried 5 times and are unable to clear memory, abort
                 // so we do not lose data
                 throw new DroppedSnapshotException("Failed clearing memory after " +
-                  actualFlushes + " attempts on region: " + Bytes.toStringBinary(getRegionName()));
+                  actualFlushes + " attempts on region: " + Bytes.toStringBinary(getRegionName())
+                    + " memstore size: " + getMemstoreSize() + " total size (memstore + pipeline)" +
+                    ": " + getMemstoreTotalSize());
               }
               LOG.info("Running extra flush, " + actualFlushes +
-                " (carrying snapshot?) " + this);
+                  " (carrying snapshot?) " + this);
             }
             internalFlushcache(status, true); // force flush on close
           } catch (IOException ioe) {
@@ -1239,7 +1241,7 @@ public class HRegion implements HeapSize { // , Writable{
         }
       }
       this.closed.set(true);
-      if (getMemstoreTotalSize() != 0) LOG.error("Memstore size is " + memstoreSize.get());
+      if (getMemstoreTotalSize() != 0) LOG.error("Memstore size is " + getMemstoreTotalSize());
       if (coprocessorHost != null) {
         status.setStatus("Running coprocessor post-close hooks");
         this.coprocessorHost.postClose(abort);
@@ -1736,7 +1738,7 @@ public class HRegion implements HeapSize { // , Writable{
     final long startTime = EnvironmentEdgeManager.currentTimeMillis();
     // Clear flush flag.
     // If nothing to flush, return and avoid logging start/stop flush.
-    if (this.memstoreSize.get() <= 0) {
+    if (getMemstoreTotalSize() <= 0) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Empty memstore size for the current region " + this);
       }

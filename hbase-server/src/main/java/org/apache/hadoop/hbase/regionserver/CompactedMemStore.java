@@ -205,10 +205,12 @@ public class CompactedMemStore extends AbstractMemStore {
 
   private void pushTailToSnapshot() {
     CellSetMgr tail = pipeline.pullTail();
-    setSnapshot(tail);
-    long size = getCellSetMgrSize(tail);
-    setSnapshotSize(size);
-    updateRegionCounters(-size);
+    if(!tail.isEmpty()) {
+      setSnapshot(tail);
+      long size = getCellSetMgrSize(tail);
+      setSnapshotSize(size);
+      updateRegionCounters(-size);
+    }
   }
 
   private void updateRegionCounters(long size) {

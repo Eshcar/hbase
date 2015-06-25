@@ -48,7 +48,8 @@ public class CompactionPipeline {
   private final Lock lock;
 
   private static final CellSetMgr EMPTY_CELL_SET_MGR = CellSetMgr.Factory.instance()
-      .createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, null,0);
+      .createCellSetMgr(CellSetMgr.Type.EMPTY, null,
+          CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
 
   public CompactionPipeline(HRegion region) {
     this.region = region;

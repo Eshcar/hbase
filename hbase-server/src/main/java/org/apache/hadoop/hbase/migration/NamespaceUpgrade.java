@@ -19,11 +19,8 @@
  */
 package org.apache.hadoop.hbase.migration;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-
+import com.google.common.collect.Lists;
+import com.google.common.primitives.Ints;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -58,8 +55,10 @@ import org.apache.hadoop.hbase.util.FSTableDescriptors;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.util.Tool;
 
-import com.google.common.collect.Lists;
-import com.google.common.primitives.Ints;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Upgrades old 0.94 filesystem layout to namespace layout

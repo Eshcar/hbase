@@ -72,7 +72,7 @@ class CellSetMgr {
    */
   static public enum Type {
     READ_WRITE,
-    EMPTY_SNAPSHOT,
+    EMPTY,
     COMPACTED_READ_ONLY,
     DEFAULT
   }
@@ -351,7 +351,7 @@ class CellSetMgr {
       CellSet set = new CellSet(type, comparator);
       switch (type) {
       case READ_WRITE:
-      case EMPTY_SNAPSHOT:
+      case EMPTY:
       case COMPACTED_READ_ONLY:
       default:
         obj = new CellSetMgr(set, memStoreLAB, size, comparator);
