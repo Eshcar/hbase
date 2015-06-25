@@ -57,6 +57,7 @@ public class CompactedMemStore extends AbstractMemStore {
   //private static final int CELLS_SIZE_MIN_THRESHOLD = 4 * 1024 * 1024; //4MB
 
   private HRegion region;
+  private Store store;      // used only for dispatching the compaction
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private boolean forceFlush;
@@ -85,13 +86,14 @@ public class CompactedMemStore extends AbstractMemStore {
    * Default constructor. Used for tests.
    */
   CompactedMemStore() throws IOException {
-    this(HBaseConfiguration.create(), KeyValue.COMPARATOR, null);
+    this(HBaseConfiguration.create(), KeyValue.COMPARATOR, null, null);
   }
 
   public CompactedMemStore(Configuration conf, KeyValue.KVComparator c,
-      HRegion region) throws IOException {
+      HRegion region, Store store) throws IOException {
     super(conf, c);
     this.region = region;
+    this.store  = store;
     this.pipeline = new CompactionPipeline(region);
     this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
     this.forceFlush = false;
@@ -167,11 +169,10 @@ public class CompactedMemStore extends AbstractMemStore {
       LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
       pushActiveToPipeline(active);
       try {
-        Map<byte[], Store> stores = region.getStores();
-        Store store = stores.entrySet().iterator().next().getValue();
         compactor.doCompact(store);
-        // compactor.doCompact(Long.MAX_VALUE);
       } catch (IOException e) {
+        // May get here in the test time, if CompactedMemStore was
+        // initialized with nullified store
         LOG.error("Unable to run memstore compaction", e);
       }
     } else { //**** FORCE FLUSH MODE ****//

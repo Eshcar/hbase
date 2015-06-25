@@ -236,7 +236,7 @@ public class HStore implements Store {
     // to clone it?
     scanInfo = new ScanInfo(family, ttl, timeToPurgeDeletes, this.comparator);
     if(family.isInMemory()) {
-      this.memstore = new CompactedMemStore(conf, this.comparator, this.region);
+      this.memstore = new CompactedMemStore(conf, this.comparator, this.region, this);
     } else {
       this.memstore = new DefaultMemStore(conf, this.comparator);
     }

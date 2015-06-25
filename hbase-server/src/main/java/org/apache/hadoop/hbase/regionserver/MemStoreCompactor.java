@@ -1,5 +1,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
@@ -19,41 +21,44 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The ongoing MemStore Compaction manager, dispatches a solo running compaction
  * and interrupts the compaction if requested.
  * The MemStoreScanner is used to traverse the compaction pipeline. The MemStoreScanner
- * is part of internal store scanner, where all compaction logic is implemented.
+ * is included in internal store scanner, where all compaction logic is implemented.
  *
  * Threads safety: It is assumed that the compaction pipeline is immutable,
  * therefore no special synchronization is required.
  *
- * TODO: add LOG for notifications
  */
 @InterfaceAudience.Private
 class MemStoreCompactor {
-    private CompactionPipeline  cp;         // the subject for compaction
-    private CompactedMemStore   ms;         // backward reference
-    private MemStoreScanner     scanner;    // scanner for pipeline only
+    private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
-    private InternalScanner                 // scanner on top of MemStoreScanner
-            compactingScanner;              // that uses ScanQueryMatcher
-    private int                             // the limit for the scan
+    private CompactionPipeline  cp;             // the subject for compaction
+    private CompactedMemStore   ms;             // backward reference
+    private MemStoreScanner     scanner;        // scanner for pipeline only
+
+    private InternalScanner compactingScanner;  // scanner on top of MemStoreScanner
+                                                // that uses ScanQueryMatcher
+    private int                                 // the limit for the scan
             compactionKVMax;
-    private long                            // smallest read point for any ongoing
-            smallestReadPoint;              // MemStore scan
-    private VersionedCellSetMgrList         // a static version of the CellSetMgrs
-            versionedList;                  // list from the pipeline
+    private long                                // smallest read point for any ongoing
+            smallestReadPoint;                  // MemStore scan
+    private VersionedCellSetMgrList             // a static version of the CellSetMgrs
+            versionedList;                      // list from the pipeline
     private final KeyValue.KVComparator comparator;
 
     private Thread workerThread = null;
     private final AtomicBoolean inCompaction = new AtomicBoolean(false);
 
+
     /**----------------------------------------------------------------------
-    * The constructor is used only to initialize basics, all other parameters
-    * needing to start compaction will come with docompact()
+    * The constructor is used only to initialize basics, other parameters
+    * needing to start compaction will come with doCompact()
     * */
     public MemStoreCompactor (
         CompactedMemStore ms,
         CompactionPipeline cp,
         KeyValue.KVComparator comparator,
         Configuration conf) {
+
         this.ms = ms;
         this.cp = cp;
         this.comparator = comparator;
@@ -62,6 +67,7 @@ class MemStoreCompactor {
                 HConstants.COMPACTION_KV_MAX_DEFAULT);
     }
 
+
     /**----------------------------------------------------------------------
     * The request to dispatch the compaction asynchronous task.
     * The method returns true if compaction was successfully dispatched, or false if there
@@ -69,9 +75,10 @@ class MemStoreCompactor {
     * */
     public boolean doCompact(Store store) throws IOException {
         if (cp.isEmpty()) return false;         // no compaction on empty pipeline
+
         List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
-        this.versionedList =                    // get the list of CellSetMgrs from the
-                cp.getVersionedList();          // pipeline, marked with specific version
+        this.versionedList =                    // get the list of CellSetMgrs from the pipeline
+                cp.getVersionedList();          // the list is marked with specific version
 
         // create the list of scanners with maximally possible read point, meaning that
         // all KVs are going to be returned by the pipeline traversing
@@ -84,9 +91,10 @@ class MemStoreCompactor {
         smallestReadPoint = store.getSmallestReadPoint();
         compactingScanner = createScanner(store);
 
-        if (workerThread == null) {
+        if (workerThread == null) {             // dispatch
             Runnable worker = new Worker();
             workerThread = new Thread(worker);
+            LOG.info("Starting the MemStore in-memory compaction, with thread:" + workerThread);
             workerThread.start();
             inCompaction.set(true);
             return true;
@@ -94,7 +102,7 @@ class MemStoreCompactor {
         return false;
     }
 
-    /*
+    /*----------------------------------------------------------------------
     * The request to cancel the compaction asynchronous task
     * The compaction may still happen if the request was sent too late
     * Non-blocking request
@@ -111,7 +119,7 @@ class MemStoreCompactor {
         return inCompaction.get();
     }
 
-  /*
+  /*----------------------------------------------------------------------
   * The worker thread performs the compaction asynchronously.
   * The solo (per compactor) thread only reads the compaction pipeline
   */

@@ -60,6 +60,7 @@ public class TestCompactedMemStore extends TestCase {
     private static final Log LOG = LogFactory.getLog(TestCompactedMemStore.class);
     private CompactedMemStore cms;
     private HRegion region;
+    private Store store;
     private static final int ROW_COUNT = 10;
     private static final int QUALIFIER_COUNT = ROW_COUNT;
     private static final byte [] FAMILY = Bytes.toBytes("column");
@@ -68,13 +69,15 @@ public class TestCompactedMemStore extends TestCase {
 
     @Override
     public void setUp() throws Exception {
-      super.setUp();
-      this.mvcc = new MultiVersionConsistencyControl();
-      Configuration conf = new Configuration();
-      conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
-      HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
-      this.region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
-      this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region);
+        super.setUp();
+        this.mvcc = new MultiVersionConsistencyControl();
+        Configuration conf = new Configuration();
+        conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
+        HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
+        this.region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
+        HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
+        this.store = new HStore(region, hcd, conf);
+        this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region, store);
     }
 
     public void testPutSameKey() {
@@ -206,7 +209,8 @@ public class TestCompactedMemStore extends TestCase {
         verifyScanAcrossSnapshot2(kv1, kv2);
 
         // use case 3: first in snapshot second in kvset
-        this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region);
+        this.cms = new CompactedMemStore(HBaseConfiguration.create(),
+                KeyValue.COMPARATOR, region, store);
         this.cms.add(kv1.clone());
         this.cms.snapshot();                    // As compaction is starting in the background the repetition
         this.cms.add(kv2.clone());              // of the k1 might be removed BUT the scanners created earlier
@@ -478,7 +482,7 @@ public class TestCompactedMemStore extends TestCase {
     }
 
     public void testMultipleVersionsSimple() throws Exception {
-        CompactedMemStore m = new CompactedMemStore(new Configuration(), KeyValue.COMPARATOR, null);
+        CompactedMemStore m = new CompactedMemStore(new Configuration(), KeyValue.COMPARATOR, null, null);
         byte [] row = Bytes.toBytes("testRow");
         byte [] family = Bytes.toBytes("testFamily");
         byte [] qf = Bytes.toBytes("testQualifier");
@@ -791,7 +795,7 @@ public class TestCompactedMemStore extends TestCase {
     public void testUpsertMSLAB() throws Exception {
         Configuration conf = HBaseConfiguration.create();
         conf.setBoolean(CellSetMgr.USEMSLAB_KEY, true);
-        cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null);
+        cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null, null);
 
         int ROW_SIZE = 2048;
         byte[] qualifier = new byte[ROW_SIZE - 4];
@@ -832,7 +836,7 @@ public class TestCompactedMemStore extends TestCase {
      */
     public void testUpsertMemstoreSize() throws Exception {
         Configuration conf = HBaseConfiguration.create();
-        cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null);
+        cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null, null);
         long oldSize = cms.size();
 
         List<Cell> l = new ArrayList<Cell>();
@@ -1161,7 +1165,7 @@ public class TestCompactedMemStore extends TestCase {
       byte [] val = Bytes.toBytes(keys[i]+i);
       KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
       hmc.add(kv);
-      LOG.debug("added kv: "+kv.getKeyString()+", timestamp"+kv.getTimestamp());
+      LOG.debug("added kv: " + kv.getKeyString() + ", timestamp" + kv.getTimestamp());
       long size = AbstractMemStore.heapSizeChange(kv, true);
       region.addAndGetGlobalMemstoreSize(size);
     }
