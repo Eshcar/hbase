@@ -81,7 +81,7 @@ public class TestCompactedMemStore extends TestCase {
         super.setUp();
         this.mvcc = new MultiVersionConsistencyControl();
         Configuration conf = new Configuration();
-    	conf.setBoolean(CellSetMgr.USEMSLAB_KEY, true);
+    	conf.setBoolean(MemStoreSegment.USEMSLAB_KEY, true);
     	conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
         conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
         HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
@@ -227,7 +227,7 @@ public class TestCompactedMemStore extends TestCase {
         this.cms.add(kv1.clone());
         this.cms.snapshot();                    // As compaction is starting in the background the repetition
         this.cms.add(kv2.clone());              // of the k1 might be removed BUT the scanners created earlier
-        verifyScanAcrossSnapshot2(kv1, kv2);    // should look on the OLD CellSetMgr, so this should be OK...
+        verifyScanAcrossSnapshot2(kv1, kv2);    // should look on the OLD MemStoreSegment, so this should be OK...
     }
 
     private void verifyScanAcrossSnapshot2(KeyValue kv1, KeyValue kv2)
@@ -807,7 +807,7 @@ public class TestCompactedMemStore extends TestCase {
      */
     public void testUpsertMSLAB() throws Exception {
         Configuration conf = HBaseConfiguration.create();
-        conf.setBoolean(CellSetMgr.USEMSLAB_KEY, true);
+        conf.setBoolean(MemStoreSegment.USEMSLAB_KEY, true);
         cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null, null);
 
         int ROW_SIZE = 2048;
@@ -1242,7 +1242,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.snapshot(); // push keys to snapshot
     region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
-    CellSetMgr s = cms.getSnapshot();
+    MemStoreSegment s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(3, s.getCellsCount());
     assertEquals(0, region.getMemstoreTotalSize());
@@ -1283,7 +1283,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.snapshot(); // push keys to snapshot
     region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
-    CellSetMgr s = cms.getSnapshot();
+    MemStoreSegment s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
     assertEquals(0, region.getMemstoreTotalSize());
@@ -1341,7 +1341,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.snapshot(); // push keys to snapshot
     region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
-    CellSetMgr s = cms.getSnapshot();
+    MemStoreSegment s = cms.getSnapshot();
     SortedSet<KeyValue> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
     assertEquals(0, region.getMemstoreSize());

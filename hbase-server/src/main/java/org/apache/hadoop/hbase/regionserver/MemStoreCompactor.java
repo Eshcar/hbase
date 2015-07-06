@@ -80,7 +80,7 @@ class MemStoreCompactor {
 
             // create the list of scanners with maximally possible read point, meaning that
             // all KVs are going to be returned by the pipeline traversing
-            for (CellSetMgr mgr : this.versionedList.getCellSetMgrList()) {
+            for (MemStoreSegment mgr : this.versionedList.getCellSetMgrList()) {
               scanners.add(mgr.getScanner(Long.MAX_VALUE));
             }
             scanner = new MemStoreScanner(ms,
@@ -132,18 +132,18 @@ class MemStoreCompactor {
 
         @Override
         public void run() {
-          CellSetMgr resultCellSetMgr =
-              CellSetMgr.Factory.instance().createCellSetMgr(
-                  CellSetMgr.Type.COMPACTED_READ_ONLY, conf,
+          MemStoreSegment result =
+              MemStoreSegment.Factory.instance().createMemStoreSegment(
+                  CellSet.Type.COMPACTED_READ_ONLY, conf,
                   comparator, CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
             // the compaction processing
           KeyValue cell;
             try {
-                // Phase I: create the compacted CellSetMgr
-                compactToCellSetMgr(resultCellSetMgr);
+                // Phase I: create the compacted MemStoreSegment
+                compactSegments(result);
                 // Phase II: swap the old compaction pipeline
                 if(!Thread.currentThread().isInterrupted()) {
-                  cp.swap(versionedList, resultCellSetMgr);
+                  cp.swap(versionedList, result);
                 }
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
@@ -173,10 +173,10 @@ class MemStoreCompactor {
     }
 
     /**
-     * Creates a single CellSetMgr using the internal store scanner,
+     * Creates a single MemStoreSegment using the internal store scanner,
      * who in turn uses ScanQueryMatcher
      */
-    private void compactToCellSetMgr(CellSetMgr resultCellSetMgr) throws IOException {
+    private void compactSegments(MemStoreSegment result) throws IOException {
 
       List<Cell> kvs = new ArrayList<Cell>();
       int compactionKVMax = conf.getInt(          // get the limit to the size of the
@@ -194,14 +194,14 @@ class MemStoreCompactor {
                     // disk.
                     KeyValue kv = KeyValueUtil.ensureKeyValue(c);
                     // changed relatively to memstore->disc flushing
-                    KeyValue newKV = resultCellSetMgr.maybeCloneWithAllocator(kv);
+                    KeyValue newKV = result.maybeCloneWithAllocator(kv);
                     if (kv.getMvccVersion() <= smallestReadPoint) {
                         // let us not change the original KV. It could be in the memstore
                         // changing its memstoreTS could affect other threads/scanners.
                         //kv = kv.shallowCopy();
                         //kv.setMvccVersion(0);
                     }
-                    resultCellSetMgr.add(newKV);
+                    result.add(newKV);
 
                 }
                 kvs.clear();

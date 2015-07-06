@@ -46,13 +46,25 @@ import java.util.concurrent.ConcurrentSkipListMap;
  */
 @InterfaceAudience.Private
 public class CellSet implements NavigableSet<KeyValue>  {
+  /**
+   * Types of cell set.
+   * This affects the internal implementation of the cell set objects.
+   * This allows using different formats for different purposes.
+   */
+  static public enum Type {
+    READ_WRITE,
+    EMPTY,
+    COMPACTED_READ_ONLY,
+    DEFAULT
+  }
+
   private final ConcurrentNavigableMap<KeyValue, KeyValue> delegatee;
 
   CellSet(final KeyValue.KVComparator c) {
-    this(CellSetMgr.Type.DEFAULT,c);
+    this(Type.DEFAULT,c);
   }
 
-  CellSet(final CellSetMgr.Type type, final KeyValue.KVComparator c) {
+  CellSet(final Type type, final KeyValue.KVComparator c) {
     switch (type) {
     case READ_WRITE:
     case EMPTY:

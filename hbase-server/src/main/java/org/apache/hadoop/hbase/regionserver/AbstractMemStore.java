@@ -54,9 +54,9 @@ public abstract class AbstractMemStore implements HeapSize {
   // whereas the Set will not add new Cell if key is same though value might be
   // different.  Value is not important -- just make sure always same
   // reference passed.
-  volatile private CellSetMgr cellSet;
+  volatile private MemStoreSegment cellSet;
   // Snapshot of memstore.  Made for flusher.
-  volatile private CellSetMgr snapshot;
+  volatile private MemStoreSegment snapshot;
   volatile long snapshotId;
   // Used to track when to flush
   volatile private long timeOfOldestEdit;
@@ -74,15 +74,15 @@ public abstract class AbstractMemStore implements HeapSize {
     this.conf = conf;
     this.comparator = c;
     resetCellSet();
-    this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.EMPTY, conf,c, 0);
+    this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
+        CellSet.Type.EMPTY, conf, c, 0);
 
   }
 
   protected void resetCellSet() {
     // Reset heap to not include any keys
-    this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.READ_WRITE, conf, comparator, deepOverhead());
+    this.cellSet = MemStoreSegment.Factory.instance().createMemStoreSegment(
+        CellSet.Type.READ_WRITE, conf, comparator, deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -216,10 +216,10 @@ public abstract class AbstractMemStore implements HeapSize {
     }
     // OK. Passed in snapshot is same as current snapshot.  If not-empty,
     // create a new snapshot and let the old one go.
-    CellSetMgr oldSnapshot = this.snapshot;
+    MemStoreSegment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-          CellSetMgr.Type.EMPTY, getComparator(), 0);
+      this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
+          CellSet.Type.EMPTY, getComparator(), 0);
     }
     this.snapshotId = -1;
     oldSnapshot.close();
@@ -469,15 +469,15 @@ public abstract class AbstractMemStore implements HeapSize {
     return comparator;
   }
 
-  protected CellSetMgr getCellSet() {
+  protected MemStoreSegment getCellSet() {
     return cellSet;
   }
 
-  protected CellSetMgr getSnapshot() {
+  protected MemStoreSegment getSnapshot() {
     return snapshot;
   }
 
-  protected void setSnapshot(CellSetMgr snapshot) {
+  protected void setSnapshot(MemStoreSegment snapshot) {
     this.snapshot = snapshot;
   }
 

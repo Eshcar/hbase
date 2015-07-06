@@ -35,16 +35,16 @@ import java.util.LinkedList;
 @InterfaceAudience.Private
 public class VersionedCellSetMgrList {
 
-  private final LinkedList<CellSetMgr> cellSetMgrList;
+  private final LinkedList<MemStoreSegment> cellSetMgrList;
   private final long version;
 
   public VersionedCellSetMgrList(
-      LinkedList<CellSetMgr> cellSetMgrList, long version) {
+      LinkedList<MemStoreSegment> cellSetMgrList, long version) {
     this.cellSetMgrList = cellSetMgrList;
     this.version = version;
   }
 
-  public LinkedList<CellSetMgr> getCellSetMgrList() {
+  public LinkedList<MemStoreSegment> getCellSetMgrList() {
     return cellSetMgrList;
   }
 

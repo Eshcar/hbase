@@ -27,12 +27,12 @@ import java.util.Iterator;
 import java.util.SortedSet;
 
 /**
- * A scanner of a single cell set bucket {@link CellSetMgr}.
+ * A scanner of a single cell set bucket {@link MemStoreSegment}.
  */
 @InterfaceAudience.Private
 class CellSetScanner implements KeyValueScanner{
 
-  private final CellSetMgr cellSetMgr;    // the observed structure
+  private final MemStoreSegment cellSetMgr;    // the observed structure
   private long readPoint;                 // the highest relevant MVCC
   private Iterator<KeyValue> iter;        // the current iterator that can be reinitialized by
                                           // seek(), backwardSeek(), or reseek()
@@ -48,7 +48,7 @@ class CellSetScanner implements KeyValueScanner{
   /**---------------------------------------------------------
    * C-tor
    */
-  public CellSetScanner(CellSetMgr cellSetMgr, long readPoint) {
+  public CellSetScanner(MemStoreSegment cellSetMgr, long readPoint) {
     super();
     this.cellSetMgr   = cellSetMgr;
     this.readPoint    = readPoint;
@@ -139,7 +139,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public boolean seek(KeyValue key) throws IOException {
     // restart the iterator from new key
-    iter = cellSetMgr.getCellSet().tailSet(key).iterator();
+    iter = cellSetMgr.tailSet(key).iterator();
     last = null;      // last is going to be reinitialized in the next getNext() call
     current = getNext();
     return (current!=null);
@@ -154,7 +154,7 @@ class CellSetScanner implements KeyValueScanner{
   public boolean checkForHigerMVCC(KeyValue key, long rPfound, long rPglobal)
           throws IOException {
     // restart iterator from new key
-    Iterator<KeyValue> iter = cellSetMgr.getCellSet().tailSet(key).iterator();
+    Iterator<KeyValue> iter = cellSetMgr.tailSet(key).iterator();
 
     while (iter.hasNext()) {
       KeyValue curr = iter.next();
@@ -185,7 +185,7 @@ class CellSetScanner implements KeyValueScanner{
     * get it. So we remember the last keys we iterated to and restore
     * the reseeked set to at least that point.
     */
-    iter = cellSetMgr.getCellSet().tailSet(getHighest(key, last)).iterator();
+    iter = cellSetMgr.tailSet(getHighest(key, last)).iterator();
     current = getNext();
     return (current!=null);
   }
