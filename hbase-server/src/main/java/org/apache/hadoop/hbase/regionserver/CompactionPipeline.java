@@ -204,6 +204,9 @@ public class CompactionPipeline {
 
   private void swapSuffix(LinkedList<CellSetMgr> suffix, CellSetMgr cellSetMgr) {
     version++;
+    for(CellSetMgr itemInSuffix : suffix) {
+      itemInSuffix.close();
+    }
     pipeline.removeAll(suffix);
     pipeline.addLast(cellSetMgr);
   }

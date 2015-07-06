@@ -40,6 +40,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdge;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Threads;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
@@ -67,18 +68,30 @@ public class TestCompactedMemStore extends TestCase {
     private MultiVersionConsistencyControl mvcc;
     private AtomicLong startSeqNum = new AtomicLong(0);
 
-    @Override
-    public void setUp() throws Exception {
+    private static MemStoreChunkPool chunkPool;
+
+
+  @Override
+  public void tearDown() throws Exception {
+    chunkPool.clearChunks();
+  }
+
+  	@Override
+  	public void setUp() throws Exception {
         super.setUp();
         this.mvcc = new MultiVersionConsistencyControl();
         Configuration conf = new Configuration();
+    	conf.setBoolean(CellSetMgr.USEMSLAB_KEY, true);
+    	conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
         conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
         HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
         this.region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
         HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
         this.store = new HStore(region, hcd, conf);
         this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region, store);
-    }
+    	chunkPool = MemStoreChunkPool.getPool(conf);
+    	assertTrue(chunkPool != null);
+  	}
 
     public void testPutSameKey() {
         byte [] bytes = Bytes.toBytes(getName());
@@ -1022,6 +1035,188 @@ public class TestCompactedMemStore extends TestCase {
             assertTrue("Content", CellUtil.matchingValue(kv, expectedColname));
         }
     }
+
+  @Test
+  public void testPuttingBackChunksAfterFlushing() throws UnexpectedException {
+    byte[] row = Bytes.toBytes("testrow");
+    byte[] fam = Bytes.toBytes("testfamily");
+    byte[] qf1 = Bytes.toBytes("testqualifier1");
+    byte[] qf2 = Bytes.toBytes("testqualifier2");
+    byte[] qf3 = Bytes.toBytes("testqualifier3");
+    byte[] qf4 = Bytes.toBytes("testqualifier4");
+    byte[] qf5 = Bytes.toBytes("testqualifier5");
+    byte[] val = Bytes.toBytes("testval");
+
+
+    // Setting up memstore
+    cms.add(new KeyValue(row, fam, qf1, val));
+    cms.add(new KeyValue(row, fam, qf2, val));
+    cms.add(new KeyValue(row, fam, qf3, val));
+
+    // Creating a snapshot
+    cms.setForceFlush();
+    cms.snapshot();
+    CellSet snapshot = cms.getSnapshot().getCellSet();
+    assertEquals(3, cms.getSnapshot().getCellsCount());
+
+    // Adding value to "new" memstore
+    assertEquals(0, cms.getCellSet().getCellsCount());
+    cms.add(new KeyValue(row, fam, qf4, val));
+    cms.add(new KeyValue(row, fam, qf5, val));
+    assertEquals(2, cms.getCellSet().getCellsCount());
+    cms.clearSnapshot(snapshot);
+
+    int chunkCount = chunkPool.getPoolSize();
+    assertTrue(chunkCount > 0);
+
+  }
+
+  @Test
+  public void testPuttingBackChunksWithOpeningScanner()
+      throws IOException {
+    byte[] row = Bytes.toBytes("testrow");
+    byte[] fam = Bytes.toBytes("testfamily");
+    byte[] qf1 = Bytes.toBytes("testqualifier1");
+    byte[] qf2 = Bytes.toBytes("testqualifier2");
+    byte[] qf3 = Bytes.toBytes("testqualifier3");
+    byte[] qf4 = Bytes.toBytes("testqualifier4");
+    byte[] qf5 = Bytes.toBytes("testqualifier5");
+    byte[] qf6 = Bytes.toBytes("testqualifier6");
+    byte[] qf7 = Bytes.toBytes("testqualifier7");
+    byte[] val = Bytes.toBytes("testval");
+
+    // Setting up memstore
+    cms.add(new KeyValue(row, fam, qf1, val));
+    cms.add(new KeyValue(row, fam, qf2, val));
+    cms.add(new KeyValue(row, fam, qf3, val));
+
+    // Creating a snapshot
+    cms.setForceFlush();
+    cms.snapshot();
+    CellSet snapshot = cms.getSnapshot().getCellSet();
+    assertEquals(3, cms.getSnapshot().getCellsCount());
+
+    // Adding value to "new" memstore
+    assertEquals(0, cms.getCellSet().getCellsCount());
+    cms.add(new KeyValue(row, fam, qf4, val));
+    cms.add(new KeyValue(row, fam, qf5, val));
+    assertEquals(2, cms.getCellSet().getCellsCount());
+
+    // opening scanner before clear the snapshot
+    List<KeyValueScanner> scanners = cms.getScanners(0);
+    // Shouldn't putting back the chunks to pool,since some scanners are opening
+    // based on their data
+    cms.clearSnapshot(snapshot);
+
+    assertTrue(chunkPool.getPoolSize() == 0);
+
+    // Chunks will be put back to pool after close scanners;
+    for (KeyValueScanner scanner : scanners) {
+      scanner.close();
+    }
+    assertTrue(chunkPool.getPoolSize() > 0);
+
+    // clear chunks
+    chunkPool.clearChunks();
+
+    // Creating another snapshot
+    cms.setForceFlush();
+    cms.snapshot();
+    snapshot = cms.getSnapshot().getCellSet();
+    // Adding more value
+    cms.add(new KeyValue(row, fam, qf6, val));
+    cms.add(new KeyValue(row, fam, qf7, val));
+    // opening scanners
+    scanners = cms.getScanners(0);
+    // close scanners before clear the snapshot
+    for (KeyValueScanner scanner : scanners) {
+      scanner.close();
+    }
+    // Since no opening scanner, the chunks of snapshot should be put back to
+    // pool
+    cms.clearSnapshot(snapshot);
+    assertTrue(chunkPool.getPoolSize() > 0);
+  }
+
+  @Test
+  public void testPuttingBackChunksWithOpeningPipelineScanner()
+      throws IOException {
+    byte[] row = Bytes.toBytes("testrow");
+    byte[] fam = Bytes.toBytes("testfamily");
+    byte[] qf1 = Bytes.toBytes("testqualifier1");
+    byte[] qf2 = Bytes.toBytes("testqualifier2");
+    byte[] qf3 = Bytes.toBytes("testqualifier3");
+    byte[] val = Bytes.toBytes("testval");
+
+    // Setting up memstore
+    cms.add(new KeyValue(row, fam, qf1, 1, val));
+    cms.add(new KeyValue(row, fam, qf2, 1, val));
+    cms.add(new KeyValue(row, fam, qf3, 1, val));
+
+    // Creating a pipeline
+    cms.disableCompaction();
+    cms.snapshot();
+
+    // Adding value to "new" memstore
+    assertEquals(0, cms.getCellSet().getCellsCount());
+    cms.add(new KeyValue(row, fam, qf1, 2, val));
+    cms.add(new KeyValue(row, fam, qf2, 2, val));
+    assertEquals(2, cms.getCellSet().getCellsCount());
+
+    // pipeline bucket 2
+    cms.snapshot();
+    // opening scanner before force flushing
+    List<KeyValueScanner> scanners = cms.getScanners(0);
+    // Shouldn't putting back the chunks to pool,since some scanners are opening
+    // based on their data
+    cms.enableCompaction();
+    // trigger compaction
+    cms.snapshot();
+
+    // Adding value to "new" memstore
+    assertEquals(0, cms.getCellSet().getCellsCount());
+    cms.add(new KeyValue(row, fam, qf3, 3, val));
+    cms.add(new KeyValue(row, fam, qf2, 3, val));
+    cms.add(new KeyValue(row, fam, qf1, 3, val));
+    assertEquals(3, cms.getCellSet().getCellsCount());
+
+    while(cms.isMemstoreCompaction()) {
+      Threads.sleep(10);
+    }
+
+    assertTrue(chunkPool.getPoolSize() == 0);
+
+    // Chunks will be put back to pool after close scanners;
+    for (KeyValueScanner scanner : scanners) {
+      scanner.close();
+    }
+    assertTrue(chunkPool.getPoolSize() > 0);
+
+    // clear chunks
+    chunkPool.clearChunks();
+
+    // Creating another snapshot
+    cms.setForceFlush();
+    cms.snapshot();
+    CellSet snapshot = cms.getSnapshot().getCellSet();
+    cms.clearSnapshot(snapshot);
+    cms.setForceFlush();
+    cms.snapshot();
+    snapshot = cms.getSnapshot().getCellSet();
+    // Adding more value
+    cms.add(new KeyValue(row, fam, qf2, 4, val));
+    cms.add(new KeyValue(row, fam, qf3, 4, val));
+    // opening scanners
+    scanners = cms.getScanners(0);
+    // close scanners before clear the snapshot
+    for (KeyValueScanner scanner : scanners) {
+      scanner.close();
+    }
+    // Since no opening scanner, the chunks of snapshot should be put back to
+    // pool
+    cms.clearSnapshot(snapshot);
+    assertTrue(chunkPool.getPoolSize() > 0);
+  }
 
   //////////////////////////////////////////////////////////////////////////////
   // Compaction tests

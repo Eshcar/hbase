@@ -18,20 +18,19 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Iterator;
-import java.util.SortedSet;
-
+import junit.framework.TestCase;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
-
-import junit.framework.TestCase;
 import org.junit.experimental.categories.Category;
+
+import java.util.Iterator;
+import java.util.SortedSet;
 
 @Category(SmallTests.class)
 public class TestKeyValueSkipListSet extends TestCase {
-  private final KeyValueSkipListSet kvsls =
-    new KeyValueSkipListSet(KeyValue.COMPARATOR);
+  private final CellSet kvsls =
+    new CellSet(KeyValue.COMPARATOR);
 
   protected void setUp() throws Exception {
     super.setUp();

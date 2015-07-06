@@ -35,10 +35,9 @@ class MemStoreCompactor {
     private CompactedMemStore   ms;             // backward reference
     private MemStoreScanner     scanner;        // scanner for pipeline only
 
-    private InternalScanner compactingScanner;  // scanner on top of MemStoreScanner
+    private StoreScanner compactingScanner;  // scanner on top of MemStoreScanner
                                                 // that uses ScanQueryMatcher
-    private int                                 // the limit for the scan
-            compactionKVMax;
+    private Configuration conf;
     private long                                // smallest read point for any ongoing
             smallestReadPoint;                  // MemStore scan
     private VersionedCellSetMgrList             // a static version of the CellSetMgrs
@@ -62,9 +61,7 @@ class MemStoreCompactor {
         this.ms = ms;
         this.cp = cp;
         this.comparator = comparator;
-        compactionKVMax = conf.getInt(          // get the limit to the size of the
-                HConstants.COMPACTION_KV_MAX,   // groups to be returned by compactingScanner
-                HConstants.COMPACTION_KV_MAX_DEFAULT);
+        this.conf = conf;
     }
 
 
@@ -76,22 +73,22 @@ class MemStoreCompactor {
     public boolean doCompact(Store store) throws IOException {
         if (cp.isEmpty()) return false;         // no compaction on empty pipeline
 
-        List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
-        this.versionedList =                    // get the list of CellSetMgrs from the pipeline
-                cp.getVersionedList();          // the list is marked with specific version
-
-        // create the list of scanners with maximally possible read point, meaning that
-        // all KVs are going to be returned by the pipeline traversing
-        for (CellSetMgr mgr : this.versionedList.getCellSetMgrList()) {
-          scanners.add(mgr.getScanner(Long.MAX_VALUE));
-        }
-        scanner = new MemStoreScanner(ms,
-                scanners, Long.MAX_VALUE, MemStoreScanType.COMPACT_FORWARD);
-
-        smallestReadPoint = store.getSmallestReadPoint();
-        compactingScanner = createScanner(store);
-
         if (workerThread == null) {             // dispatch
+            List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
+            this.versionedList =                    // get the list of CellSetMgrs from the pipeline
+                    cp.getVersionedList();          // the list is marked with specific version
+
+            // create the list of scanners with maximally possible read point, meaning that
+            // all KVs are going to be returned by the pipeline traversing
+            for (CellSetMgr mgr : this.versionedList.getCellSetMgrList()) {
+              scanners.add(mgr.getScanner(Long.MAX_VALUE));
+            }
+            scanner = new MemStoreScanner(ms,
+                    scanners, Long.MAX_VALUE, MemStoreScanType.COMPACT_FORWARD);
+
+            smallestReadPoint = store.getSmallestReadPoint();
+            compactingScanner = createScanner(store);
+
             Runnable worker = new Worker();
             workerThread = new Thread(worker);
             LOG.info("Starting the MemStore in-memory compaction, with thread:" + workerThread);
@@ -119,6 +116,14 @@ class MemStoreCompactor {
         return inCompaction.get();
     }
 
+  private void releaseResources() {
+    scanner.close();
+    scanner = null;
+    compactingScanner.close();
+    compactingScanner = null;
+    versionedList = null;
+  }
+
   /*----------------------------------------------------------------------
   * The worker thread performs the compaction asynchronously.
   * The solo (per compactor) thread only reads the compaction pipeline
@@ -128,7 +133,8 @@ class MemStoreCompactor {
         @Override
         public void run() {
           CellSetMgr resultCellSetMgr =
-              CellSetMgr.Factory.instance().createCellSetMgr(CellSetMgr.Type.COMPACTED_READ_ONLY,
+              CellSetMgr.Factory.instance().createCellSetMgr(
+                  CellSetMgr.Type.COMPACTED_READ_ONLY, conf,
                   comparator, CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
             // the compaction processing
           KeyValue cell;
@@ -144,22 +150,22 @@ class MemStoreCompactor {
                 return;
             } finally {
               stopCompact();
+              releaseResources();
             }
 
         }
     }
 
-    /**
+  /**
      * Creates the scanner for compacting the pipeline.
      * @return the scanner
      */
-    private InternalScanner createScanner(Store store) throws IOException {
-        InternalScanner internalScanner = null;
+    private StoreScanner createScanner(Store store) throws IOException {
 
         Scan scan = new Scan();
         scan.setMaxVersions();  //Get all available versions
 
-        internalScanner = new StoreScanner(store, store.getScanInfo(), scan,
+      StoreScanner internalScanner = new StoreScanner(store, store.getScanInfo(), scan,
                     Collections.singletonList(scanner), ScanType.COMPACT_RETAIN_DELETES,
                     smallestReadPoint, HConstants.OLDEST_TIMESTAMP);
 
@@ -172,11 +178,15 @@ class MemStoreCompactor {
      */
     private void compactToCellSetMgr(CellSetMgr resultCellSetMgr) throws IOException {
 
-        List<Cell> kvs = new ArrayList<Cell>();
+      List<Cell> kvs = new ArrayList<Cell>();
+      int compactionKVMax = conf.getInt(          // get the limit to the size of the
+          HConstants.COMPACTION_KV_MAX,   // groups to be returned by compactingScanner
+          HConstants.COMPACTION_KV_MAX_DEFAULT);
 
-        boolean hasMore;
+
+      boolean hasMore;
         do {
-            hasMore = compactingScanner.next(kvs, compactionKVMax);
+          hasMore = compactingScanner.next(kvs, compactionKVMax);
             if (!kvs.isEmpty()) {
                 for (Cell c : kvs) {
                     // If we know that this KV is going to be included always, then let us
