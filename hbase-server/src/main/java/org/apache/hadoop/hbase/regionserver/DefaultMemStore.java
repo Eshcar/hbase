@@ -92,8 +92,8 @@ public class DefaultMemStore extends AbstractMemStore {
           "Doing nothing. Another ongoing flush or did we fail last attempt?");
     } else {
       this.snapshotId = EnvironmentEdgeManager.currentTimeMillis();
-      if (!getCellSet().isEmpty()) {
-        setSnapshot(getCellSet());
+      if (!getActive().isEmpty()) {
+        setSnapshot(getActive());
         setSnapshotSize(keySize());
         resetCellSet();
       }
@@ -105,7 +105,7 @@ public class DefaultMemStore extends AbstractMemStore {
   @Override
   protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
     List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2);
-    list.add(0, getCellSet().getScanner(readPt));
+    list.add(0, getActive().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
     return list;
   }
@@ -132,7 +132,7 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-    getCellSet().getRowKeyAtOrBefore(state);
+    getActive().getRowKeyAtOrBefore(state);
     getSnapshot().getRowKeyAtOrBefore(state);
   }
 
@@ -144,7 +144,7 @@ public class DefaultMemStore extends AbstractMemStore {
   @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return
-        (getCellSet().shouldSeek(scan, oldestUnexpiredTS) ||
+        (getActive().shouldSeek(scan, oldestUnexpiredTS) ||
             getSnapshot().shouldSeek(scan,oldestUnexpiredTS));
   }
 
@@ -163,7 +163,7 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   KeyValue getNextRow(final KeyValue cell) {
     return getLowest(
-        getNextRow(cell, getCellSet().getCellSet()),
+        getNextRow(cell, getActive().getCellSet()),
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 

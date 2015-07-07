@@ -49,12 +49,8 @@ public abstract class AbstractMemStore implements HeapSize {
   private final Configuration conf;
   private final KeyValue.KVComparator comparator;
 
-  // MemStore.  Use a CellSet rather than SkipListSet because of the
-  // better semantics.  The Map will overwrite if passed a key it already had
-  // whereas the Set will not add new Cell if key is same though value might be
-  // different.  Value is not important -- just make sure always same
-  // reference passed.
-  volatile private MemStoreSegment cellSet;
+  // active segment absorbs write operations
+  volatile private MemStoreSegment active;
   // Snapshot of memstore.  Made for flusher.
   volatile private MemStoreSegment snapshot;
   volatile long snapshotId;
@@ -81,7 +77,7 @@ public abstract class AbstractMemStore implements HeapSize {
 
   protected void resetCellSet() {
     // Reset heap to not include any keys
-    this.cellSet = MemStoreSegment.Factory.instance().createMemStoreSegment(
+    this.active = MemStoreSegment.Factory.instance().createMemStoreSegment(
             CellSet.Type.READ_WRITE, conf, comparator, deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
@@ -232,7 +228,7 @@ public abstract class AbstractMemStore implements HeapSize {
    */
   @Override
   public long heapSize() {
-    return getCellSet().getSize();
+    return getActive().getSize();
   }
 
   /**
@@ -257,7 +253,7 @@ public abstract class AbstractMemStore implements HeapSize {
 
   protected void rollbackCellSet(KeyValue cell) {
     // If the key is in the memstore, delete it. Update this.size.
-    long sz = cellSet.rollback(cell);
+    long sz = active.rollback(cell);
     if (sz != 0) {
       setOldestEditTimeToNow();
     }
@@ -265,7 +261,7 @@ public abstract class AbstractMemStore implements HeapSize {
 
 
   protected void dump(Log log) {
-    for (Cell cell: this.cellSet.getCellSet()) {
+    for (Cell cell: this.active.getCellSet()) {
       log.info(cell);
     }
     for (Cell cell: this.snapshot.getCellSet()) {
@@ -304,7 +300,7 @@ public abstract class AbstractMemStore implements HeapSize {
         cell.getRowArray(), cell.getRowOffset(), cell.getRowLength(),
         cell.getFamilyArray(), cell.getFamilyOffset(), cell.getFamilyLength(),
         cell.getQualifierArray(), cell.getQualifierOffset(), cell.getQualifierLength());
-    SortedSet<KeyValue> ss = cellSet.tailSet(firstCell);
+    SortedSet<KeyValue> ss = active.tailSet(firstCell);
     Iterator<KeyValue> it = ss.iterator();
     // versions visible to oldest scanner
     int versionsVisible = 0;
@@ -327,7 +323,7 @@ public abstract class AbstractMemStore implements HeapSize {
             // false means there was a change, so give us the size.
             long delta = heapSizeChange(cur, true);
             addedSize -= delta;
-            cellSet.incSize(-delta);
+            active.incSize(-delta);
             it.remove();
             setOldestEditTimeToNow();
           } else {
@@ -417,7 +413,7 @@ public abstract class AbstractMemStore implements HeapSize {
     // so we cant add the new Cell w/o knowing what's there already, but we also
     // want to take this chance to delete some cells. So two loops (sad)
 
-    SortedSet<KeyValue> ss = cellSet.tailSet(firstCell);
+    SortedSet<KeyValue> ss = active.tailSet(firstCell);
     for (Cell cell : ss) {
       // if this isnt the row we are interested in, then bail:
       if (!CellUtil.matchingColumn(cell, family, qualifier)
@@ -425,7 +421,7 @@ public abstract class AbstractMemStore implements HeapSize {
         break; // rows dont match, bail.
       }
 
-      // if the qualifier matches and it's a put, just RM it out of the cellSet.
+      // if the qualifier matches and it's a put, just RM it out of the active.
       if (cell.getTypeByte() == KeyValue.Type.Put.getCode() &&
           cell.getTimestamp() > now && CellUtil.matchingQualifier(firstCell, cell)) {
         now = cell.getTimestamp();
@@ -440,7 +436,7 @@ public abstract class AbstractMemStore implements HeapSize {
   }
 
   private KeyValue maybeCloneWithAllocator(KeyValue cell) {
-    return cellSet.maybeCloneWithAllocator(cell);
+    return active.maybeCloneWithAllocator(cell);
   }
 
   /**
@@ -450,7 +446,7 @@ public abstract class AbstractMemStore implements HeapSize {
    * Callers should ensure they already have the read lock taken
    */
   private long internalAdd(final KeyValue toAdd) {
-    long s = cellSet.add(toAdd);
+    long s = active.add(toAdd);
     setOldestEditTimeToNow();
     return s;
   }
@@ -469,8 +465,8 @@ public abstract class AbstractMemStore implements HeapSize {
     return comparator;
   }
 
-  protected MemStoreSegment getCellSet() {
-    return cellSet;
+  protected MemStoreSegment getActive() {
+    return active;
   }
 
   protected MemStoreSegment getSnapshot() {

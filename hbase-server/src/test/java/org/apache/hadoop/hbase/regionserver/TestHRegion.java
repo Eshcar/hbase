@@ -1418,12 +1418,12 @@ public class TestHRegion {
 
       // checkAndPut with wrong value
       HStore store = (HStore) region.getStore(fam1);
-      store.memstore.getCellSet().getSize();
+      store.memstore.getActive().getSize();
 
       boolean res = region.checkAndMutate(row1, fam1, qf1, CompareOp.EQUAL, new BinaryComparator(
           val1), put, true);
       assertEquals(true, res);
-      store.memstore.getCellSet().getSize();
+      store.memstore.getActive().getSize();
 
       Get get = new Get(row1);
       get.addColumn(fam2, qf1);
@@ -1936,10 +1936,10 @@ public class TestHRegion {
       // extract the key values out the memstore:
       // This is kinda hacky, but better than nothing...
       long now = System.currentTimeMillis();
-      KeyValue firstKv = ((HStore) region.getStore(fam1)).memstore.getCellSet().first();
+      KeyValue firstKv = ((HStore) region.getStore(fam1)).memstore.getActive().first();
       assertTrue(firstKv.getTimestamp() <= now);
       now = firstKv.getTimestamp();
-      for (KeyValue kv : ((HStore) region.getStore(fam1)).memstore.getCellSet().getCellSet()) {
+      for (KeyValue kv : ((HStore) region.getStore(fam1)).memstore.getActive().getCellSet()) {
         assertTrue(kv.getTimestamp() <= now);
         now = kv.getTimestamp();
       }

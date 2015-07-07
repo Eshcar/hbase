@@ -78,8 +78,8 @@ public class TestMemStore extends TestCase {
     byte [] other = Bytes.toBytes("somethingelse");
     KeyValue samekey = new KeyValue(bytes, bytes, bytes, other);
     this.memstore.add(samekey);
-    KeyValue found = this.memstore.getCellSet().first();
-    assertEquals(1, this.memstore.getCellSet().getCellsCount());
+    KeyValue found = this.memstore.getActive().first();
+    assertEquals(1, this.memstore.getActive().getCellsCount());
     assertTrue(Bytes.toString(found.getValue()), CellUtil.matchingValue(samekey, found));
   }
 
@@ -481,7 +481,7 @@ public class TestMemStore extends TestCase {
     m.add(key2);
 
     assertTrue("Expected memstore to hold 3 values, actually has " +
-        m.getCellSet().getCellsCount(), m.getCellSet().getCellsCount() == 3);
+        m.getActive().getCellsCount(), m.getActive().getCellsCount() == 3);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -554,10 +554,10 @@ public class TestMemStore extends TestCase {
     memstore.snapshot();
     assertEquals(3, memstore.getSnapshot().getCellsCount());
     //Adding value to "new" memstore
-    assertEquals(0, memstore.getCellSet().getCellsCount());
+    assertEquals(0, memstore.getActive().getCellsCount());
     memstore.add(new KeyValue(row, fam ,qf4, val));
     memstore.add(new KeyValue(row, fam ,qf5, val));
-    assertEquals(2, memstore.getCellSet().getCellsCount());
+    assertEquals(2, memstore.getActive().getCellsCount());
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -579,7 +579,7 @@ public class TestMemStore extends TestCase {
     memstore.add(put2);
     memstore.add(put3);
 
-    assertEquals(3, memstore.getCellSet().getCellsCount());
+    assertEquals(3, memstore.getActive().getCellsCount());
 
     KeyValue del2 = new KeyValue(row, fam, qf1, ts2, KeyValue.Type.Delete, val);
     memstore.delete(del2);
@@ -590,9 +590,9 @@ public class TestMemStore extends TestCase {
     expected.add(put2);
     expected.add(put1);
 
-    assertEquals(4, memstore.getCellSet().getCellsCount());
+    assertEquals(4, memstore.getActive().getCellsCount());
     int i = 0;
-    for(KeyValue kv : memstore.getCellSet().getCellSet()) {
+    for(KeyValue kv : memstore.getActive().getCellSet()) {
       assertEquals(expected.get(i++), kv);
     }
   }
@@ -613,7 +613,7 @@ public class TestMemStore extends TestCase {
     memstore.add(put2);
     memstore.add(put3);
 
-    assertEquals(3, memstore.getCellSet().getCellsCount());
+    assertEquals(3, memstore.getActive().getCellsCount());
 
     KeyValue del2 =
       new KeyValue(row, fam, qf1, ts2, KeyValue.Type.DeleteColumn, val);
@@ -626,9 +626,9 @@ public class TestMemStore extends TestCase {
     expected.add(put1);
 
 
-    assertEquals(4, memstore.getCellSet().getCellsCount());
+    assertEquals(4, memstore.getActive().getCellsCount());
     int i = 0;
-    for (KeyValue kv: memstore.getCellSet().getCellSet()) {
+    for (KeyValue kv: memstore.getActive().getCellSet()) {
       assertEquals(expected.get(i++), kv);
     }
   }
@@ -666,9 +666,9 @@ public class TestMemStore extends TestCase {
 
 
 
-    assertEquals(5, memstore.getCellSet().getCellsCount());
+    assertEquals(5, memstore.getActive().getCellsCount());
     int i = 0;
-    for (KeyValue kv: memstore.getCellSet().getCellSet()) {
+    for (KeyValue kv: memstore.getActive().getCellSet()) {
       assertEquals(expected.get(i++), kv);
     }
   }
@@ -682,8 +682,8 @@ public class TestMemStore extends TestCase {
     memstore.add(new KeyValue(row, fam, qf, ts, val));
     KeyValue delete = new KeyValue(row, fam, qf, ts, KeyValue.Type.Delete, val);
     memstore.delete(delete);
-    assertEquals(2, memstore.getCellSet().getCellsCount());
-    assertEquals(delete, memstore.getCellSet().getCellSet().first());
+    assertEquals(2, memstore.getActive().getCellsCount());
+    assertEquals(delete, memstore.getActive().getCellSet().first());
   }
 
   public void testRetainsDeleteVersion() throws IOException {
@@ -695,8 +695,8 @@ public class TestMemStore extends TestCase {
         "row1", "fam", "a", 100, KeyValue.Type.Delete, "dont-care");
     memstore.delete(delete);
 
-    assertEquals(2, memstore.getCellSet().getCellsCount());
-    assertEquals(delete, memstore.getCellSet().getCellSet().first());
+    assertEquals(2, memstore.getActive().getCellsCount());
+    assertEquals(delete, memstore.getActive().getCellSet().first());
   }
   public void testRetainsDeleteColumn() throws IOException {
     // add a put to memstore
@@ -707,8 +707,8 @@ public class TestMemStore extends TestCase {
         KeyValue.Type.DeleteColumn, "dont-care");
     memstore.delete(delete);
 
-    assertEquals(2, memstore.getCellSet().getCellsCount());
-    assertEquals(delete, memstore.getCellSet().getCellSet().first());
+    assertEquals(2, memstore.getActive().getCellsCount());
+    assertEquals(delete, memstore.getActive().getCellSet().first());
   }
   public void testRetainsDeleteFamily() throws IOException {
     // add a put to memstore
@@ -719,8 +719,8 @@ public class TestMemStore extends TestCase {
         KeyValue.Type.DeleteFamily, "dont-care");
     memstore.delete(delete);
 
-    assertEquals(2, memstore.getCellSet().getCellsCount());
-    assertEquals(delete, memstore.getCellSet().getCellSet().first());
+    assertEquals(2, memstore.getActive().getCellsCount());
+    assertEquals(delete, memstore.getActive().getCellSet().first());
   }
 
   ////////////////////////////////////
@@ -817,7 +817,7 @@ public class TestMemStore extends TestCase {
   public void testUpsertMemstoreSize() throws Exception {
     Configuration conf = HBaseConfiguration.create();
     memstore = new DefaultMemStore(conf, KeyValue.COMPARATOR);
-    long oldSize = memstore.getCellSet().getSize();
+    long oldSize = memstore.getActive().getSize();
 
     List<Cell> l = new ArrayList<Cell>();
     KeyValue kv1 = KeyValueTestUtil.create("r", "f", "q", 100, "v");
@@ -828,19 +828,19 @@ public class TestMemStore extends TestCase {
     l.add(kv1); l.add(kv2); l.add(kv3);
 
     this.memstore.upsert(l, 2);// readpoint is 2
-    long newSize = this.memstore.getCellSet().getSize();
+    long newSize = this.memstore.getActive().getSize();
     assert(newSize > oldSize);
 
    //The kv1 should be removed.
-   assert(memstore.getCellSet().getCellsCount() == 2);
+   assert(memstore.getActive().getCellsCount() == 2);
    
     KeyValue kv4 = KeyValueTestUtil.create("r", "f", "q", 104, "v");
     kv4.setMvccVersion(1);
     l.clear(); l.add(kv4);
     this.memstore.upsert(l, 3);
-    assertEquals(newSize, this.memstore.getCellSet().getSize());
+    assertEquals(newSize, this.memstore.getActive().getSize());
    //The kv2 should be removed.
-   assert(memstore.getCellSet().getCellsCount() == 2);
+   assert(memstore.getActive().getCellsCount() == 2);
     //this.memstore = null;
   }
 

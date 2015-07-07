@@ -115,7 +115,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
 //  @Override
 //  public long heapSize() {
-//    long size = getCellSet().getSize();
+//    long size = getActive().getSize();
 //    for(MemStoreSegment cellSetMgr : pipeline.getMemStoreSegmentList()) {
 //      size += cellSetMgr.getSize();
 //    }
@@ -133,7 +133,7 @@ public class CompactedMemStore extends AbstractMemStore {
   protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
     LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
     List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2+pipelineList.size());
-    list.add(getCellSet().getScanner(readPt));
+    list.add(getActive().getScanner(readPt));
     for(MemStoreSegment item : pipelineList) {
       list.add(item.getScanner(readPt));
     }
@@ -162,7 +162,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override
   public void snapshot() {
-    MemStoreSegment active = getCellSet();
+    MemStoreSegment active = getActive();
     if(!forceFlush) {
       LOG.info("Snapshot called without forcing flush. ");
       LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
@@ -262,7 +262,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override
   public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-    getCellSet().getRowKeyAtOrBefore(state);
+    getActive().getRowKeyAtOrBefore(state);
     pipeline.getRowKeyAtOrBefore(state);
     getSnapshot().getRowKeyAtOrBefore(state);
   }
@@ -287,7 +287,7 @@ public class CompactedMemStore extends AbstractMemStore {
   private LinkedList<MemStoreSegment> getMemStoreSegmentList() {
     LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
     LinkedList<MemStoreSegment> list = new LinkedList<MemStoreSegment>();
-    list.add(getCellSet());
+    list.add(getActive());
     list.addAll(pipelineList);
     list.add(getSnapshot());
     return list;

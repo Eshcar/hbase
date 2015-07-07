@@ -100,8 +100,8 @@ public class TestCompactedMemStore extends TestCase {
         byte [] other = Bytes.toBytes("somethingelse");
         KeyValue samekey = new KeyValue(bytes, bytes, bytes, other);
         this.cms.add(samekey);
-        Cell found = this.cms.getCellSet().first();
-        assertEquals(1, this.cms.getCellSet().getCellsCount());
+        Cell found = this.cms.getActive().first();
+        assertEquals(1, this.cms.getActive().getCellsCount());
         assertTrue(Bytes.toString(found.getValue()), CellUtil.matchingValue(samekey, found));
     }
 
@@ -511,7 +511,7 @@ public class TestCompactedMemStore extends TestCase {
         m.add(key2);
 
         assertTrue("Expected memstore to hold 3 values, actually has " +
-                m.getCellSet().getCellsCount(), m.getCellSet().getCellsCount() == 3);
+                m.getActive().getCellsCount(), m.getActive().getCellsCount() == 3);
     }
 
     ///////////////////////////////-/-/-/-////////////////////////////////////////////
@@ -587,10 +587,10 @@ public class TestCompactedMemStore extends TestCase {
         cms.setForceFlush().snapshot();
         assertEquals(3, cms.getSnapshot().getCellsCount());
         //Adding value to "new" memstore
-        assertEquals(0, cms.getCellSet().getCellsCount());
+        assertEquals(0, cms.getActive().getCellsCount());
       	cms.add(new KeyValue(row, fam ,qf4, val));
       	cms.add(new KeyValue(row, fam ,qf5, val));
-        assertEquals(2, cms.getCellSet().getCellsCount());
+        assertEquals(2, cms.getActive().getCellsCount());
     }
 
     //////////////////////////////////////////////////////////////////////////////
@@ -612,7 +612,7 @@ public class TestCompactedMemStore extends TestCase {
         cms.add(put2);
         cms.add(put3);
 
-        assertEquals(3, cms.getCellSet().getCellsCount());
+        assertEquals(3, cms.getActive().getCellsCount());
 
         KeyValue del2 = new KeyValue(row, fam, qf1, ts2, KeyValue.Type.Delete, val);
         cms.delete(del2);
@@ -623,9 +623,9 @@ public class TestCompactedMemStore extends TestCase {
         expected.add(put2);
         expected.add(put1);
 
-        assertEquals(4, cms.getCellSet().getCellsCount());
+        assertEquals(4, cms.getActive().getCellsCount());
         int i = 0;
-        for(Cell cell : cms.getCellSet().getCellSet()) {
+        for(Cell cell : cms.getActive().getCellSet()) {
             assertEquals(expected.get(i++), cell);
         }
     }
@@ -646,7 +646,7 @@ public class TestCompactedMemStore extends TestCase {
         cms.add(put2);
         cms.add(put3);
 
-        assertEquals(3, cms.getCellSet().getCellsCount());
+        assertEquals(3, cms.getActive().getCellsCount());
 
         KeyValue del2 =
                 new KeyValue(row, fam, qf1, ts2, KeyValue.Type.DeleteColumn, val);
@@ -659,9 +659,9 @@ public class TestCompactedMemStore extends TestCase {
         expected.add(put1);
 
 
-        assertEquals(4, cms.getCellSet().getCellsCount());
+        assertEquals(4, cms.getActive().getCellsCount());
         int i = 0;
-        for (Cell cell: cms.getCellSet().getCellSet()) {
+        for (Cell cell: cms.getActive().getCellSet()) {
             assertEquals(expected.get(i++), cell);
         }
     }
@@ -699,9 +699,9 @@ public class TestCompactedMemStore extends TestCase {
 
 
 
-        assertEquals(5, cms.getCellSet().getCellsCount());
+        assertEquals(5, cms.getActive().getCellsCount());
         int i = 0;
-        for (Cell cell: cms.getCellSet().getCellSet()) {
+        for (Cell cell: cms.getActive().getCellSet()) {
             assertEquals(expected.get(i++), cell);
         }
     }
@@ -715,8 +715,8 @@ public class TestCompactedMemStore extends TestCase {
         cms.add(new KeyValue(row, fam, qf, ts, val));
         KeyValue delete = new KeyValue(row, fam, qf, ts, KeyValue.Type.Delete, val);
         cms.delete(delete);
-        assertEquals(2, cms.getCellSet().getCellsCount());
-        assertEquals(delete, cms.getCellSet().first());
+        assertEquals(2, cms.getActive().getCellsCount());
+        assertEquals(delete, cms.getActive().first());
     }
 
     public void testRetainsDeleteVersion() throws IOException {
@@ -728,8 +728,8 @@ public class TestCompactedMemStore extends TestCase {
                 "row1", "fam", "a", 100, KeyValue.Type.Delete, "dont-care");
         cms.delete(delete);
 
-        assertEquals(2, cms.getCellSet().getCellsCount());
-        assertEquals(delete, cms.getCellSet().first());
+        assertEquals(2, cms.getActive().getCellsCount());
+        assertEquals(delete, cms.getActive().first());
     }
     public void testRetainsDeleteColumn() throws IOException {
         // add a put to memstore
@@ -740,8 +740,8 @@ public class TestCompactedMemStore extends TestCase {
                 KeyValue.Type.DeleteColumn, "dont-care");
         cms.delete(delete);
 
-        assertEquals(2, cms.getCellSet().getCellsCount());
-        assertEquals(delete, cms.getCellSet().first());
+        assertEquals(2, cms.getActive().getCellsCount());
+        assertEquals(delete, cms.getActive().first());
     }
     public void testRetainsDeleteFamily() throws IOException {
         // add a put to memstore
@@ -752,8 +752,8 @@ public class TestCompactedMemStore extends TestCase {
                 KeyValue.Type.DeleteFamily, "dont-care");
         cms.delete(delete);
 
-        assertEquals(2, cms.getCellSet().getCellsCount());
-        assertEquals(delete, cms.getCellSet().first());
+        assertEquals(2, cms.getActive().getCellsCount());
+        assertEquals(delete, cms.getActive().first());
     }
 
     ////////////////////////////////////===================================================
@@ -864,7 +864,7 @@ public class TestCompactedMemStore extends TestCase {
         long newSize = this.cms.size();
         assert(newSize > oldSize);
         //The kv1 should be removed.
-        assert(cms.getCellSet().getCellsCount() == 2);
+        assert(cms.getActive().getCellsCount() == 2);
 
         KeyValue kv4 = KeyValueTestUtil.create("r", "f", "q", 104, "v");
         kv4.setMvccVersion(1);
@@ -872,7 +872,7 @@ public class TestCompactedMemStore extends TestCase {
         this.cms.upsert(l, 3);
         assertEquals(newSize, this.cms.size());
         //The kv2 should be removed.
-        assert(cms.getCellSet().getCellsCount() == 2);
+        assert(cms.getActive().getCellsCount() == 2);
         //this.memstore = null;
     }
 
@@ -1060,10 +1060,10 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
-    assertEquals(0, cms.getCellSet().getCellsCount());
+    assertEquals(0, cms.getActive().getCellsCount());
     cms.add(new KeyValue(row, fam, qf4, val));
     cms.add(new KeyValue(row, fam, qf5, val));
-    assertEquals(2, cms.getCellSet().getCellsCount());
+    assertEquals(2, cms.getActive().getCellsCount());
     cms.clearSnapshot(snapshot);
 
     int chunkCount = chunkPool.getPoolSize();
@@ -1097,10 +1097,10 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
-    assertEquals(0, cms.getCellSet().getCellsCount());
+    assertEquals(0, cms.getActive().getCellsCount());
     cms.add(new KeyValue(row, fam, qf4, val));
     cms.add(new KeyValue(row, fam, qf5, val));
-    assertEquals(2, cms.getCellSet().getCellsCount());
+    assertEquals(2, cms.getActive().getCellsCount());
 
     // opening scanner before clear the snapshot
     List<KeyValueScanner> scanners = cms.getScanners(0);
@@ -1158,10 +1158,10 @@ public class TestCompactedMemStore extends TestCase {
     cms.snapshot();
 
     // Adding value to "new" memstore
-    assertEquals(0, cms.getCellSet().getCellsCount());
+    assertEquals(0, cms.getActive().getCellsCount());
     cms.add(new KeyValue(row, fam, qf1, 2, val));
     cms.add(new KeyValue(row, fam, qf2, 2, val));
-    assertEquals(2, cms.getCellSet().getCellsCount());
+    assertEquals(2, cms.getActive().getCellsCount());
 
     // pipeline bucket 2
     cms.snapshot();
@@ -1174,11 +1174,11 @@ public class TestCompactedMemStore extends TestCase {
     cms.snapshot();
 
     // Adding value to "new" memstore
-    assertEquals(0, cms.getCellSet().getCellsCount());
+    assertEquals(0, cms.getActive().getCellsCount());
     cms.add(new KeyValue(row, fam, qf3, 3, val));
     cms.add(new KeyValue(row, fam, qf2, 3, val));
     cms.add(new KeyValue(row, fam, qf1, 3, val));
-    assertEquals(3, cms.getCellSet().getCellsCount());
+    assertEquals(3, cms.getActive().getCellsCount());
 
     while(cms.isMemstoreCompaction()) {
       Threads.sleep(10);
