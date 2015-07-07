@@ -92,8 +92,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * */
     private boolean restructBackwHeap(KeyValue k) throws IOException {
         boolean res = false;
-        List<CellSetScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
-        for(CellSetScanner scan : scanners)
+        List<MemStoreSegmentScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
+        for(MemStoreSegmentScanner scan : scanners)
             res |= scan.seekToPreviousRow(k);
         this.backwardHeap   =
                 new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
@@ -115,8 +115,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                 forwardHeap = null;
                 // before building the heap seek for the relevant key on the scanners,
                 // for the heap to be built from the scanners correctly
-                List<CellSetScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
-                for(CellSetScanner scan : scanners)
+                List<MemStoreSegmentScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
+                for(MemStoreSegmentScanner scan : scanners)
                     if (toLast) res |= scan.seekToLastRow();
                     else res |= scan.backwardSeek(k);
                 this.backwardHeap   =
@@ -151,7 +151,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
              currentCell != null;                       // take next value from the forward heap
              currentCell = heap.next()){
 
-            //if (currentCell.getMvccVersion() > readPoint) --- moved to CellSetScanner
+            //if (currentCell.getMvccVersion() > readPoint) --- moved to MemStoreSegmentScanner
             //    continue;                               // the value too old, take next one
 
             if (type == MemStoreScanType.COMPACT_FORWARD) {

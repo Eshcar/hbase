@@ -103,8 +103,8 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
-    List<CellSetScanner> list = new ArrayList<CellSetScanner>(2);
+  protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
+    List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2);
     list.add(0, getCellSet().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
     return list;

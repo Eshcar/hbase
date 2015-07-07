@@ -75,14 +75,14 @@ public abstract class AbstractMemStore implements HeapSize {
     this.comparator = c;
     resetCellSet();
     this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
-        CellSet.Type.EMPTY, conf, c, 0);
+            CellSet.Type.EMPTY, conf, c, 0);
 
   }
 
   protected void resetCellSet() {
     // Reset heap to not include any keys
     this.cellSet = MemStoreSegment.Factory.instance().createMemStoreSegment(
-        CellSet.Type.READ_WRITE, conf, comparator, deepOverhead());
+            CellSet.Type.READ_WRITE, conf, comparator, deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -219,7 +219,7 @@ public abstract class AbstractMemStore implements HeapSize {
     MemStoreSegment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
       this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
-          CellSet.Type.EMPTY, getComparator(), 0);
+              CellSet.Type.EMPTY, getComparator(), 0);
     }
     this.snapshotId = -1;
     oldSnapshot.close();
@@ -485,6 +485,6 @@ public abstract class AbstractMemStore implements HeapSize {
     getSnapshot().setSize(snapshotSize);
   }
 
-  abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;
+  abstract protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
 
 }

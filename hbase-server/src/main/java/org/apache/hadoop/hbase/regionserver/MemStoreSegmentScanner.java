@@ -27,12 +27,12 @@ import java.util.Iterator;
 import java.util.SortedSet;
 
 /**
- * A scanner of a single cell set bucket {@link MemStoreSegment}.
+ * A scanner of a single cells segment {@link MemStoreSegment}.
  */
 @InterfaceAudience.Private
-class CellSetScanner implements KeyValueScanner{
+class MemStoreSegmentScanner implements KeyValueScanner{
 
-  private final MemStoreSegment cellSetMgr;    // the observed structure
+  private final MemStoreSegment segment;  // the observed structure
   private long readPoint;                 // the highest relevant MVCC
   private Iterator<KeyValue> iter;        // the current iterator that can be reinitialized by
                                           // seek(), backwardSeek(), or reseek()
@@ -48,20 +48,20 @@ class CellSetScanner implements KeyValueScanner{
   /**---------------------------------------------------------
    * C-tor
    */
-  public CellSetScanner(MemStoreSegment cellSetMgr, long readPoint) {
+  public MemStoreSegmentScanner(MemStoreSegment segment, long readPoint) {
     super();
-    this.cellSetMgr   = cellSetMgr;
+    this.segment = segment;
     this.readPoint    = readPoint;
-    iter = cellSetMgr.iterator();
-    // the initialization of the current is required for working with heap of CellSetScanners
+    iter = segment.iterator();
+    // the initialization of the current is required for working with heap of SegmentScanners
     current = getNext();
     //increase the reference count so the underlying structure will not be de-allocated
-    this.cellSetMgr.incScannerCount();
+    this.segment.incScannerCount();
   }
 
 
   /**---------------------------------------------------------
-   * Private internal method for iterating over the CellSet,
+   * Private internal method for iterating over the segment,
    * skipping the cells with irrelevant MVCC */
   private KeyValue getNext() {
     KeyValue startKV = current;
@@ -75,7 +75,7 @@ class CellSetScanner implements KeyValueScanner{
         }
         if (stopSkippingKVsIfNextRow &&   // for backwardSeek() stay in the
                 startKV != null &&        // boundaries of a single row
-                cellSetMgr.compareRows(next, startKV) > 0) {
+                segment.compareRows(next, startKV) > 0) {
           return null;
         }
       } // end of while
@@ -99,7 +99,7 @@ class CellSetScanner implements KeyValueScanner{
       return null;
     }
     if (first != null && second != null) {
-      int compare = cellSetMgr.compare(first, second);
+      int compare = segment.compare(first, second);
       return (compare > 0 ? first : second);
     }
     return (first != null ? first : second);
@@ -139,7 +139,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public boolean seek(KeyValue key) throws IOException {
     // restart the iterator from new key
-    iter = cellSetMgr.tailSet(key).iterator();
+    iter = segment.tailSet(key).iterator();
     last = null;      // last is going to be reinitialized in the next getNext() call
     current = getNext();
     return (current!=null);
@@ -154,7 +154,7 @@ class CellSetScanner implements KeyValueScanner{
   public boolean checkForHigerMVCC(KeyValue key, long rPfound, long rPglobal)
           throws IOException {
     // restart iterator from new key
-    Iterator<KeyValue> iter = cellSetMgr.tailSet(key).iterator();
+    Iterator<KeyValue> iter = segment.tailSet(key).iterator();
 
     while (iter.hasNext()) {
       KeyValue curr = iter.next();
@@ -185,7 +185,7 @@ class CellSetScanner implements KeyValueScanner{
     * get it. So we remember the last keys we iterated to and restore
     * the reseeked set to at least that point.
     */
-    iter = cellSetMgr.tailSet(getHighest(key, last)).iterator();
+    iter = segment.tailSet(getHighest(key, last)).iterator();
     current = getNext();
     return (current!=null);
   }
@@ -206,7 +206,7 @@ class CellSetScanner implements KeyValueScanner{
    * Close the KeyValue scanner.
    */
   @Override public void close() {
-    this.cellSetMgr.decScannerCount();
+    this.segment.decScannerCount();
   }
 
 
@@ -251,7 +251,7 @@ class CellSetScanner implements KeyValueScanner{
       throws IOException {
 
     throw new IllegalStateException(
-            "requestSeek cannot be called on CellSetScanner");
+            "requestSeek cannot be called on MemStoreSegmentScanner");
   }
 
 
@@ -262,7 +262,7 @@ class CellSetScanner implements KeyValueScanner{
    * then used to ensure the top store file scanner has done a seek operation.
    *
    * This scanner is working solely on the in-memory MemStore and doesn't work on
-   * store files, CellSetScanner always does the seek, therefore always returning true.
+   * store files, MemStoreSegmentScanner always does the seek, therefore always returning true.
    */
   @Override public boolean realSeekDone() {
     return true;
@@ -278,7 +278,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public void enforceSeek() throws IOException {
     throw new IllegalStateException(
-            "enforceSeek cannot be called on CellSetScanner");
+            "enforceSeek cannot be called on MemStoreSegmentScanner");
   }
 
 
@@ -304,7 +304,7 @@ class CellSetScanner implements KeyValueScanner{
    */
   @Override public boolean backwardSeek(KeyValue key) throws IOException {
     seek(key);    // seek forward then go backward
-    if (peek()==null || cellSetMgr.compareRows(peek(), key) > 0) {
+    if (peek()==null || segment.compareRows(peek(), key) > 0) {
       return seekToPreviousRow(key);
     }
     return true;
@@ -325,7 +325,7 @@ class CellSetScanner implements KeyValueScanner{
             KeyValue.createFirstOnRow(key.getRowArray(), key.getRowOffset(),
             key.getRowLength());
     SortedSet<KeyValue> cellHead =        // here the search is hidden, reset the iterator
-            cellSetMgr.headSet(firstKeyOnRow);
+            segment.headSet(firstKeyOnRow);
     KeyValue lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
 
     if (lastCellBeforeRow == null) {      // end of recursion
@@ -343,7 +343,7 @@ class CellSetScanner implements KeyValueScanner{
     stopSkippingKVsIfNextRow = false;
 
     // if nothing found or we searched beyond the needed, take one more step backward
-    if ( peek()==null || cellSetMgr.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
+    if ( peek()==null || segment.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
       return seekToPreviousRow(lastCellBeforeRow);
     }
     return true;
@@ -357,7 +357,7 @@ class CellSetScanner implements KeyValueScanner{
    * @throws java.io.IOException
    */
   @Override public boolean seekToLastRow() throws IOException {
-    KeyValue higherCell = cellSetMgr.isEmpty() ? null : cellSetMgr.last();
+    KeyValue higherCell = segment.isEmpty() ? null : segment.last();
     if (higherCell == null) {
       return false;
     }

@@ -65,8 +65,8 @@ class MemStoreSegment {
     this(cellSet, null, size, comparator);
   }
 
-  public CellSetScanner getScanner(long readPoint) {
-    return new CellSetScanner(this, readPoint);
+  public MemStoreSegmentScanner getScanner(long readPoint) {
+    return new MemStoreSegmentScanner(this, readPoint);
   }
 
   public boolean isEmpty() {

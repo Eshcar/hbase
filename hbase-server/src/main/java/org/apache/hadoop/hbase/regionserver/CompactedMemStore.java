@@ -130,9 +130,9 @@ public class CompactedMemStore extends AbstractMemStore {
 //  }
 
   @Override
-  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
+  protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
     LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
-    List<CellSetScanner> list = new ArrayList<CellSetScanner>(2+pipelineList.size());
+    List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2+pipelineList.size());
     list.add(getCellSet().getScanner(readPt));
     for(MemStoreSegment item : pipelineList) {
       list.add(item.getScanner(readPt));
