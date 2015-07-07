@@ -69,8 +69,9 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    */
   @Override
   public KeyValue peek() {          // sanity check, the current should be always valid
-    assert((current != null &&
-            current.getMvccVersion() > readPoint));
+    if (current!=null && current.getMvccVersion() > readPoint) {
+      assert (false);                     // sanity check, the current should be always valid
+    }
 
     return current;
   }
@@ -179,7 +180,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   @Override
   public boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
                                   long oldestUnexpiredTS) {
-    return false;
+    return true;
   }
 
 

@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -35,7 +37,7 @@ class MemStoreCompactor {
     private CompactedMemStore   ms;             // backward reference
     private MemStoreScanner     scanner;        // scanner for pipeline only
 
-    private StoreScanner compactingScanner;  // scanner on top of MemStoreScanner
+    private StoreScanner compactingScanner;     // scanner on top of MemStoreScanner
                                                 // that uses ScanQueryMatcher
     private Configuration conf;
     private long                                // smallest read point for any ongoing
@@ -44,19 +46,21 @@ class MemStoreCompactor {
             versionedList;                      // list from the pipeline
     private final KeyValue.KVComparator comparator;
 
-    private Thread workerThread = null;
+    private static final ExecutorService pool   // Thread pool shared by all scanners
+            = Executors.newCachedThreadPool();
     private final AtomicBoolean inCompaction = new AtomicBoolean(false);
+    private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
 
     /**----------------------------------------------------------------------
-    * The constructor is used only to initialize basics, other parameters
-    * needing to start compaction will come with doCompact()
-    * */
+     * The constructor is used only to initialize basics, other parameters
+     * needing to start compaction will come with doCompact()
+     * */
     public MemStoreCompactor (
-        CompactedMemStore ms,
-        CompactionPipeline cp,
-        KeyValue.KVComparator comparator,
-        Configuration conf) {
+            CompactedMemStore ms,
+            CompactionPipeline cp,
+            KeyValue.KVComparator comparator,
+            Configuration conf) {
 
         this.ms = ms;
         this.cp = cp;
@@ -66,14 +70,14 @@ class MemStoreCompactor {
 
 
     /**----------------------------------------------------------------------
-    * The request to dispatch the compaction asynchronous task.
-    * The method returns true if compaction was successfully dispatched, or false if there
-    * is already an ongoing compaction (or pipeline is empty).
-    * */
+     * The request to dispatch the compaction asynchronous task.
+     * The method returns true if compaction was successfully dispatched, or false if there
+     * is already an ongoing compaction (or pipeline is empty).
+     * */
     public boolean doCompact(Store store) throws IOException {
         if (cp.isEmpty()) return false;         // no compaction on empty pipeline
 
-        if (workerThread == null) {             // dispatch
+        if (!inCompaction.get()) {             // dispatch
             List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
             this.versionedList =                    // get the list of CellSetMgrs from the pipeline
                     cp.getVersionedList();          // the list is marked with specific version
@@ -81,7 +85,7 @@ class MemStoreCompactor {
             // create the list of scanners with maximally possible read point, meaning that
             // all KVs are going to be returned by the pipeline traversing
             for (MemStoreSegment mgr : this.versionedList.getCellSetMgrList()) {
-              scanners.add(mgr.getScanner(Long.MAX_VALUE));
+                scanners.add(mgr.getScanner(Long.MAX_VALUE));
             }
             scanner = new MemStoreScanner(ms,
                     scanners, Long.MAX_VALUE, MemStoreScanType.COMPACT_FORWARD);
@@ -90,9 +94,8 @@ class MemStoreCompactor {
             compactingScanner = createScanner(store);
 
             Runnable worker = new Worker();
-            workerThread = new Thread(worker);
-            LOG.info("Starting the MemStore in-memory compaction, with thread:" + workerThread);
-            workerThread.start();
+            LOG.info("Starting the MemStore in-memory compaction");
+            pool.execute(worker);
             inCompaction.set(true);
             return true;
         }
@@ -105,58 +108,57 @@ class MemStoreCompactor {
     * Non-blocking request
     */
     public void stopCompact() {
+        if (inCompaction.get())
+            isInterrupted.compareAndSet(false, true);
         inCompaction.set(false);
-        if (workerThread!=null) {
-            workerThread.interrupt();
-            workerThread=null;
-        }
     }
 
     public boolean isInCompaction() {
         return inCompaction.get();
     }
 
-  private void releaseResources() {
-    scanner.close();
-    scanner = null;
-    compactingScanner.close();
-    compactingScanner = null;
-    versionedList = null;
-  }
+    private void releaseResources() {
+        isInterrupted.set(false);
+        scanner.close();
+        scanner = null;
+        compactingScanner.close();
+        compactingScanner = null;
+        versionedList = null;
+    }
 
-  /*----------------------------------------------------------------------
-  * The worker thread performs the compaction asynchronously.
-  * The solo (per compactor) thread only reads the compaction pipeline
-  */
+    /*----------------------------------------------------------------------
+    * The worker thread performs the compaction asynchronously.
+    * The solo (per compactor) thread only reads the compaction pipeline
+    */
     private class Worker implements Runnable {
 
         @Override
         public void run() {
-          MemStoreSegment result =
-              MemStoreSegment.Factory.instance().createMemStoreSegment(
-                  CellSet.Type.COMPACTED_READ_ONLY, conf,
-                  comparator, CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+            MemStoreSegment result =
+                    MemStoreSegment.Factory.instance().createMemStoreSegment(
+                            CellSet.Type.COMPACTED_READ_ONLY, conf,
+                            comparator, CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
             // the compaction processing
-          KeyValue cell;
+            KeyValue cell;
             try {
                 // Phase I: create the compacted MemStoreSegment
                 compactSegments(result);
                 // Phase II: swap the old compaction pipeline
                 if(!Thread.currentThread().isInterrupted()) {
-                  cp.swap(versionedList, result);
+                    cp.swap(versionedList, result);
                 }
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
                 return;
             } finally {
-              stopCompact();
-              releaseResources();
+                stopCompact();
+                releaseResources();
             }
 
         }
     }
 
-  /**
+    /**
      * Creates the scanner for compacting the pipeline.
      * @return the scanner
      */
@@ -165,9 +167,9 @@ class MemStoreCompactor {
         Scan scan = new Scan();
         scan.setMaxVersions();  //Get all available versions
 
-      StoreScanner internalScanner = new StoreScanner(store, store.getScanInfo(), scan,
-                    Collections.singletonList(scanner), ScanType.COMPACT_RETAIN_DELETES,
-                    smallestReadPoint, HConstants.OLDEST_TIMESTAMP);
+        StoreScanner internalScanner = new StoreScanner(store, store.getScanInfo(), scan,
+                Collections.singletonList(scanner), ScanType.COMPACT_RETAIN_DELETES,
+                smallestReadPoint, HConstants.OLDEST_TIMESTAMP);
 
         return internalScanner;
     }
@@ -178,15 +180,15 @@ class MemStoreCompactor {
      */
     private void compactSegments(MemStoreSegment result) throws IOException {
 
-      List<Cell> kvs = new ArrayList<Cell>();
-      int compactionKVMax = conf.getInt(          // get the limit to the size of the
-          HConstants.COMPACTION_KV_MAX,   // groups to be returned by compactingScanner
-          HConstants.COMPACTION_KV_MAX_DEFAULT);
+        List<Cell> kvs = new ArrayList<Cell>();
+        int compactionKVMax = conf.getInt(          // get the limit to the size of the
+                HConstants.COMPACTION_KV_MAX,   // groups to be returned by compactingScanner
+                HConstants.COMPACTION_KV_MAX_DEFAULT);
 
 
-      boolean hasMore;
+        boolean hasMore;
         do {
-          hasMore = compactingScanner.next(kvs, compactionKVMax);
+            hasMore = compactingScanner.next(kvs, compactionKVMax);
             if (!kvs.isEmpty()) {
                 for (Cell c : kvs) {
                     // If we know that this KV is going to be included always, then let us
@@ -206,19 +208,19 @@ class MemStoreCompactor {
                 }
                 kvs.clear();
             }
-        } while (hasMore && (!Thread.currentThread().isInterrupted()));
+        } while (hasMore && (!isInterrupted.get()));
 
 
     }
 
-  // methods for tests
-  void toggleCompaction(boolean on) {
-    if(on) {
-      workerThread = null;
-    } else {
-      workerThread = new Thread();
+    // methods for tests
+    void toggleCompaction(boolean on) {
+        if(on) {
+            inCompaction.set(false);
+        } else {
+            inCompaction.set(true);
+        }
     }
-  }
 
 
 }
