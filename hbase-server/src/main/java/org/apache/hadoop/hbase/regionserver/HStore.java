@@ -236,7 +236,7 @@ public class HStore implements Store {
     // to clone it?
     scanInfo = new ScanInfo(family, ttl, timeToPurgeDeletes, this.comparator);
     if(family.isInMemory()) {
-      this.memstore = new CompactedMemStore(conf, this.comparator, this.region, this);
+      this.memstore = new CompactedMemStore(conf, this.comparator, this);
     } else {
       this.memstore = new DefaultMemStore(conf, this.comparator);
     }
@@ -1957,10 +1957,6 @@ public class HStore implements Store {
     return storeEngine.getCompactionPolicy().throttleCompaction(compactionSize);
   }
 
-  public HRegion getHRegion() {
-    return this.region;
-  }
-
   @Override
   public RegionCoprocessorHost getCoprocessorHost() {
     return this.region.getCoprocessorHost();
@@ -1979,6 +1975,10 @@ public class HStore implements Store {
   @Override
   public long getSmallestReadPoint() {
     return this.region.getSmallestReadPoint();
+  }
+
+  public HRegion getHRegion() {
+    return this.region;
   }
 
   /**
@@ -2026,6 +2026,10 @@ public class HStore implements Store {
   @Override
   public StoreFlushContext createFlushContext(long cacheFlushId) {
     return new StoreFlusherImpl(cacheFlushId);
+  }
+
+  public HRegion getRegion() {
+    return region;
   }
 
   private class StoreFlusherImpl implements StoreFlushContext {
