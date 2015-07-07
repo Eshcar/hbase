@@ -43,7 +43,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   private boolean stopSkippingKVsIfNextRow = false;
   // last iterated KVs by seek (to restore the iterator state after reseek)
   private KeyValue last = null;
-
+  private int sequenceID = 0;
 
   /**
    * ---------------------------------------------------------
@@ -135,13 +135,17 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   /**
    * ---------------------------------------------------------
    * Get the sequence id associated with this KeyValueScanner. This is required
-   * for comparing multiple files to find out which one has the latest data.
-   * MemStoreScanner returns max value as sequence id because it will
-   * always have the latest data among all files.
+   * for comparing multiple files (or memstore segments) scanners to find out
+   * which one has the latest data.
+   *
    */
   @Override
   public long getSequenceID() {
-    return Long.MAX_VALUE;
+    return sequenceID;
+  }
+
+  public void setSequenceID(int x) {
+    sequenceID = x;
   }
 
 
