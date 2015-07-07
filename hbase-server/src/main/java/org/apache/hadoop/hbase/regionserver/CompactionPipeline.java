@@ -118,7 +118,7 @@ public class CompactionPipeline {
       swapSuffix(suffix,segment);
       if(region != null) {
         // update the global memstore size counter
-        long suffixSize = CompactedMemStore.getCellSetMgrListSize(suffix);
+        long suffixSize = CompactedMemStore.getMemStoreSegmentListSize(suffix);
         long newSize = CompactedMemStore.getMemStoreSegmentSize(segment);
         long delta = suffixSize - newSize;
         long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreAdditionalSize(-delta);

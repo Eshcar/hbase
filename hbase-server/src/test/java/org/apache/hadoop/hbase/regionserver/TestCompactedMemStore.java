@@ -61,7 +61,7 @@ public class TestCompactedMemStore extends TestCase {
     private static final Log LOG = LogFactory.getLog(TestCompactedMemStore.class);
     private CompactedMemStore cms;
     private HRegion region;
-    private Store store;
+    private HStore store;
     private static final int ROW_COUNT = 10;
     private static final int QUALIFIER_COUNT = ROW_COUNT;
     private static final byte [] FAMILY = Bytes.toBytes("column");
@@ -85,10 +85,10 @@ public class TestCompactedMemStore extends TestCase {
     	conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
         conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
         HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
-        this.region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
         HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
+        this.region = hbaseUtility.createTestRegion("foobar", hcd);
         this.store = new HStore(region, hcd, conf);
-        this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, region, store);
+        this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, store);
     	chunkPool = MemStoreChunkPool.getPool(conf);
     	assertTrue(chunkPool != null);
   	}
@@ -223,7 +223,7 @@ public class TestCompactedMemStore extends TestCase {
 
         // use case 3: first in snapshot second in kvset
         this.cms = new CompactedMemStore(HBaseConfiguration.create(),
-                KeyValue.COMPARATOR, region, store);
+                KeyValue.COMPARATOR, store);
         this.cms.add(kv1.clone());
         this.cms.snapshot();                    // As compaction is starting in the background the repetition
         this.cms.add(kv2.clone());              // of the k1 might be removed BUT the scanners created earlier
@@ -495,7 +495,6 @@ public class TestCompactedMemStore extends TestCase {
     }
 
     public void testMultipleVersionsSimple() throws Exception {
-        CompactedMemStore m = new CompactedMemStore(new Configuration(), KeyValue.COMPARATOR, null, null);
         byte [] row = Bytes.toBytes("testRow");
         byte [] family = Bytes.toBytes("testFamily");
         byte [] qf = Bytes.toBytes("testQualifier");
@@ -506,12 +505,12 @@ public class TestCompactedMemStore extends TestCase {
         KeyValue key1 = new KeyValue(row, family, qf, stamps[1], values[1]);
         KeyValue key2 = new KeyValue(row, family, qf, stamps[2], values[2]);
 
-        m.add(key0);
-        m.add(key1);
-        m.add(key2);
+        cms.add(key0);
+      cms.add(key1);
+      cms.add(key2);
 
         assertTrue("Expected memstore to hold 3 values, actually has " +
-                m.getActive().getCellsCount(), m.getActive().getCellsCount() == 3);
+            cms.getActive().getCellsCount(), cms.getActive().getCellsCount() == 3);
     }
 
     ///////////////////////////////-/-/-/-////////////////////////////////////////////
@@ -806,9 +805,6 @@ public class TestCompactedMemStore extends TestCase {
      * since each 2M chunk is held onto by a single reference.
      */
     public void testUpsertMSLAB() throws Exception {
-        Configuration conf = HBaseConfiguration.create();
-        conf.setBoolean(MemStoreSegment.USEMSLAB_KEY, true);
-        cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null, null);
 
         int ROW_SIZE = 2048;
         byte[] qualifier = new byte[ROW_SIZE - 4];
@@ -848,8 +844,6 @@ public class TestCompactedMemStore extends TestCase {
      * @throws Exception
      */
     public void testUpsertMemstoreSize() throws Exception {
-        Configuration conf = HBaseConfiguration.create();
-        cms = new CompactedMemStore(conf, KeyValue.COMPARATOR, null, null);
         long oldSize = cms.size();
 
         List<Cell> l = new ArrayList<Cell>();
@@ -890,34 +884,33 @@ public class TestCompactedMemStore extends TestCase {
         try {
             EnvironmentEdgeForMemstoreTest edge = new EnvironmentEdgeForMemstoreTest();
             EnvironmentEdgeManager.injectEdge(edge);
-            CompactedMemStore compacmemstore = new CompactedMemStore();
-            long t = compacmemstore.timeOfOldestEdit();
+            long t = cms.timeOfOldestEdit();
             assertEquals(t, Long.MAX_VALUE);
 
             // test the case that the timeOfOldestEdit is updated after a KV add
-            compacmemstore.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
-            t = compacmemstore.timeOfOldestEdit();
+          cms.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
+            t = cms.timeOfOldestEdit();
             assertTrue(t == 1234);
             // snapshot() after setForceFlush() will reset timeOfOldestEdit. The method will also assert
             // the value is reset to Long.MAX_VALUE
 
  //           t = runSnapshot(compacmemstore, false);
-            t = runSnapshot(compacmemstore, true);
+            t = runSnapshot(cms, true);
 
             // test the case that the timeOfOldestEdit is updated after a KV delete
-            compacmemstore.delete(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
-            t = compacmemstore.timeOfOldestEdit();
+          cms.delete(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
+            t = cms.timeOfOldestEdit();
             assertTrue(t == 1234);
 
-            t = runSnapshot(compacmemstore, true);
+            t = runSnapshot(cms, true);
 
             // test the case that the timeOfOldestEdit is updated after a KV upsert
             List<Cell> l = new ArrayList<Cell>();
             KeyValue kv1 = KeyValueTestUtil.create("r", "f", "q", 100, "v");
             kv1.setMvccVersion(100);
             l.add(kv1);
-            compacmemstore.upsert(l, 1000);
-            t = compacmemstore.timeOfOldestEdit();
+          cms.upsert(l, 1000);
+            t = cms.timeOfOldestEdit();
             assertTrue(t == 1234);
         } finally {
             EnvironmentEdgeManager.reset();
@@ -1413,16 +1406,4 @@ public class TestCompactedMemStore extends TestCase {
 
     }
 
-    public static void main(String [] args) throws IOException {
-        CompactedMemStore ms = new CompactedMemStore();
-
-        long n1 = System.nanoTime();
-        addRows(25000, ms);
-        System.out.println("Took for insert: " + (System.nanoTime() - n1) / 1000);
-
-        System.out.println("foo");
-
-        for (int i = 0 ; i < 50 ; i++)
-            doScan(ms, i);
-    }
 }

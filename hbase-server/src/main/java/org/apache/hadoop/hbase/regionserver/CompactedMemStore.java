@@ -21,11 +21,9 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
@@ -52,18 +50,11 @@ import java.util.List;
 public class CompactedMemStore extends AbstractMemStore {
 
   private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
-  //private static final int CELLS_COUNT_MIN_THRESHOLD = 1000;
-  //private static final int CELLS_SIZE_MIN_THRESHOLD = 4 * 1024 * 1024; //4MB
 
-  private HRegion region;
-  private Store store;      // used only for dispatching the compaction
+  private HStore store;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private boolean forceFlush;
-
-  private final static long ADDITIONAL_FIXED_OVERHEAD = ClassSize.align(
-          (2 * ClassSize.REFERENCE) +
-          (1 * Bytes.SIZEOF_BOOLEAN));
 
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
       .TIMERANGE_TRACKER +
@@ -73,7 +64,7 @@ public class CompactedMemStore extends AbstractMemStore {
     return segment.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
   }
 
-  public static long getCellSetMgrListSize(LinkedList<MemStoreSegment> list) {
+  public static long getMemStoreSegmentListSize(LinkedList<MemStoreSegment> list) {
     long res = 0;
     for(MemStoreSegment segment : list) {
       res += getMemStoreSegmentSize(segment);
@@ -81,19 +72,11 @@ public class CompactedMemStore extends AbstractMemStore {
     return res;
   }
 
-  /**
-   * Default constructor. Used for tests.
-   */
-  CompactedMemStore() throws IOException {
-    this(HBaseConfiguration.create(), KeyValue.COMPARATOR, null, null);
-  }
-
   public CompactedMemStore(Configuration conf, KeyValue.KVComparator c,
-      HRegion region, Store store) throws IOException {
+      HStore store) throws IOException {
     super(conf, c);
-    this.region = region;
     this.store  = store;
-    this.pipeline = new CompactionPipeline(region);
+    this.pipeline = new CompactionPipeline(store.getRegion());
     this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
     this.forceFlush = false;
   }
@@ -108,26 +91,6 @@ public class CompactedMemStore extends AbstractMemStore {
     }
     return false;
   }
-
-  /**
-   * Get the entire heap usage for this MemStore not including keys in the
-   * snapshot.
-   */
-//  @Override
-//  public long heapSize() {
-//    long size = getActive().getSize();
-//    for(MemStoreSegment cellSetMgr : pipeline.getMemStoreSegmentList()) {
-//      size += cellSetMgr.getSize();
-//    }
-//    return size;
-//  }
-
-  //  @Override
-//  protected long deepOverhead() {
-//    long pipelineSize = (pipeline == null ? 0 : pipeline.size());
-//    return DEEP_OVERHEAD + ADDITIONAL_FIXED_OVERHEAD +
-//        (pipelineSize * DEEP_OVERHEAD_PER_PIPELINE_ITEM);
-//  }
 
   @Override
   protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
@@ -168,10 +131,10 @@ public class CompactedMemStore extends AbstractMemStore {
       LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
       pushActiveToPipeline(active);
       try {
+        // Speculative compaction execution, may be interrupted if flush is forced while
+        // compaction is in progress
         compactor.doCompact(store);
       } catch (IOException e) {
-        // May get here in the test time, if CompactedMemStore was
-        // initialized with nullified store
         LOG.error("Unable to run memstore compaction", e);
       }
     } else { //**** FORCE FLUSH MODE ****//
@@ -217,7 +180,6 @@ public class CompactedMemStore extends AbstractMemStore {
     if(getRegion() != null) {
       long globalMemstoreAdditionalSize = getRegion().addAndGetGlobalMemstoreAdditionalSize(size);
       // no need to update global memstore size as it is updated by the flusher
-//      long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(-size);
       LOG.info(" globalMemstoreAdditionalSize: "+globalMemstoreAdditionalSize);
     }
   }
@@ -229,15 +191,6 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override
   public long getFlushableSize() {
-//    long snapshotSize = getSnapshot().getSize();
-//    if(forceFlush && snapshotSize == 0) {
-//      if(!pipeline.isEmpty()) {
-//        snapshotSize = pipeline.peekTail().getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
-//      } else {
-//        snapshotSize = keySize();
-//      }
-//    }
-//    return snapshotSize;
     return keySize();
   }
 
@@ -321,6 +274,6 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   public HRegion getRegion() {
-    return region;
+    return store.getRegion();
   }
 }
