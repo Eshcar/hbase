@@ -79,18 +79,6 @@ public class CompactionPipeline {
     }
   }
 
-  public MemStoreSegment peekTail() {
-    lock.lock();
-    try {
-      if(pipeline.isEmpty()) {
-        return EMPTY_MEM_STORE_SEGMENT;
-      }
-      return peekLast();
-    } finally {
-      lock.unlock();
-    }
-  }
-
   public VersionedCellSetMgrList getVersionedList() {
     lock.lock();
     try {
@@ -102,6 +90,13 @@ public class CompactionPipeline {
     }
   }
 
+  /**
+   * Swaps the versioned list at the tail of the pipeline with the new compacted segment.
+   * Swapping only if there were no changes to the suffix of the list while it was compacted.
+   * @param versionedList tail of the pipeline that was compacted
+   * @param segment new compacted segment
+   * @return true iff swapped tail with new compacted segment
+   */
   public boolean swap(VersionedCellSetMgrList versionedList, MemStoreSegment segment) {
     if(versionedList.getVersion() != version) {
       return false;
