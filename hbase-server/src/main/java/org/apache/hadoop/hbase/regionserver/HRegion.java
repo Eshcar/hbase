@@ -34,8 +34,28 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellScanner;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.CompoundConfiguration;
+import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.DroppedSnapshotException;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HConstants.OperationStatusCode;
+import org.apache.hadoop.hbase.HDFSBlocksDistribution;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.NamespaceDescriptor;
+import org.apache.hadoop.hbase.NotServingRegionException;
+import org.apache.hadoop.hbase.RegionTooBusyException;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.Tag;
+import org.apache.hadoop.hbase.TagType;
+import org.apache.hadoop.hbase.UnknownScannerException;
 import org.apache.hadoop.hbase.backup.HFileArchiver;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Append;
@@ -481,7 +501,8 @@ public class HRegion implements HeapSize { // , Writable{
   private long flushCheckInterval;
   // flushPerChanges is to prevent too many changes in memstore
   private long flushPerChanges;
-  private long memstoreForceFlushsize;
+  // force flush size is set to be the average of flush size and blocking size
+  private long memStoreForceFlushSize;
   private long blockingMemStoreSize;
   final long threadWakeFrequency;
   // Used to guard closes
@@ -669,7 +690,7 @@ public class HRegion implements HeapSize { // , Writable{
     this.blockingMemStoreSize = this.memstoreFlushSize *
         conf.getLong("hbase.hregion.memstore.block.multiplier", 2);
     // set force flush size to be between flush size and blocking size
-    this.memstoreForceFlushsize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
+    this.memStoreForceFlushSize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
   }
 
   /**
@@ -3064,27 +3085,33 @@ public class HRegion implements HeapSize { // , Writable{
     }
   }
 
+  /**
+   * requests flush if the size of all memstores in region exceeds the flush thresholds; force
+   * the flush if it exceeds the force flush threshold
+   * @throws RegionTooBusyException
+   */
   private void requestFlushIfNeeded() throws RegionTooBusyException {
     long memstoreSize = this.getMemstoreSize();
     long memstoreTotalSize = this.getMemstoreTotalSize(); // including compaction pipelines
 
     // force flush
-    if (memstoreTotalSize > this.memstoreForceFlushsize) {
+    if (memstoreTotalSize > this.memStoreForceFlushSize) {
       requestAndForceFlush(true);
+      return;
     }
 
     // (regular) flush
     if (memstoreSize > this.memstoreFlushSize) {
-//      for (Store s : stores.values()) {
-//        if(s.isMemstoreCompaction()) {
-//          // do not flush if memstore compaction is in progress
-//          return;
-//        }
-//      }
       requestFlush();
     }
   }
 
+  /**
+   * request flush.
+   * If the memstore is not in compaction or we do not need to wait for compactions to end then
+   * force the flush.
+   * @param waitForCompactions whether or not to wait for the compaction to end
+   */
   private void requestAndForceFlush(boolean waitForCompactions) {
     for (Store s : stores.values()) {
       if(waitForCompactions && s.isMemstoreCompaction()) {
