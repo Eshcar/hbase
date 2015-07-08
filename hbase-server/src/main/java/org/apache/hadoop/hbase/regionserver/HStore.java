@@ -2187,11 +2187,13 @@ public class HStore implements Store {
     return storeEngine.getStoreFileManager().getCompactionPressure();
   }
 
-  @Override public void setForceFlush() {
+  @Override
+  public void setForceFlush() {
     this.memstore.setForceFlush();
   }
 
-  @Override public boolean isMemstoreCompaction() {
+  @Override
+  public boolean isMemstoreCompaction() {
     return memstore.isMemstoreCompaction();
   }
 }
