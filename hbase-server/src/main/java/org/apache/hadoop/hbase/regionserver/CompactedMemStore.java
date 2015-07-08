@@ -28,7 +28,7 @@ import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -95,12 +95,19 @@ public class CompactedMemStore extends AbstractMemStore {
   @Override
   protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
     LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
-    List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2+pipelineList.size());
+    LinkedList<MemStoreSegmentScanner> list = new LinkedList<MemStoreSegmentScanner>();
     list.add(getActive().getScanner(readPt));
     for(MemStoreSegment item : pipelineList) {
       list.add(item.getScanner(readPt));
     }
     list.add(getSnapshot().getScanner(readPt));
+    // set sequence ids by decsending order
+    Iterator<MemStoreSegmentScanner> iterator = list.descendingIterator();
+    int seqId = 0;
+    while(iterator.hasNext()){
+      iterator.next().setSequenceID(seqId);
+      seqId++;
+    }
     return list;
   }
 
