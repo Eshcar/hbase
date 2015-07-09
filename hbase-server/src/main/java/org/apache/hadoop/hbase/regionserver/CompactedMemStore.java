@@ -140,7 +140,7 @@ public class CompactedMemStore extends AbstractMemStore {
       try {
         // Speculative compaction execution, may be interrupted if flush is forced while
         // compaction is in progress
-        compactor.doCompact(store);
+        compactor.startCompact(store);
       } catch (IOException e) {
         LOG.error("Unable to run memstore compaction", e);
       }

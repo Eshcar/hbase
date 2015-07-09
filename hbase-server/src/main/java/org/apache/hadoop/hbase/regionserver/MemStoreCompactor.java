@@ -48,13 +48,13 @@ class MemStoreCompactor {
 
     private static final ExecutorService pool   // Thread pool shared by all scanners
             = Executors.newCachedThreadPool();
-    private final AtomicBoolean inCompaction = new AtomicBoolean(false);
+    private final AtomicBoolean inCompaction  = new AtomicBoolean(false);
     private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
 
     /**----------------------------------------------------------------------
      * The constructor is used only to initialize basics, other parameters
-     * needing to start compaction will come with doCompact()
+     * needing to start compaction will come with startCompact()
      * */
     public MemStoreCompactor (
             CompactedMemStore ms,
@@ -74,7 +74,7 @@ class MemStoreCompactor {
      * The method returns true if compaction was successfully dispatched, or false if there
      * is already an ongoing compaction (or pipeline is empty).
      * */
-    public boolean doCompact(Store store) throws IOException {
+    public boolean startCompact(Store store) throws IOException {
         if (cp.isEmpty()) return false;         // no compaction on empty pipeline
 
         if (!inCompaction.get()) {             // dispatch
@@ -88,7 +88,7 @@ class MemStoreCompactor {
                 scanners.add(mgr.getScanner(Long.MAX_VALUE));
             }
             scanner = new MemStoreScanner(ms,
-                    scanners, Long.MAX_VALUE, MemStoreScanType.COMPACT_FORWARD);
+                    scanners, Long.MAX_VALUE, MemStoreScanner.Type.COMPACT_FORWARD);
 
             smallestReadPoint = store.getSmallestReadPoint();
             compactingScanner = createScanner(store);
@@ -117,6 +117,10 @@ class MemStoreCompactor {
         return inCompaction.get();
     }
 
+    /*----------------------------------------------------------------------
+    * Close the scanners and clear the pointers in order to allow good
+    * garbage collection
+    */
     private void releaseResources() {
         isInterrupted.set(false);
         scanner.close();
@@ -191,18 +195,10 @@ class MemStoreCompactor {
             hasMore = compactingScanner.next(kvs, compactionKVMax);
             if (!kvs.isEmpty()) {
                 for (Cell c : kvs) {
-                    // If we know that this KV is going to be included always, then let us
-                    // set its memstoreTS to 0. This will help us save space when writing to
-                    // disk.
+                    // The scanner is doing all the elimination logic
+                    // now we just copy it to the new segment
                     KeyValue kv = KeyValueUtil.ensureKeyValue(c);
-                    // changed relatively to memstore->disc flushing
                     KeyValue newKV = result.maybeCloneWithAllocator(kv);
-                    if (kv.getMvccVersion() <= smallestReadPoint) {
-                        // let us not change the original KV. It could be in the memstore
-                        // changing its memstoreTS could affect other threads/scanners.
-                        //kv = kv.shallowCopy();
-                        //kv.setMvccVersion(0);
-                    }
                     result.add(newKV);
 
                 }
