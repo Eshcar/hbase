@@ -107,7 +107,7 @@ public class CompactionPipeline {
         return false;
       }
       LinkedList<MemStoreSegment> suffix = versionedList.getCellSetMgrList();
-      boolean valid = validateSufixList(suffix);
+      boolean valid = validateSuffixList(suffix);
       if(!valid) return false;
       LOG.info("Swapping pipeline suffix with compacted item.");
       swapSuffix(suffix,segment);
@@ -171,7 +171,7 @@ public class CompactionPipeline {
     return pipeline.size();
   }
 
-  private boolean validateSufixList(LinkedList<MemStoreSegment> suffix) {
+  private boolean validateSuffixList(LinkedList<MemStoreSegment> suffix) {
     if(suffix.isEmpty()) {
       // empty suffix is always valid
       return true;
@@ -209,10 +209,6 @@ public class CompactionPipeline {
   private MemStoreSegment removeLast() {
     version++;
     return pipeline.removeLast();
-  }
-
-  private MemStoreSegment peekLast() {
-    return pipeline.peekLast();
   }
 
   private boolean addFirst(MemStoreSegment segment) {
