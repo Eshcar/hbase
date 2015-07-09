@@ -75,12 +75,12 @@ class MemStoreCompactor {
      * is already an ongoing compaction (or pipeline is empty).
      * */
     public boolean startCompact(Store store) throws IOException {
-        if (cp.isEmpty()) return false;         // no compaction on empty pipeline
+        if (cp.isEmpty()) return false;        // no compaction on empty pipeline
 
         if (!inCompaction.get()) {             // dispatch
-            List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
-            this.versionedList =                    // get the list of CellSetMgrs from the pipeline
-                    cp.getVersionedList();          // the list is marked with specific version
+            List<MemStoreSegmentScanner> scanners = new ArrayList<MemStoreSegmentScanner>();
+            this.versionedList =               // get the list of CellSetMgrs from the pipeline
+                    cp.getVersionedList();     // the list is marked with specific version
 
             // create the list of scanners with maximally possible read point, meaning that
             // all KVs are going to be returned by the pipeline traversing

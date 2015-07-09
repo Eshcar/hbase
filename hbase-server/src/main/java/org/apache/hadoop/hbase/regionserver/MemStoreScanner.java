@@ -64,7 +64,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         this(ms, readPt, Type.UNDEFINED);
     }
 
-    public MemStoreScanner(AbstractMemStore ms, List<? extends KeyValueScanner> scanners,
+    public MemStoreScanner(AbstractMemStore ms, List<MemStoreSegmentScanner> scanners,
                            long readPoint,
                            Type type) throws IOException {
         super();
@@ -81,7 +81,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                 break;
         }
         this.backwardReferenceToMemStore = ms;
-        this.scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
+        this.scanners = scanners;
         if (Trace.isTracing() && Trace.currentSpan() != null) {
             Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
         }
