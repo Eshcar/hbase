@@ -79,11 +79,11 @@ public class CompactionPipeline {
     }
   }
 
-  public VersionedCellSetMgrList getVersionedList() {
+  public VersionedSegmentsList getVersionedList() {
     lock.lock();
     try {
       LinkedList<MemStoreSegment> segmentList = new LinkedList<MemStoreSegment>(pipeline);
-      VersionedCellSetMgrList res = new VersionedCellSetMgrList(segmentList, version);
+      VersionedSegmentsList res = new VersionedSegmentsList(segmentList, version);
       return res;
     } finally {
       lock.unlock();
@@ -97,7 +97,7 @@ public class CompactionPipeline {
    * @param segment new compacted segment
    * @return true iff swapped tail with new compacted segment
    */
-  public boolean swap(VersionedCellSetMgrList versionedList, MemStoreSegment segment) {
+  public boolean swap(VersionedSegmentsList versionedList, MemStoreSegment segment) {
     if(versionedList.getVersion() != version) {
       return false;
     }
@@ -106,7 +106,7 @@ public class CompactionPipeline {
       if(versionedList.getVersion() != version) {
         return false;
       }
-      LinkedList<MemStoreSegment> suffix = versionedList.getCellSetMgrList();
+      LinkedList<MemStoreSegment> suffix = versionedList.getMemStoreSegments();
       boolean valid = validateSuffixList(suffix);
       if(!valid) return false;
       LOG.info("Swapping pipeline suffix with compacted item.");

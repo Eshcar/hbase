@@ -42,7 +42,7 @@ class MemStoreCompactor {
     private Configuration conf;
     private long                                // smallest read point for any ongoing
             smallestReadPoint;                  // MemStore scan
-    private VersionedCellSetMgrList             // a static version of the CellSetMgrs
+    private VersionedSegmentsList             // a static version of the CellSetMgrs
             versionedList;                      // list from the pipeline
     private final KeyValue.KVComparator comparator;
 
@@ -84,7 +84,7 @@ class MemStoreCompactor {
 
             // create the list of scanners with maximally possible read point, meaning that
             // all KVs are going to be returned by the pipeline traversing
-            for (MemStoreSegment mgr : this.versionedList.getCellSetMgrList()) {
+            for (MemStoreSegment mgr : this.versionedList.getMemStoreSegments()) {
                 scanners.add(mgr.getScanner(Long.MAX_VALUE));
             }
             scanner = new MemStoreScanner(ms,

@@ -23,29 +23,29 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import java.util.LinkedList;
 
 /**
- * A list of cell set managers coupled with the version of the memstore version at the time it was
- * created.
- * This structure helps guarantee that the how memstore organizes its data is changed in a
- * consistent (atomic) way.
+ * A list of segment managers coupled with the version of the memstore (version at the time it was
+ * created).
+ * This structure helps to guarantee that the compaction pipeline updates after the compaction is
+ * updated in a consistent (atomic) way.
  * Specifically, swapping some of the elements in a compaction pipeline with a new compacted
  * element is permitted only if the pipeline version is the same as the version attached to the
  * elements.
  *
  */
 @InterfaceAudience.Private
-public class VersionedCellSetMgrList {
+public class VersionedSegmentsList {
 
-  private final LinkedList<MemStoreSegment> cellSetMgrList;
+  private final LinkedList<MemStoreSegment> memStoreSegments;
   private final long version;
 
-  public VersionedCellSetMgrList(
-      LinkedList<MemStoreSegment> cellSetMgrList, long version) {
-    this.cellSetMgrList = cellSetMgrList;
+  public VersionedSegmentsList(
+          LinkedList<MemStoreSegment> memStoreSegments, long version) {
+    this.memStoreSegments = memStoreSegments;
     this.version = version;
   }
 
-  public LinkedList<MemStoreSegment> getCellSetMgrList() {
-    return cellSetMgrList;
+  public LinkedList<MemStoreSegment> getMemStoreSegments() {
+    return memStoreSegments;
   }
 
   public long getVersion() {

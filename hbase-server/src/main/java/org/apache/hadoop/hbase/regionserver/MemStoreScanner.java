@@ -37,7 +37,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     // or according to the first usage
 
     private long readPoint;
-
+    List<MemStoreSegmentScanner> scanners;      // remember the initial version of the scanners list
     private AbstractMemStore                    // pointer back to the relevant MemStore
             backwardReferenceToMemStore;        // is needed for shouldSeek() method
 
@@ -81,6 +81,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                 break;
         }
         this.backwardReferenceToMemStore = ms;
+        this.scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
         if (Trace.isTracing() && Trace.currentSpan() != null) {
             Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
         }
@@ -230,12 +231,14 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     @Override
     public synchronized boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
                                                  long oldestUnexpiredTS) {
-
+        boolean result = false;
         if (type == Type.COMPACT_FORWARD)
             return true;
 
-        return backwardReferenceToMemStore.shouldSeek(scan,oldestUnexpiredTS);
-
+        for (MemStoreSegmentScanner sc : scanners){
+            result |= sc.shouldSeek(scan, oldestUnexpiredTS);
+        }
+        return result;
     }
 
     /****************** Private methods ******************/
@@ -245,7 +248,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
      * */
     private boolean restartBackwHeap(KeyValue k) throws IOException {
         boolean res = false;
-        List<MemStoreSegmentScanner> scanners = backwardReferenceToMemStore.getListOfScanners(readPoint);
         for(MemStoreSegmentScanner scan : scanners)
             res |= scan.seekToPreviousRow(k);
         this.backwardHeap   =
@@ -269,8 +271,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
                 forwardHeap = null;
                 // before building the heap seek for the relevant key on the scanners,
                 // for the heap to be built from the scanners correctly
-                List<MemStoreSegmentScanner> scanners =
-                        backwardReferenceToMemStore.getListOfScanners(readPoint);
                 for(MemStoreSegmentScanner scan : scanners)
                     if (toLast) res |= scan.seekToLastRow();
                     else res |= scan.backwardSeek(k);

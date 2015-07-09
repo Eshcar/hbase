@@ -354,6 +354,11 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   }
 
 
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+    return segment.shouldSeek(scan,oldestUnexpiredTS);
+  }
+
+
 /********************* Private Methods **********************/
 
   /**
