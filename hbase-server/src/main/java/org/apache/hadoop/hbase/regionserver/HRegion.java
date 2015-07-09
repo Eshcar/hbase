@@ -3110,7 +3110,8 @@ public class HRegion implements HeapSize { // , Writable{
    * request flush.
    * If the memstore is not in compaction or we do not need to wait for compactions to end then
    * force the flush.
-   * @param waitForCompactions whether or not to wait for the compaction to end
+   * @param waitForCompactions whether to wait for the compaction to end or to force the flush
+   *                           without waiting
    */
   private void requestAndForceFlush(boolean waitForCompactions) {
     for (Store s : stores.values()) {
