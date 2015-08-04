@@ -43,7 +43,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   private boolean stopSkippingKVsIfNextRow = false;
   // last iterated KVs by seek (to restore the iterator state after reseek)
   private KeyValue last = null;
-  private int sequenceID = 0;
+  private long sequenceID = Long.MAX_VALUE;
 
   /**
    * ---------------------------------------------------------
@@ -145,7 +145,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
     return sequenceID;
   }
 
-  public void setSequenceID(int x) {
+  public void setSequenceID(long x) {
     sequenceID = x;
   }
 
