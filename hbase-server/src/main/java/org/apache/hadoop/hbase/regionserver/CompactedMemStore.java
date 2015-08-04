@@ -76,7 +76,7 @@ public class CompactedMemStore extends AbstractMemStore {
       HStore store) throws IOException {
     super(conf, c);
     this.store  = store;
-    this.pipeline = new CompactionPipeline(store.getRegion());
+    this.pipeline = new CompactionPipeline(store.getHRegion());
     this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
     this.forceFlush = false;
   }
@@ -281,6 +281,6 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   public HRegion getRegion() {
-    return store.getRegion();
+    return store.getHRegion();
   }
 }

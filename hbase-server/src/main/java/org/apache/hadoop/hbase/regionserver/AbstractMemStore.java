@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
@@ -376,8 +377,6 @@ public abstract class AbstractMemStore implements HeapSize {
   }
 
   /**
-   * Only used by tests. TODO: Remove
-   *
    * Given the specs of a column, update it, first by inserting a new record,
    * then removing the old one.  Since there is only 1 KeyValue involved, the memstoreTS
    * will be set to 0, thus ensuring that they instantly appear to anyone. The underlying
@@ -392,6 +391,7 @@ public abstract class AbstractMemStore implements HeapSize {
    * @param now
    * @return  Timestamp
    */
+  @VisibleForTesting
   public long updateColumnValue(byte[] row, byte[] family, byte[] qualifier,
       long newValue, long now) {
     KeyValue firstCell = KeyValue.createFirstOnRow(row, family, qualifier);

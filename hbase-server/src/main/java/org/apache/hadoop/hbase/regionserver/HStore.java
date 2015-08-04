@@ -1982,8 +1982,6 @@ public class HStore implements Store {
   }
 
   /**
-   * Used in tests. TODO: Remove
-   *
    * Updates the value for the given row/family/qualifier. This function will always be seen as
    * atomic by other readers because it only puts a single KV to memstore. Thus no read/write
    * control necessary.
@@ -1994,6 +1992,7 @@ public class HStore implements Store {
    * @return memstore size delta
    * @throws IOException
    */
+  @VisibleForTesting
   public long updateColumnValue(byte [] row, byte [] f,
                                 byte [] qualifier, long newValue)
       throws IOException {
@@ -2026,10 +2025,6 @@ public class HStore implements Store {
   @Override
   public StoreFlushContext createFlushContext(long cacheFlushId) {
     return new StoreFlusherImpl(cacheFlushId);
-  }
-
-  public HRegion getRegion() {
-    return region;
   }
 
   private class StoreFlusherImpl implements StoreFlushContext {
