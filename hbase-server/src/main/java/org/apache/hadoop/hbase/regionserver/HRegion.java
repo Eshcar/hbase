@@ -962,12 +962,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       getSequenceId());
   }
 
-  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
-    if (this.rsAccounting != null) {
-      rsAccounting.addAndGetGlobalMemstoreAdditionalSize(size);
-    }
-    return this.memstoreAdditionalSize.addAndGet(size);
-  }
   private void writeRegionCloseMarker(WAL wal) throws IOException {
     Map<byte[], List<Path>> storeFiles = new TreeMap<byte[], List<Path>>(Bytes.BYTES_COMPARATOR);
     for (Store store: getStores()) {
@@ -1071,6 +1065,15 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     return this.memstoreSize.addAndGet(memStoreSize);
   }
+
+  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+    if (this.rsAccounting != null) {
+      rsAccounting.addAndGetGlobalMemstoreAdditionalSize(size);
+    }
+    return this.memstoreAdditionalSize.addAndGet(size);
+  }
+
+
 
   @Override
   public HRegionInfo getRegionInfo() {
@@ -1376,7 +1379,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       status.setStatus("Pre-flushing region before close");
       LOG.info("Running close preflush of " + getRegionInfo().getRegionNameAsString());
       try {
-        internalFlushcache(status,true);
+        internalFlushcache(status); //force flush
       } catch (IOException ioe) {
         // Failed to flush the region. Keep going.
         status.setStatus("Failed pre-flush " + this + "; " + ioe.getMessage());
@@ -1412,7 +1415,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
             }
-            internalFlushcache(status, true); // force flush on close
+            internalFlushcache(status); // force flush on close
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
             synchronized (writestate) {
@@ -1593,10 +1596,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * to the daughter regions to avoid this tricky dedupe problem.
    * @return Configuration object
    */
-  public FlushResult flushcache() throws IOException {
-    return flushcache(false);
-  }
-
   Configuration getBaseConf() {
     return this.baseConf;
   }
@@ -1781,7 +1780,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
       boolean wasStateSet = false;
       try {
-        FlushResult fs = internalFlushcache(status, forceFlush);
         synchronized (writestate) {
           if (writestate.writesEnabled) {
             wasStateSet = true;
@@ -1833,25 +1831,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   @Override
   public FlushResult flush(boolean force) throws IOException {
     return flushcache(force, false);
-    return internalFlushcache(status, false); // default is not to force flush
   }
 
   /**
-   * @param status
-   * @param forceFlush
-   *
-   * @return object describing the flush's state
-   *
-   * @throws IOException general io exceptions
-   * @throws DroppedSnapshotException Thrown when replay of hlog is required
-   * because a Snapshot was not properly persisted.
-   */
-  protected FlushResult internalFlushcache(MonitoredTask status, boolean forceFlush)
-      throws IOException {
-    return internalFlushcache(this.log, -1, status, forceFlush);
-  }
-    
-   /** 
    * Flush the cache.
    *
    * When this method is called the cache will be flushed unless:
@@ -2407,7 +2389,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         + ((wal == null) ? "; wal=null" : "");
     LOG.info(msg);
     status.setStatus(msg);
-    this.recentFlushes.add(new Pair<Long, Long>(time / 1000, totalFlushableSize));
 
     return new FlushResultImpl(compactionRequested ? 
         FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
@@ -3900,7 +3881,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     if (seqid > minSeqIdForTheRegion) {
       // Then we added some edits to memory. Flush and cleanup split edit files.
-      internalFlushcache(null, seqid, status,true);
       internalFlushcache(null, seqid, stores.values(), status, false);
     }
     // Now delete the content of recovered edits.  We're done w/ them.
@@ -4068,8 +4048,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             editsCount++;
           }
           if (flush) {
-            internalFlushcache(null, currentEditSeqId, status,true);
-            internalFlushcache(null, currentEditSeqId, stores.values(), status, false);
+            internalFlushcache(null, currentEditSeqId, stores.values(), status, false);//force flush
           }
 
           if (coprocessorHost != null) {
@@ -4501,7 +4480,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   /**
    * Drops the memstore contents after replaying a flush descriptor or region open event replay
    * if the memstore edits have seqNums smaller than the given seq id
-   * @param flush the flush descriptor
    * @throws IOException
    */
   private long dropMemstoreContentsForSeqId(long seqId, Store store) throws IOException {
@@ -5616,7 +5594,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             LOG.trace("filter#hasFilterRow is true which prevents partial results from being "
                 + " formed. Changing scope of limits that may create partials");
           }
-          this.addAndGetGlobalMemstoreSize(size);
           scannerContext.setSizeLimitScope(LimitScope.BETWEEN_ROWS);
           scannerContext.setTimeLimitScope(LimitScope.BETWEEN_ROWS);
         }
