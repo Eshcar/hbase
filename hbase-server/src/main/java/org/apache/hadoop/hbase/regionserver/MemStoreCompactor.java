@@ -203,9 +203,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
         HConstants.COMPACTION_KV_MAX,   // groups to be returned by compactingScanner
         HConstants.COMPACTION_KV_MAX_DEFAULT);
 
+    ScannerContext scannerContext =
+        ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
+
     boolean hasMore;
     do {
-      hasMore = compactingScanner.next(kvs, compactionKVMax);
+      hasMore = compactingScanner.next(kvs, scannerContext);
       if (!kvs.isEmpty()) {
         for (Cell c : kvs) {
           // The scanner is doing all the elimination logic
