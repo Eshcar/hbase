@@ -180,6 +180,9 @@ public interface Region extends ConfigurationObserver {
   /** @return memstore size for this region, in bytes */
   long getMemstoreSize();
 
+  /** @return total memstore size, including additional, like compactoin pipelines */
+  public long getMemstoreTotalSize();
+
   /** @return the number of mutations processed bypassing the WAL */
   long getNumMutationsWithoutWAL();
   

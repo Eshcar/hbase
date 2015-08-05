@@ -1,7 +1,3 @@
-            "store files, but is " +
-            StringUtils.humanReadableInt(bestAnyRegion.getMemstoreTotalSize()) +
-            " vs best flushable region's " +
-            StringUtils.humanReadableInt(bestFlushableRegion.getMemstoreTotalSize()) +
 /**
  *
  * Licensed to the Apache Software Foundation (ASF) under one
