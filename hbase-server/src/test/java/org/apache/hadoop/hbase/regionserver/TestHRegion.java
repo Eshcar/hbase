@@ -1,3 +1,7 @@
+      HStore store = (HStore) region.getStore(fam1);
+      store.memstore.getActive().getSize();
+      now = firstKv.getTimestamp();
+      for (KeyValue kv : ((HStore) region.getStore(fam1)).memstore.getActive().getCellSet()) {
 /**
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -2228,7 +2232,7 @@ public class TestHRegion {
       // This is kinda hacky, but better than nothing...
       long now = System.currentTimeMillis();
       DefaultMemStore memstore = (DefaultMemStore) ((HStore) region.getStore(fam1)).memstore;
-      Cell firstCell = memstore.getCellSet().first();
+      Cell firstCell = ((HStore) region.getStore(fam1)).memstore.getActive().first();
       assertTrue(firstCell.getTimestamp() <= now);
       now = firstCell.getTimestamp();
       for (Cell cell : memstore.getCellSet().getCellSet()) {

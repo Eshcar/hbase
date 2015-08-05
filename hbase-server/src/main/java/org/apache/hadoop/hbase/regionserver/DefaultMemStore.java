@@ -24,7 +24,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -74,9 +73,9 @@ public class DefaultMemStore extends AbstractMemStore {
     super(conf, c);
   }
 
-  @Override protected long deepOverhead() {
-    return DEEP_OVERHEAD;
-  }
+//  @Override protected long deepOverhead() {
+//    return DEEP_OVERHEAD;
+//  }
 
   void dump() {
     super.dump(LOG);
@@ -95,8 +94,8 @@ public class DefaultMemStore extends AbstractMemStore {
           "Doing nothing. Another ongoing flush or did we fail last attempt?");
     } else {
       this.snapshotId = EnvironmentEdgeManager.currentTime();
-      if (!getCellSet().isEmpty()) {
-        setSnapshot(getCellSet());
+      if (!getActive().isEmpty()) {
+        setSnapshot(getActive());
         setSnapshotSize(keySize());
         resetCellSet();
       }
@@ -106,9 +105,9 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException {
-    List<CellSetScanner> list = new ArrayList<CellSetScanner>(2);
-    list.add(0, getCellSet().getScanner(readPt));
+  protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
+    List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2);
+    list.add(0, getActive().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
     return list;
   }
@@ -135,7 +134,7 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-    getCellSet().getRowKeyAtOrBefore(state);
+    getActive().getRowKeyAtOrBefore(state);
     getSnapshot().getRowKeyAtOrBefore(state);
   }
 
@@ -147,7 +146,7 @@ public class DefaultMemStore extends AbstractMemStore {
   @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return
-        (getCellSet().shouldSeek(scan, oldestUnexpiredTS) ||
+        (getActive().shouldSeek(scan, oldestUnexpiredTS) ||
          getSnapshot().shouldSeek(scan,oldestUnexpiredTS));
   }
 
@@ -166,7 +165,7 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   Cell getNextRow(final Cell cell) {
     return getLowest(
-        getNextRow(cell, getCellSet().getCellSet()),
+        getNextRow(cell, getActive().getCellSet()),
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 
@@ -175,6 +174,15 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override public long size() {
     return heapSize();
+  }
+
+  @Override public AbstractMemStore setForceFlush() {
+    // do nothing
+    return this;
+  }
+
+  @Override public boolean isMemstoreCompaction() {
+    return false;
   }
 
 

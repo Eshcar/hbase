@@ -18,6 +18,8 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
@@ -37,35 +39,39 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @InterfaceAudience.Private
 public class CompactionPipeline {
+  private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
 
-  private LinkedList<CellSetMgr> pipeline;
+  private final HRegion region;
+  private LinkedList<MemStoreSegment> pipeline;
   private long version;
   // a lock to protect critical sections changing the structure of the list
   private final Lock lock;
 
-  private static final CellSetMgr EMPTY_CELL_SET_MGR = CellSetMgr.Factory.instance()
-      .createCellSetMgr(CellSetMgr.Type.EMPTY_SNAPSHOT, null,0);
+  private static final MemStoreSegment EMPTY_MEM_STORE_SEGMENT = MemStoreSegment.Factory.instance()
+      .createMemStoreSegment(CellSet.Type.EMPTY, null,
+          CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
 
-  public CompactionPipeline() {
-    this.pipeline = new LinkedList<CellSetMgr>();
+  public CompactionPipeline(HRegion region) {
+    this.region = region;
+    this.pipeline = new LinkedList<MemStoreSegment>();
     this.version = 0;
     this.lock = new ReentrantLock(true);
   }
 
-  public boolean pushHead(CellSetMgr cellSetMgr) {
+  public boolean pushHead(MemStoreSegment segment) {
     lock.lock();
     try {
-      return addFirst(cellSetMgr);
+      return addFirst(segment);
     } finally {
       lock.unlock();
     }
   }
 
-  public CellSetMgr pullTail() {
+  public MemStoreSegment pullTail() {
     lock.lock();
     try {
       if(pipeline.isEmpty()) {
-        return EMPTY_CELL_SET_MGR;
+        return EMPTY_MEM_STORE_SEGMENT;
       }
       return removeLast();
     } finally {
@@ -73,30 +79,25 @@ public class CompactionPipeline {
     }
   }
 
-  public CellSetMgr peekTail() {
+  public VersionedSegmentsList getVersionedList() {
     lock.lock();
     try {
-      if(pipeline.isEmpty()) {
-        return EMPTY_CELL_SET_MGR;
-      }
-      return peekLast();
-    } finally {
-      lock.unlock();
-    }
-  }
-
-  public VersionedCellSetMgrList getVersionedList() {
-    lock.lock();
-    try {
-      LinkedList<CellSetMgr> cellSetMgrList = new LinkedList<CellSetMgr>(pipeline);
-      VersionedCellSetMgrList res = new VersionedCellSetMgrList(cellSetMgrList, version);
+      LinkedList<MemStoreSegment> segmentList = new LinkedList<MemStoreSegment>(pipeline);
+      VersionedSegmentsList res = new VersionedSegmentsList(segmentList, version);
       return res;
     } finally {
       lock.unlock();
     }
   }
 
-  public boolean swap(VersionedCellSetMgrList versionedList, CellSetMgr cellSetMgr) {
+  /**
+   * Swaps the versioned list at the tail of the pipeline with the new compacted segment.
+   * Swapping only if there were no changes to the suffix of the list while it was compacted.
+   * @param versionedList tail of the pipeline that was compacted
+   * @param segment new compacted segment
+   * @return true iff swapped tail with new compacted segment
+   */
+  public boolean swap(VersionedSegmentsList versionedList, MemStoreSegment segment) {
     if(versionedList.getVersion() != version) {
       return false;
     }
@@ -105,10 +106,20 @@ public class CompactionPipeline {
       if(versionedList.getVersion() != version) {
         return false;
       }
-      LinkedList<CellSetMgr> suffix = versionedList.getCellSetMgrList();
-      boolean valid = validateSufixList(suffix);
+      LinkedList<MemStoreSegment> suffix = versionedList.getMemStoreSegments();
+      boolean valid = validateSuffixList(suffix);
       if(!valid) return false;
-      swapSuffix(suffix,cellSetMgr);
+      LOG.info("Swapping pipeline suffix with compacted item.");
+      swapSuffix(suffix,segment);
+      if(region != null) {
+        // update the global memstore size counter
+        long suffixSize = CompactedMemStore.getMemStoreSegmentListSize(suffix);
+        long newSize = CompactedMemStore.getMemStoreSegmentSize(segment);
+        long delta = suffixSize - newSize;
+        long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreAdditionalSize(-delta);
+        LOG.info("Suffix size: "+ suffixSize+" compacted item size: "+newSize+
+            " globalMemstoreAdditionalSize: "+globalMemstoreAdditionalSize);
+      }
       return true;
     } finally {
       lock.unlock();
@@ -120,8 +131,8 @@ public class CompactionPipeline {
     long sz = 0;
     try {
       if(!pipeline.isEmpty()) {
-        Iterator<CellSetMgr> pipelineBackwardIterator = pipeline.descendingIterator();
-        CellSetMgr current = pipelineBackwardIterator.next();
+        Iterator<MemStoreSegment> pipelineBackwardIterator = pipeline.descendingIterator();
+        MemStoreSegment current = pipelineBackwardIterator.next();
         for (; pipelineBackwardIterator.hasNext(); current = pipelineBackwardIterator.next()) {
           sz += current.rollback(cell);
         }
@@ -136,29 +147,40 @@ public class CompactionPipeline {
   }
 
   public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-    for(CellSetMgr item : getCellSetMgrList()) {
+    for(MemStoreSegment item : getCellSetMgrList()) {
       item.getRowKeyAtOrBefore(state);
     }
   }
 
-  public LinkedList<CellSetMgr> getCellSetMgrList() {
-    return pipeline;
+  public boolean isEmpty() {
+    return pipeline.isEmpty();
+  }
+
+  public LinkedList<MemStoreSegment> getCellSetMgrList() {
+    lock.lock();
+    try {
+      LinkedList<MemStoreSegment> res = new LinkedList<MemStoreSegment>(pipeline);
+      return res;
+    } finally {
+      lock.unlock();
+    }
+
   }
 
   public long size() {
     return pipeline.size();
   }
 
-  private boolean validateSufixList(LinkedList<CellSetMgr> suffix) {
+  private boolean validateSuffixList(LinkedList<MemStoreSegment> suffix) {
     if(suffix.isEmpty()) {
       // empty suffix is always valid
       return true;
     }
 
-    Iterator<CellSetMgr> pipelineBackwardIterator = pipeline.descendingIterator();
-    Iterator<CellSetMgr> suffixBackwardIterator = suffix.descendingIterator();
-    CellSetMgr suffixCurrent;
-    CellSetMgr pipelineCurrent;
+    Iterator<MemStoreSegment> pipelineBackwardIterator = pipeline.descendingIterator();
+    Iterator<MemStoreSegment> suffixBackwardIterator = suffix.descendingIterator();
+    MemStoreSegment suffixCurrent;
+    MemStoreSegment pipelineCurrent;
     for( ; suffixBackwardIterator.hasNext(); ) {
       if(!pipelineBackwardIterator.hasNext()) {
         // a suffix longer than pipeline is invalid
@@ -175,23 +197,22 @@ public class CompactionPipeline {
     return true;
   }
 
-  private void swapSuffix(LinkedList<CellSetMgr> suffix, CellSetMgr cellSetMgr) {
+  private void swapSuffix(LinkedList<MemStoreSegment> suffix, MemStoreSegment segment) {
     version++;
+    for(MemStoreSegment itemInSuffix : suffix) {
+      itemInSuffix.close();
+    }
     pipeline.removeAll(suffix);
-    pipeline.addLast(cellSetMgr);
+    pipeline.addLast(segment);
   }
 
-  private CellSetMgr removeLast() {
+  private MemStoreSegment removeLast() {
     version++;
     return pipeline.removeLast();
   }
 
-  private CellSetMgr peekLast() {
-    return pipeline.peekLast();
-  }
-
-  private boolean addFirst(CellSetMgr cellSetMgr) {
-    pipeline.add(0,cellSetMgr);
+  private boolean addFirst(MemStoreSegment segment) {
+    pipeline.add(0,segment);
     return true;
   }
 

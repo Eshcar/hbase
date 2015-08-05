@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
@@ -49,17 +50,13 @@ public abstract class AbstractMemStore implements MemStore {
   private final Configuration conf;
   private final CellComparator comparator;
 
-  // MemStore.  Use a CellSet rather than SkipListSet because of the
-  // better semantics.  The Map will overwrite if passed a key it already had
-  // whereas the Set will not add new Cell if key is same though value might be
-  // different.  Value is not important -- just make sure always same
-  // reference passed.
-  private volatile CellSetMgr cellSet;
+  // active segment absorbs write operations
+  volatile private MemStoreSegment active;
   // Snapshot of memstore.  Made for flusher.
-  volatile private CellSetMgr snapshot;
+  volatile private MemStoreSegment snapshot;
   volatile long snapshotId;
   // Used to track when to flush
-  private volatile long timeOfOldestEdit;
+  volatile private long timeOfOldestEdit;
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
@@ -74,15 +71,15 @@ public abstract class AbstractMemStore implements MemStore {
     this.conf = conf;
     this.comparator = c;
     resetCellSet();
-    this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.EMPTY_SNAPSHOT, conf,c, 0);
+    this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
+            CellSet.Type.EMPTY, conf, c, 0);
 
   }
 
   protected void resetCellSet() {
     // Reset heap to not include any keys
-    this.cellSet = CellSetMgr.Factory.instance().createCellSetMgr(
-        CellSetMgr.Type.READ_WRITE, conf, comparator, deepOverhead());
+    this.active = MemStoreSegment.Factory.instance().createMemStoreSegment(
+            CellSet.Type.READ_WRITE, conf, comparator, deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -100,7 +97,13 @@ public abstract class AbstractMemStore implements MemStore {
 
   public abstract boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
-  protected abstract long deepOverhead();
+  public abstract AbstractMemStore setForceFlush();
+  public abstract boolean isMemstoreCompaction();
+
+//  protected abstract long deepOverhead();
+  protected long deepOverhead() {
+    return DEEP_OVERHEAD;
+  }
 
   /**
    * Write an update
@@ -157,10 +160,8 @@ public abstract class AbstractMemStore implements MemStore {
    */
   @Override
   public long delete(Cell deleteCell) {
-    long s = 0;
     Cell toAdd = maybeCloneWithAllocator(deleteCell);
-    s += heapSizeChange(toAdd, addToCellSet(toAdd));
-    cellSet.includeCell(toAdd, s);
+    long s = internalAdd(toAdd);
     return s;
   }
 
@@ -178,10 +179,10 @@ public abstract class AbstractMemStore implements MemStore {
     }
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
-    CellSetMgr oldSnapshot = this.snapshot;
+    MemStoreSegment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = CellSetMgr.Factory.instance().createCellSetMgr(
-          CellSetMgr.Type.EMPTY_SNAPSHOT, getComparator(), 0);
+      this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
+              CellSet.Type.EMPTY, getComparator(), 0);
     }
     this.snapshotId = -1;
     oldSnapshot.close();
@@ -193,7 +194,7 @@ public abstract class AbstractMemStore implements MemStore {
    */
   @Override
   public long heapSize() {
-    return getCellSet().getSize();
+    return getActive().getSize();
   }
 
   /**
@@ -220,7 +221,7 @@ public abstract class AbstractMemStore implements MemStore {
 
   protected void rollbackCellSet(Cell cell) {
     // If the key is in the memstore, delete it. Update this.size.
-    long sz = cellSet.rollback(cell);
+    long sz = active.rollback(cell);
     if (sz != 0) {
       setOldestEditTimeToNow();
     }
@@ -228,7 +229,7 @@ public abstract class AbstractMemStore implements MemStore {
 
 
   protected void dump(Log log) {
-    for (Cell cell: this.cellSet.getCellSet()) {
+    for (Cell cell: this.active.getCellSet()) {
       log.info(cell);
     }
     for (Cell cell: this.snapshot.getCellSet()) {
@@ -266,7 +267,7 @@ public abstract class AbstractMemStore implements MemStore {
         cell.getRowArray(), cell.getRowOffset(), cell.getRowLength(),
         cell.getFamilyArray(), cell.getFamilyOffset(), cell.getFamilyLength(),
         cell.getQualifierArray(), cell.getQualifierOffset(), cell.getQualifierLength());
-    SortedSet<Cell> ss = cellSet.tailSet(firstCell);
+    SortedSet<Cell> ss = active.tailSet(firstCell);
     Iterator<Cell> it = ss.iterator();
     // versions visible to oldest scanner
     int versionsVisible = 0;
@@ -289,7 +290,7 @@ public abstract class AbstractMemStore implements MemStore {
             // false means there was a change, so give us the size.
             long delta = heapSizeChange(cur, true);
             addedSize -= delta;
-            cellSet.incSize(-delta);
+            active.incSize(-delta);
             it.remove();
             setOldestEditTimeToNow();
           } else {
@@ -342,8 +343,6 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
-   * Only used by tests. TODO: Remove
-   *
    * Given the specs of a column, update it, first by inserting a new record,
    * then removing the old one.  Since there is only 1 KeyValue involved, the memstoreTS
    * will be set to 0, thus ensuring that they instantly appear to anyone. The underlying
@@ -358,6 +357,7 @@ public abstract class AbstractMemStore implements MemStore {
    * @param now
    * @return  Timestamp
    */
+  @VisibleForTesting
   @Override
   public long updateColumnValue(byte[] row, byte[] family, byte[] qualifier,
       long newValue, long now) {
@@ -380,7 +380,7 @@ public abstract class AbstractMemStore implements MemStore {
     // so we cant add the new Cell w/o knowing what's there already, but we also
     // want to take this chance to delete some cells. So two loops (sad)
 
-    SortedSet<Cell> ss = cellSet.tailSet(firstCell);
+    SortedSet<Cell> ss = getActive().tailSet(firstCell);
     for (Cell cell : ss) {
       // if this isnt the row we are interested in, then bail:
       if (!CellUtil.matchingColumn(cell, family, qualifier)
@@ -388,7 +388,7 @@ public abstract class AbstractMemStore implements MemStore {
         break; // rows dont match, bail.
       }
 
-      // if the qualifier matches and it's a put, just RM it out of the cellSet.
+      // if the qualifier matches and it's a put, just RM it out of the active.
       if (cell.getTypeByte() == KeyValue.Type.Put.getCode() &&
           cell.getTimestamp() > now && CellUtil.matchingQualifier(firstCell, cell)) {
         now = cell.getTimestamp();
@@ -403,7 +403,7 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   private Cell maybeCloneWithAllocator(Cell cell) {
-    return cellSet.maybeCloneWithAllocator(cell);
+    return active.maybeCloneWithAllocator(cell);
   }
 
   /**
@@ -413,16 +413,9 @@ public abstract class AbstractMemStore implements MemStore {
    * Callers should ensure they already have the read lock taken
    */
   private long internalAdd(final Cell toAdd) {
-    boolean succ = addToCellSet(toAdd);
-    long s = heapSizeChange(toAdd, succ);
-    cellSet.includeCell(toAdd, s);
-    return s;
-  }
-
-  private boolean addToCellSet(Cell e) {
-    boolean b = cellSet.add(e);
+    long s = active.add(toAdd);
     setOldestEditTimeToNow();
-    return b;
+    return s;
   }
 
   private void setOldestEditTimeToNow() {
@@ -439,15 +432,15 @@ public abstract class AbstractMemStore implements MemStore {
     return comparator;
   }
 
-  protected CellSetMgr getCellSet() {
-    return cellSet;
+  protected MemStoreSegment getActive() {
+    return active;
   }
 
-  protected CellSetMgr getSnapshot() {
+  protected MemStoreSegment getSnapshot() {
     return snapshot;
   }
 
-  protected void setSnapshot(CellSetMgr snapshot) {
+  protected void setSnapshot(MemStoreSegment snapshot) {
     this.snapshot = snapshot;
   }
 
@@ -455,6 +448,6 @@ public abstract class AbstractMemStore implements MemStore {
     getSnapshot().setSize(snapshotSize);
   }
 
-  abstract protected List<CellSetScanner> getListOfScanners(long readPt) throws IOException;
+  abstract protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
 
 }

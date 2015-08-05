@@ -264,7 +264,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  public final AtomicLong memstoreSize = new AtomicLong(0);
+  public final AtomicLong memstoreSize = new AtomicLong(0); // size of active set in memstore
+  // size of additional memstore buckets, e.g., in compaction pipeline
+  public final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
 
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
@@ -559,6 +561,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private long flushCheckInterval;
   // flushPerChanges is to prevent too many changes in memstore
   private long flushPerChanges;
+  // force flush size is set to be the average of flush size and blocking size
+  private long memStoreForceFlushSize;
   private long blockingMemStoreSize;
   final long threadWakeFrequency;
   // Used to guard closes
@@ -742,6 +746,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.memstoreFlushSize = flushSize;
     this.blockingMemStoreSize = this.memstoreFlushSize *
         conf.getLong("hbase.hregion.memstore.block.multiplier", 2);
+    // set force flush size to be between flush size and blocking size
+    this.memStoreForceFlushSize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
   }
 
   /**
@@ -956,6 +962,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       getSequenceId());
   }
 
+  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+    if (this.rsAccounting != null) {
+      rsAccounting.addAndGetGlobalMemstoreAdditionalSize(size);
+    }
+    return this.memstoreAdditionalSize.addAndGet(size);
+  }
   private void writeRegionCloseMarker(WAL wal) throws IOException {
     Map<byte[], List<Path>> storeFiles = new TreeMap<byte[], List<Path>>(Bytes.BYTES_COMPARATOR);
     for (Store store: getStores()) {
@@ -1098,6 +1110,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return memstoreSize.get();
   }
 
+  private long getMemstoreAdditionalSize() {
+    return memstoreAdditionalSize.get();
+  }
+
+  public long getMemstoreTotalSize() {
+    return getMemstoreSize() + getMemstoreAdditionalSize();
+  }
+
   @Override
   public long getNumMutationsWithoutWAL() {
     return numMutationsWithoutWAL.get();
@@ -1160,7 +1180,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       MonitoredTask status = TaskMonitor.get().createStatus(
         "Flushing region " + this + " because recovery is finished");
       try {
+      for (Store s : stores.values()) {
         if (forceFlush) {
+          s.setForceFlush();
+        }
           internalFlushcache(status);
         }
 
@@ -1353,7 +1376,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       status.setStatus("Pre-flushing region before close");
       LOG.info("Running close preflush of " + getRegionInfo().getRegionNameAsString());
       try {
-        internalFlushcache(status);
+        internalFlushcache(status,true);
       } catch (IOException ioe) {
         // Failed to flush the region. Keep going.
         status.setStatus("Failed pre-flush " + this + "; " + ioe.getMessage());
@@ -1374,7 +1397,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // Don't flush the cache if we are aborting
       if (!abort && canFlush) {
         int flushCount = 0;
-        while (this.memstoreSize.get() > 0) {
+        while (this.getMemstoreTotalSize() > 0) {
           try {
             if (flushCount++ > 0) {
               int actualFlushes = flushCount - 1;
@@ -1382,13 +1405,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 // If we tried 5 times and are unable to clear memory, abort
                 // so we do not lose data
                 throw new DroppedSnapshotException("Failed clearing memory after " +
-                  actualFlushes + " attempts on region: " +
-                    Bytes.toStringBinary(getRegionInfo().getRegionName()));
+                  actualFlushes + " attempts on region: " + Bytes.toStringBinary(getRegionInfo().getRegionName())
+                    + " memstore size: " + getMemstoreSize() + " total size (memstore + pipeline)" +
+                    ": " + getMemstoreTotalSize());
               }
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
             }
-            internalFlushcache(status);
+            internalFlushcache(status, true); // force flush on close
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
             synchronized (writestate) {
@@ -1448,6 +1472,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
 
       this.closed.set(true);
+      if (getMemstoreTotalSize() != 0) LOG.error("Memstore size is " + getMemstoreTotalSize());
       if (!canFlush) {
         addAndGetGlobalMemstoreSize(-memstoreSize.get());
       } else if (memstoreSize.get() != 0) {
@@ -1568,6 +1593,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * to the daughter regions to avoid this tricky dedupe problem.
    * @return Configuration object
    */
+  public FlushResult flushcache() throws IOException {
+    return flushcache(false);
+  }
+
   Configuration getBaseConf() {
     return this.baseConf;
   }
@@ -1752,6 +1781,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
       boolean wasStateSet = false;
       try {
+        FlushResult fs = internalFlushcache(status, forceFlush);
         synchronized (writestate) {
           if (writestate.writesEnabled) {
             wasStateSet = true;
@@ -1803,9 +1833,25 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   @Override
   public FlushResult flush(boolean force) throws IOException {
     return flushcache(force, false);
+    return internalFlushcache(status, false); // default is not to force flush
   }
 
   /**
+   * @param status
+   * @param forceFlush
+   *
+   * @return object describing the flush's state
+   *
+   * @throws IOException general io exceptions
+   * @throws DroppedSnapshotException Thrown when replay of hlog is required
+   * because a Snapshot was not properly persisted.
+   */
+  protected FlushResult internalFlushcache(MonitoredTask status, boolean forceFlush)
+      throws IOException {
+    return internalFlushcache(this.log, -1, status, forceFlush);
+  }
+    
+   /** 
    * Flush the cache.
    *
    * When this method is called the cache will be flushed unless:
@@ -2038,7 +2084,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     final long startTime = EnvironmentEdgeManager.currentTime();
     // If nothing to flush, return, but we need to safely update the region sequence id
-    if (this.memstoreSize.get() <= 0) {
+    if (getMemstoreTotalSize() <= 0) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Empty memstore size for the current region " + this);
+      }
       // Take an update lock because am about to change the sequence id and we want the sequence id
       // to be at the border of the empty memstore.
       MultiVersionConsistencyControl.WriteEntry w = null;
@@ -2358,6 +2407,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         + ((wal == null) ? "; wal=null" : "");
     LOG.info(msg);
     status.setStatus(msg);
+    this.recentFlushes.add(new Pair<Long, Long>(time / 1000, totalFlushableSize));
 
     return new FlushResultImpl(compactionRequested ? 
         FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
@@ -2754,10 +2804,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           initialized = true;
         }
         long addedSize = doMiniBatchMutation(batchOp);
-        long newSize = this.addAndGetGlobalMemstoreSize(addedSize);
-        if (isFlushSize(newSize)) {
-          requestFlush();
-        }
+        this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded();
       }
     } finally {
       closeRegionOperation(op);
@@ -3500,17 +3548,58 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // If catalog region, do not impose resource constraints or block updates.
     if (this.getRegionInfo().isMetaRegion()) return;
 
-    if (this.memstoreSize.get() > this.blockingMemStoreSize) {
+    long memstoreSize = this.getMemstoreTotalSize();
+    // block writes and force flush
+    if (memstoreSize > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
-      requestFlush();
+      requestAndForceFlush(false);
       throw new RegionTooBusyException("Above memstore limit, " +
           "regionName=" + (this.getRegionInfo() == null ? "unknown" :
           this.getRegionInfo().getRegionNameAsString()) +
           ", server=" + (this.getRegionServerServices() == null ? "unknown" :
           this.getRegionServerServices().getServerName()) +
-          ", memstoreSize=" + memstoreSize.get() +
+          ", memstoreSize=" + memstoreSize +
           ", blockingMemStoreSize=" + blockingMemStoreSize);
     }
+  }
+
+  /**
+   * requests flush if the size of all memstores in region exceeds the flush thresholds; force
+   * the flush if it exceeds the force flush threshold
+   * @throws RegionTooBusyException
+   */
+  private void requestFlushIfNeeded() throws RegionTooBusyException {
+    long memstoreSize = this.getMemstoreSize();
+    long memstoreTotalSize = this.getMemstoreTotalSize(); // including compaction pipelines
+
+    // force flush
+    if (memstoreTotalSize > this.memStoreForceFlushSize) {
+      requestAndForceFlush(true);
+      return;
+    }
+
+    // (regular) flush
+    if (memstoreSize > this.memstoreFlushSize) {
+      requestFlush();
+    }
+  }
+
+  /**
+   * request flush.
+   * If the memstore is not in compaction or we do not need to wait for compactions to end then
+   * force the flush.
+   * @param waitForCompactions whether to wait for the compaction to end or to force the flush
+   *                           without waiting
+   */
+  private void requestAndForceFlush(boolean waitForCompactions) {
+    for (Store s : stores.values()) {
+      if(waitForCompactions && s.isMemstoreCompaction()) {
+        // do not force flush if memstore compaction is in progress
+        continue;
+      }
+      s.setForceFlush();
+    }
+    requestFlush();
   }
 
   /**
@@ -3811,6 +3900,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     if (seqid > minSeqIdForTheRegion) {
       // Then we added some edits to memory. Flush and cleanup split edit files.
+      internalFlushcache(null, seqid, status,true);
       internalFlushcache(null, seqid, stores.values(), status, false);
     }
     // Now delete the content of recovered edits.  We're done w/ them.
@@ -3978,6 +4068,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             editsCount++;
           }
           if (flush) {
+            internalFlushcache(null, currentEditSeqId, status,true);
             internalFlushcache(null, currentEditSeqId, stores.values(), status, false);
           }
 
@@ -5525,6 +5616,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             LOG.trace("filter#hasFilterRow is true which prevents partial results from being "
                 + " formed. Changing scope of limits that may create partials");
           }
+          this.addAndGetGlobalMemstoreSize(size);
           scannerContext.setSizeLimitScope(LimitScope.BETWEEN_ROWS);
           scannerContext.setTimeLimitScope(LimitScope.BETWEEN_ROWS);
         }
@@ -6509,6 +6601,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               addedSize += ret.getFirst();
               memstoreCells.add(ret.getSecond());
             }
+            this.addAndGetGlobalMemstoreSize(addedSize);
           }
 
           long txid = 0;

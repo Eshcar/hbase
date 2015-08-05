@@ -35,7 +35,7 @@ public class MemStoreSnapshot {
   private final TimeRangeTracker timeRangeTracker;
   private final KeyValueScanner scanner;
 
-  public MemStoreSnapshot(long id, CellSetMgr snapshot, CellComparator comparator) {
+  public MemStoreSnapshot(long id, MemStoreSegment snapshot, CellComparator comparator) {
     this.id = id;
     this.cellsCount = snapshot.getCellsCount();
     this.size = snapshot.getSize();

@@ -127,6 +127,7 @@ public class TestGlobalMemStoreSize {
             // clear them.
             assertTrue(regionInfo.isMetaRegion());
             LOG.info(r.toString() + " " + l + ", reflushing");
+            r.flushcache(true); //force flush
             r.flush(true);
           }
         }
@@ -140,7 +141,7 @@ public class TestGlobalMemStoreSize {
   }
 
   /**
-   * Flush and log stats on flush
+   * Flush (force) and log stats on flush
    * @param r
    * @param server
    * @throws IOException
@@ -148,7 +149,7 @@ public class TestGlobalMemStoreSize {
   private void flush(final Region r, final HRegionServer server)
   throws IOException {
     LOG.info("Flush " + r.toString() + " on " + server.getServerName() +
-      ", " +  r.flush(true) + ", size=" +
+      ", " +  r.flushcache(true) + ", size=" +
       server.getRegionServerAccounting().getGlobalMemstoreSize());
   }
 

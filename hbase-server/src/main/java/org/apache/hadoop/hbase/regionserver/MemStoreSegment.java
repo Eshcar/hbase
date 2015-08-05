@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * from active set to snapshot set in the default implementation.
  */
 @InterfaceAudience.Private
-class CellSetMgr {
+class MemStoreSegment {
 
   static final String USEMSLAB_KEY = "hbase.hregion.memstore.mslab.enabled";
   static final boolean USEMSLAB_DEFAULT = true;
@@ -55,7 +55,8 @@ class CellSetMgr {
   private final AtomicLong size;
 
   // private c-tors. Instantiate objects only using factory
-  private CellSetMgr(CellSet cellSet, MemStoreLAB memStoreLAB, long size, CellComparator comparator) {
+  private MemStoreSegment(CellSet cellSet, MemStoreLAB memStoreLAB, long size,
+      CellComparator comparator) {
     this.cellSet = cellSet;
     this.memStoreLAB = memStoreLAB;
     this.comparator = comparator;
@@ -63,24 +64,12 @@ class CellSetMgr {
     this.size = new AtomicLong(size);
   }
 
-  private CellSetMgr(CellSet cellSet, long size, CellComparator comparator) {
+  private MemStoreSegment(CellSet cellSet, long size, CellComparator comparator) {
     this(cellSet, null, size, comparator);
   }
 
-  /**
-   * Types of cell set managers.
-   * This affects the internal implementation of the cell set objects.
-   * This allows using different formats for different purposes.
-   */
-  static public enum Type {
-    READ_WRITE,
-    EMPTY_SNAPSHOT,
-    COMPACTED_READ_ONLY,
-    DEFAULT
-  }
-
-  public CellSetScanner getScanner(long readPoint) {
-    return new CellSetScanner(this, readPoint);
+  public MemStoreSegmentScanner getScanner(long readPoint) {
+    return new MemStoreSegmentScanner(this, readPoint);
   }
 
   public boolean isEmpty() {
@@ -91,8 +80,11 @@ class CellSetMgr {
     return getCellSet().size();
   }
 
-  public boolean add(Cell e) {
-    return getCellSet().add(e);
+  public long add(Cell e) {
+    boolean succ = getCellSet().add(e);
+    long s = AbstractMemStore.heapSizeChange(e, succ);
+    updateMetaInfo(e, s);
+    return s;
   }
 
   public boolean remove(Cell e) {
@@ -103,23 +95,38 @@ class CellSetMgr {
     return getCellSet().get(cell);
   }
 
+  public Cell last() {
+    return getCellSet().last();
+  }
+
+  public Iterator<Cell> iterator() {
+    return getCellSet().iterator();
+  }
+
+  public SortedSet<Cell> headSet(KeyValue firstKeyOnRow) {
+    return getCellSet().headSet(firstKeyOnRow);
+  }
+
   public SortedSet<Cell> tailSet(Cell firstCell) {
     return getCellSet().tailSet(firstCell);
   }
 
   public void close() {
-    getMemStoreLAB().close();
+    MemStoreLAB mslab = getMemStoreLAB();
+    if(mslab != null ) {
+      mslab.close();
+    }
     // do not set MSLab to null as scanners may still be reading the data here and need to decrease
     // the counter when they finish
   }
 
   public Cell maybeCloneWithAllocator(Cell cell) {
-    if (this.memStoreLAB == null) {
+    if (getMemStoreLAB() == null) {
       return cell;
     }
 
     int len = KeyValueUtil.length(cell);
-    ByteRange alloc = this.memStoreLAB.allocateBytes(len);
+    ByteRange alloc = getMemStoreLAB().allocateBytes(len);
     if (alloc == null) {
       // The allocation was too large, allocator decided
       // not to do anything with it.
@@ -132,19 +139,15 @@ class CellSetMgr {
     return newKv;
   }
 
-  public Cell last() {
-    return this.getCellSet().last();
-  }
-
   public void incScannerCount() {
-    if(memStoreLAB != null) {
-      memStoreLAB.incScannerCount();
+    if(getMemStoreLAB() != null) {
+      getMemStoreLAB().incScannerCount();
     }
   }
 
   public void decScannerCount() {
-    if(memStoreLAB != null) {
-      memStoreLAB.decScannerCount();
+    if(getMemStoreLAB() != null) {
+      getMemStoreLAB().decScannerCount();
     }
   }
 
@@ -159,14 +162,14 @@ class CellSetMgr {
     return 0;
   }
 
-  public void includeCell(Cell toAdd, long s) {
-    timeRangeTracker.includeTimestamp(toAdd);
+  public void updateMetaInfo(Cell toAdd, long s) {
+    getTimeRangeTracker().includeTimestamp(toAdd);
     size.addAndGet(s);
   }
 
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
-    return (timeRangeTracker.includesTimeRange(scan.getTimeRange())
-        && (timeRangeTracker.getMaximumTimestamp() >=
+    return (getTimeRangeTracker().includesTimeRange(scan.getTimeRange())
+        && (getTimeRangeTracker().getMaximumTimestamp() >=
         oldestUnexpiredTS));
   }
 
@@ -184,9 +187,15 @@ class CellSetMgr {
     }
   }
 
-  public void incSize(long delta) {
-    size.addAndGet(delta);
+  // methods for cell set scanner
+  public int compare(Cell left, Cell right) {
+    return getComparator().compare(left, right);
   }
+
+  public int compareRows(Cell left, Cell right) {
+    return getComparator().compareRows(left, right);
+  }
+
 
   public void setSize(long size) {
     this.size.set(size);
@@ -204,12 +213,16 @@ class CellSetMgr {
     return size.get();
   }
 
-  public CellComparator getComparator() {
-    return comparator;
+  public void incSize(long delta) {
+    size.addAndGet(delta);
   }
 
-  protected MemStoreLAB getMemStoreLAB() {
+  private MemStoreLAB getMemStoreLAB() {
     return memStoreLAB;
+  }
+
+  private CellComparator getComparator() {
+    return comparator;
   }
 
   // methods for tests
@@ -255,7 +268,7 @@ class CellSetMgr {
    * @param state
    */
   private void getRowKeyBefore(final GetClosestRowBeforeTracker state) {
-    Cell firstOnRow = state.getTargetKey();
+    KeyValue firstOnRow = state.getTargetKey();
     for (Cell p = memberOfPreviousRow(state, firstOnRow);
          p != null; p = memberOfPreviousRow(state, firstOnRow)) {
       // Make sure we don't fall out of our table.
@@ -279,7 +292,7 @@ class CellSetMgr {
    * @return Null or member of row previous to <code>firstOnRow</code>
    */
   private Cell memberOfPreviousRow(final GetClosestRowBeforeTracker state,
-      final Cell firstOnRow) {
+      final KeyValue firstOnRow) {
     NavigableSet<Cell> head = getCellSet().headSet(firstOnRow, false);
     if (head.isEmpty()) return null;
     for (Iterator<Cell> i = head.descendingIterator(); i.hasNext();) {
@@ -303,38 +316,35 @@ class CellSetMgr {
     private static Factory instance = new Factory();
     public static Factory instance() { return instance; }
 
-    public CellSetMgr createCellSetMgr(Type type, final Configuration conf,
+    public MemStoreSegment createMemStoreSegment(CellSet.Type type, final Configuration conf,
         final CellComparator comparator, long size) {
       MemStoreLAB memStoreLAB = null;
       if (conf.getBoolean(USEMSLAB_KEY, USEMSLAB_DEFAULT)) {
         String className = conf.get(MSLAB_CLASS_NAME, HeapMemStoreLAB.class.getName());
         memStoreLAB = ReflectionUtils.instantiateWithCustomCtor(className,
             new Class[] { Configuration.class }, new Object[] { conf });
+        //memStoreLAB = new MemStoreLAB(conf, MemStoreChunkPool.getPool(conf));
       }
-      return createCellSetMgr(type, comparator, memStoreLAB, size);
+      return createMemStoreSegment(type, comparator, memStoreLAB, size);
     }
 
-    public CellSetMgr createCellSetMgr(Type type, CellComparator comparator, long size) {
-      return createCellSetMgr(type, comparator, null, size);
+    public MemStoreSegment createMemStoreSegment(CellSet.Type type,
+        CellComparator comparator,
+        long size) {
+      return createMemStoreSegment(type, comparator, null, size);
     }
 
-    public CellSetMgr createCellSetMgr(Type type, CellComparator comparator,
+    public MemStoreSegment createMemStoreSegment(CellSet.Type type,
+        CellComparator comparator,
         MemStoreLAB memStoreLAB, long size) {
-      return generateCellSetMgrByType(type, comparator, memStoreLAB, size);
+      return generateMemStoreSegmentByType(type, comparator, memStoreLAB, size);
     }
 
-    private CellSetMgr generateCellSetMgrByType(Type type,
+    private MemStoreSegment generateMemStoreSegmentByType(CellSet.Type type,
         CellComparator comparator, MemStoreLAB memStoreLAB, long size) {
-      CellSetMgr obj;
+      MemStoreSegment obj;
       CellSet set = new CellSet(type, comparator);
-      switch (type) {
-      case READ_WRITE:
-      case EMPTY_SNAPSHOT:
-      case COMPACTED_READ_ONLY:
-      default:
-        obj = new CellSetMgr(set, memStoreLAB, size, comparator);
-      }
-      return obj;
+      return new MemStoreSegment(set, memStoreLAB, size, comparator);
     }
 
   }
