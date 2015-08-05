@@ -23,7 +23,8 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.cloudera.htrace.Trace;
+//import org.cloudera.htrace.Trace;
+import org.apache.htrace.Trace;
 
 import java.io.IOException;
 import java.util.List;
@@ -166,7 +167,7 @@ import java.util.SortedSet;
         *  TODO: The above comment copied from the original MemStoreScanner
         */
     assertForward();
-    return forwardHeap.reseek(key);
+      return forwardHeap.reseek(key);
   }
 
   /**

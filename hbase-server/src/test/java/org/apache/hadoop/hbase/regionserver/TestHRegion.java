@@ -1,7 +1,3 @@
-      HStore store = (HStore) region.getStore(fam1);
-      store.memstore.getActive().getSize();
-      now = firstKv.getTimestamp();
-      for (KeyValue kv : ((HStore) region.getStore(fam1)).memstore.getActive().getCellSet()) {
 /**
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -2235,7 +2231,7 @@ public class TestHRegion {
       Cell firstCell = ((HStore) region.getStore(fam1)).memstore.getActive().first();
       assertTrue(firstCell.getTimestamp() <= now);
       now = firstCell.getTimestamp();
-      for (Cell cell : memstore.getCellSet().getCellSet()) {
+      for (Cell cell : memstore.getActive().getCellSet()) {
         assertTrue(cell.getTimestamp() <= now);
         now = cell.getTimestamp();
       }

@@ -25,15 +25,7 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeepDeletedCells;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueTestUtil;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -110,7 +102,7 @@ public class TestCompactedMemStore extends TestCase {
   static void doScan(AbstractMemStore ms, int iteration) throws IOException {
     long nanos = System.nanoTime();
     KeyValueScanner s = ms.getScanners(0).get(0);
-    s.seek(KeyValue.createFirstOnRow(new byte[] { }));
+    s.seek(KeyValueUtil.createFirstOnRow(new byte[] { }));
 
     System.out.println(iteration + " create/seek took: " + (System.nanoTime() - nanos) / 1000);
     int cnt = 0;
