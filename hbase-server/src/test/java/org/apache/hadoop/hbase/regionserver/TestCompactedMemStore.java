@@ -130,7 +130,7 @@ public class TestCompactedMemStore extends TestCase {
     HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
     this.region = hbaseUtility.createTestRegion("foobar", hcd);
     this.store = new HStore(region, hcd, conf);
-    this.cms = new CompactedMemStore(HBaseConfiguration.create(), KeyValue.COMPARATOR, store);
+    this.cms = new CompactedMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR, store);
     chunkPool = MemStoreChunkPool.getPool(conf);
     assertTrue(chunkPool != null);
   }
@@ -224,8 +224,8 @@ public class TestCompactedMemStore extends TestCase {
         assertEquals("count=" + count + ", result=" + result, rowCount, result.size());
         count++;
         if (count == snapshotIndex) {
-          this.cms.snapshot();
-          this.cms.clearSnapshot(this.cms.getSnapshot().getCellSet());
+          MemStoreSnapshot snapshot = this.cms.snapshot();
+          this.cms.clearSnapshot(snapshot.getId());
           // Added more rows into kvset.  But the scanner wont see these rows.
           addRows(this.cms, ts);
           LOG.info("Snapshotted, cleared it and then added values (which wont be seen)");
@@ -267,7 +267,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // use case 3: first in snapshot second in kvset
     this.cms = new CompactedMemStore(HBaseConfiguration.create(),
-        KeyValue.COMPARATOR, store);
+        CellComparator.COMPARATOR, store);
     this.cms.add(kv1.clone());
     this.cms
         .snapshot();                    // As compaction is starting in the background the repetition
@@ -282,7 +282,7 @@ public class TestCompactedMemStore extends TestCase {
     List<KeyValueScanner> memstorescanners = this.cms.getScanners(mvcc.memstoreReadPoint());
     assertEquals(1, memstorescanners.size());
     final KeyValueScanner scanner = memstorescanners.get(0);
-    scanner.seek(KeyValue.createFirstOnRow(HConstants.EMPTY_START_ROW));
+    scanner.seek(KeyValueUtil.createFirstOnRow(HConstants.EMPTY_START_ROW));
     assertEquals(kv1, scanner.next());
     assertEquals(kv2, scanner.next());
     assertNull(scanner.next());
@@ -290,11 +290,11 @@ public class TestCompactedMemStore extends TestCase {
 
   private void assertScannerResults(KeyValueScanner scanner, KeyValue[] expected)
       throws IOException {
-    scanner.seek(KeyValue.createFirstOnRow(new byte[] { }));
+    scanner.seek(KeyValueUtil.createFirstOnRow(new byte[] { }));
     List<Cell> returned = Lists.newArrayList();
 
     while (true) {
-      KeyValue next = scanner.next();
+      Cell next = scanner.next();
       if (next == null) break;
       returned.add(next);
     }
@@ -317,7 +317,7 @@ public class TestCompactedMemStore extends TestCase {
         mvcc.beginMemstoreInsert();
 
     KeyValue kv1 = new KeyValue(row, f, q1, v);
-    kv1.setMvccVersion(w.getWriteNumber());
+    kv1.setSequenceId(w.getWriteNumber());
     cms.add(kv1);
 
     KeyValueScanner s = this.cms.getScanners(mvcc.memstoreReadPoint()).get(0);
@@ -330,7 +330,7 @@ public class TestCompactedMemStore extends TestCase {
 
     w = mvcc.beginMemstoreInsert();
     KeyValue kv2 = new KeyValue(row, f, q2, v);
-    kv2.setMvccVersion(w.getWriteNumber());
+    kv2.setSequenceId(w.getWriteNumber());
     cms.add(kv2);
 
     s = this.cms.getScanners(mvcc.memstoreReadPoint()).get(0);
@@ -361,11 +361,11 @@ public class TestCompactedMemStore extends TestCase {
         mvcc.beginMemstoreInsert();
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
-    kv11.setMvccVersion(w.getWriteNumber());
+    kv11.setSequenceId(w.getWriteNumber());
     cms.add(kv11);
 
     KeyValue kv12 = new KeyValue(row, f, q2, v1);
-    kv12.setMvccVersion(w.getWriteNumber());
+    kv12.setSequenceId(w.getWriteNumber());
     cms.add(kv12);
     mvcc.completeMemstoreInsert(w);
 
@@ -376,11 +376,11 @@ public class TestCompactedMemStore extends TestCase {
     // START INSERT 2: Write both columns val2
     w = mvcc.beginMemstoreInsert();
     KeyValue kv21 = new KeyValue(row, f, q1, v2);
-    kv21.setMvccVersion(w.getWriteNumber());
+    kv21.setSequenceId(w.getWriteNumber());
     cms.add(kv21);
 
     KeyValue kv22 = new KeyValue(row, f, q2, v2);
-    kv22.setMvccVersion(w.getWriteNumber());
+    kv22.setSequenceId(w.getWriteNumber());
     cms.add(kv22);
 
     // BEFORE COMPLETING INSERT 2, SEE FIRST KVS
@@ -413,11 +413,11 @@ public class TestCompactedMemStore extends TestCase {
         mvcc.beginMemstoreInsert();
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
-    kv11.setMvccVersion(w.getWriteNumber());
+    kv11.setSequenceId(w.getWriteNumber());
     cms.add(kv11);
 
     KeyValue kv12 = new KeyValue(row, f, q2, v1);
-    kv12.setMvccVersion(w.getWriteNumber());
+    kv12.setSequenceId(w.getWriteNumber());
     cms.add(kv12);
     mvcc.completeMemstoreInsert(w);
 
@@ -429,7 +429,7 @@ public class TestCompactedMemStore extends TestCase {
     w = mvcc.beginMemstoreInsert();
     KeyValue kvDel = new KeyValue(row, f, q2, kv11.getTimestamp(),
         KeyValue.Type.DeleteColumn);
-    kvDel.setMvccVersion(w.getWriteNumber());
+    kvDel.setSequenceId(w.getWriteNumber());
     cms.add(kvDel);
 
     // BEFORE COMPLETING DELETE, SEE FIRST KVS
@@ -513,11 +513,11 @@ public class TestCompactedMemStore extends TestCase {
     // Add more versions to make it a little more interesting.
     Thread.sleep(1);
     addRows(this.cms);
-    KeyValue closestToEmpty = this.cms.getNextRow(KeyValue.LOWESTKEY);
+    Cell closestToEmpty = this.cms.getNextRow(KeyValue.LOWESTKEY);
     assertTrue(KeyValue.COMPARATOR.compareRows(closestToEmpty,
         new KeyValue(Bytes.toBytes(0), System.currentTimeMillis())) == 0);
     for (int i = 0; i < ROW_COUNT; i++) {
-      KeyValue nr = this.cms.getNextRow(new KeyValue(Bytes.toBytes(i),
+      Cell nr = this.cms.getNextRow(new KeyValue(Bytes.toBytes(i),
           System.currentTimeMillis()));
       if (i + 1 == ROW_COUNT) {
         assertEquals(nr, null);
@@ -837,9 +837,9 @@ public class TestCompactedMemStore extends TestCase {
     KeyValue kv2 = KeyValueTestUtil.create("r", "f", "q", 101, "v");
     KeyValue kv3 = KeyValueTestUtil.create("r", "f", "q", 102, "v");
 
-    kv1.setMvccVersion(1);
-    kv2.setMvccVersion(1);
-    kv3.setMvccVersion(1);
+    kv1.setSequenceId(1);
+    kv2.setSequenceId(1);
+    kv3.setSequenceId(1);
     l.add(kv1);
     l.add(kv2);
     l.add(kv3);
@@ -851,7 +851,7 @@ public class TestCompactedMemStore extends TestCase {
     assert (cms.getActive().getCellsCount() == 2);
 
     KeyValue kv4 = KeyValueTestUtil.create("r", "f", "q", 104, "v");
-    kv4.setMvccVersion(1);
+    kv4.setSequenceId(1);
     l.clear();
     l.add(kv4);
     this.cms.upsert(l, 3);
@@ -894,7 +894,7 @@ public class TestCompactedMemStore extends TestCase {
       // test the case that the timeOfOldestEdit is updated after a KV upsert
       List<Cell> l = new ArrayList<Cell>();
       KeyValue kv1 = KeyValueTestUtil.create("r", "f", "q", 100, "v");
-      kv1.setMvccVersion(100);
+      kv1.setSequenceId(100);
       l.add(kv1);
       cms.upsert(l, 1000);
       t = cms.timeOfOldestEdit();
@@ -928,10 +928,10 @@ public class TestCompactedMemStore extends TestCase {
       HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
       HRegion region = hbaseUtility.createTestRegion("foobar", new HColumnDescriptor("foo"));
 
-      Map<byte[], Store> stores = region.getStores();
+      List<Store> stores = region.getStores();
       assertTrue(stores.size() == 1);
 
-      Store s = stores.entrySet().iterator().next().getValue();
+      Store s = stores.iterator().next();
       edge.setCurrentTimeMillis(1234);
       s.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
       edge.setCurrentTimeMillis(1234 + 100);
@@ -975,19 +975,19 @@ public class TestCompactedMemStore extends TestCase {
   }
 
   private long runSnapshot(final CompactedMemStore hmc, boolean useForce)
-      throws UnexpectedException {
+      throws IOException {
     // Save off old state.
     long oldHistorySize = hmc.getSnapshot().getSize();
     long prevTimeStamp = hmc.timeOfOldestEdit();
     if (useForce) hmc.setForceFlush();
     hmc.snapshot();
-    CellSet ss = hmc.getSnapshot().getCellSet();
+    MemStoreSnapshot snapshot = hmc.snapshot();
     if (useForce) {
       // Make some assertions about what just happened.
-      assertTrue("History size has not increased", oldHistorySize < ss.size());
+      assertTrue("History size has not increased", oldHistorySize < snapshot.getSize());
       long t = hmc.timeOfOldestEdit();
       assertTrue("Time of oldest edit is not Long.MAX_VALUE", t == Long.MAX_VALUE);
-      hmc.clearSnapshot(ss);
+      hmc.clearSnapshot(snapshot.getId());
     } else {
       long t = hmc.timeOfOldestEdit();
       assertTrue("Time of oldest edit didn't remain the same", t == prevTimeStamp);
@@ -1010,7 +1010,7 @@ public class TestCompactedMemStore extends TestCase {
   }
 
   @Test
-  public void testPuttingBackChunksAfterFlushing() throws UnexpectedException {
+  public void testPuttingBackChunksAfterFlushing() throws IOException {
     byte[] row = Bytes.toBytes("testrow");
     byte[] fam = Bytes.toBytes("testfamily");
     byte[] qf1 = Bytes.toBytes("testqualifier1");
@@ -1027,8 +1027,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating a snapshot
     cms.setForceFlush();
-    cms.snapshot();
-    CellSet snapshot = cms.getSnapshot().getCellSet();
+    MemStoreSnapshot snapshot = cms.snapshot();
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -1036,7 +1035,7 @@ public class TestCompactedMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf4, val));
     cms.add(new KeyValue(row, fam, qf5, val));
     assertEquals(2, cms.getActive().getCellsCount());
-    cms.clearSnapshot(snapshot);
+    cms.clearSnapshot(snapshot.getId());
 
     int chunkCount = chunkPool.getPoolSize();
     assertTrue(chunkCount > 0);
@@ -1064,8 +1063,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating a snapshot
     cms.setForceFlush();
-    cms.snapshot();
-    CellSet snapshot = cms.getSnapshot().getCellSet();
+    MemStoreSnapshot snapshot = cms.snapshot();
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -1078,7 +1076,7 @@ public class TestCompactedMemStore extends TestCase {
     List<KeyValueScanner> scanners = cms.getScanners(0);
     // Shouldn't putting back the chunks to pool,since some scanners are opening
     // based on their data
-    cms.clearSnapshot(snapshot);
+    cms.clearSnapshot(snapshot.getId());
 
     assertTrue(chunkPool.getPoolSize() == 0);
 
@@ -1093,8 +1091,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating another snapshot
     cms.setForceFlush();
-    cms.snapshot();
-    snapshot = cms.getSnapshot().getCellSet();
+    snapshot = cms.snapshot();
     // Adding more value
     cms.add(new KeyValue(row, fam, qf6, val));
     cms.add(new KeyValue(row, fam, qf7, val));
@@ -1106,7 +1103,7 @@ public class TestCompactedMemStore extends TestCase {
     }
     // Since no opening scanner, the chunks of snapshot should be put back to
     // pool
-    cms.clearSnapshot(snapshot);
+    cms.clearSnapshot(snapshot.getId());
     assertTrue(chunkPool.getPoolSize() > 0);
   }
 
@@ -1169,12 +1166,10 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating another snapshot
     cms.setForceFlush();
-    cms.snapshot();
-    CellSet snapshot = cms.getSnapshot().getCellSet();
-    cms.clearSnapshot(snapshot);
+    MemStoreSnapshot snapshot = cms.snapshot();
+    cms.clearSnapshot(snapshot.getId());
     cms.setForceFlush();
-    cms.snapshot();
-    snapshot = cms.getSnapshot().getCellSet();
+    snapshot = cms.snapshot();
     // Adding more value
     cms.add(new KeyValue(row, fam, qf2, 4, val));
     cms.add(new KeyValue(row, fam, qf3, 4, val));
@@ -1186,7 +1181,7 @@ public class TestCompactedMemStore extends TestCase {
     }
     // Since no opening scanner, the chunks of snapshot should be put back to
     // pool
-    cms.clearSnapshot(snapshot);
+    cms.clearSnapshot(snapshot.getId());
     assertTrue(chunkPool.getPoolSize() > 0);
   }
 
@@ -1212,14 +1207,14 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.setForceFlush();
     size = cms.getFlushableSize();
-    cms.snapshot(); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
     region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     MemStoreSegment s = cms.getSnapshot();
-    SortedSet<KeyValue> ss = s.getCellSet();
+    SortedSet<Cell> ss = s.getCellSet();
     assertEquals(3, s.getCellsCount());
     assertEquals(0, region.getMemstoreTotalSize());
 
-    cms.clearSnapshot(ss);
+    cms.clearSnapshot(snapshot.getId());
   }
 
   public void testCompaction2Buckets() throws IOException {
@@ -1253,14 +1248,14 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.setForceFlush();
     size = cms.getFlushableSize();
-    cms.snapshot(); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
     region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     MemStoreSegment s = cms.getSnapshot();
-    SortedSet<KeyValue> ss = s.getCellSet();
+    SortedSet<Cell> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
     assertEquals(0, region.getMemstoreTotalSize());
 
-    cms.clearSnapshot(ss);
+    cms.clearSnapshot(snapshot.getId());
   }
 
   public void testCompaction3Buckets() throws IOException {
@@ -1311,15 +1306,15 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.setForceFlush();
     size = cms.getFlushableSize();
-    cms.snapshot(); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
     region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     MemStoreSegment s = cms.getSnapshot();
-    SortedSet<KeyValue> ss = s.getCellSet();
+    SortedSet<Cell> ss = s.getCellSet();
     assertEquals(4, s.getCellsCount());
     assertEquals(0, region.getMemstoreSize());
     assertEquals(0, region.getMemstoreTotalSize());
 
-    cms.clearSnapshot(ss);
+    cms.clearSnapshot(snapshot.getId());
   }
 
   private void addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
@@ -1381,7 +1376,7 @@ public class TestCompactedMemStore extends TestCase {
         byte[] v = Bytes.toBytes(i);
 
         KeyValue kv = new KeyValue(row, f, q1, i, v);
-        kv.setMvccVersion(w.getWriteNumber());
+        kv.setSequenceId(w.getWriteNumber());
         compmemstore.add(kv);
         mvcc.completeMemstoreInsert(w);
 
@@ -1389,7 +1384,7 @@ public class TestCompactedMemStore extends TestCase {
         KeyValueScanner s = this.compmemstore.getScanners(mvcc.memstoreReadPoint()).get(0);
         s.seek(kv);
 
-        KeyValue ret = s.next();
+        Cell ret = s.next();
         assertNotNull("Didnt find own write at all", ret);
         assertEquals("Didnt read own writes",
             kv.getTimestamp(), ret.getTimestamp());
@@ -1401,7 +1396,7 @@ public class TestCompactedMemStore extends TestCase {
     long t = 1234;
 
     @Override
-    public long currentTimeMillis() {
+    public long currentTime() {
             return t;
         }
       public void setCurrentTimeMillis(long t) {
