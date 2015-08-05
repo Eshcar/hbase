@@ -7231,8 +7231,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   public static final long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
       ClassSize.ARRAY +
-      44 * ClassSize.REFERENCE + 2 * Bytes.SIZEOF_INT +
-      (14 * Bytes.SIZEOF_LONG) +
+      45 * ClassSize.REFERENCE + 2 * Bytes.SIZEOF_INT +
+      (15 * Bytes.SIZEOF_LONG) +
       5 * Bytes.SIZEOF_BOOLEAN);
 
   // woefully out of date - currently missing:
