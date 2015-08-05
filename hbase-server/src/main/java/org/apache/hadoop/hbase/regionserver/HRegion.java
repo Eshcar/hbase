@@ -1184,10 +1184,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       MonitoredTask status = TaskMonitor.get().createStatus(
         "Flushing region " + this + " because recovery is finished");
       try {
-      for (Store s : stores.values()) {
         if (forceFlush) {
-          s.setForceFlush();
-        }
           internalFlushcache(status);
         }
 
@@ -1380,7 +1377,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       status.setStatus("Pre-flushing region before close");
       LOG.info("Running close preflush of " + getRegionInfo().getRegionNameAsString());
       try {
-        internalFlushcache(status); //force flush
+        internalFlushcache(status);
       } catch (IOException ioe) {
         // Failed to flush the region. Keep going.
         status.setStatus("Failed pre-flush " + this + "; " + ioe.getMessage());
@@ -1416,7 +1413,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
             }
-            internalFlushcache(status); // force flush on close
+            internalFlushcache(status);
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
             synchronized (writestate) {
@@ -1830,10 +1827,23 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   @Override
-  public FlushResult flush(boolean force) throws IOException {
-    return flushcache(force, false);
+  public FlushResult flush(boolean force,boolean forceFlushInsteadOfCompaction) throws IOException {
+    boolean writeFlushRequestWalMarker = false;
+    return flushcache(force, writeFlushRequestWalMarker,forceFlushInsteadOfCompaction);
   }
 
+  @Override
+  public FlushResult flush(boolean force) throws IOException {
+    boolean writeFlushRequestWalMarker = false;
+    return flushcache(force, writeFlushRequestWalMarker);
+  }
+
+  public FlushResult flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker)
+      throws IOException {
+    boolean forceFlushInsteadOfCompaction = true;
+    return flushcache(forceFlushAllStores, writeFlushRequestWalMarker,
+        forceFlushInsteadOfCompaction);
+  }
   /**
    * Flush the cache.
    *
@@ -1855,8 +1865,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * @throws DroppedSnapshotException Thrown when replay of wal is required
    * because a Snapshot was not properly persisted.
    */
-  public FlushResult flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker)
-      throws IOException {
+  public FlushResult flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker,
+      boolean forceFlushInsteadOfCompaction) throws IOException {
     // fail-fast instead of waiting on the lock
     if (this.closing.get()) {
       String msg = "Skipping flush on " + this + " because closing";
@@ -1902,6 +1912,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
 
       try {
+        if(forceFlushInsteadOfCompaction) {
+          for(Store s : stores.values()) {
+            s.setForceFlush();
+          }
+        }
         Collection<Store> specificStoresToFlush =
             forceFlushAllStores ? stores.values() : flushPolicy.selectStoresToFlush();
         FlushResult fs = internalFlushcache(specificStoresToFlush,
@@ -2002,6 +2017,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    */
   private FlushResult internalFlushcache(MonitoredTask status)
       throws IOException {
+    for(Store s : stores.values()) {
+        s.setForceFlush();
+    }
     return internalFlushcache(stores.values(), status, false);
   }
 

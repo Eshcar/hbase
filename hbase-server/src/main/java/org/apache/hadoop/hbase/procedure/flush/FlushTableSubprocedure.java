@@ -17,9 +17,6 @@
  */
 package org.apache.hadoop.hbase.procedure.flush;
 
-import java.util.List;
-import java.util.concurrent.Callable;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -29,7 +26,9 @@ import org.apache.hadoop.hbase.procedure.ProcedureMember;
 import org.apache.hadoop.hbase.procedure.Subprocedure;
 import org.apache.hadoop.hbase.procedure.flush.RegionServerFlushTableProcedureManager.FlushTableSubprocedurePool;
 import org.apache.hadoop.hbase.regionserver.Region;
-import org.apache.hadoop.hbase.regionserver.Region.Operation;
+
+import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * This flush region implementation uses the distributed procedure framework to flush
@@ -66,7 +65,8 @@ public class FlushTableSubprocedure extends Subprocedure {
       region.startRegionOperation();
       try {
         LOG.debug("Flush region " + region.toString() + " started...");
-        region.flush(true);
+        boolean forceFlushInsteadOfCompaction = false;
+        region.flush(true,forceFlushInsteadOfCompaction);
       } finally {
         LOG.debug("Closing region operation on " + region);
         region.closeRegionOperation();
