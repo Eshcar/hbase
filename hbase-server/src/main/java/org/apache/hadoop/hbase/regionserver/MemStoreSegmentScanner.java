@@ -18,7 +18,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
@@ -34,15 +36,15 @@ class MemStoreSegmentScanner implements KeyValueScanner {
 
   private final MemStoreSegment segment;  // the observed structure
   private long readPoint;                 // the highest relevant MVCC
-  private Iterator<KeyValue> iter;        // the current iterator that can be reinitialized by
+  private Iterator<Cell> iter;        // the current iterator that can be reinitialized by
   // seek(), backwardSeek(), or reseek()
-  private KeyValue current = null;        // the pre-calculated cell to be returned by peek()
+  private Cell current = null;        // the pre-calculated cell to be returned by peek()
   // or next()
   // A flag represents whether could stop skipping KeyValues for MVCC
   // if have encountered the next row. Only used for reversed scan
   private boolean stopSkippingKVsIfNextRow = false;
   // last iterated KVs by seek (to restore the iterator state after reseek)
-  private KeyValue last = null;
+  private Cell last = null;
   private long sequenceID = Long.MAX_VALUE;
 
   /**
@@ -68,7 +70,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * @return the currently observed Cell
    */
   @Override
-  public KeyValue peek() {          // sanity check, the current should be always valid
+  public Cell peek() {          // sanity check, the current should be always valid
     if (current!=null && current.getMvccVersion() > readPoint) {
       assert (false);                     // sanity check, the current should be always valid
     }
@@ -84,8 +86,8 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * @return the next Cell or null if end of scanner
    */
   @Override
-  public KeyValue next() throws IOException {
-    KeyValue oldCurrent = current;
+  public Cell next() throws IOException {
+    Cell oldCurrent = current;
     current = getNext();                  // update the currently observed Cell
     return oldCurrent;
   }
@@ -95,13 +97,13 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * ---------------------------------------------------------
    * Seek the scanner at or after the specified KeyValue.
    *
-   * @param key seek value
+   * @param cell seek value
    * @return true if scanner has values left, false if end of scanner
    */
   @Override
-  public boolean seek(KeyValue key) throws IOException {
+  public boolean seek(Cell cell) throws IOException {
     // restart the iterator from new key
-    iter = segment.tailSet(key).iterator();
+    iter = segment.tailSet(cell).iterator();
     last = null;      // last is going to be reinitialized in the next getNext() call
     current = getNext();
     return (current != null);
@@ -115,11 +117,11 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * key comes after the current position of the scanner. Should not be used
    * to seek to a key which may come before the current position.
    *
-   * @param key seek value (should be non-null)
+   * @param cell seek value (should be non-null)
    * @return true if scanner has values left, false if end of scanner
    */
   @Override
-  public boolean reseek(KeyValue key) throws IOException {
+  public boolean reseek(Cell cell) throws IOException {
 
     /*
     * The ideal implementation for performance would use the sub skip list implicitly
@@ -127,7 +129,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
     * get it. So we remember the last keys we iterated to and restore
     * the reseeked set to at least that point.
     */
-    iter = segment.tailSet(getHighest(key, last)).iterator();
+    iter = segment.tailSet(getHighest(cell, last)).iterator();
     current = getNext();
     return (current != null);
   }
@@ -196,12 +198,12 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * This scanner is working solely on the in-memory MemStore therefore this
    * interface is not relevant.
    *
-   * @param kv
+   * @param c
    * @param forward  do a forward-only "reseek" instead of a random-access seek
    * @param useBloom whether to enable multi-column Bloom filter optimization
    */
   @Override
-  public boolean requestSeek(KeyValue kv, boolean forward, boolean useBloom)
+  public boolean requestSeek(Cell c, boolean forward, boolean useBloom)
           throws IOException {
 
     throw new IllegalStateException(
@@ -265,7 +267,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * KeyValue does not exist
    */
   @Override
-  public boolean backwardSeek(KeyValue key) throws IOException {
+  public boolean backwardSeek(Cell key) throws IOException {
     seek(key);    // seek forward then go backward
     if (peek() == null || segment.compareRows(peek(), key) > 0) {
       return seekToPreviousRow(key);
@@ -279,19 +281,18 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * Seek the scanner at the first Cell of the row which is the previous row
    * of specified key
    *
-   * @param key seek value
+   * @param cell seek value
    * @return true if the scanner at the first valid Cell of previous row,
    * false if not existing such Cell
    */
   @Override
-  public boolean seekToPreviousRow(KeyValue key) throws IOException {
+  public boolean seekToPreviousRow(Cell cell) throws IOException {
 
-    KeyValue firstKeyOnRow =              // find a previous cell
-            KeyValue.createFirstOnRow(key.getRowArray(), key.getRowOffset(),
-                    key.getRowLength());
-    SortedSet<KeyValue> cellHead =        // here the search is hidden, reset the iterator
+    KeyValue firstKeyOnRow =            // find a previous cell
+            KeyValueUtil.createFirstOnRow(cell.getRowArray(), cell.getRowOffset(), cell.getRowLength());
+    SortedSet<Cell> cellHead =        // here the search is hidden, reset the iterator
             segment.headSet(firstKeyOnRow);
-    KeyValue lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
+    Cell lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
 
     if (lastCellBeforeRow == null) {      // end of recursion
       current = null;
@@ -299,7 +300,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
     }
 
     KeyValue firstKeyOnPreviousRow =      // find a previous row
-            KeyValue.createFirstOnRow(lastCellBeforeRow.getRowArray(),
+            KeyValueUtil.createFirstOnRow(lastCellBeforeRow.getRowArray(),
                     lastCellBeforeRow.getRowOffset(), lastCellBeforeRow.getRowLength());
 
     stopSkippingKVsIfNextRow = true;
@@ -324,12 +325,12 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    */
   @Override
   public boolean seekToLastRow() throws IOException {
-    KeyValue higherCell = segment.isEmpty() ? null : segment.last();
+    Cell higherCell = segment.isEmpty() ? null : segment.last();
     if (higherCell == null) {
       return false;
     }
 
-    KeyValue firstCellOnLastRow = KeyValue.createFirstOnRow(higherCell.getRowArray(),
+    KeyValue firstCellOnLastRow = KeyValueUtil.createFirstOnRow(higherCell.getRowArray(),
             higherCell.getRowOffset(), higherCell.getRowLength());
 
     if (seek(firstCellOnLastRow)) {
@@ -349,7 +350,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * Not relevant for in-memory scanner
    */
   @Override
-  public byte[] getNextIndexedKey() {
+  public Cell getNextIndexedKey() {
     return null;
   }
 
@@ -366,9 +367,9 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * Private internal method for iterating over the segment,
    * skipping the cells with irrelevant MVCC
    */
-  private KeyValue getNext() {
-    KeyValue startKV = current;
-    KeyValue next = null;
+  private Cell getNext() {
+    Cell startKV = current;
+    Cell next = null;
 
     try {
       while (iter.hasNext()) {
@@ -398,7 +399,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * Private internal method that returns the higher of the two key values, or null
    * if they are both null
    */
-  private KeyValue getHighest(KeyValue first, KeyValue second) {
+  private Cell getHighest(Cell first, Cell second) {
     if (first == null && second == null) {
       return null;
     }
