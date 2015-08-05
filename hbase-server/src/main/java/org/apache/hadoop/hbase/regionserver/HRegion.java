@@ -1117,6 +1117,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return memstoreAdditionalSize.get();
   }
 
+  @Override
   public long getMemstoreTotalSize() {
     return getMemstoreSize() + getMemstoreAdditionalSize();
   }
