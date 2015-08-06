@@ -390,6 +390,7 @@ public class TestCompactedMemStore extends TestCase {
     // COMPLETE INSERT 2
     mvcc.completeMemstoreInsert(w);
 
+    System.out.println("\nBefore the failure");
     // NOW SHOULD SEE NEW KVS IN ADDITION TO OLD KVS.
     // See HBASE-1485 for discussion about what we should do with
     // the duplicate-TS inserts

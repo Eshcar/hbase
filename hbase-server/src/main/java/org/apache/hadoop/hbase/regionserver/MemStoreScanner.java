@@ -23,8 +23,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-//import org.cloudera.htrace.Trace;
-import org.apache.htrace.Trace;
+import org.cloudera.htrace.Trace;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,6 +52,7 @@ import java.util.SortedSet;
 
   private Type type = Type.UNDEFINED;         // The type of the scan is defined by constructor
   // or according to the first usage
+
   private long readPoint;
   List<MemStoreSegmentScanner> scanners;      // remember the initial version of the scanners list
   private AbstractMemStore                    // pointer back to the relevant MemStore
@@ -131,27 +131,27 @@ import java.util.SortedSet;
    * Must be called only once: there is no thread safety between the scanner
    * and the memStore.
    *
-   * @param key seek value
+   * @param cell seek value
    * @return false if the key is null or if there is no data
    */
-  @Override public synchronized boolean seek(Cell key) throws IOException {
+  @Override public synchronized boolean seek(Cell cell) throws IOException {
     assertForward();
 
-    if (key == null) {
+    if (cell == null) {
       close();
       return false;
     }
 
-    return forwardHeap.seek(key);
+    return forwardHeap.seek(cell);
   }
 
   /**
    * Move forward on the sub-lists set previously by seek. Assumed forward scanning.
    *
-   * @param key seek value (should be non-null)
+   * @param cell seek value (should be non-null)
    * @return true if there is at least one KV to read, false otherwise
    */
-    public boolean reseek(Cell key) throws IOException {
+  @Override public synchronized boolean reseek(Cell cell) throws IOException {
         /*
         * See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
         * This code is executed concurrently with flush and puts, without locks.
@@ -167,7 +167,7 @@ import java.util.SortedSet;
         *  TODO: The above comment copied from the original MemStoreScanner
         */
     assertForward();
-      return forwardHeap.reseek(key);
+    return forwardHeap.reseek(cell);
   }
 
   /**
@@ -180,27 +180,44 @@ import java.util.SortedSet;
 
   @Override public synchronized void close() {
 
-      if (forwardHeap != null) {
-        assert ((type == Type.USER_SCAN_FORWARD) ||
-            (type == Type.COMPACT_FORWARD) || (type == Type.UNDEFINED));
-        forwardHeap.close();
-        forwardHeap = null;
-        if (backwardHeap != null) {
-          backwardHeap.close();
-          backwardHeap = null;
-        }
-      } else if (backwardHeap != null) {
-        assert (type == Type.USER_SCAN_BACKWARD);
+    if (forwardHeap != null) {
+      assert ((type == Type.USER_SCAN_FORWARD) ||
+          (type == Type.COMPACT_FORWARD) || (type == Type.UNDEFINED));
+      forwardHeap.close();
+      forwardHeap = null;
+      if (backwardHeap != null) {
         backwardHeap.close();
         backwardHeap = null;
       }
+    } else if (backwardHeap != null) {
+      assert (type == Type.USER_SCAN_BACKWARD);
+      backwardHeap.close();
+      backwardHeap = null;
     }
+  }
 
-    public boolean backwardSeek(Cell key) throws IOException {
-        if(type==Type.UNDEFINED) type = Type.USER_SCAN_BACKWARD;
-        assert (type!=Type.USER_SCAN_FORWARD);
-        return backwardHeap.backwardSeek(key);
-    }
+  /**
+   * Set the scanner at the seek key. Assumed backward scanning.
+   *
+   * @param cell seek value
+   * @return false if the key is null or if there is no data
+   */
+  @Override public synchronized boolean backwardSeek(Cell cell) throws IOException {
+    initiBackwHeapIfNeeded(cell, false);
+    return backwardHeap.backwardSeek(cell);
+  }
+
+  /**
+   * Assumed backward scanning.
+   *
+   * @param cell seek value
+   * @return false if the key is null or if there is no data
+   */
+  @Override public synchronized boolean seekToPreviousRow(Cell cell) throws IOException {
+    initiBackwHeapIfNeeded(cell, false);
+    if (backwardHeap.peek() == null) restartBackwHeap(cell);
+    return backwardHeap.seekToPreviousRow(cell);
+  }
 
   @Override public synchronized boolean seekToLastRow() throws IOException {
     // TODO: it looks like this is how it should be, however ReversedKeyValueHeap class doesn't
@@ -228,21 +245,15 @@ import java.util.SortedSet;
     return result;
   }
 
-    public boolean seekToPreviousRow(Cell key) throws IOException {
-        if(type==Type.UNDEFINED) type = Type.USER_SCAN_BACKWARD;
-        assert (type!=Type.USER_SCAN_FORWARD);
-        return backwardHeap.seekToPreviousRow(key);
-    }
-
   /****************** Private methods ******************/
   /**
    * Restructure the ended backward heap after rerunning a seekToPreviousRow()
    * on each scanner
    */
-  private boolean restartBackwHeap(KeyValue k) throws IOException {
+  private boolean restartBackwHeap(Cell cell) throws IOException {
     boolean res = false;
     for (MemStoreSegmentScanner scan : scanners)
-      res |= scan.seekToPreviousRow(k);
+      res |= scan.seekToPreviousRow(cell);
     this.backwardHeap =
         new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
     return res;
@@ -251,7 +262,7 @@ import java.util.SortedSet;
   /**
    * Checks whether the type of the scan suits the assumption of moving forward
    */
-  private boolean initiBackwHeapIfNeeded(KeyValue k, boolean toLast) throws IOException {
+  private boolean initiBackwHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
     boolean res = false;
     if (toLast && (type != Type.UNDEFINED))
       throw new IllegalStateException("Wrong usage of initiBackwHeapIfNeeded in parameters");
@@ -266,7 +277,7 @@ import java.util.SortedSet;
         // for the heap to be built from the scanners correctly
         for (MemStoreSegmentScanner scan : scanners)
           if (toLast) res |= scan.seekToLastRow();
-          else res |= scan.backwardSeek(k);
+          else res |= scan.backwardSeek(cell);
         this.backwardHeap =
             new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
         type = Type.USER_SCAN_BACKWARD;
@@ -288,3 +299,5 @@ import java.util.SortedSet;
       throw new IllegalStateException("Traversing forward with backward scan");
   }
 }
+
+
