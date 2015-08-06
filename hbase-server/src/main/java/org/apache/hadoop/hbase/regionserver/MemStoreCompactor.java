@@ -22,14 +22,9 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.regionserver.CompactionPipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,8 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @InterfaceAudience.Private class MemStoreCompactor {
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
-    final CellComparator comparator;
-    Thread workerThread = null;
 
   private CompactionPipeline cp;             // the subject for compaction
   private CompactedMemStore ms;             // backward reference
@@ -63,17 +56,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
       smallestReadPoint;                  // MemStore scan
   private VersionedSegmentsList             // a static version of the CellSetMgrs
       versionedList;                      // list from the pipeline
+  private final CellComparator comparator;
 
   private static final ExecutorService pool   // Thread pool shared by all scanners
       = Executors.newCachedThreadPool();
   private final AtomicBoolean inCompaction = new AtomicBoolean(false);
   private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
-    /**
-     * ----------------------------------------------------------------------
-     * The constructor is used only to initialize basics, other parameters
-     * needing to start compaction will come with startCompact()
-     */
+  /**
+   * ----------------------------------------------------------------------
+   * The constructor is used only to initialize basics, other parameters
+   * needing to start compaction will come with startCompact()
+   */
   public MemStoreCompactor(CompactedMemStore ms, CompactionPipeline cp,
       CellComparator comparator, Configuration conf) {
 
@@ -216,20 +210,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
           KeyValue kv = KeyValueUtil.ensureKeyValue(c);
           Cell newKV = result.maybeCloneWithAllocator(kv);
           result.add(newKV);
-            Cell cell;
-            try {
-                // Phase I: create the compacted CellSetMgr
-                cell = scanner.next();
-                while ((cell!=null) && (!Thread.currentThread().isInterrupted())) {
-                  result.add(cell);
-                    cell = scanner.next();
-                }
-                // Phase II: swap the old compaction pipeline
-                cp.swap(versionedList,result);
-            } catch (Exception e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
 
         }
         kvs.clear();
