@@ -299,5 +299,3 @@ import java.util.SortedSet;
       throw new IllegalStateException("Traversing forward with backward scan");
   }
 }
-
-

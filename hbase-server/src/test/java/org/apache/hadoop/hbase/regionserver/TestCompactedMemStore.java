@@ -314,7 +314,7 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] v = Bytes.toBytes("value");
 
     MultiVersionConsistencyControl.WriteEntry w =
-        mvcc.beginMemstoreInsert();
+        mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv1 = new KeyValue(row, f, q1, v);
     kv1.setSequenceId(w.getWriteNumber());
@@ -328,7 +328,7 @@ public class TestCompactedMemStore extends TestCase {
     s = this.cms.getScanners(mvcc.memstoreReadPoint()).get(0);
     assertScannerResults(s, new KeyValue[] { kv1 });
 
-    w = mvcc.beginMemstoreInsert();
+    w = mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
     KeyValue kv2 = new KeyValue(row, f, q2, v);
     kv2.setSequenceId(w.getWriteNumber());
     cms.add(kv2);
@@ -358,7 +358,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // INSERT 1: Write both columns val1
     MultiVersionConsistencyControl.WriteEntry w =
-        mvcc.beginMemstoreInsert();
+        mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
     kv11.setSequenceId(w.getWriteNumber());
@@ -374,7 +374,7 @@ public class TestCompactedMemStore extends TestCase {
     assertScannerResults(s, new KeyValue[] { kv11, kv12 });
 
     // START INSERT 2: Write both columns val2
-    w = mvcc.beginMemstoreInsert();
+    w = mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
     KeyValue kv21 = new KeyValue(row, f, q1, v2);
     kv21.setSequenceId(w.getWriteNumber());
     cms.add(kv21);
@@ -390,7 +390,6 @@ public class TestCompactedMemStore extends TestCase {
     // COMPLETE INSERT 2
     mvcc.completeMemstoreInsert(w);
 
-    System.out.println("\nBefore the failure");
     // NOW SHOULD SEE NEW KVS IN ADDITION TO OLD KVS.
     // See HBASE-1485 for discussion about what we should do with
     // the duplicate-TS inserts
@@ -411,7 +410,7 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] v1 = Bytes.toBytes("value1");
     // INSERT 1: Write both columns val1
     MultiVersionConsistencyControl.WriteEntry w =
-        mvcc.beginMemstoreInsert();
+         mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
     kv11.setSequenceId(w.getWriteNumber());
@@ -427,7 +426,7 @@ public class TestCompactedMemStore extends TestCase {
     assertScannerResults(s, new KeyValue[] { kv11, kv12 });
 
     // START DELETE: Insert delete for one of the columns
-    w = mvcc.beginMemstoreInsert();
+    w = mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
     KeyValue kvDel = new KeyValue(row, f, q2, kv11.getTimestamp(),
         KeyValue.Type.DeleteColumn);
     kvDel.setSequenceId(w.getWriteNumber());

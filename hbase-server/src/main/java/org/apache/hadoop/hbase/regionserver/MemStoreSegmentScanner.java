@@ -374,7 +374,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
     try {
       while (iter.hasNext()) {
         next = iter.next();
-        if (next.getMvccVersion() <= this.readPoint) {
+        if (next.getSequenceId() <= this.readPoint) {
           return next;                    // skip irrelevant versions
         }
         if (stopSkippingKVsIfNextRow &&   // for backwardSeek() stay in the
