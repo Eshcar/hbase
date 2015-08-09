@@ -2094,7 +2094,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       MultiVersionConsistencyControl.WriteEntry w = null;
       this.updatesLock.writeLock().lock();
       try {
-        if (this.memstoreSize.get() <= 0) {
+        if (this.getMemstoreTotalSize() <= 0) {
           // Presume that if there are still no edits in the memstore, then there are no edits for
           // this region out in the WAL subsystem so no need to do any trickery clearing out
           // edits in the WAL system. Up the sequence number so the resulting flush id is for
@@ -6492,7 +6492,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       return null;
     }
     ClientProtos.RegionLoadStats.Builder stats = ClientProtos.RegionLoadStats.newBuilder();
-    stats.setMemstoreLoad((int) (Math.min(100, (this.memstoreSize.get() * 100) / this
+    stats.setMemstoreLoad((int) (Math.min(100, (this.getMemstoreTotalSize() * 100) / this
         .memstoreFlushSize)));
     stats.setHeapOccupancy((int)rsServices.getHeapMemoryManager().getHeapOccupancyPercent()*100);
     return stats.build();
@@ -6597,7 +6597,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               addedSize += ret.getFirst();
               memstoreCells.add(ret.getSecond());
             }
-            this.addAndGetGlobalMemstoreSize(addedSize);
           }
 
           long txid = 0;
@@ -6660,9 +6659,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     } finally {
       closeRegionOperation();
-      if (!mutations.isEmpty() &&
-          isFlushSize(this.addAndGetGlobalMemstoreSize(addedSize))) {
-        requestFlush();
+      if (!mutations.isEmpty()) {
+        this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded();
       }
     }
   }
@@ -6936,8 +6935,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             // Append a faked WALEdit in order for SKIP_WAL updates to get mvcc assigned
             walKey = this.appendEmptyEdit(this.wal, memstoreCells);
           }
-          size = this.addAndGetGlobalMemstoreSize(size);
-          flush = isFlushSize(size);
+          this.addAndGetGlobalMemstoreSize(size);
         } finally {
           this.updatesLock.readLock().unlock();
         }
@@ -6968,10 +6966,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       this.metricsRegion.updateAppend();
     }
 
-    if (flush) {
-      // Request a cache flush. Do it outside update lock.
-      requestFlush();
-    }
+    // Request a cache flush. Do it outside update lock.
+    requestFlushIfNeeded();
 
 
     return append.isReturnResults() ? Result.create(allKVs) : null;
@@ -7156,8 +7152,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 }
               }
             }
-            size = this.addAndGetGlobalMemstoreSize(size);
-            flush = isFlushSize(size);
+            this.addAndGetGlobalMemstoreSize(size);
           }
 
           // Actually write to WAL now
@@ -7208,10 +7203,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
     }
 
-    if (flush) {
-      // Request a cache flush.  Do it outside update lock.
-      requestFlush();
-    }
+    // Request a cache flush.  Do it outside update lock.
+    requestFlushIfNeeded();
+
     return increment.isReturnResults() ? Result.create(allKVs) : null;
   }
 
