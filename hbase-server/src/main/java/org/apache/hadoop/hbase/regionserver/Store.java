@@ -420,6 +420,11 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    */
   double getCompactionPressure();
 
+  // turn on the force flush flag to make sure data is flushed to disk
+  void setForceFlush();
+  // check whether memstore compaction is in progress
+  boolean isMemstoreCompaction();
+
    /**
     * Replaces the store files that the store has with the given files. Mainly used by
     * secondary region replicas to keep up to date with
