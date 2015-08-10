@@ -57,13 +57,11 @@ public abstract class AbstractMemStore implements MemStore {
   volatile long snapshotId;
   // Used to track when to flush
   volatile private long timeOfOldestEdit;
-  volatile boolean tagsPresent;
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
           (4 * ClassSize.REFERENCE) +
-          (2 * Bytes.SIZEOF_LONG) +
-          Bytes.SIZEOF_BOOLEAN);
+          (2 * Bytes.SIZEOF_LONG));
 
   public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
       2 * (ClassSize.ATOMIC_LONG + ClassSize.TIMERANGE_TRACKER +
@@ -417,13 +415,6 @@ public abstract class AbstractMemStore implements MemStore {
    */
   private long internalAdd(final Cell toAdd) {
     long s = active.add(toAdd);
-    // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
-    // When we use ACL CP or Visibility CP which deals with Tags during
-    // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
-    // parse the byte[] to identify the tags length.
-    if(toAdd.getTagsLength() > 0) {
-      tagsPresent = true;
-    }
     setOldestEditTimeToNow();
     return s;
   }

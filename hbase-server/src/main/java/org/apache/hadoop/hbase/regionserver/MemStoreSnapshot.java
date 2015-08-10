@@ -36,13 +36,13 @@ public class MemStoreSnapshot {
   private final KeyValueScanner scanner;
   private final boolean tagsPresent;
 
-  public MemStoreSnapshot(long id, MemStoreSegment snapshot, CellComparator comparator, boolean tagsPresent) {
+  public MemStoreSnapshot(long id, MemStoreSegment snapshot, CellComparator comparator) {
     this.id = id;
     this.cellsCount = snapshot.getCellsCount();
     this.size = snapshot.getSize();
     this.timeRangeTracker = snapshot.getTimeRangeTracker();
     this.scanner = new CollectionBackedScanner(snapshot.getCellSet(),comparator);
-      this.tagsPresent = tagsPresent;
+    this.tagsPresent = snapshot.isTagsPresent();
   }
 
   /**
