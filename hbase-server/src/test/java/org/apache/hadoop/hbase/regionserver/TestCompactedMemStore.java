@@ -25,7 +25,17 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.KeepDeletedCells;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueTestUtil;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -38,11 +48,9 @@ import org.junit.experimental.categories.Category;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
-import java.rmi.UnexpectedException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -144,7 +152,7 @@ public class TestCompactedMemStore extends TestCase {
     this.cms.add(samekey);
     Cell found = this.cms.getActive().first();
     assertEquals(1, this.cms.getActive().getCellsCount());
-    assertTrue(Bytes.toString(found.getValue()), CellUtil.matchingValue(samekey, found));
+    assertTrue(Bytes.toString(found.getValueArray()), CellUtil.matchingValue(samekey, found));
   }
 
   /**
@@ -935,9 +943,10 @@ public class TestCompactedMemStore extends TestCase {
       edge.setCurrentTimeMillis(1234);
       s.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
       edge.setCurrentTimeMillis(1234 + 100);
-      assertTrue(!region.shouldFlush());
+      StringBuffer sb = new StringBuffer();
+      assertTrue(!region.shouldFlush(sb));
       edge.setCurrentTimeMillis(1234 + 10000);
-      assertTrue(region.shouldFlush() == expected);
+      assertTrue(region.shouldFlush(sb) == expected);
     } finally {
       EnvironmentEdgeManager.reset();
     }
