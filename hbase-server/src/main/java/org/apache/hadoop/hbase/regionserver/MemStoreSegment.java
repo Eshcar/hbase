@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -30,7 +29,6 @@ import org.apache.hadoop.hbase.util.ByteRange;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.util.Iterator;
-import java.util.NavigableSet;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -177,15 +175,15 @@ class MemStoreSegment {
  * @param set
  * @param state Accumulates deletes and candidates.
  */
-  public void getRowKeyAtOrBefore(final GetClosestRowBeforeTracker state) {
-    if (isEmpty()) {
-      return;
-    }
-    if (!walkForwardInSingleRow(state.getTargetKey(), state)) {
-      // Found nothing in row.  Try backing up.
-      getRowKeyBefore(state);
-    }
-  }
+//  public void getRowKeyAtOrBefore(final GetClosestRowBeforeTracker state) {
+//    if (isEmpty()) {
+//      return;
+//    }
+//    if (!walkForwardInSingleRow(state.getTargetKey(), state)) {
+//      // Found nothing in row.  Try backing up.
+//      getRowKeyBefore(state);
+//    }
+//  }
 
   // methods for cell set scanner
   public int compare(Cell left, Cell right) {
@@ -240,26 +238,26 @@ class MemStoreSegment {
    * @param state
    * @return True if we found a candidate walking this row.
    */
-  private boolean walkForwardInSingleRow(final Cell firstOnRow, final GetClosestRowBeforeTracker state) {
-    boolean foundCandidate = false;
-    SortedSet<Cell> tail = getCellSet().tailSet(firstOnRow);
-    if (tail.isEmpty()) return foundCandidate;
-    for (Iterator<Cell> i = tail.iterator(); i.hasNext();) {
-      Cell kv = i.next();
-      // Did we go beyond the target row? If so break.
-      if (state.isTooFar(kv, firstOnRow)) break;
-      if (state.isExpired(kv)) {
-        i.remove();
-        continue;
-      }
-      // If we added something, this row is a contender. break.
-      if (state.handle(kv)) {
-        foundCandidate = true;
-        break;
-      }
-    }
-    return foundCandidate;
-  }
+//  private boolean walkForwardInSingleRow(final Cell firstOnRow, final GetClosestRowBeforeTracker state) {
+//    boolean foundCandidate = false;
+//    SortedSet<Cell> tail = getCellSet().tailSet(firstOnRow);
+//    if (tail.isEmpty()) return foundCandidate;
+//    for (Iterator<Cell> i = tail.iterator(); i.hasNext();) {
+//      Cell kv = i.next();
+//      // Did we go beyond the target row? If so break.
+//      if (state.isTooFar(kv, firstOnRow)) break;
+//      if (state.isExpired(kv)) {
+//        i.remove();
+//        continue;
+//      }
+//      // If we added something, this row is a contender. break.
+//      if (state.handle(kv)) {
+//        foundCandidate = true;
+//        break;
+//      }
+//    }
+//    return foundCandidate;
+//  }
 
   /*
    * Walk backwards through the passed set a row at a time until we run out of
@@ -267,21 +265,21 @@ class MemStoreSegment {
    * @param set
    * @param state
    */
-  private void getRowKeyBefore(final GetClosestRowBeforeTracker state) {
-    KeyValue firstOnRow = state.getTargetKey();
-    for (Cell p = memberOfPreviousRow(state, firstOnRow);
-         p != null; p = memberOfPreviousRow(state, firstOnRow)) {
-      // Make sure we don't fall out of our table.
-      if (!state.isTargetTable(p)) break;
-      // Stop looking if we've exited the better candidate range.
-      if (!state.isBetterCandidate(p)) break;
-      // Make into firstOnRow
-      firstOnRow = new KeyValue(p.getRowArray(), p.getRowOffset(), p.getRowLength(),
-          HConstants.LATEST_TIMESTAMP);
-      // If we find something, break;
-      if (walkForwardInSingleRow(firstOnRow, state)) break;
-    }
-  }
+//  private void getRowKeyBefore(final GetClosestRowBeforeTracker state) {
+//    KeyValue firstOnRow = state.getTargetKey();
+//    for (Cell p = memberOfPreviousRow(state, firstOnRow);
+//         p != null; p = memberOfPreviousRow(state, firstOnRow)) {
+//      // Make sure we don't fall out of our table.
+//      if (!state.isTargetTable(p)) break;
+//      // Stop looking if we've exited the better candidate range.
+//      if (!state.isBetterCandidate(p)) break;
+//      // Make into firstOnRow
+//      firstOnRow = new KeyValue(p.getRowArray(), p.getRowOffset(), p.getRowLength(),
+//          HConstants.LATEST_TIMESTAMP);
+//      // If we find something, break;
+//      if (walkForwardInSingleRow(firstOnRow, state)) break;
+//    }
+//  }
 
   /*
    * @param set Set to walk back in.  Pass a first in row or we'll return
@@ -291,20 +289,20 @@ class MemStoreSegment {
    * member in.
    * @return Null or member of row previous to <code>firstOnRow</code>
    */
-  private Cell memberOfPreviousRow(final GetClosestRowBeforeTracker state,
-      final KeyValue firstOnRow) {
-    NavigableSet<Cell> head = getCellSet().headSet(firstOnRow, false);
-    if (head.isEmpty()) return null;
-    for (Iterator<Cell> i = head.descendingIterator(); i.hasNext();) {
-      Cell found = i.next();
-      if (state.isExpired(found)) {
-        i.remove();
-        continue;
-      }
-      return found;
-    }
-    return null;
-  }
+//  private Cell memberOfPreviousRow(final GetClosestRowBeforeTracker state,
+//      final KeyValue firstOnRow) {
+//    NavigableSet<Cell> head = getCellSet().headSet(firstOnRow, false);
+//    if (head.isEmpty()) return null;
+//    for (Iterator<Cell> i = head.descendingIterator(); i.hasNext();) {
+//      Cell found = i.next();
+//      if (state.isExpired(found)) {
+//        i.remove();
+//        continue;
+//      }
+//      return found;
+//    }
+//    return null;
+//  }
 
   /**
    * A singleton cell set manager factory.
@@ -342,7 +340,6 @@ class MemStoreSegment {
 
     private MemStoreSegment generateMemStoreSegmentByType(CellSet.Type type,
         CellComparator comparator, MemStoreLAB memStoreLAB, long size) {
-      MemStoreSegment obj;
       CellSet set = new CellSet(type, comparator);
       return new MemStoreSegment(set, memStoreLAB, size, comparator);
     }
