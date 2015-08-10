@@ -180,6 +180,9 @@ public interface Region extends ConfigurationObserver {
   /** @return memstore size for this region, in bytes */
   long getMemstoreSize();
 
+  /** @return total memstore size, including additional, like compactoin pipelines */
+  public long getMemstoreTotalSize();
+
   /** @return the number of mutations processed bypassing the WAL */
   long getNumMutationsWithoutWAL();
   
@@ -646,6 +649,30 @@ public interface Region extends ConfigurationObserver {
    * because a snapshot was not properly persisted.
    */
   FlushResult flush(boolean force) throws IOException;
+
+  /**
+   * Flush the cache.
+   *
+   * <p>When this method is called the cache will be flushed unless:
+   * <ol>
+   *   <li>the cache is empty</li>
+   *   <li>the region is closed.</li>
+   *   <li>a flush is already in progress</li>
+   *   <li>writes are disabled</li>
+   * </ol>
+   *
+   * <p>This method may block for some time, so it should not be called from a
+   * time-sensitive thread.
+   * @param force whether we want to force a flush of all stores
+   * @param forceFlushInsteadOfCompaction whether to flush the compacting memstores as well
+   * @return FlushResult indicating whether the flush was successful or not and if
+   * the region needs compacting
+   *
+   * @throws IOException general io exceptions
+   * @throws DroppedSnapshotException Thrown when abort is required
+   * because a snapshot was not properly persisted.
+   */
+  public FlushResult flush(boolean force, boolean forceFlushInsteadOfCompaction) throws IOException;
 
   /**
    * Synchronously compact all stores in the region.

@@ -165,7 +165,7 @@ class MemStoreFlusher implements FlushRequester {
 
       Region regionToFlush;
       if (bestFlushableRegion != null &&
-          bestAnyRegion.getMemstoreSize() > 2 * bestFlushableRegion.getMemstoreSize()) {
+          bestAnyRegion.getMemstoreTotalSize() > 2 * bestFlushableRegion.getMemstoreTotalSize()) {
         // Even if it's not supposed to be flushed, pick a region if it's more than twice
         // as big as the best flushable one - otherwise when we're under pressure we make
         // lots of little flushes and cause lots of compactions, etc, which just makes
@@ -214,6 +214,7 @@ class MemStoreFlusher implements FlushRequester {
             + humanReadableInt(regionToFlush.getMemstoreSize()));
         flushedOne = flushRegion(regionToFlush, true, true);
 
+      Preconditions.checkState(regionToFlush.getMemstoreTotalSize() > 0);
         if (!flushedOne) {
           LOG.info("Excluding unflushable region " + regionToFlush +
               " - trying to find a different region to flush.");
@@ -508,7 +509,8 @@ class MemStoreFlusher implements FlushRequester {
     lock.readLock().lock();
     try {
       notifyFlushRequest(region, emergencyFlush);
-      FlushResult flushResult = region.flush(forceFlushAllStores);
+      boolean forceFlushInsteadOfCompaction = false;
+      FlushResult flushResult = region.flush(forceFlushAllStores,forceFlushInsteadOfCompaction);
       boolean shouldCompact = flushResult.isCompactionNeeded();
       // We just want to check the size
       boolean shouldSplit = ((HRegion)region).checkSplit() != null;

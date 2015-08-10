@@ -17,7 +17,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 /**
  * Holds details of the snapshot taken on a MemStore. Details include the snapshot's identifier,
@@ -33,13 +35,12 @@ public class MemStoreSnapshot {
   private final TimeRangeTracker timeRangeTracker;
   private final KeyValueScanner scanner;
 
-  public MemStoreSnapshot(long id, int cellsCount, long size, TimeRangeTracker timeRangeTracker,
-      KeyValueScanner scanner) {
+  public MemStoreSnapshot(long id, MemStoreSegment snapshot, CellComparator comparator) {
     this.id = id;
-    this.cellsCount = cellsCount;
-    this.size = size;
-    this.timeRangeTracker = timeRangeTracker;
-    this.scanner = scanner;
+    this.cellsCount = snapshot.getCellsCount();
+    this.size = snapshot.getSize();
+    this.timeRangeTracker = snapshot.getTimeRangeTracker();
+    this.scanner = new CollectionBackedScanner(snapshot.getCellSet(),comparator);
   }
 
   /**
