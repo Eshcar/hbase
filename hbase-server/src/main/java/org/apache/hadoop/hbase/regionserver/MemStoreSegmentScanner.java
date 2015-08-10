@@ -71,7 +71,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    */
   @Override
   public Cell peek() {          // sanity check, the current should be always valid
-    if (current!=null && current.getMvccVersion() > readPoint) {
+    if (current!=null && current.getSequenceId() > readPoint) {
       assert (false);                     // sanity check, the current should be always valid
     }
 
@@ -354,6 +354,14 @@ class MemStoreSegmentScanner implements KeyValueScanner {
     return null;
   }
 
+  /**
+   * Called after a batch of rows scanned (RPC) and set to be returned to client. Any in between
+   * cleanup can be done here. Nothing to be done for MemStoreSegmentScanner.
+   */
+  @Override
+  public void shipped() throws IOException {
+    // do nothing
+  }
 
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return segment.shouldSeek(scan,oldestUnexpiredTS);
