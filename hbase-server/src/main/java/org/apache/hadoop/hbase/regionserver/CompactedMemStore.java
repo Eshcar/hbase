@@ -162,11 +162,7 @@ public class CompactedMemStore extends AbstractMemStore {
         resetForceFlush();
       }
     }
-    MemStoreSnapshot memStoreSnapshot = new MemStoreSnapshot(this.snapshotId, getSnapshot(),
-        getComparator(),this.tagsPresent);
-    this.tagsPresent = false;
-    return memStoreSnapshot;
-
+    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
   }
 
   private void pushActiveToPipeline(MemStoreSegment active) {

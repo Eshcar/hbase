@@ -51,6 +51,7 @@ class MemStoreSegment {
   private final CellComparator comparator;
   private TimeRangeTracker timeRangeTracker;
   private final AtomicLong size;
+  private volatile boolean tagsPresent;
 
   // private c-tors. Instantiate objects only using factory
   private MemStoreSegment(CellSet cellSet, MemStoreLAB memStoreLAB, long size,
@@ -60,6 +61,7 @@ class MemStoreSegment {
     this.comparator = comparator;
     this.timeRangeTracker = new TimeRangeTracker();
     this.size = new AtomicLong(size);
+    this.tagsPresent = false;
   }
 
   private MemStoreSegment(CellSet cellSet, long size, CellComparator comparator) {
@@ -82,6 +84,13 @@ class MemStoreSegment {
     boolean succ = getCellSet().add(e);
     long s = AbstractMemStore.heapSizeChange(e, succ);
     updateMetaInfo(e, s);
+    // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
+    // When we use ACL CP or Visibility CP which deals with Tags during
+    // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
+    // parse the byte[] to identify the tags length.
+    if(e.getTagsLength() > 0) {
+      tagsPresent = true;
+    }
     return s;
   }
 
@@ -213,6 +222,10 @@ class MemStoreSegment {
 
   public void incSize(long delta) {
     size.addAndGet(delta);
+  }
+
+  public boolean isTagsPresent() {
+    return tagsPresent;
   }
 
   private MemStoreLAB getMemStoreLAB() {

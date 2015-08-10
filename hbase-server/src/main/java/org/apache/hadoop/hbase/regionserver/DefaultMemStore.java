@@ -96,10 +96,7 @@ public class DefaultMemStore extends AbstractMemStore {
         resetCellSet();
       }
     }
-    MemStoreSnapshot memStoreSnapshot = new MemStoreSnapshot(this.snapshotId, getSnapshot(),
-        getComparator(),this.tagsPresent);
-    this.tagsPresent = false;
-    return memStoreSnapshot;
+    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
 
   }
 
