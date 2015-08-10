@@ -162,7 +162,10 @@ public class CompactedMemStore extends AbstractMemStore {
         resetForceFlush();
       }
     }
-    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
+    MemStoreSnapshot memStoreSnapshot = new MemStoreSnapshot(this.snapshotId, getSnapshot(),
+        getComparator(),this.tagsPresent);
+    this.tagsPresent = false;
+    return memStoreSnapshot;
 
   }
 
@@ -220,14 +223,14 @@ public class CompactedMemStore extends AbstractMemStore {
    * Find the key that matches <i>row</i> exactly, or the one that immediately precedes it. The
    * target row key is set in state.
    *
-   * @param state column/delete tracking state
+/   * @param state column/delete tracking state
    */
-  @Override
-  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-    getActive().getRowKeyAtOrBefore(state);
-    pipeline.getRowKeyAtOrBefore(state);
-    getSnapshot().getRowKeyAtOrBefore(state);
-  }
+//  @Override
+//  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
+//    getActive().getRowKeyAtOrBefore(state);
+//    pipeline.getRowKeyAtOrBefore(state);
+//    getSnapshot().getRowKeyAtOrBefore(state);
+//  }
 
   @Override
   public AbstractMemStore setForceFlush() {
