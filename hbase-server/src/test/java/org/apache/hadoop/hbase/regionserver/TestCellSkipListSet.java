@@ -34,8 +34,8 @@ import org.junit.experimental.categories.Category;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestCellSkipListSet extends TestCase {
-  private final CellSkipListSet csls =
-    new CellSkipListSet(CellComparator.COMPARATOR);
+  private final CellSet csls =
+    new CellSet(CellComparator.COMPARATOR);
 
   protected void setUp() throws Exception {
     super.setUp();
