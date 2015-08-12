@@ -22,7 +22,11 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
@@ -193,8 +197,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
   private void compactSegments(MemStoreSegment result) throws IOException {
 
     List<Cell> kvs = new ArrayList<Cell>();
-    int compactionKVMax = conf.getInt(          // get the limit to the size of the
-        HConstants.COMPACTION_KV_MAX,   // groups to be returned by compactingScanner
+    // get the limit to the size of the groups to be returned by compactingScanner
+    int compactionKVMax = conf.getInt(
+        HConstants.COMPACTION_KV_MAX,
         HConstants.COMPACTION_KV_MAX_DEFAULT);
 
     ScannerContext scannerContext =
