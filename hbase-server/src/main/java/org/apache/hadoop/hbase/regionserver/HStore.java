@@ -622,7 +622,8 @@ public class HStore implements Store {
 
     if (newFiles == null) newFiles = new ArrayList<StoreFileInfo>(0);
 
-    HashMap<StoreFileInfo, StoreFile> currentFilesSet = new HashMap<StoreFileInfo, StoreFile>(currentFiles.size());
+    HashMap<StoreFileInfo, StoreFile> currentFilesSet =
+        new HashMap<StoreFileInfo, StoreFile>(currentFiles.size());
     for (StoreFile sf : currentFiles) {
       currentFilesSet.put(sf.getFileInfo(), sf);
     }

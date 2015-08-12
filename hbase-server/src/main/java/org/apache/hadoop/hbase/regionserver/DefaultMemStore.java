@@ -209,9 +209,9 @@ public class DefaultMemStore extends AbstractMemStore {
     LOG.info("memstore2 estimated size=" + size);
     final int seconds = 30;
     LOG.info("Waiting " + seconds + " seconds while heap dump is taken");
-    for (int i = 0; i < seconds; i++) {
+    //for (int i = 0; i < seconds; i++) {
       // Thread.sleep(1000);
-    }
+    //}
     LOG.info("Exiting.");
   }
 

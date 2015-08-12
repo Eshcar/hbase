@@ -272,7 +272,7 @@ public abstract class AbstractMemStore implements MemStore {
     Iterator<Cell> it = ss.iterator();
     // versions visible to oldest scanner
     int versionsVisible = 0;
-    while ( it.hasNext() ) {
+    while (it.hasNext()) {
       Cell cur = it.next();
 
       if (cell == cur) {

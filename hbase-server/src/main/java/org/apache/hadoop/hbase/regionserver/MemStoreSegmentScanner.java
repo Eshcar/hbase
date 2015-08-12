@@ -289,7 +289,8 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   public boolean seekToPreviousRow(Cell cell) throws IOException {
 
     KeyValue firstKeyOnRow =            // find a previous cell
-            KeyValueUtil.createFirstOnRow(cell.getRowArray(), cell.getRowOffset(), cell.getRowLength());
+            KeyValueUtil.createFirstOnRow(cell.getRowArray(),
+                cell.getRowOffset(), cell.getRowLength());
     SortedSet<Cell> cellHead =        // here the search is hidden, reset the iterator
             segment.headSet(firstKeyOnRow);
     Cell lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();

@@ -276,9 +276,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  public final AtomicLong memstoreSize = new AtomicLong(0); // size of active set in memstore
+  private final AtomicLong memstoreSize = new AtomicLong(0); // size of active set in memstore
   // size of additional memstore buckets, e.g., in compaction pipeline
-  public final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
+  private final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
 
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
@@ -1438,7 +1438,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 // If we tried 5 times and are unable to clear memory, abort
                 // so we do not lose data
                 throw new DroppedSnapshotException("Failed clearing memory after " +
-                  actualFlushes + " attempts on region: " + Bytes.toStringBinary(getRegionInfo().getRegionName())
+                  actualFlushes + " attempts on region: " +
+                    Bytes.toStringBinary(getRegionInfo().getRegionName())
                     + " memstore size: " + getMemstoreSize() + " total size (memstore + pipeline)" +
                     ": " + getMemstoreTotalSize());
               }
@@ -5499,7 +5500,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
 
     @Override
-    public synchronized boolean next(List<Cell> outResults, ScannerContext scannerContext) throws IOException {
+    public synchronized boolean next(List<Cell> outResults, ScannerContext scannerContext)
+        throws IOException {
       if (this.filterClosed) {
         throw new UnknownScannerException("Scanner was closed (timed out?) " +
             "after we renewed it. Could be caused by a very slow scanner " +
@@ -5932,7 +5934,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     protected boolean isStopRow(Cell currentRowCell) {
       return currentRowCell == null
-          || (stopRow != null && comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length) >= isScan);
+          || (stopRow != null &&
+          comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length) >= isScan);
     }
 
     @Override

@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * from active set to snapshot set in the default implementation.
  */
 @InterfaceAudience.Private
-class MemStoreSegment {
+final class MemStoreSegment {
 
   static final String USEMSLAB_KEY = "hbase.hregion.memstore.mslab.enabled";
   static final boolean USEMSLAB_DEFAULT = true;
@@ -120,7 +120,7 @@ class MemStoreSegment {
 
   public void close() {
     MemStoreLAB mslab = getMemStoreLAB();
-    if(mslab != null ) {
+    if(mslab != null) {
       mslab.close();
     }
     // do not set MSLab to null as scanners may still be reading the data here and need to decrease
@@ -251,7 +251,8 @@ class MemStoreSegment {
    * @param state
    * @return True if we found a candidate walking this row.
    */
-//  private boolean walkForwardInSingleRow(final Cell firstOnRow, final GetClosestRowBeforeTracker state) {
+//  private boolean walkForwardInSingleRow(final Cell firstOnRow,
+// final GetClosestRowBeforeTracker state) {
 //    boolean foundCandidate = false;
 //    SortedSet<Cell> tail = getCellSet().tailSet(firstOnRow);
 //    if (tail.isEmpty()) return foundCandidate;
@@ -321,7 +322,7 @@ class MemStoreSegment {
    * A singleton cell set manager factory.
    * Maps each cell set type to a specific implementation
    */
-  static class Factory {
+  static final class Factory {
 
     private Factory() {}
     private static Factory instance = new Factory();
