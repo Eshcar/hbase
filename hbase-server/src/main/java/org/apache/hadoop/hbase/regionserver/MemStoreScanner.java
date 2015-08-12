@@ -36,7 +36,8 @@ import java.util.SortedSet;
  * uses the key-value heap and the reversed key-value heap for the aggregated key-values set.
  * It is assumed that only traversing forward or backward is used (without zigzagging in between)
  */
-@InterfaceAudience.Private public class MemStoreScanner extends NonLazyKeyValueScanner {
+@InterfaceAudience.Private
+public class MemStoreScanner extends NonLazyKeyValueScanner {
   /**
    * Types of cell MemStoreScanner
    */
@@ -72,7 +73,8 @@ import java.util.SortedSet;
     this(ms, ms.getListOfScanners(readPoint), readPoint, type);
   }
 
-  /* Constructor used only when the scan usage is unknown and need to be defined according to the first move */
+  /* Constructor used only when the scan usage is unknown
+  and need to be defined according to the first move */
   public MemStoreScanner(AbstractMemStore ms, long readPt) throws IOException {
     this(ms, readPt, Type.UNDEFINED);
   }
@@ -91,6 +93,8 @@ import java.util.SortedSet;
     case USER_SCAN_BACKWARD:
       this.backwardHeap = new ReversedKeyValueHeap(scanners, ms.getComparator());
       break;
+    default:
+      throw new IOException("Unknown scanner type in MemStoreScanner");
     }
     this.backwardReferenceToMemStore = ms;
     this.scanners = scanners;
@@ -223,7 +227,8 @@ import java.util.SortedSet;
     // TODO: it looks like this is how it should be, however ReversedKeyValueHeap class doesn't
     // implement seekToLastRow() method :(
     // however seekToLastRow() was implemented in internal MemStoreScanner
-    // so I wonder whether we need to come with our own workaround, or to update ReversedKeyValueHeap
+    // so I wonder whether we need to come with our own workaround, or to update
+    // ReversedKeyValueHeap
     return initiBackwHeapIfNeeded(KeyValue.LOWESTKEY, true);
     //return backwardHeap.seekToLastRow();
   }

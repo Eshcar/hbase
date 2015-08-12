@@ -622,7 +622,8 @@ public class HStore implements Store {
 
     if (newFiles == null) newFiles = new ArrayList<StoreFileInfo>(0);
 
-    HashMap<StoreFileInfo, StoreFile> currentFilesSet = new HashMap<StoreFileInfo, StoreFile>(currentFiles.size());
+    HashMap<StoreFileInfo, StoreFile> currentFilesSet =
+        new HashMap<StoreFileInfo, StoreFile>(currentFiles.size());
     for (StoreFile sf : currentFiles) {
       currentFilesSet.put(sf.getFileInfo(), sf);
     }
@@ -1199,7 +1200,7 @@ public class HStore implements Store {
       CompactionThroughputController throughputController) throws IOException {
     assert compaction != null;
     List<StoreFile> sfs = null;
-    CompactionRequest cr = compaction.getRequest();;
+    CompactionRequest cr = compaction.getRequest();
     try {
       // Do all sanity checking in here if we have a valid CompactionRequest
       // because we need to clean up after it on the way out in a finally
@@ -2028,7 +2029,7 @@ public class HStore implements Store {
     return new StoreFlusherImpl(cacheFlushId);
   }
 
-  private class StoreFlusherImpl implements StoreFlushContext {
+  private final class StoreFlusherImpl implements StoreFlushContext {
 
     private long cacheFlushSeqNum;
     private MemStoreSnapshot snapshot;

@@ -666,7 +666,8 @@ public class HRegionServer extends HasThread implements
 
     coprocessorServiceHandlers.put(serviceDesc.getFullName(), instance);
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Registered regionserver coprocessor service: service=" + serviceDesc.getFullName());
+      LOG.debug("Registered regionserver coprocessor service: service="
+          + serviceDesc.getFullName());
     }
     return true;
   }
