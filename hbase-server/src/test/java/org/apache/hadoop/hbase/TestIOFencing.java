@@ -208,12 +208,16 @@ public class TestIOFencing {
       super.completeCompaction(compactedFiles);
     }
 
-    @Override public void setForceFlush() {
+    @Override public void setForceFlushToDisk() {
       return;
     }
 
     @Override public boolean isMemstoreCompaction() {
       return false;
+    }
+
+    @Override public void flushInMemory(long flushOpSeqId) {
+      return;
     }
   }
 

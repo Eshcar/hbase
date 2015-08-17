@@ -17,10 +17,13 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Collection;
-
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Set;
 
 /**
  * A flush policy determines the stores that need to be flushed when flushing a region.
@@ -46,4 +49,32 @@ public abstract class FlushPolicy extends Configured {
    */
   public abstract Collection<Store> selectStoresToFlush();
 
+  /**
+   * @return the stores need to be flushed in memory.
+   */
+  public Collection<Store> selectStoresToFlushInMemory() {
+    Collection<Store> stores = region.stores.values();
+    Set<Store> specificStoresToFlushInMemory = new HashSet<Store>();
+    for (Store store : stores) {
+      if (shouldFlushInMemory(store)) {
+        specificStoresToFlushInMemory.add(store);
+      }
+    }
+    return specificStoresToFlushInMemory;
+  }
+
+  protected boolean shouldFlushInMemory(Store store) {
+    return store.shouldFlushInMemory();
+  }
+
+  protected Collection<Store> allStoresExcludingFlushInMemory() {
+    Collection<Store> res = new LinkedList<Store>();
+    Collection<Store> specificStoresToFlushInMemory = selectStoresToFlushInMemory();
+    for (Store s : region.stores.values()) {
+      if(!specificStoresToFlushInMemory.contains(s)) {
+        res.add(s);
+      }
+    }
+    return res;
+  }
 }

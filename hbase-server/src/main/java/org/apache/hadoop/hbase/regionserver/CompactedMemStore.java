@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 /**
  * A memstore implementation which supports in-memory compaction.
@@ -55,7 +57,8 @@ public class CompactedMemStore extends AbstractMemStore {
   private HStore store;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
-  private boolean forceFlush;
+  private boolean forceFlushToDisk;
+  private NavigableMap<Long,Long> timestampToWALSeqId;
 
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
       .TIMERANGE_TRACKER +
@@ -79,7 +82,8 @@ public class CompactedMemStore extends AbstractMemStore {
     this.store  = store;
     this.pipeline = new CompactionPipeline(store.getHRegion());
     this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
-    this.forceFlush = false;
+    this.forceFlushToDisk = false;
+    this.timestampToWALSeqId = new TreeMap<>();
   }
 
   @Override
@@ -136,18 +140,18 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override public MemStoreSnapshot snapshot() {
       MemStoreSegment active = getActive();
-    if(!forceFlush) {
-      LOG.info("Snapshot called without forcing flush. ");
-      LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
-      pushActiveToPipeline(active);
-      try {
-        // Speculative compaction execution, may be interrupted if flush is forced while
-        // compaction is in progress
-        compactor.startCompact(store);
-      } catch (IOException e) {
-        LOG.error("Unable to run memstore compaction", e);
-      }
-    } else { //**** FORCE FLUSH MODE ****//
+//    if(!isForceFlushToDisk()) {
+//      LOG.info("Snapshot called without forcing flush. ");
+//      LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
+//      pushActiveToPipeline(active);
+//      try {
+//        // Speculative compaction execution, may be interrupted if flush is forced while
+//        // compaction is in progress
+//        compactor.startCompact(store);
+//      } catch (IOException e) {
+//        LOG.error("Unable to run memstore compaction", e);
+//      }
+//    } else { //**** FORCE FLUSH MODE ****//
       // If snapshot currently has entries, then flusher failed or didn't call
       // cleanup.  Log a warning.
       if (!getSnapshot().isEmpty()) {
@@ -161,8 +165,24 @@ public class CompactedMemStore extends AbstractMemStore {
         pushTailToSnapshot();
         resetForceFlush();
       }
-    }
+//    }
     return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
+  }
+
+  @Override public void flushInMemory(long flushOpSeqId) {
+    MemStoreSegment active = getActive();
+    LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
+    pushActiveToPipeline(active);
+    Long now = System.currentTimeMillis();
+    timestampToWALSeqId.put(now,flushOpSeqId);
+    try {
+      // Speculative compaction execution, may be interrupted if flush is forced while
+      // compaction is in progress
+      compactor.startCompact(store);
+    } catch (IOException e) {
+      LOG.error("Unable to run memstore compaction", e);
+    }
+
   }
 
   private void pushActiveToPipeline(MemStoreSegment active) {
@@ -229,19 +249,24 @@ public class CompactedMemStore extends AbstractMemStore {
 //  }
 
   @Override
-  public AbstractMemStore setForceFlush() {
-    forceFlush = true;
+  public AbstractMemStore setForceFlushToDisk() {
+    forceFlushToDisk = true;
     // stop compactor if currently working, to avoid possible conflict in pipeline
     compactor.stopCompact();
     return this;
   }
 
-  @Override public boolean isMemstoreCompaction() {
+
+  @Override boolean isForceFlushToDisk() {
+    return forceFlushToDisk;
+  }
+
+  @Override public boolean isMemStoreCompaction() {
     return compactor.isInCompaction();
   }
 
   private CompactedMemStore resetForceFlush() {
-    forceFlush = false;
+    forceFlushToDisk = false;
     return this;
   }
 
@@ -283,5 +308,37 @@ public class CompactedMemStore extends AbstractMemStore {
 
   public HRegion getRegion() {
     return store.getHRegion();
+  }
+  public byte[] getFamilyName() { return store.getFamily().getName(); }
+
+  /**
+   * Returns the (maximal) sequence id that is associated with the maximal ts that is smaller than
+   * the given ts, and removes all entries in the ts=>seqid map with timestamp smaller than
+   * the given ts.
+   * @param minTimestamp
+   * @return
+   */
+  public Long getMaxSeqId(Long minTimestamp) {
+    Long res = null;
+    Long last = null;
+    List<Long> tsToRemove = new LinkedList<Long>();
+    for(Long ts : timestampToWALSeqId.keySet()) {
+      if(ts >= minTimestamp) {
+        if(last != null) {
+          tsToRemove.add(last);
+          res = timestampToWALSeqId.get(last);
+        }
+        break;
+      }
+      // else ts < min ts in memstore, therefore can use sequence id to truncate wal
+      if(last != null) {
+        tsToRemove.add(last);
+      }
+      last = ts;
+    }
+    for(Long ts :tsToRemove) {
+      timestampToWALSeqId.remove(ts);
+    }
+    return res;
   }
 }
