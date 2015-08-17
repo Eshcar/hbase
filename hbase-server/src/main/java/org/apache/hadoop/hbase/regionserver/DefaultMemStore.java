@@ -166,7 +166,7 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override boolean isForceFlushToDisk() {
-    return false;
+    return true;
   }
 
   @Override public boolean isMemStoreCompaction() {
