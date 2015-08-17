@@ -2057,7 +2057,7 @@ public class HStore implements Store {
      * If necessary, the lock can be added with the patch provided in HBASE-10087
      */
     @Override
-    public void prepare() {
+    public void prepareFlushToDisk() {
       this.snapshot = memstore.snapshot();
       this.cacheFlushCount = snapshot.getCellsCount();
       this.cacheFlushSize = snapshot.getSize();
@@ -2285,12 +2285,20 @@ public class HStore implements Store {
   }
 
   @Override
-  public void setForceFlush() {
-    this.memstore.setForceFlush();
+  public void setForceFlushToDisk() {
+    this.memstore.setForceFlushToDisk();
   }
 
   @Override
   public boolean isMemstoreCompaction() {
-    return memstore.isMemstoreCompaction();
+    return memstore.isMemStoreCompaction();
+  }
+
+  @Override public boolean shouldFlushInMemory() {
+    return memstore.shouldFlushInMemory();
+  }
+
+  @Override public void flushInMemory(long flushOpSeqId) {
+    memstore.flushInMemory(flushOpSeqId);
   }
 }

@@ -17,9 +17,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Collection;
-
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+
+import java.util.Collection;
 
 /**
  * A {@link FlushPolicy} that always flushes all stores for a given region.
@@ -29,7 +29,7 @@ public class FlushAllStoresPolicy extends FlushPolicy {
 
   @Override
   public Collection<Store> selectStoresToFlush() {
-    return region.stores.values();
+    return allStoresExcludingFlushInMemory();
   }
 
 }

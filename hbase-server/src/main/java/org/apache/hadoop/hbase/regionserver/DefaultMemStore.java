@@ -160,13 +160,21 @@ public class DefaultMemStore extends AbstractMemStore {
     return heapSize();
   }
 
-  @Override public AbstractMemStore setForceFlush() {
+  @Override public AbstractMemStore setForceFlushToDisk() {
     // do nothing
     return this;
   }
 
-  @Override public boolean isMemstoreCompaction() {
+  @Override boolean isForceFlushToDisk() {
     return false;
+  }
+
+  @Override public boolean isMemStoreCompaction() {
+    return false;
+  }
+
+  @Override public void flushInMemory(long flushOpSeqId) {
+    return;
   }
 
   /**

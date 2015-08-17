@@ -18,23 +18,6 @@
  */
 package org.apache.hadoop.hbase.regionserver.wal;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -99,6 +82,23 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.when;
 
 /**
  * Test replay of edits out of a WAL split.
@@ -834,12 +834,13 @@ public class TestWALReplay {
               new HRegion(basedir, newWal, newFS, newConf, hri, htd, null) {
             @Override
             protected FlushResult internalFlushcache(final WAL wal, final long myseqid,
-                final Collection<Store> storesToFlush, MonitoredTask status,
+                final Collection<Store> storesToFlushToDisk,
+                Collection<Store> specificStoresToFlushInMemory, MonitoredTask status,
                 boolean writeFlushWalMarker)
                     throws IOException {
               LOG.info("InternalFlushCache Invoked");
-              FlushResult fs = super.internalFlushcache(wal, myseqid, storesToFlush,
-                  Mockito.mock(MonitoredTask.class), writeFlushWalMarker);
+              FlushResult fs = super.internalFlushcache(wal, myseqid, storesToFlushToDisk,
+                  specificStoresToFlushInMemory, Mockito.mock(MonitoredTask.class), writeFlushWalMarker);
               flushcount.incrementAndGet();
               return fs;
             };

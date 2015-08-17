@@ -243,7 +243,7 @@ public class TestHRegion {
     // First put something in current memstore, which will be in snapshot after flusher.prepare()
     region.put(put);
     StoreFlushContext storeFlushCtx = store.createFlushContext(12345);
-    storeFlushCtx.prepare();
+    storeFlushCtx.prepareFlushToDisk();
     // Second put something in current memstore
     put.add(COLUMN_FAMILY_BYTES, Bytes.toBytes("abc"), value);
     region.put(put);
@@ -272,7 +272,7 @@ public class TestHRegion {
 
       @Override
       public void sync(long txid) throws IOException {
-        storeFlushCtx.prepare();
+        storeFlushCtx.prepareFlushToDisk();
         super.sync(txid);
       }
     }
@@ -434,7 +434,7 @@ public class TestHRegion {
           // Manufacture an outstanding snapshot -- fake a failed flush by doing prepare step only.
           Store store = region.getStore(COLUMN_FAMILY_BYTES);
           StoreFlushContext storeFlushCtx = store.createFlushContext(12345);
-          storeFlushCtx.prepare();
+          storeFlushCtx.prepareFlushToDisk();
           // Now add two entries to the foreground memstore.
           Put p2 = new Put(row);
           p2.add(new KeyValue(row, COLUMN_FAMILY_BYTES, qual2, 2, (byte[])null));

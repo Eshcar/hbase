@@ -163,6 +163,23 @@ class SequenceIdAccounting {
     }
   }
 
+  void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid) {
+    Long highest = this.highestSequenceIds.get(encodedRegionName);
+    if(sequenceid > highest) {
+      this.highestSequenceIds.put(encodedRegionName, sequenceid);
+    }
+    ConcurrentMap<byte[], Long> m = getOrCreateLowestSequenceIds(encodedRegionName);
+    boolean replaced = false;
+    while(!replaced) {
+      Long l = m.get(familyName);
+      if (sequenceid > l) {
+        replaced = m.replace(familyName,l,sequenceid);
+      } else {
+        break;
+      }
+    }
+  }
+
   ConcurrentMap<byte[], Long> getOrCreateLowestSequenceIds(byte[] encodedRegionName) {
     // Intentionally, this access is done outside of this.regionSequenceIdLock. Done per append.
     ConcurrentMap<byte[], Long> m = this.lowestUnflushedSequenceIds.get(encodedRegionName);
