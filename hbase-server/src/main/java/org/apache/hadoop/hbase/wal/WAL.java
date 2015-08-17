@@ -19,20 +19,13 @@
 
 package org.apache.hadoop.hbase.wal;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.apache.hadoop.hbase.classification.InterfaceStability;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
-
-// imports we use from yet-to-be-moved regionsever.wal
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.regionserver.wal.CompressionContext;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
@@ -40,7 +33,13 @@ import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
+// imports we use from yet-to-be-moved regionsever.wal
 
 /**
  * A Write Ahead Log (WAL) provides service for reading, writing waledits. This interface provides
@@ -130,9 +129,18 @@ public interface WAL {
   throws IOException;
 
   /**
-   * Sync what we have in the WAL.
-   * @throws IOException
+   * updates the seuence number of a specific store.
+   * replaces current seq number if the given seq id is bigger.
+   * @param encodedRegionName
+   * @param familyName
+   * @param sequenceid
    */
+  void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid);
+
+    /**
+     * Sync what we have in the WAL.
+     * @throws IOException
+     */
   void sync() throws IOException;
 
   /**

@@ -1435,13 +1435,24 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             if (flushCount++ > 0) {
               int actualFlushes = flushCount - 1;
               if (actualFlushes > 5) {
+                String msg = ", ";
+                msg += getRegionInfo().toString();
+                msg += getRegionInfo().isMetaRegion() ? " meta region " : " ";
+                msg += getRegionInfo().isMetaTable() ? " meta table " : " ";
+                msg += "stores: ";
+                for(Store s :getStores()) {
+                  msg += "family ";
+                  msg += s.getFamily().getNameAsString();
+                  msg += ", ";
+                }
+                msg += " end-of-stores";
                 // If we tried 5 times and are unable to clear memory, abort
                 // so we do not lose data
                 throw new DroppedSnapshotException("Failed clearing memory after " +
                   actualFlushes + " attempts on region: " +
                     Bytes.toStringBinary(getRegionInfo().getRegionName())
                     + " memstore size: " + getMemstoreSize() + " total size (memstore + pipeline)" +
-                    ": " + getMemstoreTotalSize());
+                    ": " + getMemstoreTotalSize()+msg);
               }
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
@@ -1947,13 +1958,15 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         if(forceFlushInsteadOfCompaction) {
           for(Store s : stores.values()) {
-            s.setForceFlush();
+            s.setForceFlushToDisk();
           }
         }
-        Collection<Store> specificStoresToFlush =
+        Collection<Store> specificStoresToFlushToDisk =
             forceFlushAllStores ? stores.values() : flushPolicy.selectStoresToFlush();
-        FlushResult fs = internalFlushcache(specificStoresToFlush,
-          status, writeFlushRequestWalMarker);
+        Collection<Store> specificStoresToFlushInMemory =
+            forceFlushAllStores ? Collections.EMPTY_SET : flushPolicy.selectStoresToFlushInMemory();
+        FlushResult fs = internalFlushcache(specificStoresToFlushToDisk,
+            specificStoresToFlushInMemory, status, writeFlushRequestWalMarker);
 
         if (coprocessorHost != null) {
           status.setStatus("Running post-flush coprocessor hooks");
@@ -2047,25 +2060,26 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   /**
    * Flushing all stores.
    *
-   * @see #internalFlushcache(Collection, MonitoredTask, boolean)
+   * @see #internalFlushcache(java.util.Collection, java.util.Collection, org.apache.hadoop.hbase.monitoring.MonitoredTask, boolean)
    */
   private FlushResult internalFlushcache(MonitoredTask status)
       throws IOException {
     for(Store s : stores.values()) {
-        s.setForceFlush();
+        s.setForceFlushToDisk();
     }
-    return internalFlushcache(stores.values(), status, false);
+    return internalFlushcache(stores.values(), Collections.EMPTY_SET, status, false);
   }
 
   /**
    * Flushing given stores.
    *
-   * @see #internalFlushcache(WAL, long, Collection, MonitoredTask, boolean)
+   * @see #internalFlushcache(org.apache.hadoop.hbase.wal.WAL, long, java.util.Collection, java.util.Collection, org.apache.hadoop.hbase.monitoring.MonitoredTask, boolean)
    */
-  private FlushResult internalFlushcache(final Collection<Store> storesToFlush,
-      MonitoredTask status, boolean writeFlushWalMarker) throws IOException {
-    return internalFlushcache(this.wal, HConstants.NO_SEQNUM, storesToFlush,
-        status, writeFlushWalMarker);
+  private FlushResult internalFlushcache(final Collection<Store> storesToFlushToDisk,
+      Collection<Store> storesToFlushInMemory, MonitoredTask status,
+      boolean writeFlushWalMarker) throws IOException {
+    return internalFlushcache(this.wal, HConstants.NO_SEQNUM, storesToFlushToDisk,
+        storesToFlushInMemory, status, writeFlushWalMarker);
   }
 
   /**
@@ -2087,8 +2101,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * @param myseqid
    *          The seqid to use if <code>wal</code> is null writing out flush
    *          file.
-   * @param storesToFlush
+   * @param storesToFlushToDisk
    *          The list of stores to flush.
+   * @param storesToFlushInMemory
    * @return object describing the flush's state
    * @throws IOException
    *           general io exceptions
@@ -2097,20 +2112,23 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    *           properly persisted.
    */
   protected FlushResult internalFlushcache(final WAL wal, final long myseqid,
-      final Collection<Store> storesToFlush, MonitoredTask status, boolean writeFlushWalMarker)
+      final Collection<Store> storesToFlushToDisk, Collection<Store> storesToFlushInMemory,
+      MonitoredTask status, boolean writeFlushWalMarker)
           throws IOException {
     PrepareFlushResult result
-      = internalPrepareFlushCache(wal, myseqid, storesToFlush, status, writeFlushWalMarker);
+      = internalPrepareFlushCache(wal, myseqid, storesToFlushToDisk,
+        storesToFlushInMemory, status, writeFlushWalMarker);
     if (result.result == null) {
-      return internalFlushCacheAndCommit(wal, status, result, storesToFlush);
+      return internalFlushCacheAndCommit(wal, status, result, storesToFlushToDisk);
     } else {
       return result.result; // early exit due to failure from prepare stage
     }
   }
 
   protected PrepareFlushResult internalPrepareFlushCache(
-      final WAL wal, final long myseqid, final Collection<Store> storesToFlush,
-      MonitoredTask status, boolean writeFlushWalMarker)
+      final WAL wal, final long myseqid, final Collection<Store> storesToFlushToDisk,
+      Collection<Store> storesToFlushInMemory, MonitoredTask status,
+      boolean writeFlushWalMarker)
           throws IOException {
 
     if (this.rsServices != null && this.rsServices.isAborted()) {
@@ -2163,16 +2181,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (LOG.isInfoEnabled()) {
       // Log a fat line detailing what is being flushed.
       StringBuilder perCfExtras = null;
-      if (!isAllFamilies(storesToFlush)) {
+      if (!isAllFamilies(storesToFlushToDisk)) {
         perCfExtras = new StringBuilder();
-        for (Store store: storesToFlush) {
+        for (Store store: storesToFlushToDisk) {
           perCfExtras.append("; ");
           perCfExtras.append(store.getColumnFamilyName());
           perCfExtras.append("=");
           perCfExtras.append(StringUtils.byteDesc(store.getMemStoreSize()));
         }
       }
-      LOG.info("Flushing " + + storesToFlush.size() + "/" + stores.size() +
+      LOG.info("Flushing " + + storesToFlushToDisk.size() + "/" + stores.size() +
         " column families, memstore=" + StringUtils.byteDesc(this.memstoreSize.get()) +
         ((perCfExtras != null && perCfExtras.length() > 0)? perCfExtras.toString(): "") +
         ((wal != null) ? "" : "; WAL is null, using passed sequenceid=" + myseqid));
@@ -2192,7 +2210,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     long totalFlushableSizeOfFlushableStores = 0;
 
     Set<byte[]> flushedFamilyNames = new HashSet<byte[]>();
-    for (Store store: storesToFlush) {
+    for (Store store: storesToFlushToDisk) {
       flushedFamilyNames.add(store.getFamily().getName());
     }
 
@@ -2234,7 +2252,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           flushedSeqId = flushOpSeqId = myseqid;
         }
 
-        for (Store s : storesToFlush) {
+        for (Store s : storesToFlushToDisk) {
           totalFlushableSizeOfFlushableStores += s.getFlushableSize();
           storeFlushCtxs.put(s.getFamily().getName(), s.createFlushContext(flushOpSeqId));
           committedFiles.put(s.getFamily().getName(), null); // for writing stores to WAL
@@ -2249,9 +2267,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             desc, sequenceId, false);
         }
 
-        // Prepare flush (take a snapshot)
+        //flush in memory
+        for(Store s : storesToFlushInMemory) {
+          s.flushInMemory(flushOpSeqId);
+        }
+        // Prepare flush to disk (take a snapshot)
         for (StoreFlushContext flush : storeFlushCtxs.values()) {
-          flush.prepare();
+          flush.prepareFlushToDisk();
         }
       } catch (IOException ex) {
         if (wal != null) {
@@ -3635,7 +3657,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         // do not force flush if memstore compaction is in progress
         continue;
       }
-      s.setForceFlush();
+      s.setForceFlushToDisk();
     }
     requestFlush();
   }
@@ -3937,7 +3959,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     if (seqid > minSeqIdForTheRegion) {
       // Then we added some edits to memory. Flush and cleanup split edit files.
-      internalFlushcache(null, seqid, stores.values(), status, false);
+      internalFlushcache(null, seqid, stores.values(), Collections.EMPTY_SET, status, false);
     }
     // Now delete the content of recovered edits.  We're done w/ them.
     if (files.size() > 0 && this.conf.getBoolean("hbase.region.archive.recovered.edits", false)) {
@@ -4104,7 +4126,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             editsCount++;
           }
           if (flush) {
-            internalFlushcache(null, currentEditSeqId, stores.values(), status, false);//force flush
+            internalFlushcache(null, currentEditSeqId, stores.values(),
+                Collections.EMPTY_SET, status, false);//force flush
           }
 
           if (coprocessorHost != null) {
@@ -4296,7 +4319,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
           // invoke prepareFlushCache. Send null as wal since we do not want the flush events in wal
           PrepareFlushResult prepareResult = internalPrepareFlushCache(null,
-            flushSeqId, storesToFlush, status, false);
+            flushSeqId, storesToFlush, Collections.EMPTY_SET, status, false);
           if (prepareResult.result == null) {
             // save the PrepareFlushResult so that we can use it later from commit flush
             this.writestate.flushing = true;
@@ -4573,7 +4596,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     long snapshotSize = s.getFlushableSize();
     this.addAndGetGlobalMemstoreSize(-snapshotSize);
     StoreFlushContext ctx = s.createFlushContext(currentSeqId);
-    ctx.prepare();
+    ctx.prepareFlushToDisk();
     ctx.abort();
     return snapshotSize;
   }

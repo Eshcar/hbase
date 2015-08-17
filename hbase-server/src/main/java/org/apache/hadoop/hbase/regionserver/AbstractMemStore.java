@@ -98,10 +98,16 @@ public abstract class AbstractMemStore implements MemStore {
 
   public abstract boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
-  public abstract AbstractMemStore setForceFlush();
-  public abstract boolean isMemstoreCompaction();
+  public abstract AbstractMemStore setForceFlushToDisk();
+  abstract boolean isForceFlushToDisk();
+  public abstract boolean isMemStoreCompaction();
+  boolean shouldFlushInMemory() {
+    return !isForceFlushToDisk();
+  }
+  public abstract void flushInMemory(long flushOpSeqId);
 
-//  protected abstract long deepOverhead();
+
+  //  protected abstract long deepOverhead();
   protected long deepOverhead() {
     return DEEP_OVERHEAD;
   }

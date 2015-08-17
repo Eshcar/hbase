@@ -1066,6 +1066,18 @@ public class FSHLog implements WAL {
   }
 
   /**
+   * updates the seuence number of a specific store.
+   * replaces current seq number if the given seq id is bigger.
+   *
+   * @param encodedRegionName
+   * @param familyName
+   * @param sequenceid
+   */
+  @Override public void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid) {
+    sequenceIdAccounting.updateStore(encodedRegionName,familyName,sequenceid);
+  }
+
+  /**
    * Thread to runs the hdfs sync call. This call takes a while to complete.  This is the longest
    * pole adding edits to the WAL and this must complete to be sure all edits persisted.  We run
    * multiple threads sync'ng rather than one that just syncs in series so we have better
