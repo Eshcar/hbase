@@ -1435,24 +1435,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             if (flushCount++ > 0) {
               int actualFlushes = flushCount - 1;
               if (actualFlushes > 5) {
-                String msg = ", ";
-                msg += getRegionInfo().toString();
-                msg += getRegionInfo().isMetaRegion() ? " meta region " : " ";
-                msg += getRegionInfo().isMetaTable() ? " meta table " : " ";
-                msg += "stores: ";
-                for(Store s :getStores()) {
-                  msg += "family ";
-                  msg += s.getFamily().getNameAsString();
-                  msg += ", ";
-                }
-                msg += " end-of-stores";
                 // If we tried 5 times and are unable to clear memory, abort
                 // so we do not lose data
                 throw new DroppedSnapshotException("Failed clearing memory after " +
                   actualFlushes + " attempts on region: " +
                     Bytes.toStringBinary(getRegionInfo().getRegionName())
                     + " memstore size: " + getMemstoreSize() + " total size (memstore + pipeline)" +
-                    ": " + getMemstoreTotalSize()+msg);
+                    ": " + getMemstoreTotalSize());
               }
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
@@ -1877,9 +1866,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   @Override
-  public FlushResult flush(boolean force,boolean forceFlushInsteadOfCompaction) throws IOException {
+  public FlushResult flush(boolean force,boolean forceDiskFlushInsteadOfInMemoryFlush) throws IOException {
     boolean writeFlushRequestWalMarker = false;
-    return flushcache(force, writeFlushRequestWalMarker,forceFlushInsteadOfCompaction);
+    return flushcache(force, writeFlushRequestWalMarker,forceDiskFlushInsteadOfInMemoryFlush);
   }
 
   @Override
@@ -1890,9 +1879,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   public FlushResult flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker)
       throws IOException {
-    boolean forceFlushInsteadOfCompaction = true;
+    boolean forceDiskFlushInsteadOfInMemoryFlush = true;
     return flushcache(forceFlushAllStores, writeFlushRequestWalMarker,
-        forceFlushInsteadOfCompaction);
+        forceDiskFlushInsteadOfInMemoryFlush);
   }
   /**
    * Flush the cache.
@@ -1917,7 +1906,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * caller MUST abort after this.
    */
   public FlushResult flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker,
-      boolean forceFlushInsteadOfCompaction) throws IOException {
+      boolean forceDiskFlushInsteadOfInMemoryFlush) throws IOException {
     // fail-fast instead of waiting on the lock
     if (this.closing.get()) {
       String msg = "Skipping flush on " + this + " because closing";
@@ -1963,7 +1952,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
 
       try {
-        if(forceFlushInsteadOfCompaction) {
+        if(forceDiskFlushInsteadOfInMemoryFlush) {
           for(Store s : stores.values()) {
             s.setForceFlushToDisk();
           }
@@ -8122,5 +8111,29 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   public CellComparator getCellCompartor() {
     return this.getRegionInfo().isMetaRegion() ? CellComparator.META_COMPARATOR
         : CellComparator.COMPARATOR;
+  }
+
+
+  //// method for debugging tests
+  public void throwException(String title, String regionName) {
+    String msg = title+", ";
+    msg += getRegionInfo().toString();
+    msg += getRegionInfo().isMetaRegion() ? " meta region " : " ";
+    msg += getRegionInfo().isMetaTable() ? " meta table " : " ";
+    msg += "stores: ";
+    for(Store s : getStores()) {
+      msg += s.getFamily().getNameAsString();
+      msg += " size: ";
+      msg += s.getMemStoreSize();
+      msg += " ";
+    }
+    msg += "end-of-stores";
+    msg += ", memstore size ";
+    msg += getMemstoreSize();
+    msg += ", total memstore size ";
+    msg += getMemstoreTotalSize();
+    if(getRegionInfo().getRegionNameAsString().startsWith(regionName)) {
+      throw new RuntimeException(msg);
+    }
   }
 }
