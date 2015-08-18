@@ -160,7 +160,7 @@ public class CompactedMemStore extends AbstractMemStore {
       } else {
         LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
             "and pipeline tail into snapshot.");
-        pushActiveToPipeline(active);
+        pushActiveToPipeline(active, false);
         this.snapshotId = EnvironmentEdgeManager.currentTime();
         pushTailToSnapshot();
         resetForceFlush();
@@ -172,7 +172,7 @@ public class CompactedMemStore extends AbstractMemStore {
   @Override public void flushInMemory(long flushOpSeqId) {
     MemStoreSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
-    pushActiveToPipeline(active);
+    pushActiveToPipeline(active, true);
     Long now = System.currentTimeMillis();
     timestampToWALSeqId.put(now,flushOpSeqId);
     try {
@@ -185,13 +185,17 @@ public class CompactedMemStore extends AbstractMemStore {
 
   }
 
-  private void pushActiveToPipeline(MemStoreSegment active) {
+  private void pushActiveToPipeline(MemStoreSegment active,
+      boolean needToUpdateRegionMemstoreSizeCounter) {
     if (!active.isEmpty()) {
       pipeline.pushHead(active);
       active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       long size = getMemStoreSegmentSize(active);
       resetCellSet();
-      updateRegionCounters(size);
+      updateRegionAdditionalMemstoreSizeCounter(size); //push size into pipeline
+      if(needToUpdateRegionMemstoreSizeCounter) {
+        updateRegionMemStoreSizeCounter(-size);
+      }
     }
   }
 
@@ -201,11 +205,11 @@ public class CompactedMemStore extends AbstractMemStore {
       setSnapshot(tail);
       long size = getMemStoreSegmentSize(tail);
       setSnapshotSize(size);
-      updateRegionCounters(-size);
+      updateRegionAdditionalMemstoreSizeCounter(-size); //pull size out of pipeline
     }
   }
 
-  private void updateRegionCounters(long size) {
+  private void updateRegionAdditionalMemstoreSizeCounter(long size) {
     if(getRegion() != null) {
       long globalMemstoreAdditionalSize = getRegion().addAndGetGlobalMemstoreAdditionalSize(size);
       // no need to update global memstore size as it is updated by the flusher
@@ -213,6 +217,13 @@ public class CompactedMemStore extends AbstractMemStore {
     }
   }
 
+  private void updateRegionMemStoreSizeCounter(long size) {
+    if(getRegion() != null) {
+      // need to update global memstore size when it is not accounted by the flusher
+      long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(size);
+      LOG.info(" globalMemstoreSize: "+globalMemstoreSize);
+    }
+  }
   /**
    * On flush, how much memory we will clear from the active cell set.
    *
@@ -220,7 +231,8 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override
   public long getFlushableSize() {
-    return keySize();
+    long snapshotSize = getSnapshot().getSize();
+    return snapshotSize > 0 ? snapshotSize : keySize();
   }
 
   /**
