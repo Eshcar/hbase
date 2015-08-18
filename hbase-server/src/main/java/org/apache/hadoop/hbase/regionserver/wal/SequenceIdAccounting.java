@@ -164,6 +164,7 @@ class SequenceIdAccounting {
   }
 
   void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid) {
+    if(sequenceid == null) return;
     Long highest = this.highestSequenceIds.get(encodedRegionName);
     if(sequenceid > highest) {
       this.highestSequenceIds.put(encodedRegionName, sequenceid);
@@ -172,7 +173,10 @@ class SequenceIdAccounting {
     boolean replaced = false;
     while(!replaced) {
       Long l = m.get(familyName);
-      if (sequenceid > l) {
+      if(l == null) {
+        m.put(familyName,sequenceid);
+        replaced = true;
+      } else if (sequenceid > l) {
         replaced = m.replace(familyName,l,sequenceid);
       } else {
         break;
