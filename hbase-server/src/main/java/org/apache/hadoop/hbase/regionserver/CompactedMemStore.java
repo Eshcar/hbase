@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.wal.WAL;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -169,7 +170,8 @@ public class CompactedMemStore extends AbstractMemStore {
     return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
   }
 
-  @Override public void flushInMemory(long flushOpSeqId) {
+  @Override
+  public void flushInMemory(long flushOpSeqId) {
     MemStoreSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
     pushActiveToPipeline(active, true);
@@ -183,6 +185,19 @@ public class CompactedMemStore extends AbstractMemStore {
       LOG.error("Unable to run memstore compaction", e);
     }
 
+  }
+
+  @Override
+  public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
+    long minTimestamp = pipeline.getMinTimestamp();
+    Long seqId = getMaxSeqId(minTimestamp);
+    if(seqId == null) return;
+    byte[] encodedRegionName = getRegion().getRegionInfo().getEncodedNameAsBytes();
+    byte[] familyName = getFamilyName();
+    WAL wal = getRegion().getWAL();
+    if(wal != null) {
+      wal.updateStore(encodedRegionName, familyName, seqId, onlyIfGreater);
+    }
   }
 
   private void pushActiveToPipeline(MemStoreSegment active,
@@ -330,7 +345,7 @@ public class CompactedMemStore extends AbstractMemStore {
    * @param minTimestamp
    * @return
    */
-  public Long getMaxSeqId(Long minTimestamp) {
+  public Long getMaxSeqId(long minTimestamp) {
     Long res = null;
     Long last = null;
     List<Long> tsToRemove = new LinkedList<Long>();

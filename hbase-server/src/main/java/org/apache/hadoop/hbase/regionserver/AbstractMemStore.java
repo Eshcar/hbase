@@ -105,6 +105,7 @@ public abstract class AbstractMemStore implements MemStore {
     return !isForceFlushToDisk();
   }
   public abstract void flushInMemory(long flushOpSeqId);
+  public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater);
 
 
   //  protected abstract long deepOverhead();

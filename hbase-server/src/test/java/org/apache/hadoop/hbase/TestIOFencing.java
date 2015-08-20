@@ -219,6 +219,10 @@ public class TestIOFencing {
     @Override public void flushInMemory(long flushOpSeqId) {
       return;
     }
+
+    @Override public void updateLowestUnflushedSequenceIdInWal() {
+      return;
+    }
   }
 
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();

@@ -203,6 +203,9 @@ final class MemStoreSegment {
     return getComparator().compareRows(left, right);
   }
 
+  public long getMinTimestamp() {
+    return this.timeRangeTracker.getMinimumTimestamp();
+  }
 
   public void setSize(long size) {
     this.size.set(size);

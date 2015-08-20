@@ -157,17 +157,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
       KeyValue cell;
       try {
         // Phase I: create the compacted MemStoreSegment
-        Long minTimestamp = compactSegments(result);
+        compactSegments(result);
         // Phase II: swap the old compaction pipeline
         if (!Thread.currentThread().isInterrupted()) {
           cp.swap(versionedList, result);
           // update the wal so it can be truncated and not get too long
-          Long seqId = ms.getMaxSeqId(minTimestamp);
-          if(seqId != null) {
-            byte[] encodedRegionName = ms.getRegion().getRegionInfo().getEncodedNameAsBytes();
-            byte[] familyName = ms.getFamilyName();
-            ms.getRegion().getWAL().updateStore(encodedRegionName, familyName, seqId);
-          }
+          ms.updateLowestUnflushedSequenceIdInWal(true); // only if greater
         }
       } catch (Exception e) {
         Thread.currentThread().interrupt();
@@ -201,7 +196,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
    * Creates a single MemStoreSegment using the internal store scanner,
    * who in turn uses ScanQueryMatcher
    */
-  private Long compactSegments(MemStoreSegment result) throws IOException {
+  private void compactSegments(MemStoreSegment result) throws IOException {
 
     List<Cell> kvs = new ArrayList<Cell>();
     // get the limit to the size of the groups to be returned by compactingScanner
@@ -213,7 +208,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
         ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
 
     boolean hasMore;
-    long minTimestamp = Long.MAX_VALUE;
     do {
       hasMore = compactingScanner.next(kvs, scannerContext);
       if (!kvs.isEmpty()) {
@@ -222,17 +216,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
           // now we just copy it to the new segment
           KeyValue kv = KeyValueUtil.ensureKeyValue(c);
           Cell newKV = result.maybeCloneWithAllocator(kv);
-          long timestamp = newKV.getTimestamp();
-          if(timestamp < minTimestamp) {
-            minTimestamp = timestamp;
-          }
           result.add(newKV);
 
         }
         kvs.clear();
       }
     } while (hasMore && (!isInterrupted.get()));
-    return minTimestamp;
   }
 
   // methods for tests
