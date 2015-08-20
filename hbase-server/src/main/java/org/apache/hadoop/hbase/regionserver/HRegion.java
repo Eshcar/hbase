@@ -3828,7 +3828,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       writestate.flushRequested = true;
     }
     // Make request outside of synchronize block; HBASE-818.
-    this.rsServices.getFlushRequester().requestFlush(this, false);
+    this.rsServices.getFlushRequester().requestFlush(this, false, false);
     if (LOG.isDebugEnabled()) {
       LOG.debug("Flush requested on " + this.getRegionInfo().getEncodedName());
     }

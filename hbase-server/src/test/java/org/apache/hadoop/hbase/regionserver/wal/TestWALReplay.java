@@ -961,7 +961,7 @@ public class TestWALReplay {
     private HRegion r;
 
     @Override
-    public void requestFlush(Region region, boolean force) {
+    public void requestFlush(Region region, boolean force, boolean forceCompacted) {
       try {
         r.flush(force);
       } catch (IOException e) {
