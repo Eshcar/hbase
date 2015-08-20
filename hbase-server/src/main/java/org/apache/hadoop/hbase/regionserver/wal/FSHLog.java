@@ -1067,14 +1067,16 @@ public class FSHLog implements WAL {
 
   /**
    * updates the seuence number of a specific store.
-   * replaces current seq number if the given seq id is bigger.
-   *
-   * @param encodedRegionName
+   * depending on the flag: replaces current seq number if the given seq id is bigger,
+   * or even if it is lower than existing one
+   *  @param encodedRegionName
    * @param familyName
    * @param sequenceid
+   * @param onlyIfGreater
    */
-  @Override public void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid) {
-    sequenceIdAccounting.updateStore(encodedRegionName,familyName,sequenceid);
+  @Override public void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
+      boolean onlyIfGreater) {
+    sequenceIdAccounting.updateStore(encodedRegionName,familyName,sequenceid,onlyIfGreater);
   }
 
   /**

@@ -428,6 +428,8 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   boolean shouldFlushInMemory();
   // flush memstore into an in-memory compacted segment
   void flushInMemory(long flushOpSeqId);
+  // update wal with a new sequence id
+  void updateLowestUnflushedSequenceIdInWal();
 
    /**
     * Replaces the store files that the store has with the given files. Mainly used by

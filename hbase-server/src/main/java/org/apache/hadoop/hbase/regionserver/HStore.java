@@ -2291,4 +2291,8 @@ public class HStore implements Store {
   @Override public void flushInMemory(long flushOpSeqId) {
     memstore.flushInMemory(flushOpSeqId);
   }
+
+  @Override public void updateLowestUnflushedSequenceIdInWal() {
+     memstore.updateLowestUnflushedSequenceIdInWal(false); //update even if not greater
+  }
 }
