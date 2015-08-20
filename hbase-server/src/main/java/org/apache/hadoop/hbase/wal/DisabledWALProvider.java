@@ -173,7 +173,7 @@ class DisabledWALProvider implements WALProvider {
 
     @Override
     public void updateStore(byte[] encodedRegionName, byte[] familyName,
-        Long sequenceid) { return; }
+        Long sequenceid, boolean onlyIfGreater) { return; }
 
     @Override
     public void sync() {

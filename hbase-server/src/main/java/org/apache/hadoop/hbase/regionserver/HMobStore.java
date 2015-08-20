@@ -515,6 +515,10 @@ public class HMobStore extends HStore {
     return;
   }
 
+  @Override public void updateLowestUnflushedSequenceIdInWal() {
+    return;
+  }
+
   public void updateCellsCountCompactedToMob(long count) {
     cellsCountCompactedToMob += count;
   }

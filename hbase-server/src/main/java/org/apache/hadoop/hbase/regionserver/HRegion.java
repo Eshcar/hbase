@@ -2452,6 +2452,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
 
     // If we get to here, the HStores have been written.
+
+    // stores that do in memory flushes might still have data in memory therefor need to update the
+    // wal w.r.t. their content
+    updateLowestUnflushedSequenceIdInWal(storesToFlush);
     if (wal != null) {
       wal.completeCacheFlush(this.getRegionInfo().getEncodedNameAsBytes());
     }
@@ -2486,6 +2490,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
           FlushResult.Result.FLUSHED_NO_COMPACTION_NEEDED,
         flushOpSeqId);
+  }
+
+  // stores that do in memory flushes might still have data in memory therefor need to update the
+  // wal w.r.t. their content
+  private void updateLowestUnflushedSequenceIdInWal(Collection<Store> storesToFlush) {
+    for(Store s :storesToFlush) {
+      s.updateLowestUnflushedSequenceIdInWal();
+    }
   }
 
   /**

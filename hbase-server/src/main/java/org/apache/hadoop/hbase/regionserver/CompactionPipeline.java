@@ -220,4 +220,11 @@ public class CompactionPipeline {
     version++;
   }
 
+  public long getMinTimestamp() {
+    long minTimestamp = Long.MIN_VALUE;
+    if(!isEmpty()) {
+      minTimestamp = pipeline.getLast().getMinTimestamp();
+    }
+    return minTimestamp;
+  }
 }

@@ -130,12 +130,15 @@ public interface WAL {
 
   /**
    * updates the seuence number of a specific store.
-   * replaces current seq number if the given seq id is bigger.
+   * depending on the flag: replaces current seq number if the given seq id is bigger,
+   * or even if it is lower than existing one
    * @param encodedRegionName
    * @param familyName
    * @param sequenceid
+   * @param onlyIfGreater
    */
-  void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid);
+  void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
+      boolean onlyIfGreater);
 
     /**
      * Sync what we have in the WAL.
