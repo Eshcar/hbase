@@ -2290,7 +2290,7 @@ public class HStore implements Store {
   }
 
   @Override
-  public boolean isMemstoreCompaction() {
+  public boolean isMemStoreInCompaction() {
     return memstore.isMemStoreInCompaction();
   }
 

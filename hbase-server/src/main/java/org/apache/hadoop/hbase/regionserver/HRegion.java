@@ -3697,7 +3697,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    */
   private void requestAndForceFlush(boolean waitForCompactions) {
     for (Store s : stores.values()) {
-      if(waitForCompactions && s.isMemstoreCompaction()) {
+      if(waitForCompactions && s.isMemStoreInCompaction()) {
         // do not force flush if memstore compaction is in progress
         continue;
       }

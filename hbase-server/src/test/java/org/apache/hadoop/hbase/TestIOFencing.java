@@ -212,7 +212,7 @@ public class TestIOFencing {
       return;
     }
 
-    @Override public boolean isMemstoreCompaction() {
+    @Override public boolean isMemStoreInCompaction() {
       return false;
     }
 

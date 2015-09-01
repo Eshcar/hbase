@@ -146,6 +146,15 @@ public class CompactionPipeline {
     }
   }
 
+<<<<<<< HEAD
+=======
+//  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
+//    for(MemStoreSegment item : getCellSetMgrList()) {
+//      item.getRowKeyAtOrBefore(state);
+//    }
+//  }
+
+>>>>>>> 4c61099a3ba31b1f5f89743afe4f335239b6fa0d
   public boolean isEmpty() {
     return pipeline.isEmpty();
   }

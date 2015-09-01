@@ -88,7 +88,11 @@ public abstract class AbstractMemStore implements MemStore {
   * backing Map.
   * @param cell
   * @param notpresent True if the cell was NOT present in the set.
+<<<<<<< HEAD
   * @return change in size
+=======
+  * @return Size
+>>>>>>> 4c61099a3ba31b1f5f89743afe4f335239b6fa0d
   */
   static long heapSizeChange(final Cell cell, final boolean notpresent) {
     return notpresent ? ClassSize.align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY
