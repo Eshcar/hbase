@@ -91,14 +91,17 @@ import org.apache.hadoop.hbase.master.cleaner.HFileCleaner;
 import org.apache.hadoop.hbase.master.cleaner.LogCleaner;
 import org.apache.hadoop.hbase.master.handler.DispatchMergingRegionHandler;
 import org.apache.hadoop.hbase.master.procedure.AddColumnFamilyProcedure;
+import org.apache.hadoop.hbase.master.procedure.CreateNamespaceProcedure;
 import org.apache.hadoop.hbase.master.procedure.CreateTableProcedure;
 import org.apache.hadoop.hbase.master.procedure.DeleteColumnFamilyProcedure;
+import org.apache.hadoop.hbase.master.procedure.DeleteNamespaceProcedure;
 import org.apache.hadoop.hbase.master.procedure.DeleteTableProcedure;
 import org.apache.hadoop.hbase.master.procedure.DisableTableProcedure;
 import org.apache.hadoop.hbase.master.procedure.EnableTableProcedure;
 import org.apache.hadoop.hbase.master.procedure.MasterProcedureConstants;
 import org.apache.hadoop.hbase.master.procedure.MasterProcedureEnv;
 import org.apache.hadoop.hbase.master.procedure.ModifyColumnFamilyProcedure;
+import org.apache.hadoop.hbase.master.procedure.ModifyNamespaceProcedure;
 import org.apache.hadoop.hbase.master.procedure.ModifyTableProcedure;
 import org.apache.hadoop.hbase.master.procedure.ProcedurePrepareLatch;
 import org.apache.hadoop.hbase.master.procedure.ProcedureSyncWait;
@@ -1037,6 +1040,11 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     return tableStateManager;
   }
 
+  @Override
+  public TableNamespaceManager getTableNamespaceManager() {
+    return tableNamespaceManager;
+  }
+
   /*
    * Start up all services. If any of these threads gets an unhandled exception
    * then they just die with a logged message.  This should be fine because
@@ -1216,6 +1224,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   }
 
   public boolean balance() throws IOException {
+    return balance(false);
+  }
+
+  public boolean balance(boolean force) throws IOException {
     // if master not initialized, don't run balancer.
     if (!this.initialized) {
       LOG.debug("Master has not been initialized, don't run balancer.");
@@ -1230,10 +1242,14 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
       if (this.assignmentManager.getRegionStates().isRegionsInTransition()) {
         Map<String, RegionState> regionsInTransition =
           this.assignmentManager.getRegionStates().getRegionsInTransition();
-        LOG.debug("Not running balancer because " + regionsInTransition.size() +
+        // if hbase:meta region is in transition, result of assignment cannot be recorded
+        // ignore the force flag in that case
+        boolean metaInTransition = assignmentManager.getRegionStates().isMetaRegionInTransition();
+        String prefix = force && !metaInTransition ? "R" : "Not r";
+        LOG.debug(prefix + "unning balancer because " + regionsInTransition.size() +
           " region(s) in transition: " + org.apache.commons.lang.StringUtils.
             abbreviate(regionsInTransition.toString(), 256));
-        return false;
+        if (!force || metaInTransition) return false;
       }
       if (this.serverManager.areDeadServersInProgress()) {
         LOG.debug("Not running balancer because processing dead regionserver(s): " +
@@ -2191,7 +2207,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   void checkNamespaceManagerReady() throws IOException {
     checkInitialized();
     if (tableNamespaceManager == null ||
-        !tableNamespaceManager.isTableAvailableAndInitialized()) {
+        !tableNamespaceManager.isTableAvailableAndInitialized(true)) {
       throw new IOException("Table Namespace Manager not ready yet, try again later");
     }
   }
@@ -2298,16 +2314,14 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
       Constructor<? extends HMaster> c =
         masterClass.getConstructor(Configuration.class, CoordinatedStateManager.class);
       return c.newInstance(conf, cp);
-    } catch (InvocationTargetException ite) {
-      Throwable target = ite.getTargetException() != null?
-        ite.getTargetException(): ite;
-      if (target.getCause() != null) target = target.getCause();
-      throw new RuntimeException("Failed construction of Master: " +
-        masterClass.toString(), target);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed construction of Master: " +
-        masterClass.toString() + ((e.getCause() != null)?
-          e.getCause().getMessage(): ""), e);
+    } catch(Exception e) {
+      Throwable error = e;
+      if (e instanceof InvocationTargetException &&
+          ((InvocationTargetException)e).getTargetException() != null) {
+        error = ((InvocationTargetException)e).getTargetException();
+      }
+      throw new RuntimeException("Failed construction of Master: " + masterClass.toString() + ". "
+        , error);
     }
   }
 
@@ -2332,7 +2346,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   }
 
   @Override
-  public void createNamespace(NamespaceDescriptor descriptor) throws IOException {
+  public void createNamespace(
+      final NamespaceDescriptor descriptor,
+      final long nonceGroup,
+      final long nonce) throws IOException {
     TableName.isLegalNamespaceName(Bytes.toBytes(descriptor.getName()));
     checkNamespaceManagerReady();
     if (cpHost != null) {
@@ -2340,15 +2357,31 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
         return;
       }
     }
-    LOG.info(getClientIdAuditPrefix() + " creating " + descriptor);
-    tableNamespaceManager.create(descriptor);
+    createNamespaceSync(descriptor, nonceGroup, nonce);
     if (cpHost != null) {
       cpHost.postCreateNamespace(descriptor);
     }
   }
 
   @Override
-  public void modifyNamespace(NamespaceDescriptor descriptor) throws IOException {
+  public void createNamespaceSync(
+      final NamespaceDescriptor descriptor,
+      final long nonceGroup,
+      final long nonce) throws IOException {
+    LOG.info(getClientIdAuditPrefix() + " creating " + descriptor);
+    // Execute the operation synchronously - wait for the operation to complete before continuing.
+    long procId = this.procedureExecutor.submitProcedure(
+      new CreateNamespaceProcedure(procedureExecutor.getEnvironment(), descriptor),
+      nonceGroup,
+      nonce);
+    ProcedureSyncWait.waitForProcedureToComplete(procedureExecutor, procId);
+  }
+
+  @Override
+  public void modifyNamespace(
+      final NamespaceDescriptor descriptor,
+      final long nonceGroup,
+      final long nonce) throws IOException {
     TableName.isLegalNamespaceName(Bytes.toBytes(descriptor.getName()));
     checkNamespaceManagerReady();
     if (cpHost != null) {
@@ -2357,14 +2390,22 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
       }
     }
     LOG.info(getClientIdAuditPrefix() + " modify " + descriptor);
-    tableNamespaceManager.update(descriptor);
+    // Execute the operation synchronously - wait for the operation to complete before continuing.
+    long procId = this.procedureExecutor.submitProcedure(
+      new ModifyNamespaceProcedure(procedureExecutor.getEnvironment(), descriptor),
+      nonceGroup,
+      nonce);
+    ProcedureSyncWait.waitForProcedureToComplete(procedureExecutor, procId);
     if (cpHost != null) {
       cpHost.postModifyNamespace(descriptor);
     }
   }
 
   @Override
-  public void deleteNamespace(String name) throws IOException {
+  public void deleteNamespace(
+      final String name,
+      final long nonceGroup,
+      final long nonce) throws IOException {
     checkNamespaceManagerReady();
     if (cpHost != null) {
       if (cpHost.preDeleteNamespace(name)) {
@@ -2372,7 +2413,12 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
       }
     }
     LOG.info(getClientIdAuditPrefix() + " delete " + name);
-    tableNamespaceManager.remove(name);
+    // Execute the operation synchronously - wait for the operation to complete before continuing.
+    long procId = this.procedureExecutor.submitProcedure(
+      new DeleteNamespaceProcedure(procedureExecutor.getEnvironment(), name),
+      nonceGroup,
+      nonce);
+    ProcedureSyncWait.waitForProcedureToComplete(procedureExecutor, procId);
     if (cpHost != null) {
       cpHost.postDeleteNamespace(name);
     }

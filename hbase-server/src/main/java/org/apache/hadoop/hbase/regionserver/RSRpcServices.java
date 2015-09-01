@@ -18,7 +18,24 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import com.google.protobuf.RpcController;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.BindException;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -165,25 +182,9 @@ import org.apache.zookeeper.KeeperException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
+import com.google.protobuf.RpcController;
 import com.google.protobuf.ServiceException;
 import com.google.protobuf.TextFormat;
-
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NavigableMap;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Implements the regionserver RPC services.
@@ -775,7 +776,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         regionServer.cacheFlusher.reclaimMemStoreMemory();
       }
 
-      OperationStatus codes[] = region.batchMutate(mArray, HConstants.NO_NONCE,
+      OperationStatus[] codes = region.batchMutate(mArray, HConstants.NO_NONCE,
         HConstants.NO_NONCE);
       for (i = 0; i < codes.length; i++) {
         int index = mutations.get(i).getIndex();
@@ -942,14 +943,21 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     if (initialIsa.getAddress() == null) {
       throw new IllegalArgumentException("Failed resolve of " + initialIsa);
     }
-    priority = new AnnotationReadingPriorityFunction(this);
+    priority = createPriority();
     String name = rs.getProcessName() + "/" + initialIsa.toString();
     // Set how many times to retry talking to another server over HConnection.
     ConnectionUtils.setServerSideHConnectionRetriesConfig(rs.conf, name, LOG);
-    rpcServer = new RpcServer(rs, name, getServices(),
-      bindAddress, // use final bindAddress for this server.
-      rs.conf,
-      rpcSchedulerFactory.create(rs.conf, this, rs));
+    try {
+      rpcServer = new RpcServer(rs, name, getServices(),
+        bindAddress, // use final bindAddress for this server.
+        rs.conf,
+        rpcSchedulerFactory.create(rs.conf, this, rs));
+    } catch(BindException be) {
+      String configName = (this instanceof MasterRpcServices) ? HConstants.MASTER_PORT :
+        HConstants.REGIONSERVER_PORT;
+        throw new IOException(be.getMessage() + ". To switch ports use the '" + configName +
+          "' configuration property.", be.getCause() != null ? be.getCause() : be);
+    }
 
     scannerLeaseTimeoutPeriod = rs.conf.getInt(
       HConstants.HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD,
@@ -968,6 +976,10 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     isa = new InetSocketAddress(initialIsa.getHostName(), rpcServer.getListenerAddress().getPort());
     rpcServer.setErrorHandler(this);
     rs.setName(name);
+  }
+
+  protected PriorityFunction createPriority() {
+    return new AnnotationReadingPriorityFunction(this);
   }
 
   public static String getHostname(Configuration conf, boolean isMaster)
@@ -1043,7 +1055,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     return priority;
   }
 
-  Configuration getConfiguration() {
+  @VisibleForTesting
+  public Configuration getConfiguration() {
     return regionServer.getConfiguration();
   }
 
@@ -1697,7 +1710,10 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           long nonceGroup = entry.getKey().hasNonceGroup()
             ? entry.getKey().getNonceGroup() : HConstants.NO_NONCE;
           long nonce = entry.getKey().hasNonce() ? entry.getKey().getNonce() : HConstants.NO_NONCE;
-          regionServer.nonceManager.reportOperationFromWal(nonceGroup, nonce, entry.getKey().getWriteTime());
+          regionServer.nonceManager.reportOperationFromWal(
+              nonceGroup,
+              nonce,
+              entry.getKey().getWriteTime());
         }
         Pair<WALKey, WALEdit> walEntry = (coprocessorHost == null) ? null :
           new Pair<WALKey, WALEdit>();
@@ -2305,7 +2321,10 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
               regionServer.leases.cancelLease(scannerName);
             } catch (LeaseException le) {
               // No problem, ignore
-            }
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("Un-able to cancel lease of scanner. It could already be closed.");
+              }
+             }
           }
         }
         throw e;
@@ -2645,6 +2664,9 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
             regionServer.leases.cancelLease(scannerName);
           } catch (LeaseException le) {
             // No problem, ignore
+            if (LOG.isTraceEnabled()) {
+              LOG.trace("Un-able to cancel lease of scanner. It could already be closed.");
+            }
           }
           if (region != null && region.getCoprocessorHost() != null) {
             region.getCoprocessorHost().postScannerClose(scanner);

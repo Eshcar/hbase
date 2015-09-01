@@ -145,7 +145,8 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
 
   FileSystem getFileSystem();
 
-  /*
+
+  /**
    * @param maxKeyCount
    * @param compression Compression algorithm to use
    * @param isCompaction whether we are creating a new file in a compaction
@@ -153,12 +154,32 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    * @return Writer for a new StoreFile in the tmp dir.
    */
   StoreFile.Writer createWriterInTmp(
+      long maxKeyCount,
+      Compression.Algorithm compression,
+      boolean isCompaction,
+      boolean includeMVCCReadpoint,
+      boolean includesTags
+  ) throws IOException;
+
+  /**
+   * @param maxKeyCount
+   * @param compression Compression algorithm to use
+   * @param isCompaction whether we are creating a new file in a compaction
+   * @param includeMVCCReadpoint whether we should out the MVCC readpoint
+   * @param shouldDropBehind should the writer drop caches behind writes
+   * @return Writer for a new StoreFile in the tmp dir.
+   */
+  StoreFile.Writer createWriterInTmp(
     long maxKeyCount,
     Compression.Algorithm compression,
     boolean isCompaction,
     boolean includeMVCCReadpoint,
-    boolean includesTags
+    boolean includesTags,
+    boolean shouldDropBehind
   ) throws IOException;
+
+
+
 
   // Compaction oriented methods
 
@@ -423,7 +444,7 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   // turn on the force flush flag to make sure data is flushed to disk
   void setForceFlushToDisk();
   // check whether memstore compaction is in progress
-  boolean isMemstoreCompaction();
+  boolean isMemStoreInCompaction();
   // check whether can flush in memory
   boolean shouldFlushInMemory();
   // flush memstore into an in-memory compacted segment

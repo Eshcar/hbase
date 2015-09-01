@@ -102,8 +102,8 @@ module Hbase
     #----------------------------------------------------------------------------------------------
     # Requests a cluster balance
     # Returns true if balancer ran
-    def balancer()
-      @admin.balancer()
+    def balancer(force)
+      @admin.balancer(java.lang.Boolean::valueOf(force))
     end
 
     #----------------------------------------------------------------------------------------------
@@ -582,25 +582,9 @@ module Hbase
             k.strip!
 
             if (k =~ /coprocessor/i)
-              # validate coprocessor specs
               v = String.new(value)
               v.strip!
-              if !(v =~ /^([^\|]*)\|([^\|]+)\|[\s]*([\d]*)[\s]*(\|.*)?$/)
-                raise ArgumentError, "Coprocessor value doesn't match spec: #{v}"
-              end
-
-              # generate a coprocessor ordinal by checking max id of existing cps
-              maxId = 0
-              htd.getValues().each do |k1, v1|
-                attrName = org.apache.hadoop.hbase.util.Bytes.toString(k1.get())
-                # a cp key is coprocessor$(\d)
-                if (attrName =~ /coprocessor\$(\d+)/i)
-                  ids = attrName.scan(/coprocessor\$(\d+)/i)
-                  maxId = ids[0][0].to_i if ids[0][0].to_i > maxId
-                end
-              end
-              maxId += 1
-              htd.setValue(k + "\$" + maxId.to_s, value)
+              htd.addCoprocessor(v)
               valid_coproc_keys << key
             end
           end
@@ -1031,5 +1015,10 @@ module Hbase
       end
     end
 
+    #----------------------------------------------------------------------------------------------
+    # Get security capabilities
+    def get_security_capabilities
+      @admin.getSecurityCapabilities
+    end
   end
 end

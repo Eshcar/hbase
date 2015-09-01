@@ -62,6 +62,7 @@ import org.apache.hadoop.hbase.UnknownRegionException;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.client.security.SecurityCapability;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.exceptions.TimeoutIOException;
 import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
@@ -132,6 +133,7 @@ import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.ModifyTableRespon
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.MoveRegionRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.RestoreSnapshotRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.RestoreSnapshotResponse;
+import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SecurityCapabilitiesRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SetBalancerRunningRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.ShutdownRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SnapshotRequest;
@@ -444,25 +446,32 @@ public class HBaseAdmin implements Admin {
   @Override
   public HTableDescriptor getTableDescriptor(final TableName tableName)
   throws TableNotFoundException, IOException {
-    if (tableName == null) return null;
-    HTableDescriptor htd = executeCallable(new MasterCallable<HTableDescriptor>(getConnection()) {
-      @Override
-      public HTableDescriptor call(int callTimeout) throws ServiceException {
-        GetTableDescriptorsResponse htds;
-        GetTableDescriptorsRequest req =
-            RequestConverter.buildGetTableDescriptorsRequest(tableName);
-        htds = master.getTableDescriptors(null, req);
+     return getTableDescriptor(tableName, getConnection(), rpcCallerFactory, operationTimeout);
+  }
 
-        if (!htds.getTableSchemaList().isEmpty()) {
-          return HTableDescriptor.convert(htds.getTableSchemaList().get(0));
+  static HTableDescriptor getTableDescriptor(final TableName tableName,
+         HConnection connection, RpcRetryingCallerFactory rpcCallerFactory,
+         int operationTimeout) throws TableNotFoundException, IOException {
+
+      if (tableName == null) return null;
+      HTableDescriptor htd = executeCallable(new MasterCallable<HTableDescriptor>(connection) {
+        @Override
+        public HTableDescriptor call(int callTimeout) throws ServiceException {
+          GetTableDescriptorsResponse htds;
+          GetTableDescriptorsRequest req =
+                  RequestConverter.buildGetTableDescriptorsRequest(tableName);
+          htds = master.getTableDescriptors(null, req);
+
+          if (!htds.getTableSchemaList().isEmpty()) {
+            return HTableDescriptor.convert(htds.getTableSchemaList().get(0));
+          }
+          return null;
         }
-        return null;
+      }, rpcCallerFactory, operationTimeout);
+      if (htd != null) {
+        return htd;
       }
-    });
-    if (htd != null) {
-      return htd;
-    }
-    throw new TableNotFoundException(tableName.getNameAsString());
+      throw new TableNotFoundException(tableName.getNameAsString());
   }
 
   public HTableDescriptor getTableDescriptor(final byte[] tableName)
@@ -2144,7 +2153,17 @@ public class HBaseAdmin implements Admin {
     return executeCallable(new MasterCallable<Boolean>(getConnection()) {
       @Override
       public Boolean call(int callTimeout) throws ServiceException {
-        return master.balance(null, RequestConverter.buildBalanceRequest()).getBalancerRan();
+        return master.balance(null, RequestConverter.buildBalanceRequest(false)).getBalancerRan();
+      }
+    });
+  }
+
+  @Override
+  public boolean balancer(final boolean force) throws IOException {
+    return executeCallable(new MasterCallable<Boolean>(getConnection()) {
+      @Override
+      public Boolean call(int callTimeout) throws ServiceException {
+        return master.balance(null, RequestConverter.buildBalanceRequest(force)).getBalancerRan();
       }
     });
   }
@@ -3984,6 +4003,11 @@ public class HBaseAdmin implements Admin {
 
   private <C extends RetryingCallable<V> & Closeable, V> V executeCallable(C callable)
       throws IOException {
+    return executeCallable(callable, rpcCallerFactory, operationTimeout);
+  }
+
+  private static <C extends RetryingCallable<V> & Closeable, V> V executeCallable(C callable,
+             RpcRetryingCallerFactory rpcCallerFactory, int operationTimeout) throws IOException {
     RpcRetryingCaller<V> caller = rpcCallerFactory.newCaller();
     try {
       return caller.callWithRetries(callable, operationTimeout);
@@ -4621,6 +4645,25 @@ public class HBaseAdmin implements Admin {
       }
       throw new TimeoutException("Only " + actualRegCount.get() + " of " + numRegs
           + " regions are online; retries exhausted.");
+    }
+  }
+
+  @Override
+  public List<SecurityCapability> getSecurityCapabilities() throws IOException {
+    try {
+      return executeCallable(new MasterCallable<List<SecurityCapability>>(getConnection()) {
+        @Override
+        public List<SecurityCapability> call(int callTimeout) throws ServiceException {
+          SecurityCapabilitiesRequest req = SecurityCapabilitiesRequest.newBuilder().build();
+          return ProtobufUtil.toSecurityCapabilityList(
+            master.getSecurityCapabilities(null, req).getCapabilitiesList());
+        }
+      });
+    } catch (IOException e) {
+      if (e instanceof RemoteException) {
+        e = ((RemoteException)e).unwrapRemoteException();
+      }
+      throw e;
     }
   }
 }

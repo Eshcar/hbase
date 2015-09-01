@@ -68,7 +68,7 @@ public class TestCompactedMemStore extends TestCase {
   private CompactedMemStore cms;
   private HRegion region;
   private HStore store;
-  private MultiVersionConsistencyControl mvcc;
+  private MultiVersionConcurrencyControl mvcc;
   private AtomicLong startSeqNum = new AtomicLong(0);
 
   //////////////////////////////////////////////////////////////////////////////
@@ -129,7 +129,7 @@ public class TestCompactedMemStore extends TestCase {
   @Override
   public void setUp() throws Exception {
     super.setUp();
-    this.mvcc = new MultiVersionConsistencyControl();
+    this.mvcc = new MultiVersionConcurrencyControl();
     Configuration conf = new Configuration();
     conf.setBoolean(MemStoreSegment.USEMSLAB_KEY, true);
     conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
@@ -321,7 +321,7 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] q2 = Bytes.toBytes("q2");
     final byte[] v = Bytes.toBytes("value");
 
-    MultiVersionConsistencyControl.WriteEntry w =
+    MultiVersionConcurrencyControl.WriteEntry w =
         mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv1 = new KeyValue(row, f, q1, v);
@@ -365,7 +365,7 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] v2 = Bytes.toBytes("value2");
 
     // INSERT 1: Write both columns val1
-    MultiVersionConsistencyControl.WriteEntry w =
+    MultiVersionConcurrencyControl.WriteEntry w =
         mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
@@ -417,7 +417,7 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] q2 = Bytes.toBytes("q2");
     final byte[] v1 = Bytes.toBytes("value1");
     // INSERT 1: Write both columns val1
-    MultiVersionConsistencyControl.WriteEntry w =
+    MultiVersionConcurrencyControl.WriteEntry w =
          mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
@@ -756,34 +756,6 @@ public class TestCompactedMemStore extends TestCase {
 
     assertEquals(2, cms.getActive().getCellsCount());
     assertEquals(delete, cms.getActive().first());
-  }
-
-  /**
-   * Test to ensure correctness when using Memstore with multiple timestamps
-   */
-  public void testMultipleTimestamps() throws IOException {
-    long[] timestamps = new long[] { 20, 10, 5, 1 };
-    Scan scan = new Scan();
-
-    for (long timestamp : timestamps)
-      addRows(cms, timestamp);
-
-    scan.setTimeRange(0, 2);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(20, 82);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(10, 20);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(8, 12);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    /*This test is not required for correctness but it should pass when
-     * timestamp range optimization is on*/
-    //scan.setTimeRange(28, 42);
-    //assertTrue(!memstore.shouldSeek(scan));
   }
 
   /**
@@ -1159,7 +1131,7 @@ public class TestCompactedMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf1, 3, val));
     assertEquals(3, cms.getActive().getCellsCount());
 
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
 
@@ -1209,7 +1181,7 @@ public class TestCompactedMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1238,7 +1210,7 @@ public class TestCompactedMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1250,7 +1222,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1280,7 +1252,7 @@ public class TestCompactedMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1307,7 +1279,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //   region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1351,7 +1323,7 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] f = Bytes.toBytes("family");
     final byte[] q1 = Bytes.toBytes("q1");
 
-    final MultiVersionConsistencyControl mvcc;
+    final MultiVersionConcurrencyControl mvcc;
     final CompactedMemStore compmemstore;
     final AtomicLong startSeqNum;
 
@@ -1359,7 +1331,7 @@ public class TestCompactedMemStore extends TestCase {
 
     public ReadOwnWritesTester(int id,
         CompactedMemStore memstore,
-        MultiVersionConsistencyControl mvcc,
+        MultiVersionConcurrencyControl mvcc,
         AtomicReference<Throwable> caughtException,
         AtomicLong startSeqNum) {
       this.mvcc = mvcc;
@@ -1379,7 +1351,7 @@ public class TestCompactedMemStore extends TestCase {
 
     private void internalRun() throws IOException {
       for (long i = 0; i < NUM_TRIES && caughtException.get() == null; i++) {
-        MultiVersionConsistencyControl.WriteEntry w =
+        MultiVersionConcurrencyControl.WriteEntry w =
             mvcc.beginMemstoreInsert();
 
         // Insert the sequence value (i)

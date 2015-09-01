@@ -67,13 +67,13 @@ public class TestDefaultMemStore extends TestCase {
   private static final int ROW_COUNT = 10;
   private static final int QUALIFIER_COUNT = ROW_COUNT;
   private static final byte [] FAMILY = Bytes.toBytes("column");
-  private MultiVersionConsistencyControl mvcc;
+  private MultiVersionConcurrencyControl mvcc;
   private AtomicLong startSeqNum = new AtomicLong(0);
 
   @Override
   public void setUp() throws Exception {
     super.setUp();
-    this.mvcc = new MultiVersionConsistencyControl();
+    this.mvcc = new MultiVersionConcurrencyControl();
     this.memstore = new DefaultMemStore();
   }
 
@@ -244,7 +244,7 @@ public class TestDefaultMemStore extends TestCase {
     final byte[] q2 = Bytes.toBytes("q2");
     final byte[] v = Bytes.toBytes("value");
 
-    MultiVersionConsistencyControl.WriteEntry w =
+    MultiVersionConcurrencyControl.WriteEntry w =
         mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv1 = new KeyValue(row, f, q1, v);
@@ -288,7 +288,7 @@ public class TestDefaultMemStore extends TestCase {
     final byte[] v2 = Bytes.toBytes("value2");
 
     // INSERT 1: Write both columns val1
-    MultiVersionConsistencyControl.WriteEntry w =
+    MultiVersionConcurrencyControl.WriteEntry w =
         mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
@@ -340,7 +340,7 @@ public class TestDefaultMemStore extends TestCase {
     final byte[] q2 = Bytes.toBytes("q2");
     final byte[] v1 = Bytes.toBytes("value1");
     // INSERT 1: Write both columns val1
-    MultiVersionConsistencyControl.WriteEntry w =
+    MultiVersionConcurrencyControl.WriteEntry w =
         mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
     KeyValue kv11 = new KeyValue(row, f, q1, v1);
@@ -384,7 +384,7 @@ public class TestDefaultMemStore extends TestCase {
     final byte[] f = Bytes.toBytes("family");
     final byte[] q1 = Bytes.toBytes("q1");
 
-    final MultiVersionConsistencyControl mvcc;
+    final MultiVersionConcurrencyControl mvcc;
     final MemStore memstore;
     final AtomicLong startSeqNum;
 
@@ -393,7 +393,7 @@ public class TestDefaultMemStore extends TestCase {
 
     public ReadOwnWritesTester(int id,
                                MemStore memstore,
-                               MultiVersionConsistencyControl mvcc,
+                               MultiVersionConcurrencyControl mvcc,
                                AtomicReference<Throwable> caughtException,
                                AtomicLong startSeqNum)
     {
@@ -414,7 +414,7 @@ public class TestDefaultMemStore extends TestCase {
 
     private void internalRun() throws IOException {
       for (long i = 0; i < NUM_TRIES && caughtException.get() == null; i++) {
-        MultiVersionConsistencyControl.WriteEntry w =
+        MultiVersionConcurrencyControl.WriteEntry w =
             mvcc.beginMemstoreInsertWithSeqNum(this.startSeqNum.incrementAndGet());
 
         // Insert the sequence value (i)
@@ -730,38 +730,6 @@ public class TestDefaultMemStore extends TestCase {
 
     assertEquals(2, memstore.getActive().getCellsCount());
     assertEquals(delete, memstore.getActive().first());
-  }
-
-  ////////////////////////////////////
-  //Test for timestamps
-  ////////////////////////////////////
-
-  /**
-   * Test to ensure correctness when using Memstore with multiple timestamps
-   */
-  public void testMultipleTimestamps() throws IOException {
-    long[] timestamps = new long[] {20,10,5,1};
-    Scan scan = new Scan();
-
-    for (long timestamp: timestamps)
-      addRows(memstore,timestamp);
-
-    scan.setTimeRange(0, 2);
-    assertTrue(memstore.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(20, 82);
-    assertTrue(memstore.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(10, 20);
-    assertTrue(memstore.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(8, 12);
-    assertTrue(memstore.shouldSeek(scan, Long.MIN_VALUE));
-
-    /*This test is not required for correctness but it should pass when
-     * timestamp range optimization is on*/
-    //scan.setTimeRange(28, 42);
-    //assertTrue(!memstore.shouldSeek(scan));
   }
 
   ////////////////////////////////////

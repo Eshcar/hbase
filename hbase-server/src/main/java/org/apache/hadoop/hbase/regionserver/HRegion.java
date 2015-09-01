@@ -146,7 +146,7 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.FlushDescriptor.Stor
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.RegionEventDescriptor;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.RegionEventDescriptor.EventType;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.StoreDescriptor;
-import org.apache.hadoop.hbase.regionserver.MultiVersionConsistencyControl.WriteEntry;
+import org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.WriteEntry;
 import org.apache.hadoop.hbase.regionserver.ScannerContext.LimitScope;
 import org.apache.hadoop.hbase.regionserver.ScannerContext.NextState;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
@@ -203,7 +203,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   public static final String LOAD_CFS_ON_DEMAND_CONFIG_KEY =
       "hbase.hregion.scan.loadColumnFamiliesOnDemand";
-  
+
   // in milliseconds
   private static final String MAX_WAIT_FOR_SEQ_ID_KEY =
       "hbase.hregion.max.wait.for.seq.id";
@@ -588,8 +588,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private boolean splitRequest;
   private byte[] explicitSplitPoint = null;
 
-  private final MultiVersionConsistencyControl mvcc =
-      new MultiVersionConsistencyControl();
+  private final MultiVersionConcurrencyControl mvcc =
+      new MultiVersionConcurrencyControl();
 
   // Coprocessor host
   private RegionCoprocessorHost coprocessorHost;
@@ -1276,7 +1276,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
   }
 
-   public MultiVersionConsistencyControl getMVCC() {
+   public MultiVersionConcurrencyControl getMVCC() {
      return mvcc;
    }
 
@@ -1470,7 +1470,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
         // close each store in parallel
         for (final Store store : stores.values()) {
-          assert abort || store.getFlushableSize() == 0 || writestate.readOnly;
+          long flushableSize = store.getFlushableSize();
+          if (!(abort || flushableSize == 0 || writestate.readOnly)) {
+            getRegionServerServices().abort("Assertion failed while closing store "
+                + getRegionInfo().getRegionNameAsString() + " " + store
+                + ". flushableSize expected=0, actual= " + flushableSize
+                + ". Current memstoreSize=" + getMemstoreSize() + ". Maybe a coprocessor "
+                + "operation failed and left the memstore in a partially updated state.", null);
+          }
           completionService
               .submit(new Callable<Pair<byte[], Collection<StoreFile>>>() {
                 @Override
@@ -2132,7 +2139,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
       // Take an update lock because am about to change the sequence id and we want the sequence id
       // to be at the border of the empty memstore.
-      MultiVersionConsistencyControl.WriteEntry w = null;
+      MultiVersionConcurrencyControl.WriteEntry w = null;
       this.updatesLock.writeLock().lock();
       try {
         if (this.getMemstoreTotalSize() <= 0) {
@@ -2188,7 +2195,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // to do this for a moment.  It is quick. We also set the memstore size to zero here before we
     // allow updates again so its value will represent the size of the updates received
     // during flush
-    MultiVersionConsistencyControl.WriteEntry w = null;
+    MultiVersionConcurrencyControl.WriteEntry w = null;
     // We have to take an update lock during snapshot, or else a write could end up in both snapshot
     // and memstore (makes it difficult to do atomic rows then)
     status.setStatus("Obtaining lock to block concurrent updates");
@@ -2918,7 +2925,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     long currentNonceGroup = HConstants.NO_NONCE, currentNonce = HConstants.NO_NONCE;
     WALEdit walEdit = new WALEdit(isInReplay);
-    MultiVersionConsistencyControl.WriteEntry w = null;
+    MultiVersionConcurrencyControl.WriteEntry w = null;
     long txid = 0;
     boolean doRollBackMemstore = false;
     boolean locked = false;
@@ -3065,7 +3072,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       if(isInReplay) {
         mvccNum = batchOp.getReplaySequenceId();
       } else {
-        mvccNum = MultiVersionConsistencyControl.getPreAssignedWriteNumber(this.sequenceId);
+        mvccNum = MultiVersionConcurrencyControl.getPreAssignedWriteNumber(this.sequenceId);
       }
       //
       // ------------------------------------
@@ -3360,13 +3367,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         boolean valueIsNull = comparator.getValue() == null ||
           comparator.getValue().length == 0;
         boolean matches = false;
+        long cellTs = 0;
         if (result.size() == 0 && valueIsNull) {
           matches = true;
         } else if (result.size() > 0 && result.get(0).getValueLength() == 0 &&
             valueIsNull) {
           matches = true;
+          cellTs = result.get(0).getTimestamp();
         } else if (result.size() == 1 && !valueIsNull) {
           Cell kv = result.get(0);
+          cellTs = kv.getTimestamp();
           int compareResult = CellComparator.compareValue(kv, comparator);
           switch (compareOp) {
           case LESS:
@@ -3393,6 +3403,20 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
         //If matches put the new put or delete the new delete
         if (matches) {
+          // We have acquired the row lock already. If the system clock is NOT monotonically
+          // non-decreasing (see HBASE-14070) we should make sure that the mutation has a
+          // larger timestamp than what was observed via Get. doBatchMutate already does this, but
+          // there is no way to pass the cellTs. See HBASE-14054.
+          long now = EnvironmentEdgeManager.currentTime();
+          long ts = Math.max(now, cellTs); // ensure write is not eclipsed
+          byte[] byteTs = Bytes.toBytes(ts);
+
+          if (w instanceof Put) {
+            updateCellTimestamps(w.getFamilyCellMap().values(), byteTs);
+          }
+          // else delete is not needed since it already does a second get, and sets the timestamp
+          // from get (see prepareDeleteTimestamps).
+
           // All edits for the given row (across all column families) must
           // happen atomically.
           doBatchMutate(w);
@@ -3439,13 +3463,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         boolean valueIsNull = comparator.getValue() == null ||
             comparator.getValue().length == 0;
         boolean matches = false;
+        long cellTs = 0;
         if (result.size() == 0 && valueIsNull) {
           matches = true;
         } else if (result.size() > 0 && result.get(0).getValueLength() == 0 &&
             valueIsNull) {
           matches = true;
+          cellTs = result.get(0).getTimestamp();
         } else if (result.size() == 1 && !valueIsNull) {
           Cell kv = result.get(0);
+          cellTs = kv.getTimestamp();
           int compareResult = CellComparator.compareValue(kv, comparator);
           switch (compareOp) {
           case LESS:
@@ -3472,6 +3499,22 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
         //If matches put the new put or delete the new delete
         if (matches) {
+          // We have acquired the row lock already. If the system clock is NOT monotonically
+          // non-decreasing (see HBASE-14070) we should make sure that the mutation has a
+          // larger timestamp than what was observed via Get. doBatchMutate already does this, but
+          // there is no way to pass the cellTs. See HBASE-14054.
+          long now = EnvironmentEdgeManager.currentTime();
+          long ts = Math.max(now, cellTs); // ensure write is not eclipsed
+          byte[] byteTs = Bytes.toBytes(ts);
+
+          for (Mutation w : rm.getMutations()) {
+            if (w instanceof Put) {
+              updateCellTimestamps(w.getFamilyCellMap().values(), byteTs);
+            }
+            // else delete is not needed since it already does a second get, and sets the timestamp
+            // from get (see prepareDeleteTimestamps).
+          }
+
           // All edits for the given row (across all column families) must
           // happen atomically.
           mutateRow(rm);
@@ -3654,7 +3697,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    */
   private void requestAndForceFlush(boolean waitForCompactions) {
     for (Store s : stores.values()) {
-      if(waitForCompactions && s.isMemstoreCompaction()) {
+      if(waitForCompactions && s.isMemStoreInCompaction()) {
         // do not force flush if memstore compaction is in progress
         continue;
       }
@@ -6707,7 +6750,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       return;
     }
 
-    MultiVersionConsistencyControl.WriteEntry writeEntry = null;
+    MultiVersionConcurrencyControl.WriteEntry writeEntry = null;
     boolean locked;
     boolean walSyncSuccessful = false;
     List<RowLock> acquiredRowLocks;
@@ -6728,7 +6771,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       lock(this.updatesLock.readLock(), acquiredRowLocks.size() == 0 ? 1 : acquiredRowLocks.size());
       locked = true;
       // Get a mvcc write number
-      mvccNum = MultiVersionConsistencyControl.getPreAssignedWriteNumber(this.sequenceId);
+      mvccNum = MultiVersionConcurrencyControl.getPreAssignedWriteNumber(this.sequenceId);
 
       long now = EnvironmentEdgeManager.currentTime();
       try {
@@ -6925,7 +6968,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             }
           }
           // now start my own transaction
-          mvccNum = MultiVersionConsistencyControl.getPreAssignedWriteNumber(this.sequenceId);
+          mvccNum = MultiVersionConcurrencyControl.getPreAssignedWriteNumber(this.sequenceId);
           w = mvcc.beginMemstoreInsertWithSeqNum(mvccNum);
           long now = EnvironmentEdgeManager.currentTime();
           // Process each family
@@ -7175,7 +7218,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             }
           }
           // now start my own transaction
-          mvccNum = MultiVersionConsistencyControl.getPreAssignedWriteNumber(this.sequenceId);
+          mvccNum = MultiVersionConcurrencyControl.getPreAssignedWriteNumber(this.sequenceId);
           w = mvcc.beginMemstoreInsertWithSeqNum(mvccNum);
           long now = EnvironmentEdgeManager.currentTime();
           // Process each family
@@ -7399,7 +7442,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       WriteState.HEAP_SIZE + // writestate
       ClassSize.CONCURRENT_SKIPLISTMAP + ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY + // stores
       (2 * ClassSize.REENTRANT_LOCK) + // lock, updatesLock
-      MultiVersionConsistencyControl.FIXED_SIZE // mvcc
+      MultiVersionConcurrencyControl.FIXED_SIZE // mvcc
       + ClassSize.TREEMAP // maxSeqIdInStores
       + 2 * ClassSize.ATOMIC_INTEGER // majorInProgress, minorInProgress
       ;

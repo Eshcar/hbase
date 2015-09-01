@@ -21,7 +21,9 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,6 +44,7 @@ import org.apache.hadoop.hbase.client.TableState;
 import org.apache.hadoop.hbase.errorhandling.ForeignException;
 import org.apache.hadoop.hbase.exceptions.MergeRegionException;
 import org.apache.hadoop.hbase.exceptions.UnknownProtocolException;
+import org.apache.hadoop.hbase.ipc.PriorityFunction;
 import org.apache.hadoop.hbase.ipc.QosPriority;
 import org.apache.hadoop.hbase.ipc.RpcServer.BlockingServiceAndInterface;
 import org.apache.hadoop.hbase.ipc.ServerRpcController;
@@ -140,6 +143,9 @@ import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.RestoreSnapshotRe
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.RestoreSnapshotResponse;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.RunCatalogScanRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.RunCatalogScanResponse;
+import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SecurityCapabilitiesRequest;
+import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SecurityCapabilitiesResponse;
+import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SecurityCapabilitiesResponse.Capability;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SetBalancerRunningRequest;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SetBalancerRunningResponse;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProtos.SetQuotaRequest;
@@ -167,6 +173,9 @@ import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.Repor
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.ReportRegionStateTransitionRequest;
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.ReportRegionStateTransitionResponse;
 import org.apache.hadoop.hbase.regionserver.RSRpcServices;
+import org.apache.hadoop.hbase.security.User;
+import org.apache.hadoop.hbase.security.access.AccessController;
+import org.apache.hadoop.hbase.security.visibility.VisibilityController;
 import org.apache.hadoop.hbase.snapshot.ClientSnapshotDescriptionUtils;
 import org.apache.hadoop.hbase.snapshot.SnapshotDescriptionUtils;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -216,6 +225,11 @@ public class MasterRpcServices extends RSRpcServices
   public MasterRpcServices(HMaster m) throws IOException {
     super(m);
     master = m;
+  }
+
+  @Override
+  protected PriorityFunction createPriority() {
+    return new MasterAnnotationReadingPriorityFunction(this);
   }
 
   enum BalanceSwitchMode {
@@ -277,7 +291,7 @@ public class MasterRpcServices extends RSRpcServices
   }
 
   @Override
-  @QosPriority(priority=HConstants.ADMIN_QOS)
+  @QosPriority(priority = HConstants.ADMIN_QOS)
   public GetLastFlushedSequenceIdResponse getLastFlushedSequenceId(RpcController controller,
       GetLastFlushedSequenceIdRequest request) throws ServiceException {
     try {
@@ -291,7 +305,6 @@ public class MasterRpcServices extends RSRpcServices
   }
 
   @Override
-  @QosPriority(priority=HConstants.ADMIN_QOS)
   public RegionServerReportResponse regionServerReport(
       RpcController controller, RegionServerReportRequest request) throws ServiceException {
     try {
@@ -303,7 +316,7 @@ public class MasterRpcServices extends RSRpcServices
       if (sl != null && master.metricsMaster != null) {
         // Up our metrics.
         master.metricsMaster.incrementRequests(sl.getTotalNumberOfRequests()
-          - (oldLoad != null ? oldLoad.getTotalNumberOfRequests() : 0));
+            - (oldLoad != null ? oldLoad.getTotalNumberOfRequests() : 0));
       }
     } catch (IOException ioe) {
       throw new ServiceException(ioe);
@@ -312,7 +325,6 @@ public class MasterRpcServices extends RSRpcServices
   }
 
   @Override
-  @QosPriority(priority=HConstants.ADMIN_QOS)
   public RegionServerStartupResponse regionServerStartup(
       RpcController controller, RegionServerStartupRequest request) throws ServiceException {
     // Register with server manager
@@ -338,7 +350,6 @@ public class MasterRpcServices extends RSRpcServices
   }
 
   @Override
-  @QosPriority(priority=HConstants.ADMIN_QOS)
   public ReportRSFatalErrorResponse reportRSFatalError(
       RpcController controller, ReportRSFatalErrorRequest request) throws ServiceException {
     String errorText = request.getErrorMessage();
@@ -355,10 +366,10 @@ public class MasterRpcServices extends RSRpcServices
       AddColumnRequest req) throws ServiceException {
     try {
       master.addColumn(
-        ProtobufUtil.toTableName(req.getTableName()),
-        HColumnDescriptor.convert(req.getColumnFamilies()),
-        req.getNonceGroup(),
-        req.getNonce());
+          ProtobufUtil.toTableName(req.getTableName()),
+          HColumnDescriptor.convert(req.getColumnFamilies()),
+          req.getNonceGroup(),
+          req.getNonce());
     } catch (IOException ioe) {
       throw new ServiceException(ioe);
     }
@@ -402,7 +413,8 @@ public class MasterRpcServices extends RSRpcServices
   public BalanceResponse balance(RpcController controller,
       BalanceRequest request) throws ServiceException {
     try {
-      return BalanceResponse.newBuilder().setBalancerRan(master.balance()).build();
+      return BalanceResponse.newBuilder().setBalancerRan(master.balance(
+        request.hasForce() ? request.getForce() : false)).build();
     } catch (IOException ex) {
       throw new ServiceException(ex);
     }
@@ -412,7 +424,10 @@ public class MasterRpcServices extends RSRpcServices
   public CreateNamespaceResponse createNamespace(RpcController controller,
      CreateNamespaceRequest request) throws ServiceException {
     try {
-      master.createNamespace(ProtobufUtil.toNamespaceDescriptor(request.getNamespaceDescriptor()));
+      master.createNamespace(
+        ProtobufUtil.toNamespaceDescriptor(request.getNamespaceDescriptor()),
+        request.getNonceGroup(),
+        request.getNonce());
       return CreateNamespaceResponse.getDefaultInstance();
     } catch (IOException e) {
       throw new ServiceException(e);
@@ -452,7 +467,10 @@ public class MasterRpcServices extends RSRpcServices
   public DeleteNamespaceResponse deleteNamespace(RpcController controller,
       DeleteNamespaceRequest request) throws ServiceException {
     try {
-      master.deleteNamespace(request.getNamespaceName());
+      master.deleteNamespace(
+        request.getNamespaceName(),
+        request.getNonceGroup(),
+        request.getNonce());
       return DeleteNamespaceResponse.getDefaultInstance();
     } catch (IOException e) {
       throw new ServiceException(e);
@@ -486,7 +504,7 @@ public class MasterRpcServices extends RSRpcServices
       DeleteTableRequest request) throws ServiceException {
     try {
       long procId = master.deleteTable(ProtobufUtil.toTableName(
-        request.getTableName()), request.getNonceGroup(), request.getNonce());
+          request.getTableName()), request.getNonceGroup(), request.getNonce());
       return DeleteTableResponse.newBuilder().setProcId(procId).build();
     } catch (IOException ioe) {
       throw new ServiceException(ioe);
@@ -775,7 +793,7 @@ public class MasterRpcServices extends RSRpcServices
     try {
       return GetNamespaceDescriptorResponse.newBuilder()
         .setNamespaceDescriptor(ProtobufUtil.toProtoNamespaceDescriptor(
-          master.getNamespaceDescriptor(request.getNamespaceName())))
+            master.getNamespaceDescriptor(request.getNamespaceName())))
         .build();
     } catch (IOException e) {
       throw new ServiceException(e);
@@ -1108,7 +1126,9 @@ public class MasterRpcServices extends RSRpcServices
       ModifyNamespaceRequest request) throws ServiceException {
     try {
       master.modifyNamespace(
-        ProtobufUtil.toNamespaceDescriptor(request.getNamespaceDescriptor()));
+        ProtobufUtil.toNamespaceDescriptor(request.getNamespaceDescriptor()),
+        request.getNonceGroup(),
+        request.getNonce());
       return ModifyNamespaceResponse.getDefaultInstance();
     } catch (IOException e) {
       throw new ServiceException(e);
@@ -1330,7 +1350,6 @@ public class MasterRpcServices extends RSRpcServices
   }
 
   @Override
-  @QosPriority(priority=HConstants.ADMIN_QOS)
   public ReportRegionStateTransitionResponse reportRegionStateTransition(RpcController c,
       ReportRegionStateTransitionRequest req) throws ServiceException {
     try {
@@ -1504,6 +1523,46 @@ public class MasterRpcServices extends RSRpcServices
       IsBalancerEnabledRequest request) throws ServiceException {
     IsBalancerEnabledResponse.Builder response = IsBalancerEnabledResponse.newBuilder();
     response.setEnabled(master.isBalancerOn());
+    return response.build();
+  }
+
+  /** 
+   * Returns the security capabilities in effect on the cluster
+   */
+  @Override
+  public SecurityCapabilitiesResponse getSecurityCapabilities(RpcController controller,
+      SecurityCapabilitiesRequest request) throws ServiceException {
+    SecurityCapabilitiesResponse.Builder response = SecurityCapabilitiesResponse.newBuilder();
+    try {
+      master.checkInitialized();
+      Set<Capability> capabilities = new HashSet<>();
+      // Authentication
+      if (User.isHBaseSecurityEnabled(master.getConfiguration())) {
+        capabilities.add(Capability.SECURE_AUTHENTICATION);
+      } else {
+        capabilities.add(Capability.SIMPLE_AUTHENTICATION);
+      }
+      // The AccessController can provide AUTHORIZATION and CELL_AUTHORIZATION
+      if (master.cpHost != null &&
+            master.cpHost.findCoprocessor(AccessController.class.getName()) != null) {
+        if (AccessController.isAuthorizationSupported(master.getConfiguration())) {
+          capabilities.add(Capability.AUTHORIZATION);
+        }
+        if (AccessController.isCellAuthorizationSupported(master.getConfiguration())) {
+          capabilities.add(Capability.CELL_AUTHORIZATION);
+        }
+      }
+      // The VisibilityController can provide CELL_VISIBILITY
+      if (master.cpHost != null &&
+            master.cpHost.findCoprocessor(VisibilityController.class.getName()) != null) {
+        if (VisibilityController.isCellAuthorizationSupported(master.getConfiguration())) {
+          capabilities.add(Capability.CELL_VISIBILITY);
+        }
+      }
+      response.addAllCapabilities(capabilities);
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
     return response.build();
   }
 }

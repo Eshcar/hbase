@@ -191,6 +191,14 @@
       <organizationUrl>http://www.explorys.com</organizationUrl>
     </developer>
     <developer>
+      <id>eclark</id>
+      <name>Elliott Clark</name>
+      <email>eclark@apache.org</email>
+      <timezone>-8</timezone>
+      <organization>Facebook</organization>
+      <organizationUrl>http://www.facebook.com</organizationUrl>
+    </developer>
+    <developer>
       <id>enis</id>
       <name>Enis Soztutar</name>
       <email>enis@apache.org</email>
@@ -335,12 +343,28 @@
       <organizationUrl>http://www.xiaomi.com/</organizationUrl>
     </developer>
     <developer>
+      <id>liyin</id>
+      <name>Liyin Tang</name>
+      <email>liyin.tang@fb.com</email>
+      <timezone>-8</timezone>
+      <organization>Facebook</organization>
+      <organizationUrl>http://www.facebook.com</organizationUrl>
+    </developer>
+    <developer>
       <id>mbautin</id>
       <name>Mikhail Bautin</name>
       <email>mbautin@apache.org</email>
       <timezone>-8</timezone>
       <organization>Facebook</organization>
       <organizationUrl>http://www.facebook.com</organizationUrl>
+    </developer>
+    <developer>
+      <id>mbertozzi</id>
+      <name>Matteo Bertozzi</name>
+      <email>mbertozzi@apache.org</email>
+      <timezone>0</timezone>
+      <organization>Cloudera</organization>
+      <organizationUrl>http://www.cloudera.com</organizationUrl>
     </developer>
     <developer>
       <id>misty</id>
@@ -359,6 +383,14 @@
       <organizationUrl>http://www.hortonworks.com</organizationUrl>
     </developer>
     <developer>
+      <id>nkeywal</id>
+      <name>Nicolas Liochon</name>
+      <email>nkeywal@apache.org</email>
+      <timezone>+1</timezone>
+      <organization>Scaled Risk</organization>
+      <organizationUrl>http://www.scaledrisk.com</organizationUrl>
+    </developer>
+    <developer>
       <id>nspiegelberg</id>
       <name>Nicolas Spiegelberg</name>
       <email>nspiegelberg@fb.com</email>
@@ -371,8 +403,24 @@
       <name>Andrey Stepachev</name>
       <email>octo47@gmail.com</email>
       <timezone>0</timezone>
-      <organization>WANdisco</organization>
-      <organizationUrl>http://www.wandisco.com/</organizationUrl>
+      <organization>Dropbox</organization>
+      <organizationUrl>https://www.dropbox.com/</organizationUrl>
+    </developer>
+    <developer>
+      <id>rajeshbabu</id>
+      <name>Rajeshbabu Chintaguntla</name>
+      <email>rajeshbabu@apache.org</email>
+      <timezone>+5</timezone>
+      <organization>Hortonworks</organization>
+      <organizationUrl>http://www.hortonworks.com</organizationUrl>
+    </developer>
+    <developer>
+      <id>ramkrishna</id>
+      <name>Ramkrishna S Vasudevan</name>
+      <email>ramkrishna@apache.org</email>
+      <timezone>+5</timezone>
+      <organization>Intel</organization>
+      <organizationUrl>http://www.intel.in</organizationUrl>
     </developer>
     <developer>
       <id>rawson</id>
@@ -407,6 +455,14 @@
       <organizationUrl>http://www.cloudera.com/</organizationUrl>
     </developer>
     <developer>
+      <id>syuanjiang</id>
+      <name>Stephen Yuan Jiang</name>
+      <email>syuanjiang@apache.org</email>
+      <timezone>-8</timezone>
+      <organization>Hortonworks</organization>
+      <organizationUrl>http://www.hortonworks.com</organizationUrl>
+    </developer>
+    <developer>
       <id>tedyu</id>
       <name>Ted Yu</name>
       <email>yuzhihong@gmail.com</email>
@@ -419,54 +475,6 @@
       <name>Todd Lipcon</name>
       <email>todd@apache.org</email>
       <timezone>-8</timezone>
-      <organization>Cloudera</organization>
-      <organizationUrl>http://www.cloudera.com</organizationUrl>
-    </developer>
-    <developer>
-      <id>rajeshbabu</id>
-      <name>Rajeshbabu Chintaguntla</name>
-      <email>rajeshbabu@apache.org</email>
-      <timezone>+5</timezone>
-      <organization>Hortonworks</organization>
-      <organizationUrl>http://www.hortonworks.com</organizationUrl>
-    </developer>
-    <developer>
-      <id>ramkrishna</id>
-      <name>Ramkrishna S Vasudevan</name>
-      <email>ramkrishna@apache.org</email>
-      <timezone>+5</timezone>
-      <organization>Intel</organization>
-      <organizationUrl>http://www.intel.in</organizationUrl>
-    </developer>
-    <developer>
-      <id>liyin</id>
-      <name>Liyin Tang</name>
-      <email>liyin.tang@fb.com</email>
-      <timezone>-8</timezone>
-      <organization>Facebook</organization>
-      <organizationUrl>http://www.facebook.com</organizationUrl>
-    </developer>
-    <developer>
-      <id>nkeywal</id>
-      <name>Nicolas Liochon</name>
-      <email>nkeywal@apache.org</email>
-      <timezone>+1</timezone>
-      <organization>Scaled Risk</organization>
-      <organizationUrl>http://www.scaledrisk.com</organizationUrl>
-    </developer>
-    <developer>
-      <id>eclark</id>
-      <name>Elliott Clark</name>
-      <email>eclark@apache.org</email>
-      <timezone>-8</timezone>
-      <organization>Facebook</organization>
-      <organizationUrl>http://www.facebook.com</organizationUrl>
-    </developer>
-    <developer>
-      <id>mbertozzi</id>
-      <name>Matteo Bertozzi</name>
-      <email>mbertozzi@apache.org</email>
-      <timezone>0</timezone>
       <organization>Cloudera</organization>
       <organizationUrl>http://www.cloudera.com</organizationUrl>
     </developer>
@@ -506,7 +514,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>2.3</version>
+          <version>2.4.1</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -1046,12 +1054,6 @@
             <artifactId>velocity</artifactId>
             <version>1.7</version>
           </dependency>
-          <!-- For building docs from asciidoctor -->
-          <!--<dependency>
-              <groupId>org.asciidoctor</groupId>
-              <artifactId>asciidoctor-maven-plugin</artifactId>
-              <version>1.5.2</version>
-          </dependency>-->
         </dependencies>
         <configuration>
           <siteDirectory>${basedir}/src/main/site</siteDirectory>
@@ -1063,7 +1065,7 @@
       <plugin>
         <groupId>org.asciidoctor</groupId>
         <artifactId>asciidoctor-maven-plugin</artifactId>
-        <version>1.5.2</version>
+        <version>${asciidoctor.plugin.version}</version>
         <inherited>false</inherited>
         <dependencies>
           <dependency>
@@ -1208,7 +1210,7 @@
     <maven.min.version>3.0.3</maven.min.version>
     <java.min.version>${compileSource}</java.min.version>
     <!-- Dependencies -->
-    <hadoop-two.version>2.5.1</hadoop-two.version>
+    <hadoop-two.version>2.7.1</hadoop-two.version>
     <hadoop-three.version>3.0.0-SNAPSHOT</hadoop-three.version>
     <commons-cli.version>1.2</commons-cli.version>
     <commons-codec.version>1.9</commons-codec.version>
@@ -1232,7 +1234,7 @@
     <jersey.version>1.9</jersey.version>
     <jmock-junit4.version>2.6.0</jmock-junit4.version>
     <jruby.version>1.6.8</jruby.version>
-    <junit.version>4.11</junit.version>
+    <junit.version>4.12</junit.version>
     <hamcrest.version>1.3</hamcrest.version>
     <htrace.version>3.1.0-incubating</htrace.version>
     <log4j.version>1.2.17</log4j.version>
@@ -1246,7 +1248,7 @@
     <clover.version>4.0.3</clover.version>
     <jamon-runtime.version>2.3.1</jamon-runtime.version>
     <jettison.version>1.3.3</jettison.version>
-    <netty.version>4.0.23.Final</netty.version>
+    <netty.version>4.0.30.Final</netty.version>
     <netty.hadoop.version>3.6.2.Final</netty.hadoop.version>
     <joni.version>2.1.2</joni.version>
     <jcodings.version>1.0.8</jcodings.version>
@@ -1258,6 +1260,7 @@
     <jamon.plugin.version>2.3.4</jamon.plugin.version>
     <findbugs-annotations>1.3.9-1</findbugs-annotations>
     <javadoc.version>2.10.3</javadoc.version>
+    <asciidoctor.plugin.version>1.5.2.1</asciidoctor.plugin.version>
     <!-- General Packaging -->
     <package.prefix>/usr</package.prefix>
     <package.conf.dir>/etc/hbase</package.conf.dir>

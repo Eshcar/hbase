@@ -27,7 +27,6 @@ import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
@@ -101,6 +100,12 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
+  public long getFlushableSize() {
+    long snapshotSize = getSnapshot().getSize();
+    return snapshotSize > 0 ? snapshotSize : keySize();
+  }
+
+  @Override
   protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
     List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2);
     list.add(0, getActive().getScanner(readPt));
@@ -119,25 +124,7 @@ public class DefaultMemStore extends AbstractMemStore {
   @Override
   public void rollback(Cell cell) {
     rollbackSnapshot(cell);
-    rollbackCellSet(cell);
-  }
-
-  /**
-   * Check if this memstore may contain the required keys
-   * @param scan
-   * @return False if the key definitely does not exist in this memstore
-   */
-  @Override
-  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
-    return
-        (getActive().shouldSeek(scan, oldestUnexpiredTS) ||
-         getSnapshot().shouldSeek(scan,oldestUnexpiredTS));
-  }
-
-  @Override
-  public long getFlushableSize() {
-    long snapshotSize = getSnapshot().getSize();
-    return snapshotSize > 0 ? snapshotSize : keySize();
+    rollbackActive(cell);
   }
 
   //methods for tests
@@ -153,13 +140,6 @@ public class DefaultMemStore extends AbstractMemStore {
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 
-  /**
-   * @return Total memory occupied by this MemStore.
-   */
-  @Override public long size() {
-    return heapSize();
-  }
-
   @Override public AbstractMemStore setForceFlushToDisk() {
     // do nothing
     return this;
@@ -169,7 +149,7 @@ public class DefaultMemStore extends AbstractMemStore {
     return true;
   }
 
-  @Override public boolean isMemStoreCompaction() {
+  @Override public boolean isMemStoreInCompaction() {
     return false;
   }
 
@@ -179,6 +159,14 @@ public class DefaultMemStore extends AbstractMemStore {
 
   @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
     return;
+  }
+
+  /**
+   * @return Total memory occupied by this MemStore.
+   */
+  @Override
+  public long size() {
+    return heapSize();
   }
 
   /**
