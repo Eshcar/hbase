@@ -759,34 +759,6 @@ public class TestCompactedMemStore extends TestCase {
   }
 
   /**
-   * Test to ensure correctness when using Memstore with multiple timestamps
-   */
-  public void testMultipleTimestamps() throws IOException {
-    long[] timestamps = new long[] { 20, 10, 5, 1 };
-    Scan scan = new Scan();
-
-    for (long timestamp : timestamps)
-      addRows(cms, timestamp);
-
-    scan.setTimeRange(0, 2);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(20, 82);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(10, 20);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    scan.setTimeRange(8, 12);
-    assertTrue(cms.shouldSeek(scan, Long.MIN_VALUE));
-
-    /*This test is not required for correctness but it should pass when
-     * timestamp range optimization is on*/
-    //scan.setTimeRange(28, 42);
-    //assertTrue(!memstore.shouldSeek(scan));
-  }
-
-  /**
    * Test a pathological pattern that shows why we can't currently
    * use the MSLAB for upsert workloads. This test inserts data
    * in the following pattern:
@@ -1159,7 +1131,7 @@ public class TestCompactedMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf1, 3, val));
     assertEquals(3, cms.getActive().getCellsCount());
 
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
 
@@ -1209,7 +1181,7 @@ public class TestCompactedMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1238,7 +1210,7 @@ public class TestCompactedMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1250,7 +1222,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1280,7 +1252,7 @@ public class TestCompactedMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1307,7 +1279,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.flushInMemory(0); // push keys to pipeline and compact
 //   region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreCompaction()) {
+    while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());

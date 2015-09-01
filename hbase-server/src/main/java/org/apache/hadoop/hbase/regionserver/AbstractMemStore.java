@@ -27,7 +27,6 @@ import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -89,26 +88,22 @@ public abstract class AbstractMemStore implements MemStore {
   * backing Map.
   * @param cell
   * @param notpresent True if the cell was NOT present in the set.
-  * @return Size
+  * @return change in size
   */
   static long heapSizeChange(final Cell cell, final boolean notpresent) {
     return notpresent ? ClassSize.align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY
         + CellUtil.estimatedHeapSizeOf(cell)) : 0;
   }
 
-  public abstract boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
-
   public abstract AbstractMemStore setForceFlushToDisk();
   abstract boolean isForceFlushToDisk();
-  public abstract boolean isMemStoreCompaction();
+  public abstract boolean isMemStoreInCompaction();
   boolean shouldFlushInMemory() {
     return !isForceFlushToDisk();
   }
   public abstract void flushInMemory(long flushOpSeqId);
   public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater);
 
-
-  //  protected abstract long deepOverhead();
   protected long deepOverhead() {
     return DEEP_OVERHEAD;
   }
@@ -116,8 +111,8 @@ public abstract class AbstractMemStore implements MemStore {
   /**
    * Write an update
    * @param cell
-   * @return approximate size of the passed KV & newly added KV which maybe different than the
-   *         passed-in KV
+   * @return approximate size of the passed cell & newly added cell which maybe different than the
+   *         passed-in cell
    */
   @Override
   public Pair<Long, Cell> add(Cell cell) {
@@ -227,7 +222,7 @@ public abstract class AbstractMemStore implements MemStore {
     snapshot.rollback(cell);
   }
 
-  protected void rollbackCellSet(Cell cell) {
+  protected void rollbackActive(Cell cell) {
     // If the key is in the memstore, delete it. Update this.size.
     long sz = active.rollback(cell);
     if (sz != 0) {
@@ -238,10 +233,10 @@ public abstract class AbstractMemStore implements MemStore {
 
   protected void dump(Log log) {
     for (Cell cell: this.active.getCellSet()) {
-      log.info(cell);
+      log.debug(cell);
     }
     for (Cell cell: this.snapshot.getCellSet()) {
-      log.info(cell);
+      log.debug(cell);
     }
   }
 
@@ -258,6 +253,7 @@ public abstract class AbstractMemStore implements MemStore {
    * Callers must hold the read lock.
    *
    * @param cell
+   * @param readpoint
    * @return change in size of MemStore
    */
   private long upsert(Cell cell, long readpoint) {
@@ -330,7 +326,7 @@ public abstract class AbstractMemStore implements MemStore {
 
   /*
    * @param key Find row that follows this one.  If null, return first.
-   * @param map Set to look in for a row beyond <code>row</code>.
+   * @param set Set to look in for a row beyond <code>row</code>.
    * @return Next row or null if none found.  If one found, will be a new
    * KeyValue -- can be destroyed by subsequent calls to this method.
    */
@@ -371,13 +367,12 @@ public abstract class AbstractMemStore implements MemStore {
       long newValue, long now) {
     Cell firstCell = KeyValueUtil.createFirstOnRow(row, family, qualifier);
     // Is there a Cell in 'snapshot' with the same TS? If so, upgrade the timestamp a bit.
-    SortedSet<Cell> snSs = snapshot.tailSet(firstCell);
-    if (!snSs.isEmpty()) {
-      Cell snc = snSs.first();
+    SortedSet<Cell> snTailSet = snapshot.tailSet(firstCell);
+    if (!snTailSet.isEmpty()) {
+      Cell snc = snTailSet.first();
       // is there a matching Cell in the snapshot?
       if (CellUtil.matchingRow(snc, firstCell) && CellUtil.matchingQualifier(snc, firstCell)) {
         if (snc.getTimestamp() == now) {
-          // poop,
           now += 1;
         }
       }
@@ -448,8 +443,9 @@ public abstract class AbstractMemStore implements MemStore {
     return snapshot;
   }
 
-  protected void setSnapshot(MemStoreSegment snapshot) {
+  protected AbstractMemStore setSnapshot(MemStoreSegment snapshot) {
     this.snapshot = snapshot;
+    return this;
   }
 
   protected void setSnapshotSize(long snapshotSize) {

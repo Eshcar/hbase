@@ -24,7 +24,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
@@ -45,7 +44,6 @@ import java.util.TreeMap;
  * Like the snapshot, all pipeline components are read-only; updates only affect the active set.
  * To ensure this property we take advantage of the existing blocking mechanism -- the active set
  * is pushed to the pipeline while holding updatesLock in exclusive mode.
- *
  * Periodically, a compaction is applied in the background to all pipeline components resulting
  * in a single read-only component. The “old” components are discarded when no scanner is reading
  * them.
@@ -53,17 +51,25 @@ import java.util.TreeMap;
 @InterfaceAudience.Private
 public class CompactedMemStore extends AbstractMemStore {
 
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
+      .TIMERANGE_TRACKER +
+      ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
   private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
-
   private HStore store;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private boolean forceFlushToDisk;
-  private NavigableMap<Long,Long> timestampToWALSeqId;
+  private NavigableMap<Long, Long> timestampToWALSeqId;
 
-  public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
-      .TIMERANGE_TRACKER +
-      ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+  public CompactedMemStore(Configuration conf, CellComparator c,
+      HStore store) throws IOException {
+    super(conf, c);
+    this.store = store;
+    this.pipeline = new CompactionPipeline(store.getHRegion());
+    this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
+    this.forceFlushToDisk = false;
+    this.timestampToWALSeqId = new TreeMap<>();
+  }
 
   public static long getMemStoreSegmentSize(MemStoreSegment segment) {
     return segment.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
@@ -71,31 +77,10 @@ public class CompactedMemStore extends AbstractMemStore {
 
   public static long getMemStoreSegmentListSize(LinkedList<MemStoreSegment> list) {
     long res = 0;
-    for(MemStoreSegment segment : list) {
+    for (MemStoreSegment segment : list) {
       res += getMemStoreSegmentSize(segment);
     }
     return res;
-  }
-
-  public CompactedMemStore(Configuration conf, CellComparator c,
-      HStore store) throws IOException {
-    super(conf, c);
-    this.store  = store;
-    this.pipeline = new CompactionPipeline(store.getHRegion());
-    this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
-    this.forceFlushToDisk = false;
-    this.timestampToWALSeqId = new TreeMap<>();
-  }
-
-  @Override
-  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
-    LinkedList<MemStoreSegment> list = getMemStoreSegmentList();
-    for(MemStoreSegment item : list) {
-      if(item.shouldSeek(scan, oldestUnexpiredTS)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   @Override
@@ -103,14 +88,14 @@ public class CompactedMemStore extends AbstractMemStore {
     LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
     LinkedList<MemStoreSegmentScanner> list = new LinkedList<MemStoreSegmentScanner>();
     list.add(getActive().getScanner(readPt));
-    for(MemStoreSegment item : pipelineList) {
+    for (MemStoreSegment item : pipelineList) {
       list.add(item.getScanner(readPt));
     }
     list.add(getSnapshot().getScanner(readPt));
     // set sequence ids by decsending order
     Iterator<MemStoreSegmentScanner> iterator = list.descendingIterator();
     int seqId = 0;
-    while(iterator.hasNext()){
+    while (iterator.hasNext()) {
       iterator.next().setSequenceID(seqId);
       seqId++;
     }
@@ -124,49 +109,35 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override public long size() {
     long res = 0;
-    for(MemStoreSegment item : getMemStoreSegmentList()) {
+    for (MemStoreSegment item : getMemStoreSegmentList()) {
       res += item.getSize();
     }
     return res;
   }
 
   /**
-   * The semantics of the snapshot method are changed to do the following:
-   * When force-flush flag is on, create a snapshot of the tail of current compaction pipeline
-   * otherwise, push the current active memstore bucket into the pipeline.
+   * Push the current active memstore bucket into the pipeline
+   * and create a snapshot of the tail of current compaction pipeline
    * Snapshot must be cleared by call to {@link #clearSnapshot}.
    * {@link #clearSnapshot(long)}.
    *
    * @return {@link MemStoreSnapshot}
    */
   @Override public MemStoreSnapshot snapshot() {
-      MemStoreSegment active = getActive();
-//    if(!isForceFlushToDisk()) {
-//      LOG.info("Snapshot called without forcing flush. ");
-//      LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
-//      pushActiveToPipeline(active);
-//      try {
-//        // Speculative compaction execution, may be interrupted if flush is forced while
-//        // compaction is in progress
-//        compactor.startCompact(store);
-//      } catch (IOException e) {
-//        LOG.error("Unable to run memstore compaction", e);
-//      }
-//    } else { //**** FORCE FLUSH MODE ****//
-      // If snapshot currently has entries, then flusher failed or didn't call
-      // cleanup.  Log a warning.
-      if (!getSnapshot().isEmpty()) {
-        LOG.warn("Snapshot called again without clearing previous. " +
-            "Doing nothing. Another ongoing flush or did we fail last attempt?");
-      } else {
-        LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
-            "and pipeline tail into snapshot.");
-        pushActiveToPipeline(active, false);
-        this.snapshotId = EnvironmentEdgeManager.currentTime();
-        pushTailToSnapshot();
-        resetForceFlush();
-      }
-//    }
+    MemStoreSegment active = getActive();
+    // If snapshot currently has entries, then flusher failed or didn't call
+    // cleanup.  Log a warning.
+    if (!getSnapshot().isEmpty()) {
+      LOG.warn("Snapshot called again without clearing previous. " +
+          "Doing nothing. Another ongoing flush or did we fail last attempt?");
+    } else {
+      LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
+          "and pipeline tail into snapshot.");
+      pushActiveToPipeline(active, false);
+      this.snapshotId = EnvironmentEdgeManager.currentTime();
+      pushTailToSnapshot();
+      resetForceFlush();
+    }
     return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
   }
 
@@ -175,8 +146,8 @@ public class CompactedMemStore extends AbstractMemStore {
     MemStoreSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
     pushActiveToPipeline(active, true);
-    Long now = System.currentTimeMillis();
-    timestampToWALSeqId.put(now,flushOpSeqId);
+    Long now = EnvironmentEdgeManager.currentTime();
+    timestampToWALSeqId.put(now, flushOpSeqId);
     try {
       // Speculative compaction execution, may be interrupted if flush is forced while
       // compaction is in progress
@@ -191,11 +162,11 @@ public class CompactedMemStore extends AbstractMemStore {
   public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
     long minTimestamp = pipeline.getMinTimestamp();
     Long seqId = getMaxSeqId(minTimestamp);
-    if(seqId == null) return;
+    if (seqId == null) return;
     byte[] encodedRegionName = getRegion().getRegionInfo().getEncodedNameAsBytes();
     byte[] familyName = getFamilyName();
     WAL wal = getRegion().getWAL();
-    if(wal != null) {
+    if (wal != null) {
       wal.updateStore(encodedRegionName, familyName, seqId, onlyIfGreater);
     }
   }
@@ -208,7 +179,7 @@ public class CompactedMemStore extends AbstractMemStore {
       long size = getMemStoreSegmentSize(active);
       resetCellSet();
       updateRegionAdditionalMemstoreSizeCounter(size); //push size into pipeline
-      if(needToUpdateRegionMemstoreSizeCounter) {
+      if (needToUpdateRegionMemstoreSizeCounter) {
         updateRegionMemStoreSizeCounter(-size);
       }
     }
@@ -216,7 +187,7 @@ public class CompactedMemStore extends AbstractMemStore {
 
   private void pushTailToSnapshot() {
     MemStoreSegment tail = pipeline.pullTail();
-    if(!tail.isEmpty()) {
+    if (!tail.isEmpty()) {
       setSnapshot(tail);
       long size = getMemStoreSegmentSize(tail);
       setSnapshotSize(size);
@@ -225,20 +196,23 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   private void updateRegionAdditionalMemstoreSizeCounter(long size) {
-    if(getRegion() != null) {
+    if (getRegion() != null) {
       long globalMemstoreAdditionalSize = getRegion().addAndGetGlobalMemstoreAdditionalSize(size);
       // no need to update global memstore size as it is updated by the flusher
-      LOG.info(" globalMemstoreAdditionalSize: "+globalMemstoreAdditionalSize);
+      LOG.debug(getRegion().getRegionInfo().getEncodedName() + " globalMemstoreAdditionalSize: " +
+          globalMemstoreAdditionalSize);
     }
   }
 
   private void updateRegionMemStoreSizeCounter(long size) {
-    if(getRegion() != null) {
+    if (getRegion() != null) {
       // need to update global memstore size when it is not accounted by the flusher
       long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(size);
-      LOG.info(" globalMemstoreSize: "+globalMemstoreSize);
+      LOG.debug(getRegion().getRegionInfo().getEncodedName()+" globalMemstoreSize: " +
+          globalMemstoreSize);
     }
   }
+
   /**
    * On flush, how much memory we will clear from the active cell set.
    *
@@ -259,21 +233,8 @@ public class CompactedMemStore extends AbstractMemStore {
   @Override public void rollback(Cell cell) {
     rollbackSnapshot(cell);
     pipeline.rollback(cell);
-    rollbackCellSet(cell);
+    rollbackActive(cell);
   }
-
-  /**
-   * Find the key that matches <i>row</i> exactly, or the one that immediately precedes it. The
-   * target row key is set in state.
-   *
-/   * @param state column/delete tracking state
-   */
-//  @Override
-//  public void getRowKeyAtOrBefore(GetClosestRowBeforeTracker state) {
-//    getActive().getRowKeyAtOrBefore(state);
-//    pipeline.getRowKeyAtOrBefore(state);
-//    getSnapshot().getRowKeyAtOrBefore(state);
-//  }
 
   @Override
   public AbstractMemStore setForceFlushToDisk() {
@@ -283,12 +244,11 @@ public class CompactedMemStore extends AbstractMemStore {
     return this;
   }
 
-
   @Override boolean isForceFlushToDisk() {
     return forceFlushToDisk;
   }
 
-  @Override public boolean isMemStoreCompaction() {
+  @Override public boolean isMemStoreInCompaction() {
     return compactor.isInCompaction();
   }
 
@@ -310,14 +270,14 @@ public class CompactedMemStore extends AbstractMemStore {
 
   /**
    * @param cell Find the row that comes after this one.  If null, we return the
-   * first.
+   *             first.
    * @return Next row or null if none found.
    */
   Cell getNextRow(final Cell cell) {
     Cell lowest = null;
     LinkedList<MemStoreSegment> segments = getMemStoreSegmentList();
     for (MemStoreSegment segment : segments) {
-      if (lowest==null) {
+      if (lowest == null) {
         lowest = getNextRow(cell, segment.getCellSet());
       } else {
         lowest = getLowest(lowest, getNextRow(cell, segment.getCellSet()));
@@ -329,6 +289,7 @@ public class CompactedMemStore extends AbstractMemStore {
   void disableCompaction() {
     compactor.toggleCompaction(false);
   }
+
   void enableCompaction() {
     compactor.toggleCompaction(true);
   }
@@ -336,34 +297,38 @@ public class CompactedMemStore extends AbstractMemStore {
   public HRegion getRegion() {
     return store.getHRegion();
   }
-  public byte[] getFamilyName() { return store.getFamily().getName(); }
+
+  public byte[] getFamilyName() {
+    return store.getFamily().getName();
+  }
 
   /**
    * Returns the (maximal) sequence id that is associated with the maximal ts that is smaller than
    * the given ts, and removes all entries in the ts=>seqid map with timestamp smaller than
    * the given ts.
+   *
    * @param minTimestamp
-   * @return
+   * @return sequence id
    */
   public Long getMaxSeqId(long minTimestamp) {
     Long res = null;
     Long last = null;
     List<Long> tsToRemove = new LinkedList<Long>();
-    for(Long ts : timestampToWALSeqId.keySet()) {
-      if(ts >= minTimestamp) {
-        if(last != null) {
+    for (Long ts : timestampToWALSeqId.keySet()) {
+      if (ts >= minTimestamp) {
+        if (last != null) {
           tsToRemove.add(last);
           res = timestampToWALSeqId.get(last);
         }
         break;
       }
       // else ts < min ts in memstore, therefore can use sequence id to truncate wal
-      if(last != null) {
+      if (last != null) {
         tsToRemove.add(last);
       }
       last = ts;
     }
-    for(Long ts :tsToRemove) {
+    for (Long ts : tsToRemove) {
       timestampToWALSeqId.remove(ts);
     }
     return res;
