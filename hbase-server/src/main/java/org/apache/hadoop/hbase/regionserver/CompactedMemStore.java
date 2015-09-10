@@ -51,9 +51,9 @@ import java.util.TreeMap;
 @InterfaceAudience.Private
 public class CompactedMemStore extends AbstractMemStore {
 
-  public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(ClassSize
-      .TIMERANGE_TRACKER +
-      ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
+      ClassSize.TIMERANGE_TRACKER +
+          ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
   private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
   private HStore store;
   private CompactionPipeline pipeline;
@@ -208,7 +208,7 @@ public class CompactedMemStore extends AbstractMemStore {
     if (getRegion() != null) {
       // need to update global memstore size when it is not accounted by the flusher
       long globalMemstoreSize = getRegion().addAndGetGlobalMemstoreSize(size);
-      LOG.debug(getRegion().getRegionInfo().getEncodedName()+" globalMemstoreSize: " +
+      LOG.debug(getRegion().getRegionInfo().getEncodedName() + " globalMemstoreSize: " +
           globalMemstoreSize);
     }
   }
@@ -246,6 +246,10 @@ public class CompactedMemStore extends AbstractMemStore {
 
   @Override boolean isForceFlushToDisk() {
     return forceFlushToDisk;
+  }
+
+  @Override public boolean isCompactedMemStore() {
+    return true;
   }
 
   @Override public boolean isMemStoreInCompaction() {

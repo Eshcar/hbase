@@ -445,6 +445,8 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   void setForceFlushToDisk();
   // check whether memstore compaction is in progress
   boolean isMemStoreInCompaction();
+  // check whether memstore can be compacted
+  boolean isCompactedMemStore();
   // check whether can flush in memory
   boolean shouldFlushInMemory();
   // flush memstore into an in-memory compacted segment
