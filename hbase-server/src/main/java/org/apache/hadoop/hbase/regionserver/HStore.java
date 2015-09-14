@@ -2294,6 +2294,10 @@ public class HStore implements Store {
     return memstore.isMemStoreInCompaction();
   }
 
+  @Override public boolean isCompactedMemStore() {
+    return memstore.isCompactedMemStore();
+  }
+
   @Override public boolean shouldFlushInMemory() {
     return memstore.shouldFlushInMemory();
   }

@@ -97,6 +97,8 @@ public abstract class AbstractMemStore implements MemStore {
 
   public abstract AbstractMemStore setForceFlushToDisk();
   abstract boolean isForceFlushToDisk();
+
+  public abstract boolean isCompactedMemStore();
   public abstract boolean isMemStoreInCompaction();
   boolean shouldFlushInMemory() {
     return !isForceFlushToDisk();
