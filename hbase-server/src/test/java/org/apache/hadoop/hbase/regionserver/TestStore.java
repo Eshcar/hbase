@@ -861,7 +861,7 @@ public class TestStore {
 
   private static void flushStore(HStore store, long id) throws IOException {
     StoreFlushContext storeFlushCtx = store.createFlushContext(id);
-    storeFlushCtx.prepareFlushToDisk();
+    storeFlushCtx.prepareFlushToDisk(id);
     storeFlushCtx.flushCache(Mockito.mock(MonitoredTask.class));
     storeFlushCtx.commit(Mockito.mock(MonitoredTask.class));
   }

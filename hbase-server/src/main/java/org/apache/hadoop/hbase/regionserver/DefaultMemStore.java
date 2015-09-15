@@ -79,9 +79,10 @@ public class DefaultMemStore extends AbstractMemStore {
   /**
    * Creates a snapshot of the current memstore.
    * Snapshot must be cleared by call to {@link #clearSnapshot(long)}
+   * @param flushOpSeqId the sequence id that is attached to the flush operation in the wal
    */
   @Override
-  public MemStoreSnapshot snapshot() {
+  public MemStoreSnapshot snapshot(long flushOpSeqId) {
     // If snapshot currently has entries, then flusher failed or didn't call
     // cleanup.  Log a warning.
     if (!getSnapshot().isEmpty()) {

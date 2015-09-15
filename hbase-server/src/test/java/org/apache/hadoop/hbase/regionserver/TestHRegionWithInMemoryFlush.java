@@ -268,7 +268,7 @@ public class TestHRegionWithInMemoryFlush {
     assertEquals(208, region.getMemstoreSize());
     store.setForceFlushToDisk();
     StoreFlushContext storeFlushCtx = store.createFlushContext(12345);
-    storeFlushCtx.prepareFlushToDisk();
+    storeFlushCtx.prepareFlushToDisk(12345);
     assertEquals(208, region.getMemstoreSize());
     // Second put something in current memstore
     put.add(COLUMN_FAMILY_BYTES, Bytes.toBytes("abc"), value);
@@ -299,7 +299,7 @@ public class TestHRegionWithInMemoryFlush {
 
       @Override
       public void sync(long txid) throws IOException {
-        storeFlushCtx.prepareFlushToDisk();
+        storeFlushCtx.prepareFlushToDisk(0);
         super.sync(txid);
       }
     }
@@ -464,7 +464,7 @@ public class TestHRegionWithInMemoryFlush {
           // Manufacture an outstanding snapshot -- fake a failed flush by doing prepare step only.
           Store store = region.getStore(COLUMN_FAMILY_BYTES);
           StoreFlushContext storeFlushCtx = store.createFlushContext(12345);
-          storeFlushCtx.prepareFlushToDisk();
+          storeFlushCtx.prepareFlushToDisk(12345);
           // Now add two entries to the foreground memstore.
           Put p2 = new Put(row);
           p2.add(new KeyValue(row, COLUMN_FAMILY_BYTES, qual2, 2, (byte[])null));

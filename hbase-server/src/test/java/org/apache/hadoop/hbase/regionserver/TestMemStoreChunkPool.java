@@ -116,7 +116,7 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    MemStoreSnapshot snapshot = memstore.snapshot();
+    MemStoreSnapshot snapshot = memstore.snapshot(0);
     assertEquals(3, memstore.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -153,7 +153,7 @@ public class TestMemStoreChunkPool {
     memstore.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    MemStoreSnapshot snapshot = memstore.snapshot();
+    MemStoreSnapshot snapshot = memstore.snapshot(0);
     assertEquals(3, memstore.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -180,7 +180,7 @@ public class TestMemStoreChunkPool {
     chunkPool.clearChunks();
 
     // Creating another snapshot
-    snapshot = memstore.snapshot();
+    snapshot = memstore.snapshot(0);
     // Adding more value
     memstore.add(new KeyValue(row, fam, qf6, val));
     memstore.add(new KeyValue(row, fam, qf7, val));

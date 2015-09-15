@@ -202,7 +202,7 @@ public class TestCompactedMemStore extends TestCase {
         if (count == 2) {
           // the test should be still correct although the compaction is starting in the background
           // there should be nothing to compact
-          this.cms.snapshot();
+          this.cms.snapshot(0);
           LOG.info("Snapshotted");
         }
         result.clear();
@@ -232,7 +232,7 @@ public class TestCompactedMemStore extends TestCase {
         assertEquals("count=" + count + ", result=" + result, rowCount, result.size());
         count++;
         if (count == snapshotIndex) {
-          MemStoreSnapshot snapshot = this.cms.snapshot();
+          MemStoreSnapshot snapshot = this.cms.snapshot(0);
           this.cms.clearSnapshot(snapshot.getId());
           // Added more rows into kvset.  But the scanner wont see these rows.
           addRows(this.cms, ts);
@@ -270,19 +270,19 @@ public class TestCompactedMemStore extends TestCase {
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 2: both kvs in snapshot
-    this.cms.snapshot();
+    this.cms.snapshot(0);
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 3: first in snapshot second in kvset
     this.cms = new CompactedMemStore(HBaseConfiguration.create(),
         CellComparator.COMPARATOR, store);
     this.cms.add(kv1.clone());
-    this.cms
-        .snapshot();                    // As compaction is starting in the background the repetition
-    this.cms.add(
-        kv2.clone());              // of the k1 might be removed BUT the scanners created earlier
-    verifyScanAcrossSnapshot2(kv1,
-        kv2);    // should look on the OLD MemStoreSegment, so this should be OK...
+    // As compaction is starting in the background the repetition
+    // of the k1 might be removed BUT the scanners created earlier
+    // should look on the OLD MemStoreSegment, so this should be OK...
+    this.cms.snapshot(0);
+    this.cms.add(kv2.clone());
+    verifyScanAcrossSnapshot2(kv1,kv2);
   }
 
   private void verifyScanAcrossSnapshot2(KeyValue kv1, KeyValue kv2)
@@ -580,7 +580,7 @@ public class TestCompactedMemStore extends TestCase {
     cms.flushInMemory(0);
     assertEquals(0, cms.getSnapshot().getCellsCount());
     //Creating a snapshot
-    cms.setForceFlushToDisk().snapshot();
+    cms.setForceFlushToDisk().snapshot(0);
     assertEquals(3, cms.getSnapshot().getCellsCount());
     //Adding value to "new" memstore
     assertEquals(0, cms.getActive().getCellsCount());
@@ -962,8 +962,8 @@ public class TestCompactedMemStore extends TestCase {
     long oldHistorySize = hmc.getSnapshot().getSize();
     long prevTimeStamp = hmc.timeOfOldestEdit();
     if (useForce) hmc.setForceFlushToDisk();
-    hmc.snapshot();
-    MemStoreSnapshot snapshot = hmc.snapshot();
+    hmc.snapshot(0);
+    MemStoreSnapshot snapshot = hmc.snapshot(0);
     if (useForce) {
       // Make some assertions about what just happened.
       assertTrue("History size has not increased", oldHistorySize < snapshot.getSize());
@@ -1009,7 +1009,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating a snapshot
     cms.setForceFlushToDisk();
-    MemStoreSnapshot snapshot = cms.snapshot();
+    MemStoreSnapshot snapshot = cms.snapshot(0);
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -1045,7 +1045,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating a snapshot
     cms.setForceFlushToDisk();
-    MemStoreSnapshot snapshot = cms.snapshot();
+    MemStoreSnapshot snapshot = cms.snapshot(0);
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -1073,7 +1073,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating another snapshot
     cms.setForceFlushToDisk();
-    snapshot = cms.snapshot();
+    snapshot = cms.snapshot(0);
     // Adding more value
     cms.add(new KeyValue(row, fam, qf6, val));
     cms.add(new KeyValue(row, fam, qf7, val));
@@ -1148,10 +1148,10 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating another snapshot
     cms.setForceFlushToDisk();
-    MemStoreSnapshot snapshot = cms.snapshot();
+    MemStoreSnapshot snapshot = cms.snapshot(0);
     cms.clearSnapshot(snapshot.getId());
     cms.setForceFlushToDisk();
-    snapshot = cms.snapshot();
+    snapshot = cms.snapshot(0);
     // Adding more value
     cms.add(new KeyValue(row, fam, qf2, 4, val));
     cms.add(new KeyValue(row, fam, qf3, 4, val));
@@ -1189,7 +1189,7 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.setForceFlushToDisk();
     size = cms.getFlushableSize();
-    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     MemStoreSegment s = cms.getSnapshot();
     SortedSet<Cell> ss = s.getCellSet();
@@ -1230,7 +1230,7 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.setForceFlushToDisk();
     size = cms.getFlushableSize();
-    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     MemStoreSegment s = cms.getSnapshot();
     SortedSet<Cell> ss = s.getCellSet();
@@ -1288,7 +1288,7 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.setForceFlushToDisk();
     size = cms.getFlushableSize();
-    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     MemStoreSegment s = cms.getSnapshot();
     SortedSet<Cell> ss = s.getCellSet();

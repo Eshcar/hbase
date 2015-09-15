@@ -2269,7 +2269,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
         // Prepare flush to disk (take a snapshot)
         for (StoreFlushContext flush : storeFlushCtxs.values()) {
-          flush.prepareFlushToDisk();
+          flush.prepareFlushToDisk(flushOpSeqId);
         }
       } catch (IOException ex) {
         if (wal != null) {
@@ -4640,7 +4640,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     long snapshotSize = s.getFlushableSize();
     this.addAndGetGlobalMemstoreSize(-snapshotSize);
     StoreFlushContext ctx = s.createFlushContext(currentSeqId);
-    ctx.prepareFlushToDisk();
+    ctx.prepareFlushToDisk(currentSeqId);
     ctx.abort();
     return snapshotSize;
   }

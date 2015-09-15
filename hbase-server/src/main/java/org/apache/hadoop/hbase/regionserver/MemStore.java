@@ -39,14 +39,15 @@ public interface MemStore extends HeapSize {
    * Creates a snapshot of the current memstore. Snapshot must be cleared by call to
    * {@link #clearSnapshot(long)}.
    * @return {@link MemStoreSnapshot}
+   * @param flushOpSeqId
    */
-  MemStoreSnapshot snapshot();
+  MemStoreSnapshot snapshot(long flushOpSeqId);
 
   /**
    * Clears the current snapshot of the Memstore.
    * @param id
    * @throws UnexpectedStateException
-   * @see #snapshot()
+   * @see #snapshot(long)
    */
   void clearSnapshot(long id) throws UnexpectedStateException;
 

@@ -120,10 +120,11 @@ public class CompactedMemStore extends AbstractMemStore {
    * and create a snapshot of the tail of current compaction pipeline
    * Snapshot must be cleared by call to {@link #clearSnapshot}.
    * {@link #clearSnapshot(long)}.
+   * @param flushOpSeqId the sequence id that is attached to the flush operation in the wal
    *
    * @return {@link MemStoreSnapshot}
    */
-  @Override public MemStoreSnapshot snapshot() {
+  @Override public MemStoreSnapshot snapshot(long flushOpSeqId) {
     MemStoreSegment active = getActive();
     // If snapshot currently has entries, then flusher failed or didn't call
     // cleanup.  Log a warning.
@@ -133,7 +134,7 @@ public class CompactedMemStore extends AbstractMemStore {
     } else {
       LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
           "and pipeline tail into snapshot.");
-      pushActiveToPipeline(active, false);
+      pushActiveToPipeline(active, flushOpSeqId, false);
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
       resetForceFlush();
@@ -145,9 +146,7 @@ public class CompactedMemStore extends AbstractMemStore {
   public void flushInMemory(long flushOpSeqId) {
     MemStoreSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
-    pushActiveToPipeline(active, true);
-    Long now = EnvironmentEdgeManager.currentTime();
-    timestampToWALSeqId.put(now, flushOpSeqId);
+    pushActiveToPipeline(active, flushOpSeqId, true);
     try {
       // Speculative compaction execution, may be interrupted if flush is forced while
       // compaction is in progress
@@ -171,17 +170,19 @@ public class CompactedMemStore extends AbstractMemStore {
     }
   }
 
-  private void pushActiveToPipeline(MemStoreSegment active,
-      boolean needToUpdateRegionMemstoreSizeCounter) {
+  private void pushActiveToPipeline(MemStoreSegment active, long flushOpSeqId,
+      boolean needToUpdateRegionMemStoreSizeCounter) {
     if (!active.isEmpty()) {
       pipeline.pushHead(active);
       active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       long size = getMemStoreSegmentSize(active);
       resetCellSet();
       updateRegionAdditionalMemstoreSizeCounter(size); //push size into pipeline
-      if (needToUpdateRegionMemstoreSizeCounter) {
+      if (needToUpdateRegionMemStoreSizeCounter) {
         updateRegionMemStoreSizeCounter(-size);
       }
+      Long now = EnvironmentEdgeManager.currentTime();
+      timestampToWALSeqId.put(now, flushOpSeqId);
     }
   }
 
@@ -320,10 +321,6 @@ public class CompactedMemStore extends AbstractMemStore {
     List<Long> tsToRemove = new LinkedList<Long>();
     for (Long ts : timestampToWALSeqId.keySet()) {
       if (ts >= minTimestamp) {
-        if (last != null) {
-          tsToRemove.add(last);
-          res = timestampToWALSeqId.get(last);
-        }
         break;
       }
       // else ts < min ts in memstore, therefore can use sequence id to truncate wal
@@ -331,6 +328,10 @@ public class CompactedMemStore extends AbstractMemStore {
         tsToRemove.add(last);
       }
       last = ts;
+    }
+    if (last != null) {
+      tsToRemove.add(last);
+      res = timestampToWALSeqId.get(last);
     }
     for (Long ts : tsToRemove) {
       timestampToWALSeqId.remove(ts);

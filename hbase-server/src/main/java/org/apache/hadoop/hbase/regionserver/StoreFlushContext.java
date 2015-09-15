@@ -38,8 +38,9 @@ interface StoreFlushContext {
    * Requires pausing writes.
    *
    * A very short operation.
+   * @param flushOpSeqId
    */
-  void prepareFlushToDisk();
+  void prepareFlushToDisk(long flushOpSeqId);
 
   /**
    * Flush the cache (create the new store file)

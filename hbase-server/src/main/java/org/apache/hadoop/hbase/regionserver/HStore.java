@@ -905,7 +905,7 @@ public class HStore implements Store {
   void snapshot() {
     this.lock.writeLock().lock();
     try {
-      this.memstore.snapshot();
+      this.memstore.snapshot(0);
     } finally {
       this.lock.writeLock().unlock();
     }
@@ -2055,10 +2055,11 @@ public class HStore implements Store {
     /**
      * This is not thread safe. The caller should have a lock on the region or the store.
      * If necessary, the lock can be added with the patch provided in HBASE-10087
+     * @param flushOpSeqId the sequence id that is attached to the flush operation in the wal
      */
     @Override
-    public void prepareFlushToDisk() {
-      this.snapshot = memstore.snapshot();
+    public void prepareFlushToDisk(long flushOpSeqId) {
+      this.snapshot = memstore.snapshot(flushOpSeqId);
       this.cacheFlushCount = snapshot.getCellsCount();
       this.cacheFlushSize = snapshot.getSize();
       committedFiles = new ArrayList<Path>(1);

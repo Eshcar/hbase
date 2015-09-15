@@ -17,11 +17,6 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -33,14 +28,8 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
-import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.Waiter;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.Connection;
-import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
@@ -55,9 +44,13 @@ import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import com.google.common.hash.Hashing;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * This test verifies the correctness of the Per Column Family flushing strategy
@@ -317,10 +310,8 @@ public class TestWalAndCompactedMemstoreFlush {
     assertEquals(smallestSeqCF3PhaseII, smallestSeqCF3PhaseIV);
 
     // CF1 or CF3 should be bottleneck for WAL
-    // This test currently doesn't pass, because unexpectedly the smallest
-    // LSN in the memstore of CF1 is -1. Uncomment when this is fixed.
-    // assertEquals(smallestSeqInRegionCurrentMemstorePhaseIV,
-    //  ((smallestSeqCF1PhaseIV<smallestSeqCF3PhaseIV)?smallestSeqCF1PhaseIV:smallestSeqCF3PhaseIV) );
+     assertEquals(s, smallestSeqInRegionCurrentMemstorePhaseIV,
+      ((smallestSeqCF1PhaseIV<smallestSeqCF3PhaseIV)?smallestSeqCF1PhaseIV:smallestSeqCF3PhaseIV) );
 
     // Flush!!!!!!!!!!!!!!!!!!!!!!
     // Clearing the existing memstores, CF2 all flushed to disk. The single
