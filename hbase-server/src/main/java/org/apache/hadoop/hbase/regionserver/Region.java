@@ -639,14 +639,14 @@ public interface Region extends ConfigurationObserver {
    *
    * <p>This method may block for some time, so it should not be called from a
    * time-sensitive thread.
-   * @param force whether we want to force a flush of all stores
+   * @param forceFlushAllStores whether we want to force a flush of all stores
    * @return FlushResult indicating whether the flush was successful or not and if
    * the region needs compacting
    *
    * @throws IOException general io exceptions
    * because a snapshot was not properly persisted.
    */
-  FlushResult flush(boolean force) throws IOException;
+  FlushResult flush(boolean forceFlushAllStores) throws IOException;
 
   /**
    * Flush the cache.
@@ -661,7 +661,7 @@ public interface Region extends ConfigurationObserver {
    *
    * <p>This method may block for some time, so it should not be called from a
    * time-sensitive thread.
-   * @param force whether we want to force a flush of all stores
+   * @param forceFlushAllStores whether we want to force a flush of all stores
    * @param forceFlushInsteadOfCompaction whether to flush the compacting memstores as well
    * @return FlushResult indicating whether the flush was successful or not and if
    * the region needs compacting
@@ -670,7 +670,7 @@ public interface Region extends ConfigurationObserver {
    * @throws DroppedSnapshotException Thrown when abort is required
    * because a snapshot was not properly persisted.
    */
-  public FlushResult flush(boolean force, boolean forceFlushInsteadOfCompaction) throws IOException;
+  public FlushResult flush(boolean forceFlushAllStores, boolean forceFlushInsteadOfCompaction) throws IOException;
 
   /**
    * Synchronously compact all stores in the region.

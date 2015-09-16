@@ -276,7 +276,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  private final AtomicLong memstoreSize = new AtomicLong(0); // size of active set in memstore
+  private final AtomicLong memstoreActiveSize = new AtomicLong(0); // size of active set in memstore
   // size of additional memstore buckets, e.g., in compaction pipeline
   private final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
 
@@ -1081,7 +1081,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (this.rsAccounting != null) {
       rsAccounting.addAndGetGlobalMemstoreSize(memStoreSize);
     }
-    return this.memstoreSize.addAndGet(memStoreSize);
+    return this.memstoreActiveSize.addAndGet(memStoreSize);
   }
 
   public long addAndGetGlobalMemstoreAdditionalSize(long size) {
@@ -1128,7 +1128,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   @Override
   public long getMemstoreSize() {
-    return memstoreSize.get();
+    return memstoreActiveSize.get();
   }
 
   private long getMemstoreAdditionalSize() {
@@ -1475,7 +1475,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             getRegionServerServices().abort("Assertion failed while closing store "
                 + getRegionInfo().getRegionNameAsString() + " " + store
                 + ". flushableSize expected=0, actual= " + flushableSize
-                + ". Current memstoreSize=" + getMemstoreSize() + ". Maybe a coprocessor "
+                + ". Current memstoreActiveSize=" + getMemstoreSize() + ". Maybe a coprocessor "
                 + "operation failed and left the memstore in a partially updated state.", null);
           }
           completionService
@@ -1513,11 +1513,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
 
       this.closed.set(true);
-      if (getMemstoreTotalSize() != 0) LOG.error("Memstore size is " + getMemstoreTotalSize());
+      if (getMemstoreTotalSize() != 0) LOG.error(getRegionInfo().getEncodedName()+" Memstore size" +
+          " is " + getMemstoreTotalSize());
       if (!canFlush) {
-        addAndGetGlobalMemstoreSize(-memstoreSize.get());
-      } else if (memstoreSize.get() != 0) {
-        LOG.error("Memstore size is " + memstoreSize.get());
+        addAndGetGlobalMemstoreSize(-memstoreActiveSize.get());
+      } else if (memstoreActiveSize.get() != 0) {
+        LOG.error(getRegionInfo().getEncodedName()+" Memstore size is " + memstoreActiveSize.get());
       }
       if (coprocessorHost != null) {
         status.setStatus("Running coprocessor post-close hooks");
@@ -1602,7 +1603,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     * @return True if its worth doing a flush before we put up the close flag.
     */
   private boolean worthPreFlushing() {
-    return this.memstoreSize.get() >
+    return this.memstoreActiveSize.get() >
       this.conf.getLong("hbase.hregion.preclose.flush.size", 1024 * 1024 * 5);
   }
 
@@ -1866,15 +1867,17 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   @Override
-  public FlushResult flush(boolean force,boolean forceDiskFlushInsteadOfInMemoryFlush) throws IOException {
+  public FlushResult flush(boolean forceFlushAllStores,
+      boolean forceDiskFlushInsteadOfInMemoryFlush) throws IOException {
     boolean writeFlushRequestWalMarker = false;
-    return flushcache(force, writeFlushRequestWalMarker,forceDiskFlushInsteadOfInMemoryFlush);
+    return flushcache(forceFlushAllStores, writeFlushRequestWalMarker,
+        forceDiskFlushInsteadOfInMemoryFlush);
   }
 
   @Override
-  public FlushResult flush(boolean force) throws IOException {
+  public FlushResult flush(boolean forceFlushAllStores) throws IOException {
     boolean writeFlushRequestWalMarker = false;
-    return flushcache(force, writeFlushRequestWalMarker);
+    return flushcache(forceFlushAllStores, writeFlushRequestWalMarker);
   }
 
   public FlushResult flushcache(boolean forceFlushAllStores, boolean writeFlushRequestWalMarker)
@@ -2187,7 +2190,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
       }
       LOG.info("Flushing " + + storesToFlushToDisk.size() + "/" + stores.size() +
-        " column families, memstore=" + StringUtils.byteDesc(this.memstoreSize.get()) +
+        " column families, memstore=" + StringUtils.byteDesc(this.memstoreActiveSize.get()) +
         ((perCfExtras != null && perCfExtras.length() > 0)? perCfExtras.toString(): "") +
         ((wal != null) ? "" : "; WAL is null, using passed sequenceid=" + myseqid));
     }
@@ -2475,7 +2478,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
 
     long time = EnvironmentEdgeManager.currentTime() - startTime;
-    long memstoresize = this.memstoreSize.get();
+    long memstoresize = this.memstoreActiveSize.get();
     String msg = "Finished memstore flush of ~"
         + StringUtils.byteDesc(totalFlushableSizeOfFlushableStores) + "/"
         + totalFlushableSizeOfFlushableStores + ", currentsize="
@@ -3662,7 +3665,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           this.getRegionInfo().getRegionNameAsString()) +
           ", server=" + (this.getRegionServerServices() == null ? "unknown" :
           this.getRegionServerServices().getServerName()) +
-          ", memstoreSize=" + memstoreSize +
+          ", memstoreActiveSize=" + memstoreSize +
           ", blockingMemStoreSize=" + blockingMemStoreSize);
     }
   }

@@ -319,6 +319,9 @@ public class CompactedMemStore extends AbstractMemStore {
     Long res = null;
     Long last = null;
     List<Long> tsToRemove = new LinkedList<Long>();
+    // go through the timestamps by their order; stop when reaching the end or to a greater
+    // timestamp than the given one. Return the seq id that is associated with *last* ts (if not
+    // null) that is smaller than the given ts
     for (Long ts : timestampToWALSeqId.keySet()) {
       if (ts >= minTimestamp) {
         break;
