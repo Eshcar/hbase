@@ -91,14 +91,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
     if (cp.isEmpty()) return false;        // no compaction on empty pipeline
 
     if (!inCompaction.get()) {             // dispatch
-      List<MemStoreSegmentScanner> scanners = new ArrayList<MemStoreSegmentScanner>();
+      List<StoreSegmentScanner> scanners = new ArrayList<StoreSegmentScanner>();
       this.versionedList =               // get the list of CellSetMgrs from the pipeline
           cp.getVersionedList();     // the list is marked with specific version
 
       // create the list of scanners with maximally possible read point, meaning that
       // all KVs are going to be returned by the pipeline traversing
-      for (MemStoreSegment mgr : this.versionedList.getMemStoreSegments()) {
-        scanners.add(mgr.getScanner(Long.MAX_VALUE));
+      for (StoreSegment segment : this.versionedList.getStoreSegments()) {
+        scanners.add(segment.getScanner(Long.MAX_VALUE));
       }
       scanner =
           new MemStoreScanner(ms, scanners, Long.MAX_VALUE, MemStoreScanner.Type.COMPACT_FORWARD);
@@ -150,13 +150,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
   private class Worker implements Runnable {
 
     @Override public void run() {
-      MemStoreSegment result = MemStoreSegment.Factory.instance()
-          .createMemStoreSegment(CellSet.Type.COMPACTED_READ_ONLY, conf, comparator,
+      ImmutableSegment result = StoreSegmentFactory.instance()
+          .createImmutableSegment(conf, comparator,
               CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       // the compaction processing
       KeyValue cell;
       try {
-        // Phase I: create the compacted MemStoreSegment
+        // Phase I: create the compacted MutableCellSetSegment
         compactSegments(result);
         // Phase II: swap the old compaction pipeline
         if (!Thread.currentThread().isInterrupted()) {
@@ -193,10 +193,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
   }
 
   /**
-   * Creates a single MemStoreSegment using the internal store scanner,
+   * Creates a single StoreSegment using the internal store scanner,
    * who in turn uses ScanQueryMatcher
    */
-  private void compactSegments(MemStoreSegment result) throws IOException {
+  private void compactSegments(StoreSegment result) throws IOException {
 
     List<Cell> kvs = new ArrayList<Cell>();
     // get the limit to the size of the groups to be returned by compactingScanner

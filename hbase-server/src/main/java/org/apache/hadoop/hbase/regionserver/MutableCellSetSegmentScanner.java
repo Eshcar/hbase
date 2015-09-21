@@ -29,12 +29,12 @@ import java.util.Iterator;
 import java.util.SortedSet;
 
 /**
- * A scanner of a single cells segment {@link MemStoreSegment}.
+ * A scanner of a single cells segment {@link MutableCellSetSegment}.
  */
 @InterfaceAudience.Private
-class MemStoreSegmentScanner implements KeyValueScanner {
+class MutableCellSetSegmentScanner implements StoreSegmentScanner {
 
-  private final MemStoreSegment segment;  // the observed structure
+  private final MutableCellSetSegment segment;  // the observed structure
   private long readPoint;                 // the highest relevant MVCC
   private Iterator<Cell> iter;        // the current iterator that can be reinitialized by
   // seek(), backwardSeek(), or reseek()
@@ -51,7 +51,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * ---------------------------------------------------------
    * C-tor
    */
-  public MemStoreSegmentScanner(MemStoreSegment segment, long readPoint) {
+  public MutableCellSetSegmentScanner(MutableCellSetSegment segment, long readPoint) {
     super();
     this.segment = segment;
     this.readPoint = readPoint;
@@ -147,6 +147,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
     return sequenceID;
   }
 
+  @Override
   public void setSequenceID(long x) {
     sequenceID = x;
   }
@@ -207,7 +208,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
           throws IOException {
 
     throw new IllegalStateException(
-            "requestSeek cannot be called on MemStoreSegmentScanner");
+            "requestSeek cannot be called on MutableCellSetSegmentScanner");
   }
 
 
@@ -219,7 +220,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
    * then used to ensure the top store file scanner has done a seek operation.
    * <p/>
    * This scanner is working solely on the in-memory MemStore and doesn't work on
-   * store files, MemStoreSegmentScanner always does the seek, therefore always returning true.
+   * store files, MutableCellSetSegmentScanner always does the seek, therefore always returning true.
    */
   @Override
   public boolean realSeekDone() {
@@ -238,7 +239,7 @@ class MemStoreSegmentScanner implements KeyValueScanner {
   @Override
   public void enforceSeek() throws IOException {
     throw new IllegalStateException(
-            "enforceSeek cannot be called on MemStoreSegmentScanner");
+            "enforceSeek cannot be called on MutableCellSetSegmentScanner");
   }
 
 
@@ -357,13 +358,14 @@ class MemStoreSegmentScanner implements KeyValueScanner {
 
   /**
    * Called after a batch of rows scanned (RPC) and set to be returned to client. Any in between
-   * cleanup can be done here. Nothing to be done for MemStoreSegmentScanner.
+   * cleanup can be done here. Nothing to be done for MutableCellSetSegmentScanner.
    */
   @Override
   public void shipped() throws IOException {
     // do nothing
   }
 
+  @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return segment.shouldSeek(scan,oldestUnexpiredTS);
   }

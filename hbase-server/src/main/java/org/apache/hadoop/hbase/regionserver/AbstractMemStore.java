@@ -50,9 +50,9 @@ public abstract class AbstractMemStore implements MemStore {
   private final CellComparator comparator;
 
   // active segment absorbs write operations
-  volatile private MemStoreSegment active;
+  volatile private MutableSegment active;
   // Snapshot of memstore.  Made for flusher.
-  volatile private MemStoreSegment snapshot;
+  volatile private ImmutableSegment snapshot;
   volatile long snapshotId;
   // Used to track when to flush
   volatile private long timeOfOldestEdit;
@@ -71,15 +71,14 @@ public abstract class AbstractMemStore implements MemStore {
     this.conf = conf;
     this.comparator = c;
     resetCellSet();
-    this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
-            CellSet.Type.EMPTY, conf, c, 0);
+    this.snapshot = StoreSegmentFactory.instance().createImmutableSegment(conf, c, 0);
 
   }
 
   protected void resetCellSet() {
     // Reset heap to not include any keys
-    this.active = MemStoreSegment.Factory.instance().createMemStoreSegment(
-            CellSet.Type.READ_WRITE, conf, comparator, deepOverhead());
+    this.active = StoreSegmentFactory.instance().createMutableSegment(
+        conf, comparator, deepOverhead());
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -184,10 +183,10 @@ public abstract class AbstractMemStore implements MemStore {
     }
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
-    MemStoreSegment oldSnapshot = this.snapshot;
+    StoreSegment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = MemStoreSegment.Factory.instance().createMemStoreSegment(
-              CellSet.Type.EMPTY, getComparator(), 0);
+      this.snapshot = StoreSegmentFactory.instance().createImmutableSegment(
+          getComparator(), 0);
     }
     this.snapshotId = -1;
     oldSnapshot.close();
@@ -232,14 +231,13 @@ public abstract class AbstractMemStore implements MemStore {
     }
   }
 
+  protected Configuration getConfiguration() {
+    return conf;
+  }
 
   protected void dump(Log log) {
-    for (Cell cell: this.active.getCellSet()) {
-      log.debug(cell);
-    }
-    for (Cell cell: this.snapshot.getCellSet()) {
-      log.debug(cell);
-    }
+    active.dump(log);
+    snapshot.dump(log);
   }
 
 
@@ -369,9 +367,8 @@ public abstract class AbstractMemStore implements MemStore {
       long newValue, long now) {
     Cell firstCell = KeyValueUtil.createFirstOnRow(row, family, qualifier);
     // Is there a Cell in 'snapshot' with the same TS? If so, upgrade the timestamp a bit.
-    SortedSet<Cell> snTailSet = snapshot.tailSet(firstCell);
-    if (!snTailSet.isEmpty()) {
-      Cell snc = snTailSet.first();
+    Cell snc = snapshot.getFirstAfter(firstCell);
+    if(snc != null) {
       // is there a matching Cell in the snapshot?
       if (CellUtil.matchingRow(snc, firstCell) && CellUtil.matchingQualifier(snc, firstCell)) {
         if (snc.getTimestamp() == now) {
@@ -437,15 +434,15 @@ public abstract class AbstractMemStore implements MemStore {
     return comparator;
   }
 
-  protected MemStoreSegment getActive() {
+  protected MutableSegment getActive() {
     return active;
   }
 
-  protected MemStoreSegment getSnapshot() {
+  protected ImmutableSegment getSnapshot() {
     return snapshot;
   }
 
-  protected AbstractMemStore setSnapshot(MemStoreSegment snapshot) {
+  protected AbstractMemStore setSnapshot(ImmutableSegment snapshot) {
     this.snapshot = snapshot;
     return this;
   }
@@ -454,6 +451,6 @@ public abstract class AbstractMemStore implements MemStore {
     getSnapshot().setSize(snapshotSize);
   }
 
-  abstract protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
+  abstract protected List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
 
 }

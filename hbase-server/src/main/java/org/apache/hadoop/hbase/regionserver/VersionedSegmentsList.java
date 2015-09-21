@@ -35,17 +35,17 @@ import java.util.LinkedList;
 @InterfaceAudience.Private
 public class VersionedSegmentsList {
 
-  private final LinkedList<MemStoreSegment> memStoreSegments;
+  private final LinkedList<ImmutableSegment> storeSegments;
   private final long version;
 
   public VersionedSegmentsList(
-          LinkedList<MemStoreSegment> memStoreSegments, long version) {
-    this.memStoreSegments = memStoreSegments;
+          LinkedList<ImmutableSegment> storeSegments, long version) {
+    this.storeSegments = storeSegments;
     this.version = version;
   }
 
-  public LinkedList<MemStoreSegment> getMemStoreSegments() {
-    return memStoreSegments;
+  public LinkedList<ImmutableSegment> getStoreSegments() {
+    return storeSegments;
   }
 
   public long getVersion() {

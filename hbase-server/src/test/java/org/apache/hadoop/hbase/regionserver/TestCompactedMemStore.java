@@ -51,7 +51,6 @@ import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -131,7 +130,7 @@ public class TestCompactedMemStore extends TestCase {
     super.setUp();
     this.mvcc = new MultiVersionConcurrencyControl();
     Configuration conf = new Configuration();
-    conf.setBoolean(MemStoreSegment.USEMSLAB_KEY, true);
+    conf.setBoolean(StoreSegmentFactory.USEMSLAB_KEY, true);
     conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
     conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
     HBaseTestingUtility hbaseUtility = HBaseTestingUtility.createLocalHTU(conf);
@@ -279,7 +278,7 @@ public class TestCompactedMemStore extends TestCase {
     this.cms.add(kv1.clone());
     // As compaction is starting in the background the repetition
     // of the k1 might be removed BUT the scanners created earlier
-    // should look on the OLD MemStoreSegment, so this should be OK...
+    // should look on the OLD MutableCellSetSegment, so this should be OK...
     this.cms.snapshot(0);
     this.cms.add(kv2.clone());
     verifyScanAcrossSnapshot2(kv1,kv2);
@@ -1191,8 +1190,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
-    MemStoreSegment s = cms.getSnapshot();
-    SortedSet<Cell> ss = s.getCellSet();
+    ImmutableSegment s = cms.getSnapshot();
     assertEquals(3, s.getCellsCount());
     assertEquals(0, region.getMemstoreTotalSize());
 
@@ -1232,8 +1230,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
-    MemStoreSegment s = cms.getSnapshot();
-    SortedSet<Cell> ss = s.getCellSet();
+    ImmutableSegment s = cms.getSnapshot();
     assertEquals(4, s.getCellsCount());
     assertEquals(0, region.getMemstoreTotalSize());
 
@@ -1290,8 +1287,7 @@ public class TestCompactedMemStore extends TestCase {
     size = cms.getFlushableSize();
     MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
-    MemStoreSegment s = cms.getSnapshot();
-    SortedSet<Cell> ss = s.getCellSet();
+    ImmutableSegment s = cms.getSnapshot();
     assertEquals(4, s.getCellsCount());
     assertEquals(0, region.getMemstoreSize());
     assertEquals(0, region.getMemstoreTotalSize());

@@ -91,12 +91,14 @@ public class DefaultMemStore extends AbstractMemStore {
     } else {
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       if (!getActive().isEmpty()) {
-        setSnapshot(getActive());
+        ImmutableSegment immutableSegment = StoreSegmentFactory.instance().createImmutableSegment
+            (getConfiguration(), getActive());
+        setSnapshot(immutableSegment);
         setSnapshotSize(keySize());
         resetCellSet();
       }
     }
-    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
+    return new MemStoreSnapshot(this.snapshotId, getSnapshot());
 
   }
 
@@ -107,8 +109,8 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
-    List<MemStoreSegmentScanner> list = new ArrayList<MemStoreSegmentScanner>(2);
+  protected List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
+    List<StoreSegmentScanner> list = new ArrayList<StoreSegmentScanner>(2);
     list.add(0, getActive().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
     return list;

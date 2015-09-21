@@ -55,7 +55,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   // or according to the first usage
 
   private long readPoint;
-  List<MemStoreSegmentScanner> scanners;      // remember the initial version of the scanners list
+  List<StoreSegmentScanner> scanners;      // remember the initial version of the scanners list
   private AbstractMemStore                    // pointer back to the relevant MemStore
       backwardReferenceToMemStore;        // is needed for shouldSeek() method
 
@@ -79,7 +79,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     this(ms, readPt, Type.UNDEFINED);
   }
 
-  public MemStoreScanner(AbstractMemStore ms, List<MemStoreSegmentScanner> scanners, long readPoint,
+  public MemStoreScanner(AbstractMemStore ms, List<StoreSegmentScanner> scanners, long readPoint,
       Type type) throws IOException {
     super();
     this.readPoint = readPoint;
@@ -244,7 +244,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     boolean result = false;
     if (type == Type.COMPACT_FORWARD) return true;
 
-    for (MemStoreSegmentScanner sc : scanners) {
+    for (StoreSegmentScanner sc : scanners) {
       result |= sc.shouldSeek(scan, oldestUnexpiredTS);
     }
     return result;
@@ -257,7 +257,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   private boolean restartBackwHeap(Cell cell) throws IOException {
     boolean res = false;
-    for (MemStoreSegmentScanner scan : scanners)
+    for (StoreSegmentScanner scan : scanners)
       res |= scan.seekToPreviousRow(cell);
     this.backwardHeap =
         new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
@@ -280,7 +280,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         forwardHeap = null;
         // before building the heap seek for the relevant key on the scanners,
         // for the heap to be built from the scanners correctly
-        for (MemStoreSegmentScanner scan : scanners)
+        for (StoreSegmentScanner scan : scanners)
           if (toLast) res |= scan.seekToLastRow();
           else res |= scan.backwardSeek(cell);
         this.backwardHeap =

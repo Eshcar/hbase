@@ -71,29 +71,29 @@ public class CompactedMemStore extends AbstractMemStore {
     this.timestampToWALSeqId = new TreeMap<>();
   }
 
-  public static long getMemStoreSegmentSize(MemStoreSegment segment) {
+  public static long getStoreSegmentSize(StoreSegment segment) {
     return segment.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
   }
 
-  public static long getMemStoreSegmentListSize(LinkedList<MemStoreSegment> list) {
+  public static long getStoreSegmentListSize(LinkedList<? extends StoreSegment> list) {
     long res = 0;
-    for (MemStoreSegment segment : list) {
-      res += getMemStoreSegmentSize(segment);
+    for (StoreSegment segment : list) {
+      res += getStoreSegmentSize(segment);
     }
     return res;
   }
 
   @Override
-  protected List<MemStoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
-    LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
-    LinkedList<MemStoreSegmentScanner> list = new LinkedList<MemStoreSegmentScanner>();
+  protected List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
+    LinkedList<StoreSegment> pipelineList = pipeline.getStoreSegmentList();
+    LinkedList<StoreSegmentScanner> list = new LinkedList<StoreSegmentScanner>();
     list.add(getActive().getScanner(readPt));
-    for (MemStoreSegment item : pipelineList) {
+    for (StoreSegment item : pipelineList) {
       list.add(item.getScanner(readPt));
     }
     list.add(getSnapshot().getScanner(readPt));
     // set sequence ids by decsending order
-    Iterator<MemStoreSegmentScanner> iterator = list.descendingIterator();
+    Iterator<StoreSegmentScanner> iterator = list.descendingIterator();
     int seqId = 0;
     while (iterator.hasNext()) {
       iterator.next().setSequenceID(seqId);
@@ -109,7 +109,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override public long size() {
     long res = 0;
-    for (MemStoreSegment item : getMemStoreSegmentList()) {
+    for (StoreSegment item : getStoreSegmentList()) {
       res += item.getSize();
     }
     return res;
@@ -125,7 +125,7 @@ public class CompactedMemStore extends AbstractMemStore {
    * @return {@link MemStoreSnapshot}
    */
   @Override public MemStoreSnapshot snapshot(long flushOpSeqId) {
-    MemStoreSegment active = getActive();
+    MutableSegment active = getActive();
     // If snapshot currently has entries, then flusher failed or didn't call
     // cleanup.  Log a warning.
     if (!getSnapshot().isEmpty()) {
@@ -139,12 +139,12 @@ public class CompactedMemStore extends AbstractMemStore {
       pushTailToSnapshot();
       resetForceFlush();
     }
-    return new MemStoreSnapshot(this.snapshotId, getSnapshot(), getComparator());
+    return new MemStoreSnapshot(this.snapshotId, getSnapshot());
   }
 
   @Override
   public void flushInMemory(long flushOpSeqId) {
-    MemStoreSegment active = getActive();
+    MutableSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
     pushActiveToPipeline(active, flushOpSeqId, true);
     try {
@@ -170,12 +170,12 @@ public class CompactedMemStore extends AbstractMemStore {
     }
   }
 
-  private void pushActiveToPipeline(MemStoreSegment active, long flushOpSeqId,
+  private void pushActiveToPipeline(MutableSegment active, long flushOpSeqId,
       boolean needToUpdateRegionMemStoreSizeCounter) {
     if (!active.isEmpty()) {
       pipeline.pushHead(active);
       active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
-      long size = getMemStoreSegmentSize(active);
+      long size = getStoreSegmentSize(active);
       resetCellSet();
       updateRegionAdditionalMemstoreSizeCounter(size); //push size into pipeline
       if (needToUpdateRegionMemStoreSizeCounter) {
@@ -187,10 +187,10 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   private void pushTailToSnapshot() {
-    MemStoreSegment tail = pipeline.pullTail();
+    ImmutableSegment tail = pipeline.pullTail();
     if (!tail.isEmpty()) {
       setSnapshot(tail);
-      long size = getMemStoreSegmentSize(tail);
+      long size = getStoreSegmentSize(tail);
       setSnapshotSize(size);
       updateRegionAdditionalMemstoreSizeCounter(-size); //pull size out of pipeline
     }
@@ -262,9 +262,9 @@ public class CompactedMemStore extends AbstractMemStore {
     return this;
   }
 
-  private LinkedList<MemStoreSegment> getMemStoreSegmentList() {
-    LinkedList<MemStoreSegment> pipelineList = pipeline.getCellSetMgrList();
-    LinkedList<MemStoreSegment> list = new LinkedList<MemStoreSegment>();
+  private LinkedList<StoreSegment> getStoreSegmentList() {
+    LinkedList<StoreSegment> pipelineList = pipeline.getStoreSegmentList();
+    LinkedList<StoreSegment> list = new LinkedList<StoreSegment>();
     list.add(getActive());
     list.addAll(pipelineList);
     list.add(getSnapshot());
@@ -280,8 +280,8 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   Cell getNextRow(final Cell cell) {
     Cell lowest = null;
-    LinkedList<MemStoreSegment> segments = getMemStoreSegmentList();
-    for (MemStoreSegment segment : segments) {
+    LinkedList<StoreSegment> segments = getStoreSegmentList();
+    for (StoreSegment segment : segments) {
       if (lowest == null) {
         lowest = getNextRow(cell, segment.getCellSet());
       } else {
