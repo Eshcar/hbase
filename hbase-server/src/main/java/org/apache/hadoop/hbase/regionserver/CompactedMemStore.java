@@ -109,7 +109,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   @Override public long size() {
     long res = 0;
-    for (StoreSegment item : getStoreSegmentList()) {
+    for (StoreSegment item : getListOfSegments()) {
       res += item.getSize();
     }
     return res;
@@ -215,17 +215,6 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   /**
-   * On flush, how much memory we will clear from the active cell set.
-   *
-   * @return size of data that is going to be flushed from active set
-   */
-  @Override
-  public long getFlushableSize() {
-    long snapshotSize = getSnapshot().getSize();
-    return snapshotSize > 0 ? snapshotSize : keySize();
-  }
-
-  /**
    * Remove n key from the memstore. Only kvs that have the same key and the same memstoreTS are
    * removed. It is ok to not update timeRangeTracker in this call.
    *
@@ -257,18 +246,19 @@ public class CompactedMemStore extends AbstractMemStore {
     return compactor.isInCompaction();
   }
 
-  private CompactedMemStore resetForceFlush() {
-    forceFlushToDisk = false;
-    return this;
-  }
-
-  private LinkedList<StoreSegment> getStoreSegmentList() {
+  @Override
+  public LinkedList<StoreSegment> getListOfSegments() {
     LinkedList<StoreSegment> pipelineList = pipeline.getStoreSegmentList();
     LinkedList<StoreSegment> list = new LinkedList<StoreSegment>();
     list.add(getActive());
     list.addAll(pipelineList);
     list.add(getSnapshot());
     return list;
+  }
+
+  private CompactedMemStore resetForceFlush() {
+    forceFlushToDisk = false;
+    return this;
   }
 
   //methods for tests
@@ -280,7 +270,7 @@ public class CompactedMemStore extends AbstractMemStore {
    */
   Cell getNextRow(final Cell cell) {
     Cell lowest = null;
-    LinkedList<StoreSegment> segments = getStoreSegmentList();
+    LinkedList<StoreSegment> segments = getListOfSegments();
     for (StoreSegment segment : segments) {
       if (lowest == null) {
         lowest = getNextRow(cell, segment.getCellSet());

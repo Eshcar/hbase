@@ -6,7 +6,7 @@ import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 /**
  * A singleton store segment factory.
- * Maps each segment type to a specific implementation
+ * Generate concrete store segments.
  */
 public class StoreSegmentFactory {
 

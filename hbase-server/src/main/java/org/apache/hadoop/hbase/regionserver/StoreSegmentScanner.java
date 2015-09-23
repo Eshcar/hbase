@@ -21,12 +21,24 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.hbase.client.Scan;
 
 /**
- * An interface for store segment scanner, both memory segment (memstore segment) and disk
+ * An interface for store segment scanner, both for memory segment (memstore segment) and disk
  * segment (file).
  */
 public interface StoreSegmentScanner extends KeyValueScanner {
 
+  /**
+   * Set the sequence id of the scanner.
+   * This is used to determine an order between memory segment scanners.
+   * @param x a unique sequence id
+   */
   public void setSequenceID(long x);
+
+  /**
+   * Returns whether the given scan should seek in this segment
+   * @param scan
+   * @param oldestUnexpiredTS
+   * @return whether the given scan should seek in this segment
+   */
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
 }

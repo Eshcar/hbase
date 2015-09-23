@@ -31,8 +31,8 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * This mutable store segment  encapsulates the kv-set and its respective memory allocation buffers
- * (MSLAB).
+ * This mutable store segment encapsulates a mutable cell set and its respective memory allocation
+ * buffers (MSLAB).
  */
 @InterfaceAudience.Private
 final class MutableCellSetSegment extends MutableSegment {
@@ -67,15 +67,15 @@ final class MutableCellSetSegment extends MutableSegment {
   }
 
   @Override
-  public long add(Cell e) {
-    boolean succ = getCellSet().add(e);
-    long s = AbstractMemStore.heapSizeChange(e, succ);
-    updateMetaInfo(e, s);
+  public long add(Cell cell) {
+    boolean succ = getCellSet().add(cell);
+    long s = AbstractMemStore.heapSizeChange(cell, succ);
+    updateMetaInfo(cell, s);
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
     // When we use ACL CP or Visibility CP which deals with Tags during
     // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
     // parse the byte[] to identify the tags length.
-    if(e.getTagsLength() > 0) {
+    if(cell.getTagsLength() > 0) {
       tagsPresent = true;
     }
     return s;
@@ -224,11 +224,4 @@ final class MutableCellSetSegment extends MutableSegment {
     return this.getCellSet().first();
   }
 
-  /**
-   * A singleton cell set manager factory.
-   * Maps each cell set type to a specific implementation
-   */
-  static final class Factory {
-
-  }
 }

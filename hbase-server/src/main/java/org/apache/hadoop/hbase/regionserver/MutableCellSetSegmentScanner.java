@@ -176,7 +176,7 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    * @return true if the scanner should be included in the query
    * <p/>
    * This functionality should be resolved in the higher level which is
-   * MemStoreScanner, currently returns false as default. Doesn't throw
+   * MemStoreScanner, currently returns true as default. Doesn't throw
    * IllegalStateException in order not to change the signature of the
    * overridden method
    */
@@ -370,6 +370,14 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
     return segment.shouldSeek(scan,oldestUnexpiredTS);
   }
 
+  //debug method
+  @Override
+  public String toString() {
+    String res = "Store segment scanner of type "+this.getClass().getName()+"; ";
+    res += "sequence id "+getSequenceID()+"; ";
+    res += segment.toString();
+    return res;
+  }
 
 /********************* Private Methods **********************/
 

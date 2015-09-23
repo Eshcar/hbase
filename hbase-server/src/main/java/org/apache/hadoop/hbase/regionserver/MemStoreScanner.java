@@ -250,6 +250,17 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     return result;
   }
 
+  // debug method
+  @Override
+  public String toString() {
+    String msg = "";
+    int i = 1;
+    for (StoreSegmentScanner scanner : scanners) {
+      msg += "scanner (" + i + ") " + scanner.toString();
+      i++;
+    }
+    return msg;
+  }
   /****************** Private methods ******************/
   /**
    * Restructure the ended backward heap after rerunning a seekToPreviousRow()

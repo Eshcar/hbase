@@ -103,16 +103,17 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  public long getFlushableSize() {
-    long snapshotSize = getSnapshot().getSize();
-    return snapshotSize > 0 ? snapshotSize : keySize();
-  }
-
-  @Override
   protected List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
     List<StoreSegmentScanner> list = new ArrayList<StoreSegmentScanner>(2);
     list.add(0, getActive().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
+    return list;
+  }
+
+  @Override protected List<StoreSegment> getListOfSegments() throws IOException {
+    List<StoreSegment> list = new ArrayList<StoreSegment>(2);
+    list.add(0, getActive());
+    list.add(1, getSnapshot());
     return list;
   }
 

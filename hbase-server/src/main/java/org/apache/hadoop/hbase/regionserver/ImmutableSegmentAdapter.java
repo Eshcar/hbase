@@ -23,13 +23,18 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 /**
+ * An immutable memstore segment which wraps and adapts a mutable segment.
+ * This is used when a mutable segment is being pushed into a compaction pipeline,
+ * that consists only of immutable segments.
+ * The compaction may generate different type of mutable segment
  */
 public class ImmutableSegmentAdapter extends ImmutableSegment {
 
   final private MutableSegment delegatee;
 
-  public ImmutableSegmentAdapter(MutableSegment delegatee) {
-    this.delegatee = delegatee;
+  public ImmutableSegmentAdapter(MutableSegment segment) {
+    super(segment);
+    this.delegatee = segment;
   }
 
   @Override
@@ -49,8 +54,8 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
     return delegatee.getCellsCount();
   }
 
-  @Override public long add(Cell e) {
-    return delegatee.add(e);
+  @Override public long add(Cell cell) {
+    return delegatee.add(cell);
   }
 
   @Override public Cell getFirstAfter(Cell cell) {
@@ -72,6 +77,10 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
 
   @Override public long getSize() {
     return delegatee.getSize();
+  }
+
+  @Override public long rollback(Cell cell) {
+    return delegatee.rollback(cell);
   }
 
   @Override public CellSet getCellSet() {

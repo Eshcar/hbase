@@ -202,6 +202,18 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
+   * On flush, how much memory we will clear from the active cell set.
+   *
+   * @return size of data that is going to be flushed from active set
+   */
+  @Override
+  public long getFlushableSize() {
+    long snapshotSize = getSnapshot().getSize();
+    return snapshotSize > 0 ? snapshotSize : keySize();
+  }
+
+
+  /**
    * @return scanner on memstore and snapshot in this order.
    */
   @Override
@@ -212,6 +224,21 @@ public abstract class AbstractMemStore implements MemStore {
   @Override
   public long getSnapshotSize() {
     return getSnapshot().getSize();
+  }
+
+  @Override
+  public String toString() {
+    String res = "";
+    int i = 1;
+    try {
+      for (StoreSegment segment : getListOfSegments()) {
+        res += "Segment (" + i + ") " + segment.toString() + "; ";
+        i++;
+      }
+    } catch (IOException e){
+      return e.toString();
+    }
+    return res;
   }
 
   protected void rollbackSnapshot(Cell cell) {
@@ -451,6 +478,8 @@ public abstract class AbstractMemStore implements MemStore {
     getSnapshot().setSize(snapshotSize);
   }
 
-  abstract protected List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
+  protected abstract List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
+
+  protected abstract List<StoreSegment> getListOfSegments() throws IOException;
 
 }

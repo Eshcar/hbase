@@ -24,13 +24,34 @@ import org.apache.hadoop.hbase.CellComparator;
 import java.util.SortedSet;
 
 /**
+ * An abstraction of a mutable segment in memstore, specifically the active segment.
  */
 public abstract class MutableSegment extends StoreSegment {
 
+  /**
+   * Returns a subset of the segment cell set, which starts with the given cell
+   * @param firstCell a cell in the segment
+   * @return a subset of the segment cell set, which starts with the given cell
+   */
   public abstract SortedSet<Cell> tailSet(Cell firstCell);
+
+  /**
+   * Increases the heap size counter of the segment by the given delta
+   * @param delta
+   */
   public abstract void incSize(long delta);
+
+  /**
+   * Returns the Cell comparator used by this segment
+   * @return the Cell comparator used by this segment
+   */
   public abstract CellComparator getComparator();
 
   //methods for test
+
+  /**
+   * Returns the first cell in the segment
+   * @return the first cell in the segment
+   */
   abstract Cell first();
 }

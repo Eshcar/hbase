@@ -25,14 +25,29 @@ import org.apache.hadoop.hbase.Cell;
  */
 public abstract class ImmutableSegment extends StoreSegment {
 
-  @Override
+  public ImmutableSegment(StoreSegment segment) {
+    super(segment);
+  }
+
   /**
-   * Immutable store segment can never rollback
+   * Removes the given cell from this segment.
+   * By default immutable store segment can not rollback
+   * It may be invoked by tests in specific cases where it is known to be supported {@See
+   * ImmutableSegmentAdapter}
    */
+  @Override
   public long rollback(Cell cell) {
     return 0;
   }
 
+  /**
+   * Returns a set of all the cells in the segment.
+   * The implementation of this method might be very inefficient for some immutable segments
+   * that do not maintain a cell set. Therefore by default this method is not supported.
+   * It may be invoked by tests in specific cases where it is known to be supported {@See
+   * ImmutableSegmentAdapter}
+   */
+  @Override
   public CellSet getCellSet() {
     throw new NotImplementedException("Immutable Segment does not support this operation by " +
         "default");
