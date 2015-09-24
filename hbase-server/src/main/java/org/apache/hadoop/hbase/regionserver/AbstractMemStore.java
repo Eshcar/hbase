@@ -94,16 +94,48 @@ public abstract class AbstractMemStore implements MemStore {
         + CellUtil.estimatedHeapSizeOf(cell)) : 0;
   }
 
+  /**
+   * Sets the force flush to disk mode on.
+   * @return this memstore
+   */
   public abstract AbstractMemStore setForceFlushToDisk();
+
+  /**
+   * Returns true if the force flush to disk mode is set
+   * @return true if the force flush to disk mode is set
+   */
   abstract boolean isForceFlushToDisk();
 
-  public abstract boolean isCompactedMemStore();
+
+  /**
+   * Returns true if an in-memory compaction is in progress
+   * @return true if an in-memory compaction is in progress
+   */
   public abstract boolean isMemStoreInCompaction();
+
+  /**
+   * Flushes the active segment into a different (immutable) memory segments.
+   * @param flushOpSeqId the sequence id used by the wal to mark this flush
+   */
+  public abstract void flushInMemory(long flushOpSeqId);
+
+  /**
+   * Updates the wal with the lowest sequence id (oldest entry) that is still in memory
+   * @param onlyIfGreater a flag that marks whether to update the sequence id no matter what or
+   *                      only if it is greater than the previous sequence id
+   */
+  public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater);
+
+  //method for tests
+  /**
+   * Returns true if the memstore supports in-memory compaction
+   * @return true if the memstore supports in-memory compaction
+   */
+  public abstract boolean isCompactedMemStore();
+
   boolean shouldFlushInMemory() {
     return !isForceFlushToDisk();
   }
-  public abstract void flushInMemory(long flushOpSeqId);
-  public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater);
 
   protected long deepOverhead() {
     return DEEP_OVERHEAD;
@@ -478,8 +510,19 @@ public abstract class AbstractMemStore implements MemStore {
     getSnapshot().setSize(snapshotSize);
   }
 
+  /**
+   * Returns a list of Store segment scanners, one per each store segment
+   * @param readPt the version number required to initialize the scanners
+   * @return a list of Store segment scanners, one per each store segment
+   * @throws IOException
+   */
   protected abstract List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
 
+  /**
+   * Returns an ordered list of segments from most recent to oldest in memstore
+   * @return an ordered list of segments from most recent to oldest in memstore
+   * @throws IOException
+   */
   protected abstract List<StoreSegment> getListOfSegments() throws IOException;
 
 }

@@ -53,6 +53,11 @@ public abstract class ImmutableSegment extends StoreSegment {
         "default");
   }
 
+  /**
+   * Builds a special scanner for the MemStoreSnapshot object that may be different than the
+   * general segment scanner.
+   * @return a special scanner for the MemStoreSnapshot object
+   */
   public abstract KeyValueScanner getScannerForMemStoreSnapshot();
 
 
