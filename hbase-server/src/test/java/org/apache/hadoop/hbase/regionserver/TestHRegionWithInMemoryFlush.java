@@ -45,13 +45,32 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.FlushDescriptor.Flus
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.RegionEventDescriptor;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.StoreDescriptor;
 import org.apache.hadoop.hbase.regionserver.handler.FinishRegionRecoveringHandler;
-import org.apache.hadoop.hbase.regionserver.wal.*;
+import org.apache.hadoop.hbase.regionserver.wal.FSHLog;
+import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.MetricsWAL;
+import org.apache.hadoop.hbase.regionserver.wal.MetricsWALSource;
+import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
+import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
+import org.apache.hadoop.hbase.regionserver.wal.WALUtil;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.test.MetricsAssertHelper;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.VerySlowRegionServerTests;
-import org.apache.hadoop.hbase.util.*;
-import org.apache.hadoop.hbase.wal.*;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManagerTestHelper;
+import org.apache.hadoop.hbase.util.FSUtils;
+import org.apache.hadoop.hbase.util.IncrementingEnvironmentEdge;
+import org.apache.hadoop.hbase.util.PairOfSameType;
+import org.apache.hadoop.hbase.util.Threads;
+import org.apache.hadoop.hbase.wal.DefaultWALProvider;
+import org.apache.hadoop.hbase.wal.FaultyFSLog;
+import org.apache.hadoop.hbase.wal.WAL;
+import org.apache.hadoop.hbase.wal.WALFactory;
+import org.apache.hadoop.hbase.wal.WALKey;
+import org.apache.hadoop.hbase.wal.WALProvider;
+import org.apache.hadoop.hbase.wal.WALProvider.Writer;
+import org.apache.hadoop.hbase.wal.WALSplitter;
 import org.junit.*;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
@@ -63,12 +82,14 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.hadoop.hbase.HBaseTestingUtility.*;
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
@@ -965,9 +986,9 @@ public class TestHRegionWithInMemoryFlush {
       }
 
       @Override
-      protected WALProvider.Writer createWriterInstance(Path path) throws IOException {
-        final WALProvider.Writer w = super.createWriterInstance(path);
-        return new WALProvider.Writer() {
+      protected Writer createWriterInstance(Path path) throws IOException {
+        final Writer w = super.createWriterInstance(path);
+        return new Writer() {
           @Override
           public void close() throws IOException {
             w.close();
@@ -1029,6 +1050,11 @@ public class TestHRegionWithInMemoryFlush {
         // expected
       }
 
+      // The WAL is hosed. It has failed an append and a sync. It has an exception stuck in it
+      // which it will keep returning until we roll the WAL to prevent any further appends going
+      // in or syncs succeeding on top of failed appends, a no-no.
+      wal.rollWriter(true);
+
       // 2. Test case where START_FLUSH succeeds but COMMIT_FLUSH will throw exception
       wal.flushActions = new FlushAction[] {FlushAction.COMMIT_FLUSH};
 
@@ -1043,6 +1069,8 @@ public class TestHRegionWithInMemoryFlush {
       }
 
       region.close();
+      // Roll WAL to clean out any exceptions stuck in it. See note above where we roll WAL.
+      wal.rollWriter(true);
       this.region = initHRegion(tableName, HConstants.EMPTY_START_ROW,
           HConstants.EMPTY_END_ROW, method, CONF, false, Durability.USE_DEFAULT, wal, family);
       region.put(put);
@@ -1397,14 +1425,19 @@ public class TestHRegionWithInMemoryFlush {
 
       LOG.info("batchPut will have to break into four batches to avoid row locks");
       Region.RowLock rowLock1 = region.getRowLock(Bytes.toBytes("row_2"));
-      Region.RowLock rowLock2 = region.getRowLock(Bytes.toBytes("row_4"));
-      Region.RowLock rowLock3 = region.getRowLock(Bytes.toBytes("row_6"));
+      Region.RowLock rowLock2 = region.getRowLock(Bytes.toBytes("row_1"));
+      Region.RowLock rowLock3 = region.getRowLock(Bytes.toBytes("row_3"));
+      Region.RowLock rowLock4 = region.getRowLock(Bytes.toBytes("row_3"), true);
+
 
       MultithreadedTestUtil.TestContext ctx = new MultithreadedTestUtil.TestContext(CONF);
       final AtomicReference<OperationStatus[]> retFromThread = new AtomicReference<OperationStatus[]>();
+      final CountDownLatch startingPuts = new CountDownLatch(1);
+      final CountDownLatch startingClose = new CountDownLatch(1);
       MultithreadedTestUtil.TestThread putter = new MultithreadedTestUtil.TestThread(ctx) {
         @Override
         public void doWork() throws IOException {
+          startingPuts.countDown();
           retFromThread.set(region.batchMutate(puts));
         }
       };
@@ -1412,43 +1445,38 @@ public class TestHRegionWithInMemoryFlush {
       ctx.addThread(putter);
       ctx.startThreads();
 
-      LOG.info("...waiting for put thread to sync 1st time");
-      waitForCounter(source, "syncTimeNumOps", syncs + 1);
-
       // Now attempt to close the region from another thread.  Prior to HBASE-12565
       // this would cause the in-progress batchMutate operation to to fail with
       // exception because it use to release and re-acquire the close-guard lock
       // between batches.  Caller then didn't get status indicating which writes succeeded.
       // We now expect this thread to block until the batchMutate call finishes.
-      Thread regionCloseThread = new Thread() {
+      Thread regionCloseThread = new MultithreadedTestUtil.TestThread(ctx) {
         @Override
-        public void run() {
+        public void doWork() {
           try {
+            startingPuts.await();
+            // Give some time for the batch mutate to get in.
+            // We don't want to race with the mutate
+            Thread.sleep(10);
+            startingClose.countDown();
             HBaseTestingUtility.closeRegionAndWAL(region);
           } catch (IOException e) {
+            throw new RuntimeException(e);
+          } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
         }
       };
       regionCloseThread.start();
 
+      startingClose.await();
+      startingPuts.await();
+      Thread.sleep(100);
       LOG.info("...releasing row lock 1, which should let put thread continue");
       rowLock1.release();
-
-      LOG.info("...waiting for put thread to sync 2nd time");
-      waitForCounter(source, "syncTimeNumOps", syncs + 2);
-
-      LOG.info("...releasing row lock 2, which should let put thread continue");
       rowLock2.release();
-
-      LOG.info("...waiting for put thread to sync 3rd time");
-      waitForCounter(source, "syncTimeNumOps", syncs + 3);
-
-      LOG.info("...releasing row lock 3, which should let put thread continue");
       rowLock3.release();
-
-      LOG.info("...waiting for put thread to sync 4th time");
-      waitForCounter(source, "syncTimeNumOps", syncs + 4);
+      waitForCounter(source, "syncTimeNumOps", syncs + 1);
 
       LOG.info("...joining on put thread");
       ctx.stop();
@@ -1459,6 +1487,7 @@ public class TestHRegionWithInMemoryFlush {
         assertEquals((i == 5) ? HConstants.OperationStatusCode.BAD_FAMILY : HConstants.OperationStatusCode.SUCCESS,
             codes[i].getOperationStatusCode());
       }
+      rowLock4.release();
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(this.region);
       this.region = null;

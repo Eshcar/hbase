@@ -18,7 +18,6 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -272,8 +271,6 @@ public class TestHRegion {
     HBaseTestingUtility.closeRegionAndWAL(region);
   }
 
-
-
   /*
    * This test is for verifying memstore snapshot size is correctly updated in case of rollback
    * See HBASE-10845
@@ -302,7 +299,7 @@ public class TestHRegion {
     Path rootDir = new Path(dir + "testMemstoreSnapshotSize");
     MyFaultyFSLog faultyLog = new MyFaultyFSLog(fs, rootDir, "testMemstoreSnapshotSize", CONF);
     HRegion region = initHRegion(tableName, null, null, name.getMethodName(),
-        CONF, false, Durability.SYNC_WAL, faultyLog, COLUMN_FAMILY_BYTES);
+      CONF, false, Durability.SYNC_WAL, faultyLog, COLUMN_FAMILY_BYTES);
 
     Store store = region.getStore(COLUMN_FAMILY_BYTES);
     // Get some random bytes.
