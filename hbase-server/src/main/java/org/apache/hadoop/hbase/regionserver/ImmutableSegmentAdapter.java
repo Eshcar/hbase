@@ -24,70 +24,70 @@ import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 /**
  * An immutable memstore segment which wraps and adapts a mutable segment.
- * This is used when a mutable segment is being pushed into a compaction pipeline,
- * that consists only of immutable segments.
+ * This is used when a mutable segment is moved to being a snapshot or pushed into a compaction
+ * pipeline, that consists only of immutable segments.
  * The compaction may generate different type of mutable segment
  */
 public class ImmutableSegmentAdapter extends ImmutableSegment {
 
-  final private MutableSegment delegatee;
+  final private MutableSegment adaptee;
 
   public ImmutableSegmentAdapter(MutableSegment segment) {
     super(segment);
-    this.delegatee = segment;
+    this.adaptee = segment;
   }
 
   @Override
   public KeyValueScanner getScannerForMemStoreSnapshot() {
-    return new CollectionBackedScanner(delegatee.getCellSet(),delegatee.getComparator());
+    return new CollectionBackedScanner(adaptee.getCellSet(), adaptee.getComparator());
   }
 
   @Override public StoreSegmentScanner getScanner(long readPoint) {
-    return delegatee.getScanner(readPoint);
+    return adaptee.getScanner(readPoint);
   }
 
   @Override public boolean isEmpty() {
-    return delegatee.isEmpty();
+    return adaptee.isEmpty();
   }
 
   @Override public int getCellsCount() {
-    return delegatee.getCellsCount();
+    return adaptee.getCellsCount();
   }
 
   @Override public long add(Cell cell) {
-    return delegatee.add(cell);
+    return adaptee.add(cell);
   }
 
   @Override public Cell getFirstAfter(Cell cell) {
-    return delegatee.getFirstAfter(cell);
+    return adaptee.getFirstAfter(cell);
   }
 
   @Override public void close() {
-    delegatee.close();
+    adaptee.close();
   }
 
   @Override public Cell maybeCloneWithAllocator(Cell cell) {
-    return delegatee.maybeCloneWithAllocator(cell);
+    return adaptee.maybeCloneWithAllocator(cell);
   }
 
   @Override public StoreSegment setSize(long size) {
-    delegatee.setSize(size);
+    adaptee.setSize(size);
     return this;
   }
 
   @Override public long getSize() {
-    return delegatee.getSize();
+    return adaptee.getSize();
   }
 
   @Override public long rollback(Cell cell) {
-    return delegatee.rollback(cell);
+    return adaptee.rollback(cell);
   }
 
   @Override public CellSet getCellSet() {
-    return delegatee.getCellSet();
+    return adaptee.getCellSet();
   }
 
   @Override public void dump(Log log) {
-    delegatee.dump(log);
+    adaptee.dump(log);
   }
 }

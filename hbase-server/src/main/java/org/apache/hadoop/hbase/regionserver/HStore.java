@@ -2301,10 +2301,6 @@ public class HStore implements Store {
     return memstore.isMemStoreInCompaction();
   }
 
-  @Override public boolean isCompactedMemStore() {
-    return memstore.isCompactedMemStore();
-  }
-
   @Override public boolean shouldFlushInMemory() {
     return memstore.shouldFlushInMemory();
   }
@@ -2315,5 +2311,10 @@ public class HStore implements Store {
 
   @Override public void updateLowestUnflushedSequenceIdInWal() {
      memstore.updateLowestUnflushedSequenceIdInWal(false); //update even if not greater
+  }
+
+  //method for tests
+  @Override public boolean isCompactedMemStore() {
+    return memstore.isCompactedMemStore();
   }
 }
