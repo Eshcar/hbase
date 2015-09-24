@@ -61,8 +61,8 @@ public class CompactionPipeline {
   public boolean pushHead(MutableSegment segment) {
     lock.lock();
     try {
-      ImmutableSegment immutableSegment = StoreSegmentFactory.instance().createImmutableSegment
-          (region.getBaseConf(), segment);
+      ImmutableSegment immutableSegment = StoreSegmentFactory.instance().
+          createImmutableSegment(region.getBaseConf(), segment);
       return addFirst(immutableSegment);
     } finally {
       lock.unlock();

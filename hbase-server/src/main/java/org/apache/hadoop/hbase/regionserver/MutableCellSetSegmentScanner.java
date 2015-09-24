@@ -220,7 +220,8 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    * then used to ensure the top store file scanner has done a seek operation.
    * <p/>
    * This scanner is working solely on the in-memory MemStore and doesn't work on
-   * store files, MutableCellSetSegmentScanner always does the seek, therefore always returning true.
+   * store files, MutableCellSetSegmentScanner always does the seek,
+   * therefore always returning true.
    */
   @Override
   public boolean realSeekDone() {
