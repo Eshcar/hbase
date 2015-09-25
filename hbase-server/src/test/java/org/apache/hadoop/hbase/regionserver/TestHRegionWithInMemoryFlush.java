@@ -30,10 +30,49 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.*;
-import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.CompatibilitySingletonFactory;
+import org.apache.hadoop.hbase.DroppedSnapshotException;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseTestCase;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HConstants.OperationStatusCode;
+import org.apache.hadoop.hbase.HDFSBlocksDistribution;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.MiniHBaseCluster;
+import org.apache.hadoop.hbase.MultithreadedTestUtil;
+import org.apache.hadoop.hbase.NotServingRegionException;
+import org.apache.hadoop.hbase.RegionTooBusyException;
+import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.Tag;
+import org.apache.hadoop.hbase.TagType;
+import org.apache.hadoop.hbase.Waiter;
+import org.apache.hadoop.hbase.client.Append;
+import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Durability;
+import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.Increment;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.exceptions.FailedSanityCheckException;
-import org.apache.hadoop.hbase.filter.*;
+import org.apache.hadoop.hbase.filter.BinaryComparator;
+import org.apache.hadoop.hbase.filter.ColumnCountGetFilter;
+import org.apache.hadoop.hbase.filter.CompareFilter;
+import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterBase;
+import org.apache.hadoop.hbase.filter.FilterList;
+import org.apache.hadoop.hbase.filter.NullComparator;
+import org.apache.hadoop.hbase.filter.PrefixFilter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueExcludeFilter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.monitoring.MonitoredRPCHandler;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
@@ -71,7 +110,11 @@ import org.apache.hadoop.hbase.wal.WALKey;
 import org.apache.hadoop.hbase.wal.WALProvider;
 import org.apache.hadoop.hbase.wal.WALProvider.Writer;
 import org.apache.hadoop.hbase.wal.WALSplitter;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 import org.mockito.ArgumentCaptor;
@@ -1385,7 +1428,7 @@ public class TestHRegionWithInMemoryFlush {
       OperationStatus[] codes = this.region.batchMutate(puts);
       assertEquals(10, codes.length);
       for (int i = 0; i < 10; i++) {
-        assertEquals(HConstants.OperationStatusCode.SUCCESS, codes[i].getOperationStatusCode());
+        assertEquals(OperationStatusCode.SUCCESS, codes[i].getOperationStatusCode());
       }
       metricsAssertHelper.assertCounter("syncTimeNumOps", syncs + 1, source);
 
@@ -1394,7 +1437,7 @@ public class TestHRegionWithInMemoryFlush {
       codes = this.region.batchMutate(puts);
       assertEquals(10, codes.length);
       for (int i = 0; i < 10; i++) {
-        assertEquals((i == 5) ? HConstants.OperationStatusCode.BAD_FAMILY : HConstants.OperationStatusCode.SUCCESS,
+        assertEquals((i == 5) ? OperationStatusCode.BAD_FAMILY : OperationStatusCode.SUCCESS,
             codes[i].getOperationStatusCode());
       }
 
@@ -1431,7 +1474,8 @@ public class TestHRegionWithInMemoryFlush {
 
 
       MultithreadedTestUtil.TestContext ctx = new MultithreadedTestUtil.TestContext(CONF);
-      final AtomicReference<OperationStatus[]> retFromThread = new AtomicReference<OperationStatus[]>();
+      final AtomicReference<OperationStatus[]> retFromThread =
+          new AtomicReference<OperationStatus[]>();
       final CountDownLatch startingPuts = new CountDownLatch(1);
       final CountDownLatch startingClose = new CountDownLatch(1);
       MultithreadedTestUtil.TestThread putter = new MultithreadedTestUtil.TestThread(ctx) {
@@ -1484,7 +1528,7 @@ public class TestHRegionWithInMemoryFlush {
 
       OperationStatus[] codes = retFromThread.get();
       for (int i = 0; i < codes.length; i++) {
-        assertEquals((i == 5) ? HConstants.OperationStatusCode.BAD_FAMILY : HConstants.OperationStatusCode.SUCCESS,
+        assertEquals((i == 5) ? OperationStatusCode.BAD_FAMILY : OperationStatusCode.SUCCESS,
             codes[i].getOperationStatusCode());
       }
       rowLock4.release();
@@ -1532,7 +1576,7 @@ public class TestHRegionWithInMemoryFlush {
       OperationStatus[] codes = this.region.batchMutate(puts);
       assertEquals(10, codes.length);
       for (int i = 0; i < 10; i++) {
-        assertEquals(HConstants.OperationStatusCode.SANITY_CHECK_FAILURE, codes[i].getOperationStatusCode());
+        assertEquals(OperationStatusCode.SANITY_CHECK_FAILURE, codes[i].getOperationStatusCode());
       }
       metricsAssertHelper.assertCounter("syncTimeNumOps", syncs, source);
 

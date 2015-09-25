@@ -867,7 +867,8 @@ public class TestCompactedMemStore extends TestCase {
       cms.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
       t = cms.timeOfOldestEdit();
       assertTrue(t == 1234);
-      // snapshot() after setForceFlushToDisk() will reset timeOfOldestEdit. The method will also assert
+      // snapshot() after setForceFlushToDisk() will reset timeOfOldestEdit.
+      // The method will also assert
       // the value is reset to Long.MAX_VALUE
 
       //           t = runSnapshot(compacmemstore, false);
