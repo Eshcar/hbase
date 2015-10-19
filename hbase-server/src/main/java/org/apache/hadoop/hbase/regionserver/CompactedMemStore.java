@@ -116,7 +116,7 @@ public class CompactedMemStore extends AbstractMemStore {
   }
 
   /**
-   * Push the current active memstore bucket into the pipeline
+   * Push the current active memstore segment into the pipeline
    * and create a snapshot of the tail of current compaction pipeline
    * Snapshot must be cleared by call to {@link #clearSnapshot}.
    * {@link #clearSnapshot(long)}.
@@ -152,7 +152,7 @@ public class CompactedMemStore extends AbstractMemStore {
       // compaction is in progress
       compactor.startCompact(store);
     } catch (IOException e) {
-      LOG.error("Unable to run memstore compaction", e);
+      LOG.warn("Unable to run memstore compaction", e);
     }
 
   }
@@ -238,7 +238,7 @@ public class CompactedMemStore extends AbstractMemStore {
     return forceFlushToDisk;
   }
 
-  @Override public boolean isCompactedMemStore() {
+  @Override public boolean isCompactibleMemStore() {
     return true;
   }
 

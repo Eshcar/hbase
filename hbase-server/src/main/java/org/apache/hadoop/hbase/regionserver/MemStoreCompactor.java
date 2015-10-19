@@ -19,6 +19,7 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -46,25 +47,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Threads safety: It is assumed that the compaction pipeline is immutable,
  * therefore no special synchronization is required.
  */
-@InterfaceAudience.Private class MemStoreCompactor {
+@InterfaceAudience.Private
+class MemStoreCompactor {
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
-  private CompactionPipeline cp;             // the subject for compaction
-  private CompactedMemStore ms;             // backward reference
-  private MemStoreScanner scanner;        // scanner for pipeline only
+  private CompactionPipeline pipeline;        // the subject for compaction
+  private CompactedMemStore ms;               // backward reference
+  private MemStoreScanner scanner;            // scanner for pipeline only
 
-  private StoreScanner compactingScanner;     // scanner on top of MemStoreScanner
-  // that uses ScanQueryMatcher
+  // scanner on top of MemStoreScanner that uses ScanQueryMatcher
+  private StoreScanner compactingScanner;
   private Configuration conf;
-  private long                                // smallest read point for any ongoing
-      smallestReadPoint;                  // MemStore scan
-  private VersionedSegmentsList             // a static version of the CellSetMgrs
-      versionedList;                      // list from the pipeline
+
+  // smallest read point for any ongoing MemStore scan
+  private long smallestReadPoint;
+
+  // a static version of the CellSetMgrs list from the pipeline
+  private VersionedSegmentsList versionedList;
   private final CellComparator comparator;
 
-  private static final ExecutorService pool   // Thread pool shared by all scanners
-      = Executors.newCachedThreadPool();
-  private final AtomicBoolean inCompaction = new AtomicBoolean(false);
+  // Thread pool shared by all scanners
+  private static final ExecutorService pool = Executors.newCachedThreadPool();
+  private final AtomicBoolean inCompaction  = new AtomicBoolean(false);
   private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
   /**
@@ -72,11 +76,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
    * The constructor is used only to initialize basics, other parameters
    * needing to start compaction will come with startCompact()
    */
-  public MemStoreCompactor(CompactedMemStore ms, CompactionPipeline cp,
+  public MemStoreCompactor(CompactedMemStore ms, CompactionPipeline pipeline,
       CellComparator comparator, Configuration conf) {
 
     this.ms = ms;
-    this.cp = cp;
+    this.pipeline = pipeline;
     this.comparator = comparator;
     this.conf = conf;
   }
@@ -85,15 +89,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
    * ----------------------------------------------------------------------
    * The request to dispatch the compaction asynchronous task.
    * The method returns true if compaction was successfully dispatched, or false if there
+   *
    * is already an ongoing compaction (or pipeline is empty).
    */
   public boolean startCompact(Store store) throws IOException {
-    if (cp.isEmpty()) return false;        // no compaction on empty pipeline
+    if (pipeline.isEmpty()) return false;        // no compaction on empty pipeline
 
     if (!inCompaction.get()) {             // dispatch
       List<StoreSegmentScanner> scanners = new ArrayList<StoreSegmentScanner>();
       this.versionedList =               // get the list of CellSetMgrs from the pipeline
-          cp.getVersionedList();     // the list is marked with specific version
+          pipeline.getVersionedList();     // the list is marked with specific version
 
       // create the list of scanners with maximally possible read point, meaning that
       // all KVs are going to be returned by the pipeline traversing
@@ -107,7 +112,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
       compactingScanner = createScanner(store);
 
       Runnable worker = new Worker();
-      LOG.info("Starting the MemStore in-memory compaction");
+      LOG.info("Starting the MemStore in-memory compaction for store "
+          + store.getColumnFamilyName());
       pool.execute(worker);
       inCompaction.set(true);
       return true;
@@ -160,11 +166,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
         compactSegments(result);
         // Phase II: swap the old compaction pipeline
         if (!Thread.currentThread().isInterrupted()) {
-          cp.swap(versionedList, result);
+          pipeline.swap(versionedList, result);
           // update the wal so it can be truncated and not get too long
           ms.updateLowestUnflushedSequenceIdInWal(true); // only if greater
         }
       } catch (Exception e) {
+        LOG.debug("Interrupting the MemStore in-memory compaction for store " + ms.getFamilyName());
         Thread.currentThread().interrupt();
         return;
       } finally {
@@ -193,7 +200,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
   }
 
   /**
-   * Creates a single StoreSegment using the internal store scanner,
+   * Updates the given single StoreSegment using the internal store scanner,
    * who in turn uses ScanQueryMatcher
    */
   private void compactSegments(StoreSegment result) throws IOException {
@@ -225,6 +232,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
   }
 
   // methods for tests
+  @VisibleForTesting
   void toggleCompaction(boolean on) {
     if (on) {
       inCompaction.set(false);

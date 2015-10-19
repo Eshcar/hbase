@@ -2315,6 +2315,6 @@ public class HStore implements Store {
 
   //method for tests
   @Override public boolean isCompactedMemStore() {
-    return memstore.isCompactedMemStore();
+    return memstore.isCompactibleMemStore();
   }
 }

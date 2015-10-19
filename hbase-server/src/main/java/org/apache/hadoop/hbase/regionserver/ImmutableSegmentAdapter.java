@@ -26,7 +26,7 @@ import org.apache.hadoop.hbase.util.CollectionBackedScanner;
  * An immutable memstore segment which wraps and adapts a mutable segment.
  * This is used when a mutable segment is moved to being a snapshot or pushed into a compaction
  * pipeline, that consists only of immutable segments.
- * The compaction may generate different type of mutable segment
+ * The compaction may generate different type of immutable segment
  */
 public class ImmutableSegmentAdapter extends ImmutableSegment {
 

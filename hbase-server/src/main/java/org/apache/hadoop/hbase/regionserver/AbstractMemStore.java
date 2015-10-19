@@ -131,7 +131,7 @@ public abstract class AbstractMemStore implements MemStore {
    * Returns true if the memstore supports in-memory compaction
    * @return true if the memstore supports in-memory compaction
    */
-  public abstract boolean isCompactedMemStore();
+  public abstract boolean isCompactibleMemStore();
 
   boolean shouldFlushInMemory() {
     return !isForceFlushToDisk();

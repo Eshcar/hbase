@@ -31,8 +31,8 @@ import java.util.SortedSet;
 
 /**
  * This is the scanner for any *MemStore implementation, derived from MemStore.
- * Currently, the scanner works with DefaultMemStore and CompactMemStore.
- * The MemStoreScanner combines CellSetMgrScanners from different CellSetMgrs and
+ * Currently, the scanner works with DefaultMemStore and CompactedMemStore.
+ * The MemStoreScanner combines StoreSegmentScanner from different StoreSegments and
  * uses the key-value heap and the reversed key-value heap for the aggregated key-values set.
  * It is assumed that only traversing forward or backward is used (without zigzagging in between)
  */
@@ -63,7 +63,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * Constructor.
    * If UNDEFINED type for MemStoreScanner is provided, the forward heap is used as default!
    * After constructor only one heap is going to be initialized for entire lifespan
-   * of the MemStoreScanner. A specific scanner ca only be one directed!
+   * of the MemStoreScanner. A specific scanner can only be one directional!
    *
    * @param readPoint Read point below which we can safely remove duplicate KVs
    * @param type      The scan type COMPACT_FORWARD should be used for compaction
@@ -94,7 +94,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
       this.backwardHeap = new ReversedKeyValueHeap(scanners, ms.getComparator());
       break;
     default:
-      throw new IOException("Unknown scanner type in MemStoreScanner");
+      throw new IllegalArgumentException("Unknown scanner type in MemStoreScanner");
     }
     this.backwardReferenceToMemStore = ms;
     this.scanners = scanners;
@@ -107,7 +107,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * Returns the cell from the top-most scanner without advancing the iterator.
    * The backward traversal is assumed, only if specified explicitly
    */
-  @Override public synchronized Cell peek() {
+  @Override
+  public synchronized Cell peek() {
     if (type == Type.USER_SCAN_BACKWARD) return backwardHeap.peek();
     return forwardHeap.peek();
   }
@@ -115,11 +116,12 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   /**
    * Gets the next cell from the top-most scanner. Assumed forward scanning.
    */
-  @Override public synchronized Cell next() throws IOException {
+  @Override
+  public synchronized Cell next() throws IOException {
     KeyValueHeap heap = (Type.USER_SCAN_BACKWARD == type) ? backwardHeap : forwardHeap;
 
     for (Cell currentCell = heap.next();     // loop over till the next suitable value
-         currentCell != null;                       // take next value from the forward heap
+         currentCell != null;                // take next value from the heap
          currentCell = heap.next()) {
 
       // all the logic of presenting cells is inside the internal MemStoreSegmentScanners
@@ -138,7 +140,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param cell seek value
    * @return false if the key is null or if there is no data
    */
-  @Override public synchronized boolean seek(Cell cell) throws IOException {
+  @Override
+  public synchronized boolean seek(Cell cell) throws IOException {
     assertForward();
 
     if (cell == null) {
@@ -155,7 +158,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param cell seek value (should be non-null)
    * @return true if there is at least one KV to read, false otherwise
    */
-  @Override public synchronized boolean reseek(Cell cell) throws IOException {
+  @Override
+  public synchronized boolean reseek(Cell cell) throws IOException {
         /*
         * See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
         * This code is executed concurrently with flush and puts, without locks.
@@ -178,11 +182,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * MemStoreScanner returns max value as sequence id because it will
    * always have the latest data among all files.
    */
-  @Override public synchronized long getSequenceID() {
+  @Override
+  public synchronized long getSequenceID() {
     return Long.MAX_VALUE;
   }
 
-  @Override public synchronized void close() {
+  @Override
+  public synchronized void close() {
 
     if (forwardHeap != null) {
       assert ((type == Type.USER_SCAN_FORWARD) ||
@@ -206,8 +212,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param cell seek value
    * @return false if the key is null or if there is no data
    */
-  @Override public synchronized boolean backwardSeek(Cell cell) throws IOException {
-    initiBackwHeapIfNeeded(cell, false);
+  @Override
+  public synchronized boolean backwardSeek(Cell cell) throws IOException {
+    initiBackwardHeapIfNeeded(cell, false);
     return backwardHeap.backwardSeek(cell);
   }
 
@@ -217,19 +224,21 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param cell seek value
    * @return false if the key is null or if there is no data
    */
-  @Override public synchronized boolean seekToPreviousRow(Cell cell) throws IOException {
-    initiBackwHeapIfNeeded(cell, false);
-    if (backwardHeap.peek() == null) restartBackwHeap(cell);
+  @Override
+  public synchronized boolean seekToPreviousRow(Cell cell) throws IOException {
+    initiBackwardHeapIfNeeded(cell, false);
+    if (backwardHeap.peek() == null) restartBackwardHeap(cell);
     return backwardHeap.seekToPreviousRow(cell);
   }
 
-  @Override public synchronized boolean seekToLastRow() throws IOException {
+  @Override
+  public synchronized boolean seekToLastRow() throws IOException {
     // TODO: it looks like this is how it should be, however ReversedKeyValueHeap class doesn't
     // implement seekToLastRow() method :(
     // however seekToLastRow() was implemented in internal MemStoreScanner
     // so I wonder whether we need to come with our own workaround, or to update
     // ReversedKeyValueHeap
-    return initiBackwHeapIfNeeded(KeyValue.LOWESTKEY, true);
+    return initiBackwardHeapIfNeeded(KeyValue.LOWESTKEY, true);
     //return backwardHeap.seekToLastRow();
   }
 
@@ -239,15 +248,16 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param scan
    * @return False if the key definitely does not exist in this Memstore
    */
-  @Override public synchronized boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
+  @Override
+  public synchronized boolean shouldUseScanner(Scan scan, SortedSet<byte[]> columns,
       long oldestUnexpiredTS) {
-    boolean result = false;
+
     if (type == Type.COMPACT_FORWARD) return true;
 
     for (StoreSegmentScanner sc : scanners) {
-      result |= sc.shouldSeek(scan, oldestUnexpiredTS);
+      if (sc.shouldSeek(scan, oldestUnexpiredTS)) return true;
     }
-    return result;
+    return false;
   }
 
   // debug method
@@ -256,7 +266,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     String msg = "";
     int i = 1;
     for (StoreSegmentScanner scanner : scanners) {
-      msg += "scanner (" + i + ") " + scanner.toString();
+      msg += "scanner (" + i + ") " + scanner.toString() + " ||| ";
       i++;
     }
     return msg;
@@ -265,8 +275,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   /**
    * Restructure the ended backward heap after rerunning a seekToPreviousRow()
    * on each scanner
+   * @return false if given Cell does not exist in any scanner
    */
-  private boolean restartBackwHeap(Cell cell) throws IOException {
+  private boolean restartBackwardHeap(Cell cell) throws IOException {
     boolean res = false;
     for (StoreSegmentScanner scan : scanners)
       res |= scan.seekToPreviousRow(cell);
@@ -278,10 +289,11 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   /**
    * Checks whether the type of the scan suits the assumption of moving forward
    */
-  private boolean initiBackwHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
+  private boolean initiBackwardHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
     boolean res = false;
     if (toLast && (type != Type.UNDEFINED))
-      throw new IllegalStateException("Wrong usage of initiBackwHeapIfNeeded in parameters");
+      throw new IllegalStateException(
+          "Wrong usage of initiBackwardHeapIfNeeded in parameters. The type is:" + type.toString());
     if (type == Type.UNDEFINED) {
       // In case we started from peek, release the forward heap
       // and build backward. Set the correct type. Thus this turn

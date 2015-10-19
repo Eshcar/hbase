@@ -153,7 +153,7 @@ public class DefaultMemStore extends AbstractMemStore {
     return true;
   }
 
-  @Override public boolean isCompactedMemStore() {
+  @Override public boolean isCompactibleMemStore() {
     return false;
   }
 

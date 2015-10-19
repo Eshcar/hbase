@@ -39,7 +39,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @InterfaceAudience.Private
 public class CompactionPipeline {
-  private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
+  private static final Log LOG = LogFactory.getLog(CompactionPipeline.class);
 
   private final HRegion region;
   private LinkedList<ImmutableSegment> pipeline;
@@ -111,7 +111,10 @@ public class CompactionPipeline {
       LinkedList<ImmutableSegment> suffix = versionedList.getStoreSegments();
       boolean valid = validateSuffixList(suffix);
       if(!valid) return false;
-      LOG.info("Swapping pipeline suffix with compacted item.");
+      LOG.info("Swapping pipeline suffix with compacted item. "
+          +"Just before the swap the number of segments in pipeline is:"
+          +versionedList.getStoreSegments().size()
+          +", and the number of cells in new segment is:"+segment.getCellsCount());
       swapSuffix(suffix,segment);
       if(region != null) {
         // update the global memstore size counter
