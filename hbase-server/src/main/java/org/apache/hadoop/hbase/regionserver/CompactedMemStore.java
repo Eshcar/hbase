@@ -160,7 +160,7 @@ public class CompactedMemStore extends AbstractMemStore {
   @Override
   public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
     long minTimestamp = pipeline.getMinTimestamp();
-    Long seqId = getMaxSeqId(minTimestamp);
+    Long seqId = truncateLowerTSsAndGetSeqId(minTimestamp);
     if (seqId == null) return;
     byte[] encodedRegionName = getRegion().getRegionInfo().getEncodedNameAsBytes();
     byte[] familyName = getFamilyName();
@@ -305,7 +305,7 @@ public class CompactedMemStore extends AbstractMemStore {
    * @param minTimestamp
    * @return sequence id
    */
-  public Long getMaxSeqId(long minTimestamp) {
+  public Long truncateLowerTSsAndGetSeqId(long minTimestamp) {
     Long res = null;
     Long last = null;
     List<Long> tsToRemove = new LinkedList<Long>();

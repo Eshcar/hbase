@@ -53,9 +53,8 @@ public abstract class FlushPolicy extends Configured {
    * @return the stores need to be flushed in memory.
    */
   public Collection<Store> selectStoresToFlushInMemory() {
-    Collection<Store> stores = region.stores.values();
     Set<Store> specificStoresToFlushInMemory = new HashSet<Store>();
-    for (Store store : stores) {
+    for (Store store : region.stores.values()) {
       if (shouldFlushInMemory(store)) {
         specificStoresToFlushInMemory.add(store);
       }
@@ -68,13 +67,9 @@ public abstract class FlushPolicy extends Configured {
   }
 
   protected Collection<Store> allStoresExcludingFlushInMemory() {
-    Collection<Store> res = new LinkedList<Store>();
+    Collection<Store> res = new LinkedList<Store>(region.stores.values());
     Collection<Store> specificStoresToFlushInMemory = selectStoresToFlushInMemory();
-    for (Store s : region.stores.values()) {
-      if(!specificStoresToFlushInMemory.contains(s)) {
-        res.add(s);
-      }
-    }
+    res.removeAll(specificStoresToFlushInMemory);
     return res;
   }
 }
