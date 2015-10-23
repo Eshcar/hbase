@@ -231,13 +231,14 @@ public class HStore implements Store {
     // Why not just pass a HColumnDescriptor in here altogether?  Even if have
     // to clone it?
     scanInfo = new ScanInfo(family, ttl, timeToPurgeDeletes, this.comparator);
-    if(family.isInMemory()) {
+      String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
+    if (className.equalsIgnoreCase(CompactedMemStore.class.getName())) {
       this.memstore = new CompactedMemStore(conf, this.comparator, this);
     } else {
-      String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
       this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
           Configuration.class, CellComparator.class }, new Object[] { conf, this.comparator });
     }
+    LOG.info("Memstore class name is " + className);
     this.offPeakHours = OffPeakHours.getInstance(conf);
 
     // Setting up cache configuration for this family
