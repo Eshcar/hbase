@@ -30,7 +30,6 @@ import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
 import com.google.protobuf.TextFormat;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -266,14 +265,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   protected final Map<byte[], Store> stores = new ConcurrentSkipListMap<byte[], Store>(
       Bytes.BYTES_RAWCOMPARATOR);
 
-  private final AtomicLong memstoreActiveSize = new AtomicLong(0); // size of active set in memstore
-  // size of additional memstore buckets, e.g., in compaction pipeline
-  private final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  private final AtomicLong memstoreSize = new AtomicLong(0);
-
+  private final AtomicLong memstoreActiveSize = new AtomicLong(0); // size of active set in memstore
+  // size of additional memstore buckets, e.g., in compaction pipeline
+  private final AtomicLong memstoreAdditionalSize = new AtomicLong(0);
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
   final Counter dataInMemoryWithoutWAL = new Counter();
@@ -5662,7 +5659,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     @Override
     public synchronized boolean next(List<Cell> outResults, ScannerContext scannerContext)
-        throws IOException {
+    throws IOException {
       if (this.filterClosed) {
         throw new UnknownScannerException("Scanner was closed (timed out?) " +
             "after we renewed it. Could be caused by a very slow scanner " +
