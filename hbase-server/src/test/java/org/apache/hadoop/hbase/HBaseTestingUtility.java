@@ -1830,10 +1830,23 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    */
   public HRegion createLocalHRegion(TableName tableName, byte[] startKey, byte[] stopKey,
       boolean isReadOnly, Durability durability, WAL wal, byte[]... families) throws IOException {
+    return createLocalHRegionWithInMemoryFlags(tableName,startKey, stopKey, isReadOnly,
+        durability, wal, null, families);
+  }
+
+  public HRegion createLocalHRegionWithInMemoryFlags(TableName tableName, byte[] startKey,
+      byte[] stopKey,
+      boolean isReadOnly, Durability durability, WAL wal, boolean[] inMemory, byte[]... families)
+      throws IOException {
     HTableDescriptor htd = new HTableDescriptor(tableName);
     htd.setReadOnly(isReadOnly);
+    int i=0;
     for (byte[] family : families) {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
+      if(inMemory != null && i < inMemory.length) {
+        hcd.setInMemory(inMemory[i]);
+      }
+      i++;
       // Set default to be three versions.
       hcd.setMaxVersions(Integer.MAX_VALUE);
       htd.addFamily(hcd);

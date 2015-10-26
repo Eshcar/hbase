@@ -18,8 +18,6 @@
  */
 package org.apache.hadoop.hbase.mob.mapreduce;
 
-import java.io.IOException;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -47,6 +45,8 @@ import org.apache.hadoop.hbase.regionserver.MemStoreSnapshot;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.mapreduce.Reducer.Context;
+
+import java.io.IOException;
 
 /**
  * The wrapper of a DefaultMemStore.
@@ -112,7 +112,7 @@ public class MemStoreWrapper {
    * @throws IOException
    */
   public void flushMemStore() throws IOException {
-    MemStoreSnapshot snapshot = memstore.snapshot();
+    MemStoreSnapshot snapshot = memstore.snapshot(0);
     internalFlushCache(snapshot);
     memstore.clearSnapshot(snapshot.getId());
   }

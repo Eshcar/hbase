@@ -17,13 +17,6 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.NavigableSet;
-
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
@@ -32,6 +25,8 @@ import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.conf.PropagatingConfigurationObserver;
 import org.apache.hadoop.hbase.io.HeapSize;
@@ -45,6 +40,11 @@ import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Pair;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.NavigableSet;
 
 /**
  * Interface for objects that hold a column family in a Region. Its a memstore and a set of zero or
@@ -455,6 +455,19 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    * linear formula.
    */
   double getCompactionPressure();
+
+  // turn on the force flush flag to make sure data is flushed to disk
+  void setForceFlushToDisk();
+  // check whether memstore compaction is in progress
+  boolean isMemStoreInCompaction();
+  // check whether memstore can be compacted
+  boolean isCompactedMemStore();
+  // check whether can flush in memory
+  boolean shouldFlushInMemory();
+  // flush memstore into an in-memory compacted segment
+  void flushInMemory(long flushOpSeqId);
+  // update wal with a new sequence id
+  void updateLowestUnflushedSequenceIdInWal();
 
    /**
     * Replaces the store files that the store has with the given files. Mainly used by

@@ -124,11 +124,11 @@ public class TestHeapMemoryManager {
     final ChoreService choreService = new ChoreService("TEST_SERVER_NAME");
     heapMemoryManager.start(choreService);
     memStoreFlusher.flushType = FlushType.ABOVE_HIGHER_MARK;
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
     memStoreFlusher.flushType = FlushType.ABOVE_LOWER_MARK;
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
     Thread.sleep(1500); // Allow the tuner to run once and do necessary memory up
     // No changes should be made by tuner as we already have lot of empty space
     assertEquals(oldMemstoreHeapSize, memStoreFlusher.memstoreSize);
@@ -189,10 +189,10 @@ public class TestHeapMemoryManager {
     final ChoreService choreService = new ChoreService("TEST_SERVER_NAME");
     heapMemoryManager.start(choreService);
     memStoreFlusher.flushType = FlushType.ABOVE_LOWER_MARK;
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
     Thread.sleep(1500); // Allow the tuner to run once and do necessary memory up
     assertHeapSpaceDelta(DefaultHeapMemoryTuner.DEFAULT_MAX_STEP_VALUE, oldMemstoreHeapSize,
         memStoreFlusher.memstoreSize);
@@ -202,8 +202,8 @@ public class TestHeapMemoryManager {
     oldBlockCacheSize = blockCache.maxSize;
     // Do some more flushes before the next run of HeapMemoryTuner
     memStoreFlusher.flushType = FlushType.ABOVE_LOWER_MARK;
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
     Thread.sleep(1500);
     assertHeapSpaceDelta(DefaultHeapMemoryTuner.DEFAULT_MAX_STEP_VALUE, oldMemstoreHeapSize,
         memStoreFlusher.memstoreSize);
@@ -276,9 +276,9 @@ public class TestHeapMemoryManager {
     final ChoreService choreService = new ChoreService("TEST_SERVER_NAME");
     heapMemoryManager.start(choreService);
     memStoreFlusher.flushType = FlushType.ABOVE_LOWER_MARK;
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
     blockCache.evictBlock(null);
     Thread.sleep(1500); // Allow the tuner to run once and do necessary memory up
     // No changes should happen as there is undefined increase in flushes and evictions
@@ -286,9 +286,9 @@ public class TestHeapMemoryManager {
     assertEquals(oldBlockCacheSize, blockCache.maxSize);
     // Do some more flushes before the next run of HeapMemoryTuner
     memStoreFlusher.flushType = FlushType.ABOVE_LOWER_MARK;
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
     Thread.sleep(1500);
     assertHeapSpaceDelta(DefaultHeapMemoryTuner.DEFAULT_MAX_STEP_VALUE, oldMemstoreHeapSize,
         memStoreFlusher.memstoreSize);
@@ -320,9 +320,9 @@ public class TestHeapMemoryManager {
     final ChoreService choreService = new ChoreService("TEST_SERVER_NAME");
     heapMemoryManager.start(choreService);
     memStoreFlusher.flushType = FlushType.ABOVE_LOWER_MARK;
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
+    memStoreFlusher.requestFlush(null, false, false);
     blockCache.evictBlock(null);
     blockCache.evictBlock(null);
     Thread.sleep(1500); // Allow the tuner to run once and do necessary memory up
@@ -331,7 +331,7 @@ public class TestHeapMemoryManager {
     assertEquals(oldBlockCacheSize, blockCache.maxSize);
     // Flushes that block updates
     memStoreFlusher.flushType = FlushType.ABOVE_HIGHER_MARK;
-    memStoreFlusher.requestFlush(null, false);
+    memStoreFlusher.requestFlush(null, false, false);
     blockCache.evictBlock(null);
     blockCache.evictBlock(null);
     blockCache.evictBlock(null);
@@ -600,7 +600,7 @@ public class TestHeapMemoryManager {
     }
 
     @Override
-    public void requestFlush(Region region, boolean forceFlushAllStores) {
+    public void requestFlush(Region region, boolean forceFlushAllStores, boolean forceCompacted) {
       this.listener.flushRequested(flushType, region);
     }
 

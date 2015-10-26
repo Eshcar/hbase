@@ -1,4 +1,5 @@
 /**
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,17 +20,35 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
-import java.util.Collection;
+import java.util.LinkedList;
 
 /**
- * A {@link FlushPolicy} that always flushes all stores for a given region.
+ * A list of segment managers coupled with the version of the memstore (version at the time it was
+ * created).
+ * This structure helps to guarantee that the compaction pipeline updates after the compaction is
+ * updated in a consistent (atomic) way.
+ * Specifically, swapping some of the elements in a compaction pipeline with a new compacted
+ * element is permitted only if the pipeline version is the same as the version attached to the
+ * elements.
+ *
  */
 @InterfaceAudience.Private
-public class FlushAllStoresPolicy extends FlushPolicy {
+public class VersionedSegmentsList {
 
-  @Override
-  public Collection<Store> selectStoresToFlush() {
-    return allStoresExcludingFlushInMemory();
+  private final LinkedList<ImmutableSegment> storeSegments;
+  private final long version;
+
+  public VersionedSegmentsList(
+          LinkedList<ImmutableSegment> storeSegments, long version) {
+    this.storeSegments = storeSegments;
+    this.version = version;
   }
 
+  public LinkedList<ImmutableSegment> getStoreSegments() {
+    return storeSegments;
+  }
+
+  public long getVersion() {
+    return version;
+  }
 }

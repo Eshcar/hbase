@@ -18,11 +18,12 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.net.InetSocketAddress;
-import java.security.Key;
-import java.security.KeyException;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -79,9 +80,9 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.CompactionDescriptor
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
+import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
 import org.apache.hadoop.hbase.regionserver.compactions.OffPeakHours;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.regionserver.wal.WALUtil;
 import org.apache.hadoop.hbase.security.EncryptionUtil;
 import org.apache.hadoop.hbase.security.User;
@@ -95,12 +96,29 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.StringUtils.TraditionalBinaryPrefix;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.InetSocketAddress;
+import java.security.Key;
+import java.security.KeyException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * A Store holds a column family in a Region.  Its a memstore and a set of zero
@@ -126,7 +144,7 @@ public class HStore implements Store {
 
   private static final Log LOG = LogFactory.getLog(HStore.class);
 
-  protected final MemStore memstore;
+  protected final AbstractMemStore memstore;
   // This stores directory in the filesystem.
   protected final HRegion region;
   private final HColumnDescriptor family;
@@ -233,9 +251,14 @@ public class HStore implements Store {
     // Why not just pass a HColumnDescriptor in here altogether?  Even if have
     // to clone it?
     scanInfo = new ScanInfo(conf, family, ttl, timeToPurgeDeletes, this.comparator);
-    String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
-    this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
-        Configuration.class, CellComparator.class }, new Object[] { conf, this.comparator });
+      String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
+    if (className.equalsIgnoreCase(CompactedMemStore.class.getName())) {
+      this.memstore = new CompactedMemStore(conf, this.comparator, this);
+    } else {
+      this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
+          Configuration.class, CellComparator.class }, new Object[] { conf, this.comparator });
+    }
+    LOG.info("Memstore class name is " + className);
     this.offPeakHours = OffPeakHours.getInstance(conf);
 
     // Setting up cache configuration for this family
@@ -906,7 +929,7 @@ public class HStore implements Store {
   void snapshot() {
     this.lock.writeLock().lock();
     try {
-      this.memstore.snapshot();
+      this.memstore.snapshot(0);
     } finally {
       this.lock.writeLock().unlock();
     }
@@ -2058,8 +2081,6 @@ public class HStore implements Store {
   }
 
   /**
-   * Used in tests. TODO: Remove
-   *
    * Updates the value for the given row/family/qualifier. This function will always be seen as
    * atomic by other readers because it only puts a single KV to memstore. Thus no read/write
    * control necessary.
@@ -2070,6 +2091,7 @@ public class HStore implements Store {
    * @return memstore size delta
    * @throws IOException
    */
+  @VisibleForTesting
   public long updateColumnValue(byte [] row, byte [] f,
                                 byte [] qualifier, long newValue)
       throws IOException {
@@ -2120,10 +2142,11 @@ public class HStore implements Store {
     /**
      * This is not thread safe. The caller should have a lock on the region or the store.
      * If necessary, the lock can be added with the patch provided in HBASE-10087
+     * @param flushOpSeqId the sequence id that is attached to the flush operation in the wal
      */
     @Override
-    public void prepare() {
-      this.snapshot = memstore.snapshot();
+    public void prepareFlushToDisk(long flushOpSeqId) {
+      this.snapshot = memstore.snapshot(flushOpSeqId);
       this.cacheFlushCount = snapshot.getCellsCount();
       this.cacheFlushSize = snapshot.getSize();
       committedFiles = new ArrayList<Path>(1);
@@ -2352,5 +2375,32 @@ public class HStore implements Store {
   @Override
   public boolean isPrimaryReplicaStore() {
 	   return getRegionInfo().getReplicaId() == HRegionInfo.DEFAULT_REPLICA_ID;
+  }
+
+  @Override
+  public void setForceFlushToDisk() {
+    this.memstore.setForceFlushToDisk();
+  }
+
+  @Override
+  public boolean isMemStoreInCompaction() {
+    return memstore.isMemStoreInCompaction();
+  }
+
+  @Override public boolean shouldFlushInMemory() {
+    return memstore.shouldFlushInMemory();
+  }
+
+  @Override public void flushInMemory(long flushOpSeqId) {
+    memstore.flushInMemory(flushOpSeqId);
+  }
+
+  @Override public void updateLowestUnflushedSequenceIdInWal() {
+     memstore.updateLowestUnflushedSequenceIdInWal(false); //update even if not greater
+  }
+
+  //method for tests
+  @Override public boolean isCompactedMemStore() {
+    return memstore.isCompactibleMemStore();
   }
 }
