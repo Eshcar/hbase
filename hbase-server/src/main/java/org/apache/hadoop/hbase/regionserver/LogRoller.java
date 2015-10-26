@@ -181,7 +181,10 @@ public class LogRoller extends HasThread {
       requester = this.services.getFlushRequester();
       if (requester != null) {
         // force flushing all stores to clean old logs
-        requester.requestFlush(r, true);
+        // The regions to flush are those whose number of un-archived WAL files
+        // is greater than maximum allowed. In this case, cause even the compacted
+        // MemStore flush to disk (last parameter true).
+        requester.requestFlush(r, true, true);
         scheduled = true;
       }
     }

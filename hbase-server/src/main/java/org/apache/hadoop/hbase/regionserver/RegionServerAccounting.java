@@ -18,12 +18,12 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.Bytes;
+
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.util.Bytes;
 
 /**
  * RegionServerAccounting keeps record of some basic real time information about
@@ -33,7 +33,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class RegionServerAccounting {
 
   private final AtomicLong atomicGlobalMemstoreSize = new AtomicLong(0);
-  
+  private final AtomicLong atomicGlobalMemstorAdditionaleSize = new AtomicLong(0);
+
   // Store the edits size during replaying WAL. Use this to roll back the  
   // global memstore size once a region opening failed.
   private final ConcurrentMap<byte[], AtomicLong> replayEditsPerRegion = 
@@ -54,7 +55,11 @@ public class RegionServerAccounting {
   public long addAndGetGlobalMemstoreSize(long memStoreSize) {
     return atomicGlobalMemstoreSize.addAndGet(memStoreSize);
   }
-  
+
+  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+    return atomicGlobalMemstorAdditionaleSize.addAndGet(size);
+  }
+
   /***
    * Add memStoreSize to replayEditsPerRegion.
    * 
