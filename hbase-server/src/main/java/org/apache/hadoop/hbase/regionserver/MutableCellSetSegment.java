@@ -177,7 +177,7 @@ final class MutableCellSetSegment extends MutableSegment {
     return getCellSet().iterator();
   }
 
-  public SortedSet<Cell> headSet(KeyValue firstKeyOnRow) {
+  public SortedSet<Cell> headSet(Cell firstKeyOnRow) {
     return getCellSet().headSet(firstKeyOnRow);
   }
 

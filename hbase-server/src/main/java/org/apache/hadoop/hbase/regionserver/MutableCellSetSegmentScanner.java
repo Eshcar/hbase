@@ -19,8 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
@@ -102,13 +101,16 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    */
   @Override
   public boolean seek(Cell cell) throws IOException {
+    if(cell == null) {
+      close();
+      return false;
+    }
     // restart the iterator from new key
     iter = segment.tailSet(cell).iterator();
     last = null;      // last is going to be reinitialized in the next getNext() call
     current = getNext();
     return (current != null);
   }
-
 
   /**
    * ---------------------------------------------------------
@@ -124,10 +126,12 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
   public boolean reseek(Cell cell) throws IOException {
 
     /*
-    * The ideal implementation for performance would use the sub skip list implicitly
-    * pointed by the iterator. Unfortunately the Java API does not offer a method to
-    * get it. So we remember the last keys we iterated to and restore
-    * the reseeked set to at least that point.
+    See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
+    This code is executed concurrently with flush and puts, without locks.
+    The ideal implementation for performance would use the sub skip list implicitly
+    pointed by the iterator. Unfortunately the Java API does not offer a method to
+    get it. So we remember the last keys we iterated to and restore
+    the reseeked set to at least that point.
     */
     iter = segment.tailSet(getHighest(cell, last)).iterator();
     current = getNext();
@@ -289,32 +293,30 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    */
   @Override
   public boolean seekToPreviousRow(Cell cell) throws IOException {
+    boolean keepSeeking = false;
+    Cell key = cell;
 
-    KeyValue firstKeyOnRow =            // find a previous cell
-            KeyValueUtil.createFirstOnRow(cell.getRowArray(),
-                cell.getRowOffset(), cell.getRowLength());
-    SortedSet<Cell> cellHead =        // here the search is hidden, reset the iterator
-            segment.headSet(firstKeyOnRow);
-    Cell lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
-
-    if (lastCellBeforeRow == null) {      // end of recursion
-      current = null;
-      return false;
-    }
-
-    KeyValue firstKeyOnPreviousRow =      // find a previous row
-            KeyValueUtil.createFirstOnRow(lastCellBeforeRow.getRowArray(),
-                    lastCellBeforeRow.getRowOffset(), lastCellBeforeRow.getRowLength());
-
-    stopSkippingKVsIfNextRow = true;
-    // seek in order to update the iterator and current
-    seek(firstKeyOnPreviousRow);
-    stopSkippingKVsIfNextRow = false;
-
-    // if nothing found or we searched beyond the needed, take one more step backward
-    if (peek() == null || segment.compareRows(peek(), firstKeyOnPreviousRow) > 0) {
-      return seekToPreviousRow(lastCellBeforeRow);
-    }
+    do {
+      Cell firstKeyOnRow = CellUtil.createFirstOnRow(key);
+      SortedSet<Cell> cellHead = segment.headSet(firstKeyOnRow);
+      Cell lastCellBeforeRow = cellHead.isEmpty() ? null : cellHead.last();
+      if (lastCellBeforeRow == null) {
+        current = null;
+        return false;
+      }
+      Cell firstKeyOnPreviousRow = CellUtil.createFirstOnRow(lastCellBeforeRow);
+      this.stopSkippingKVsIfNextRow = true;
+      seek(firstKeyOnPreviousRow);
+      this.stopSkippingKVsIfNextRow = false;
+      if (peek() == null
+          || segment.getComparator().compareRows(peek(), firstKeyOnPreviousRow) > 0) {
+        keepSeeking = true;
+        key = firstKeyOnPreviousRow;
+        continue;
+      } else {
+        keepSeeking = false;
+      }
+    } while (keepSeeking);
     return true;
   }
 
@@ -333,8 +335,7 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
       return false;
     }
 
-    KeyValue firstCellOnLastRow = KeyValueUtil.createFirstOnRow(higherCell.getRowArray(),
-            higherCell.getRowOffset(), higherCell.getRowLength());
+    Cell firstCellOnLastRow = CellUtil.createFirstOnRow(higherCell);
 
     if (seek(firstCellOnLastRow)) {
       return true;
