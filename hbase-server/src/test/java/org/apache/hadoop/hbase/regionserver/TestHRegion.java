@@ -1240,7 +1240,8 @@ public class TestHRegion {
     private final AtomicInteger count;
     private Exception e;
 
-    GetTillDoneOrException(final int i, final byte[] r, final AtomicBoolean d, final AtomicInteger c) {
+    GetTillDoneOrException(final int i, final byte[] r, final AtomicBoolean d,
+        final AtomicInteger c) {
       super("getter." + i);
       this.g = new Get(r);
       this.done = d;
@@ -2733,7 +2734,8 @@ public class TestHRegion {
       } catch (NotServingRegionException e) {
         // this is the correct exception that is expected
       } catch (IOException e) {
-        fail("Got wrong type of exception - should be a NotServingRegionException, but was an IOException: "
+        fail("Got wrong type of exception - should be a NotServingRegionException, " +
+            "but was an IOException: "
             + e.getMessage());
       }
     } finally {
@@ -4928,7 +4930,8 @@ public class TestHRegion {
       // move the file of the primary region to the archive, simulating a compaction
       Collection<StoreFile> storeFiles = primaryRegion.getStore(families[0]).getStorefiles();
       primaryRegion.getRegionFileSystem().removeStoreFiles(Bytes.toString(families[0]), storeFiles);
-      Collection<StoreFileInfo> storeFileInfos = primaryRegion.getRegionFileSystem().getStoreFiles(families[0]);
+      Collection<StoreFileInfo> storeFileInfos = primaryRegion.getRegionFileSystem()
+          .getStoreFiles(families[0]);
       Assert.assertTrue(storeFileInfos == null || storeFileInfos.size() == 0);
 
       verifyData(secondaryRegion, 0, 1000, cq, families);
@@ -4942,7 +4945,8 @@ public class TestHRegion {
     }
   }
 
-  private void putData(int startRow, int numRows, byte[] qf, byte[]... families) throws IOException {
+  private void putData(int startRow, int numRows, byte[] qf, byte[]... families) throws
+      IOException {
     putData(this.region, startRow, numRows, qf, families);
   }
 
@@ -5625,7 +5629,8 @@ public class TestHRegion {
       currRow.clear();
       hasNext = scanner.next(currRow);
       assertEquals(2, currRow.size());
-      assertTrue(Bytes.equals(currRow.get(0).getRowArray(), currRow.get(0).getRowOffset(), currRow.get(0).getRowLength(), row4, 0,
+      assertTrue(Bytes.equals(currRow.get(0).getRowArray(), currRow.get(0).getRowOffset(),
+          currRow.get(0).getRowLength(), row4, 0,
         row4.length));
       assertTrue(hasNext);
       // 2. scan out "row3" (2 kv)

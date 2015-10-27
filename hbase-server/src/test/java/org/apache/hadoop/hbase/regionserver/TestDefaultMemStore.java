@@ -982,7 +982,8 @@ public class TestDefaultMemStore extends TestCase {
     int oldHistorySize = hmc.getSnapshot().getCellsCount();
     MemStoreSnapshot snapshot = hmc.snapshot(0);
     // Make some assertions about what just happened.
-    assertTrue("History size has not increased", oldHistorySize < hmc.getSnapshot().getCellsCount());
+    assertTrue("History size has not increased", oldHistorySize < hmc.getSnapshot().getCellsCount
+        ());
     long t = memstore.timeOfOldestEdit();
     assertTrue("Time of oldest edit is not Long.MAX_VALUE", t == Long.MAX_VALUE);
     hmc.clearSnapshot(snapshot.getId());
