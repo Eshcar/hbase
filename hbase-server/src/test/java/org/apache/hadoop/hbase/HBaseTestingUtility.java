@@ -1836,15 +1836,18 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
 
   public HRegion createLocalHRegionWithInMemoryFlags(TableName tableName, byte[] startKey,
       byte[] stopKey,
-      boolean isReadOnly, Durability durability, WAL wal, boolean[] inMemory, byte[]... families)
+      boolean isReadOnly, Durability durability, WAL wal, boolean[] compactedMemStore, byte[]... families)
       throws IOException {
     HTableDescriptor htd = new HTableDescriptor(tableName);
     htd.setReadOnly(isReadOnly);
     int i=0;
     for (byte[] family : families) {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
-      if(inMemory != null && i < inMemory.length) {
-        hcd.setInMemory(inMemory[i]);
+      if(compactedMemStore != null && i < compactedMemStore.length) {
+        hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver.CompactedMemStore");
+      } else {
+        hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver.DefaultMemStore");
+
       }
       i++;
       // Set default to be three versions.
