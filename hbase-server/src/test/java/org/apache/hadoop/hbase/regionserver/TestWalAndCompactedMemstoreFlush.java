@@ -78,7 +78,9 @@ public class TestWalAndCompactedMemstoreFlush {
     HTableDescriptor htd = new HTableDescriptor(TABLENAME);
     for (byte[] family : FAMILIES) {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
-      if(i%2 == 0) hcd.setInMemory(true); // even column families are going to be in-memory
+      // even column families are going to have compacted memstore
+      if(i%2 == 0) hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver" +
+              ".CompactedMemStore");
       htd.addFamily(hcd);
       i++;
     }
