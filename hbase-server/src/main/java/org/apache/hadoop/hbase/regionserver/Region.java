@@ -670,7 +670,8 @@ public interface Region extends ConfigurationObserver {
    * @throws DroppedSnapshotException Thrown when abort is required
    * because a snapshot was not properly persisted.
    */
-  public FlushResult flush(boolean forceFlushAllStores, boolean forceFlushInsteadOfCompaction) throws IOException;
+  public FlushResult flush(boolean forceFlushAllStores, boolean forceFlushInsteadOfCompaction)
+      throws IOException;
 
   /**
    * Synchronously compact all stores in the region.

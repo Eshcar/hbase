@@ -1215,7 +1215,8 @@ public class TestHRegionWithInMemoryFlush {
     private final AtomicInteger count;
     private Exception e;
 
-    GetTillDoneOrException(final int i, final byte[] r, final AtomicBoolean d, final AtomicInteger c) {
+    GetTillDoneOrException(final int i, final byte[] r, final AtomicBoolean d,
+        final AtomicInteger c) {
       super("getter." + i);
       this.g = new Get(r);
       this.done = d;
@@ -1617,7 +1618,8 @@ public class TestHRegionWithInMemoryFlush {
       put.add(fam1, qf1, emptyVal);
 
       // checkAndPut with empty value
-      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(
+      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(
           emptyVal), put, true);
       assertTrue(res);
 
@@ -1626,25 +1628,29 @@ public class TestHRegionWithInMemoryFlush {
       put.add(fam1, qf1, val1);
 
       // checkAndPut with correct value
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(emptyVal),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(emptyVal),
           put, true);
       assertTrue(res);
 
       // not empty anymore
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(emptyVal),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(emptyVal),
           put, true);
       assertFalse(res);
 
       Delete delete = new Delete(row1);
       delete.deleteColumn(fam1, qf1);
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(emptyVal),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(emptyVal),
           delete, true);
       assertFalse(res);
 
       put = new Put(row1);
       put.add(fam1, qf1, val2);
       // checkAndPut with correct value
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(val1),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(val1),
           put, true);
       assertTrue(res);
 
@@ -1652,12 +1658,14 @@ public class TestHRegionWithInMemoryFlush {
       delete = new Delete(row1);
       delete.deleteColumn(fam1, qf1);
       delete.deleteColumn(fam1, qf1);
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(val2),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(val2),
           delete, true);
       assertTrue(res);
 
       delete = new Delete(row1);
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(emptyVal),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(emptyVal),
           delete, true);
       assertTrue(res);
 
@@ -1666,7 +1674,8 @@ public class TestHRegionWithInMemoryFlush {
       put.add(fam1, qf1, val1);
 
       res = region
-          .checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new NullComparator(), put, true);
+          .checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new NullComparator(),
+              put, true);
       assertTrue(res);
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(this.region);
@@ -1692,14 +1701,16 @@ public class TestHRegionWithInMemoryFlush {
       region.put(put);
 
       // checkAndPut with wrong value
-      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(
+      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(
           val2), put, true);
       assertEquals(false, res);
 
       // checkAndDelete with wrong value
       Delete delete = new Delete(row1);
       delete.deleteFamily(fam1);
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(val2),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(val2),
           put, true);
       assertEquals(false, res);
     } finally {
@@ -1725,14 +1736,16 @@ public class TestHRegionWithInMemoryFlush {
       region.put(put);
 
       // checkAndPut with correct value
-      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(
+      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(
           val1), put, true);
       assertEquals(true, res);
 
       // checkAndDelete with correct value
       Delete delete = new Delete(row1);
       delete.deleteColumn(fam1, qf1);
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(val1),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(val1),
           delete, true);
       assertEquals(true, res);
     } finally {
@@ -1863,7 +1876,8 @@ public class TestHRegionWithInMemoryFlush {
       put.add(kv);
 
       // checkAndPut with wrong value
-      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(
+      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(
           val1), put, true);
       assertEquals(true, res);
 
@@ -1941,7 +1955,8 @@ public class TestHRegionWithInMemoryFlush {
       delete.deleteColumn(fam1, qf1);
       delete.deleteColumn(fam2, qf1);
       delete.deleteColumn(fam1, qf3);
-      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(
+      boolean res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(
           val2), delete, true);
       assertEquals(true, res);
 
@@ -1957,7 +1972,8 @@ public class TestHRegionWithInMemoryFlush {
       // Family delete
       delete = new Delete(row1);
       delete.deleteFamily(fam2);
-      res = region.checkAndMutate(row1, fam2, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(emptyVal),
+      res = region.checkAndMutate(row1, fam2, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(emptyVal),
           delete, true);
       assertEquals(true, res);
 
@@ -1968,7 +1984,8 @@ public class TestHRegionWithInMemoryFlush {
 
       // Row delete
       delete = new Delete(row1);
-      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL, new BinaryComparator(val1),
+      res = region.checkAndMutate(row1, fam1, qf1, CompareFilter.CompareOp.EQUAL,
+          new BinaryComparator(val1),
           delete, true);
       assertEquals(true, res);
       get = new Get(row1);
@@ -2674,7 +2691,8 @@ public class TestHRegionWithInMemoryFlush {
 
       scan = new Scan();
       is = (HRegion.RegionScannerImpl) region.getScanner(scan);
-      assertEquals(families.length - 1, ((HRegion.RegionScannerImpl) is).storeHeap.getHeap().size());
+      assertEquals(families.length - 1, ((HRegion.RegionScannerImpl) is).storeHeap.getHeap().size
+          ());
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(this.region);
       this.region = null;
@@ -2709,7 +2727,8 @@ public class TestHRegionWithInMemoryFlush {
       } catch (NotServingRegionException e) {
         // this is the correct exception that is expected
       } catch (IOException e) {
-        fail("Got wrong type of exception - should be a NotServingRegionException, but was an IOException: "
+        fail("Got wrong type of exception - should be a NotServingRegionException, " +
+            "but was an IOException: "
             + e.getMessage());
       }
     } finally {
@@ -2907,7 +2926,8 @@ public class TestHRegionWithInMemoryFlush {
   }
 
   @Test
-  public void testScanner_ExplicitColumns_FromMemStoreAndFiles_EnforceVersions() throws IOException {
+  public void testScanner_ExplicitColumns_FromMemStoreAndFiles_EnforceVersions() throws
+      IOException {
     byte[] row1 = Bytes.toBytes("row1");
     byte[] fam1 = Bytes.toBytes("fam1");
     byte[][] families = { fam1 };
@@ -4898,7 +4918,8 @@ public class TestHRegionWithInMemoryFlush {
       // move the file of the primary region to the archive, simulating a compaction
       Collection<StoreFile> storeFiles = primaryRegion.getStore(families[0]).getStorefiles();
       primaryRegion.getRegionFileSystem().removeStoreFiles(Bytes.toString(families[0]), storeFiles);
-      Collection<StoreFileInfo> storeFileInfos = primaryRegion.getRegionFileSystem().getStoreFiles(families[0]);
+      Collection<StoreFileInfo> storeFileInfos = primaryRegion.getRegionFileSystem()
+          .getStoreFiles(families[0]);
       Assert.assertTrue(storeFileInfos == null || storeFileInfos.size() == 0);
 
       verifyData(secondaryRegion, 0, 1000, cq, families);
@@ -4912,7 +4933,8 @@ public class TestHRegionWithInMemoryFlush {
     }
   }
 
-  private void putData(int startRow, int numRows, byte[] qf, byte[]... families) throws IOException {
+  private void putData(int startRow, int numRows, byte[] qf, byte[]... families) throws
+      IOException {
     putData(this.region, startRow, numRows, qf, families);
   }
 
@@ -5599,7 +5621,8 @@ public class TestHRegionWithInMemoryFlush {
       currRow.clear();
       hasNext = scanner.next(currRow);
       assertEquals(2, currRow.size());
-      assertTrue(Bytes.equals(currRow.get(0).getRowArray(), currRow.get(0).getRowOffset(), currRow.get(0).getRowLength(), row4, 0,
+      assertTrue(Bytes.equals(currRow.get(0).getRowArray(), currRow.get(0).getRowOffset(),
+          currRow.get(0).getRowLength(), row4, 0,
           row4.length));
       assertTrue(hasNext);
       // 2. scan out "row3" (2 kv)
