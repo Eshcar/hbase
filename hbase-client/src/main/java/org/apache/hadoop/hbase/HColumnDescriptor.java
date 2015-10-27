@@ -18,13 +18,7 @@
  */
 package org.apache.hadoop.hbase;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
@@ -41,7 +35,12 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.PrettyPrinter;
 import org.apache.hadoop.hbase.util.PrettyPrinter.Unit;
 
-import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * An HColumnDescriptor contains information about a column family such as the
@@ -681,6 +680,21 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    */
   public HColumnDescriptor setInMemory(boolean inMemory) {
     return setValue(HConstants.IN_MEMORY, Boolean.toString(inMemory));
+  }
+
+  /**
+   * @return the memstore class name if was set by the user.
+   */
+  public String getMemStoreClassName() {
+    return getValue(HConstants.MEMSTORE_CLASS_NAME);
+  }
+
+  /**
+   * @param className the name of the class to be used as a memstore
+   * @return this (for chained invocation)
+   */
+  public HColumnDescriptor setMemStoreClass(String className) {
+    return setValue(HConstants.MEMSTORE_CLASS_NAME, className);
   }
 
   public KeepDeletedCells getKeepDeletedCells() {
