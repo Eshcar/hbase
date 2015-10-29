@@ -45,7 +45,7 @@ import java.util.TreeMap;
  * To ensure this property we take advantage of the existing blocking mechanism -- the active set
  * is pushed to the pipeline while holding updatesLock in exclusive mode.
  * Periodically, a compaction is applied in the background to all pipeline components resulting
- * in a single read-only component. The “old” components are discarded when no scanner is reading
+ * in a single read-only component. The ``old'' components are discarded when no scanner is reading
  * them.
  */
 @InterfaceAudience.Private

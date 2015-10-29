@@ -342,7 +342,8 @@ public class TestHRegionWithInMemoryFlush {
 
   /**
    * Create a WAL outside of the usual helper in
-   * {@link HBaseTestingUtility#createWal(Configuration, Path, org.apache.hadoop.hbase.HRegionInfo)} because that method
+   * {@link HBaseTestingUtility#createWal(Configuration, Path,
+   * org.apache.hadoop.hbase.HRegionInfo)} because that method
    * doesn't play nicely with FaultyFileSystem. Call this method before overriding
    * {@code fs.file.impl}.
    * @param callingMethod a unique component for the path, probably the name of the test method.

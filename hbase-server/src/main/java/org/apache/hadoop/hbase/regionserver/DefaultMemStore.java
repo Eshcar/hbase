@@ -91,8 +91,8 @@ public class DefaultMemStore extends AbstractMemStore {
     } else {
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       if (!getActive().isEmpty()) {
-        ImmutableSegment immutableSegment = StoreSegmentFactory.instance().createImmutableSegment
-            (getConfiguration(), getActive());
+        ImmutableSegment immutableSegment = StoreSegmentFactory.instance().
+            createImmutableSegment(getConfiguration(), getActive());
         setSnapshot(immutableSegment);
         setSnapshotSize(keySize());
         resetCellSet();
