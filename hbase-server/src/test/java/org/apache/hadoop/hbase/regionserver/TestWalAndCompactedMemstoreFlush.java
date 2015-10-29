@@ -62,7 +62,8 @@ public class TestWalAndCompactedMemstoreFlush {
   private static final Log LOG = LogFactory.getLog(TestWalAndCompactedMemstoreFlush.class);
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static final Path DIR = TEST_UTIL.getDataTestDir("TestHRegion");
-  public static final TableName TABLENAME = TableName.valueOf("TestWalAndCompactedMemstoreFlush", "t1");
+  public static final TableName TABLENAME = TableName.valueOf("TestWalAndCompactedMemstoreFlush",
+      "t1");
 
   public static final byte[][] FAMILIES = { Bytes.toBytes("f1"), Bytes.toBytes("f2"),
       Bytes.toBytes("f3"), Bytes.toBytes("f4"), Bytes.toBytes("f5") };
@@ -233,7 +234,8 @@ public class TestWalAndCompactedMemstoreFlush {
 
     s = s + "DefaultMemStore DEEP_OVERHEAD is:" + DefaultMemStore.DEEP_OVERHEAD
         + ", CompactedMemStore DEEP_OVERHEAD is:" + CompactedMemStore.DEEP_OVERHEAD
-        + ", CompactedMemStore DEEP_OVERHEAD_PER_PIPELINE_ITEM is:" + CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM
+        + ", CompactedMemStore DEEP_OVERHEAD_PER_PIPELINE_ITEM is:" + CompactedMemStore
+        .DEEP_OVERHEAD_PER_PIPELINE_ITEM
         + "\n----After first flush! CF1 should be flushed to memory, but not compacted.---\n"
         + "Size of CF1 is:" + cf1MemstoreSizePhaseII + ", size of CF2 is:" + cf2MemstoreSizePhaseII
         + ", size of CF3 is:" + cf3MemstoreSizePhaseII + "\n";
@@ -262,7 +264,8 @@ public class TestWalAndCompactedMemstoreFlush {
     }
 
     s = s + "The smallest sequence in region WAL is: " + smallestSeqInRegionCurrentMemstorePhaseII
-        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseII + ", the smallest sequence in CF2:"
+        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseII + ", " +
+        "the smallest sequence in CF2:"
         + smallestSeqCF2PhaseII +", the smallest sequence in CF3:" + smallestSeqCF3PhaseII + "\n";
 
     // How much does the CF1 memstore occupy? Will be used later.
@@ -295,7 +298,8 @@ public class TestWalAndCompactedMemstoreFlush {
         + "\n";
 
     s = s + "The smallest sequence in region WAL is: " + smallestSeqInRegionCurrentMemstorePhaseIV
-        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseIV + ", the smallest sequence in CF2:"
+        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseIV + ", " +
+        "the smallest sequence in CF2:"
         + smallestSeqCF2PhaseIV +", the smallest sequence in CF3:" + smallestSeqCF3PhaseIV
         + "\n";
 
@@ -313,7 +317,7 @@ public class TestWalAndCompactedMemstoreFlush {
 
     // CF1 or CF3 should be bottleneck for WAL
      assertEquals(s, smallestSeqInRegionCurrentMemstorePhaseIV,
-      ((smallestSeqCF1PhaseIV<smallestSeqCF3PhaseIV)?smallestSeqCF1PhaseIV:smallestSeqCF3PhaseIV) );
+      ((smallestSeqCF1PhaseIV<smallestSeqCF3PhaseIV)?smallestSeqCF1PhaseIV:smallestSeqCF3PhaseIV));
 
     // Flush!!!!!!!!!!!!!!!!!!!!!!
     // Clearing the existing memstores, CF2 all flushed to disk. The single
@@ -354,7 +358,8 @@ public class TestWalAndCompactedMemstoreFlush {
 
     s = s + "----AFTER THIRD FLUSH, The smallest sequence in region WAL is: "
         + smallestSeqInRegionCurrentMemstorePhaseV
-        + ". After additional inserts and last flush, the entire region size is:" + region.getMemstoreSize()
+        + ". After additional inserts and last flush, the entire region size is:" + region
+        .getMemstoreSize()
         + "\n----------------------------------\n";
 
     // Since we won't find any CF above the threshold, and hence no specific
@@ -449,7 +454,8 @@ public class TestWalAndCompactedMemstoreFlush {
     long smallestSeqCF3PhaseIII = region.getOldestSeqIdOfStore(FAMILY3);
 
     s = s + "The smallest sequence in region WAL is: " + smallestSeqInRegionCurrentMemstorePhaseIII
-        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseIII + ", the smallest sequence in CF2:"
+        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseIII + ", " +
+        "the smallest sequence in CF2:"
         + smallestSeqCF2PhaseIII +", the smallest sequence in CF3:" + smallestSeqCF3PhaseIII + "\n";
 
     // Flush!
@@ -466,11 +472,13 @@ public class TestWalAndCompactedMemstoreFlush {
     long smallestSeqCF3PhaseIV = region.getOldestSeqIdOfStore(FAMILY3);
 
     s = s + "The smallest sequence in region WAL is: " + smallestSeqInRegionCurrentMemstorePhaseIV
-        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseIV + ", the smallest sequence in CF2:"
+        + ", the smallest sequence in CF1:" + smallestSeqCF1PhaseIV + ", " +
+        "the smallest sequence in CF2:"
         + smallestSeqCF2PhaseIV +", the smallest sequence in CF3:" + smallestSeqCF3PhaseIV + "\n";
 
     // now check that the LSN of the entire WAL, of CF1 and of CF3 has progressed due to compaction
-    assertTrue(smallestSeqInRegionCurrentMemstorePhaseIV > smallestSeqInRegionCurrentMemstorePhaseIII);
+    assertTrue(smallestSeqInRegionCurrentMemstorePhaseIV >
+        smallestSeqInRegionCurrentMemstorePhaseIII);
     assertTrue(smallestSeqCF1PhaseIV > smallestSeqCF1PhaseIII);
     assertTrue(smallestSeqCF3PhaseIV > smallestSeqCF3PhaseIII);
 

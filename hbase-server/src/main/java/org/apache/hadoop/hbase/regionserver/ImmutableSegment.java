@@ -39,7 +39,7 @@ public abstract class ImmutableSegment extends StoreSegment {
   /**
    * Removes the given cell from this segment.
    * By default immutable store segment can not rollback
-   * It may be invoked by tests in specific cases where it is known to be supported {@see
+   * It may be invoked by tests in specific cases where it is known to be supported {@link
    * ImmutableSegmentAdapter}
    */
   @Override
@@ -51,7 +51,7 @@ public abstract class ImmutableSegment extends StoreSegment {
    * Returns a set of all the cells in the segment.
    * The implementation of this method might be very inefficient for some immutable segments
    * that do not maintain a cell set. Therefore by default this method is not supported.
-   * It may be invoked by tests in specific cases where it is known to be supported {@see
+   * It may be invoked by tests in specific cases where it is known to be supported {@link
    * ImmutableSegmentAdapter}
    */
   @Override
