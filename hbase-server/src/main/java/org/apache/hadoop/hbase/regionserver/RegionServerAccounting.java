@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RegionServerAccounting {
 
   private final AtomicLong atomicGlobalMemstoreSize = new AtomicLong(0);
-  private final AtomicLong atomicGlobalMemstorAdditionaleSize = new AtomicLong(0);
+  private final AtomicLong atomicGlobalMemstoreAdditionalSize = new AtomicLong(0);
 
   // Store the edits size during replaying WAL. Use this to roll back the  
   // global memstore size once a region opening failed.
@@ -57,7 +57,7 @@ public class RegionServerAccounting {
   }
 
   public long addAndGetGlobalMemstoreAdditionalSize(long size) {
-    return atomicGlobalMemstorAdditionaleSize.addAndGet(size);
+    return atomicGlobalMemstoreAdditionalSize.addAndGet(size);
   }
 
   /***

@@ -18,12 +18,14 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
 /**
  * An interface for store segment scanner, both for memory segment (memstore segment) and disk
  * segment (file).
  */
+@InterfaceAudience.Private
 public interface StoreSegmentScanner extends KeyValueScanner {
 
   /**

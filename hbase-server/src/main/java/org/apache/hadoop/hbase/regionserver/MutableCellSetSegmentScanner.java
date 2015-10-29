@@ -71,7 +71,8 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
   @Override
   public Cell peek() {          // sanity check, the current should be always valid
     if (current!=null && current.getSequenceId() > readPoint) {
-      assert (false);                     // sanity check, the current should be always valid
+      throw new RuntimeException("current is invalid: read point is "+readPoint+", " +
+          "while current sequence id is " +current.getSequenceId());
     }
 
     return current;
@@ -94,7 +95,7 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
 
   /**
    * ---------------------------------------------------------
-   * Seek the scanner at or after the specified KeyValue.
+   * Seek the scanner at or after the specified Cell.
    *
    * @param cell seek value
    * @return true if scanner has values left, false if end of scanner

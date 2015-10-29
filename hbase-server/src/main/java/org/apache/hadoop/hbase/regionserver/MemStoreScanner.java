@@ -65,9 +65,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * After constructor only one heap is going to be initialized for entire lifespan
    * of the MemStoreScanner. A specific scanner can only be one directional!
    *
+   * @param ms        Pointer back to the MemStore
    * @param readPoint Read point below which we can safely remove duplicate KVs
    * @param type      The scan type COMPACT_FORWARD should be used for compaction
-   * @param ms        Pointer back to the MemStore
    */
   public MemStoreScanner(AbstractMemStore ms, long readPoint, Type type) throws IOException {
     this(ms, ms.getListOfScanners(readPoint), readPoint, type);
@@ -124,7 +124,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
          currentCell != null;                // take next value from the heap
          currentCell = heap.next()) {
 
-      // all the logic of presenting cells is inside the internal MemStoreSegmentScanners
+      // all the logic of presenting cells is inside the internal StoreSegmentScanners
       // located inside the heap
 
       return currentCell;
@@ -160,20 +160,20 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public synchronized boolean reseek(Cell cell) throws IOException {
-        /*
-        * See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
-        * This code is executed concurrently with flush and puts, without locks.
-        * Two points must be known when working on this code:
-        * 1) It's not possible to use the 'kvTail' and 'snapshot'
-        *  variables, as they are modified during a flush.
-        * 2) The ideal implementation for performance would use the sub skip list
-        *  implicitly pointed by the iterators 'kvsetIt' and
-        *  'snapshotIt'. Unfortunately the Java API does not offer a method to
-        *  get it. So we remember the last keys we iterated to and restore
-        *  the reseeked set to at least that point.
-        *
-        *  TODO: The above comment copied from the original MemStoreScanner
-        */
+    /*
+    * See HBASE-4195 & HBASE-3855 & HBASE-6591 for the background on this implementation.
+    * This code is executed concurrently with flush and puts, without locks.
+    * Two points must be known when working on this code:
+    * 1) It's not possible to use the 'kvTail' and 'snapshot'
+    *  variables, as they are modified during a flush.
+    * 2) The ideal implementation for performance would use the sub skip list
+    *  implicitly pointed by the iterators 'kvsetIt' and
+    *  'snapshotIt'. Unfortunately the Java API does not offer a method to
+    *  get it. So we remember the last keys we iterated to and restore
+    *  the reseeked set to at least that point.
+    *
+    *  TODO: The above comment copied from the original MemStoreScanner
+    */
     assertForward();
     return forwardHeap.reseek(cell);
   }
@@ -239,7 +239,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     // so I wonder whether we need to come with our own workaround, or to update
     // ReversedKeyValueHeap
     return initiBackwardHeapIfNeeded(KeyValue.LOWESTKEY, true);
-    //return backwardHeap.seekToLastRow();
   }
 
   /**
@@ -287,7 +286,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   }
 
   /**
-   * Checks whether the type of the scan suits the assumption of moving forward
+   * Checks whether the type of the scan suits the assumption of moving backward
    */
   private boolean initiBackwardHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
     boolean res = false;

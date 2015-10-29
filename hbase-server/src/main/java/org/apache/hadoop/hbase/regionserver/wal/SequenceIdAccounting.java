@@ -173,17 +173,17 @@ class SequenceIdAccounting {
       ConcurrentMap<byte[], Long> m = getOrCreateLowestSequenceIds(encodedRegionName);
       boolean replaced = false;
       while (!replaced) {
-        Long l = m.get(familyName);
-        if (l == null) {
+        Long oldSeqId = m.get(familyName);
+        if (oldSeqId == null) {
           m.put(familyName, sequenceId);
           replaced = true;
         } else if (onlyIfGreater) {
-          if (sequenceId > l) {
-            replaced = m.replace(familyName, l, sequenceId);
+          if (sequenceId > oldSeqId) {
+            replaced = m.replace(familyName, oldSeqId, sequenceId);
           } else {
             return;
           }
-        } else { // replace even if sequence id is not greater than l
+        } else { // replace even if sequence id is not greater than oldSeqId
           m.put(familyName, sequenceId);
           return;
         }

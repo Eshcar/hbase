@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
 /**
@@ -29,6 +30,7 @@ import org.apache.hadoop.hbase.client.Scan;
  * This abstraction facilitates the management of the compaction pipeline and the shifts of these
  * segments from active set to snapshot set in the default implementation.
  */
+@InterfaceAudience.Private
 public abstract class StoreSegment {
 
   private final TimeRangeTracker timeRangeTracker;

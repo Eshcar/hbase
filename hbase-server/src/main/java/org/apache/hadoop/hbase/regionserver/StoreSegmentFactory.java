@@ -20,12 +20,14 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 /**
  * A singleton store segment factory.
  * Generate concrete store segments.
  */
+@InterfaceAudience.Private
 public final class StoreSegmentFactory {
 
   static final String USEMSLAB_KEY = "hbase.hregion.memstore.mslab.enabled";
@@ -78,7 +80,6 @@ public final class StoreSegmentFactory {
       String className = conf.get(MSLAB_CLASS_NAME, HeapMemStoreLAB.class.getName());
       memStoreLAB = ReflectionUtils.instantiateWithCustomCtor(className,
           new Class[] { Configuration.class }, new Object[] { conf });
-      //memStoreLAB = new MemStoreLAB(conf, MemStoreChunkPool.getPool(conf));
     }
     return memStoreLAB;
   }
