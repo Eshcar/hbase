@@ -221,7 +221,7 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       });
 
   /** This is for unit tests parameterized with a single boolean. */
-  public static final List<Object[]> MEMSTORETS_TAGS_PARAMETRIZED = memStoreTSAndTagsCombination()  ;
+  public static final List<Object[]> MEMSTORETS_TAGS_PARAMETRIZED = memStoreTSAndTagsCombination();
   /** Compression algorithms to use in testing */
   public static final Compression.Algorithm[] COMPRESSION_ALGORITHMS ={
       Compression.Algorithm.NONE, Compression.Algorithm.GZ
@@ -1520,7 +1520,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       desc.addFamily(hcd);
     }
     getHBaseAdmin().createTable(desc, splitKeys);
-    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are assigned
+    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are
+    // assigned
     waitUntilAllRegionsAssigned(tableName);
     return (HTable) getConnection().getTable(tableName);
   }
@@ -1557,7 +1558,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       desc.addFamily(hcd);
     }
     getHBaseAdmin().createTable(desc);
-    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are assigned
+    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are
+    // assigned
     waitUntilAllRegionsAssigned(tableName);
     return (HTable) getConnection().getTable(tableName);
   }
@@ -1575,7 +1577,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
         desc.addCoprocessor(cpName);
       }
       getHBaseAdmin().createTable(desc);
-      // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are assigned
+      // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are
+      // assigned
       waitUntilAllRegionsAssigned(tableName);
       return (HTable) getConnection().getTable(tableName);
     }
@@ -1600,7 +1603,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       i++;
     }
     getHBaseAdmin().createTable(desc);
-    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are assigned
+    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are
+    // assigned
     waitUntilAllRegionsAssigned(tableName);
     return (HTable) getConnection().getTable(tableName);
   }
@@ -1619,7 +1623,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
     HColumnDescriptor hcd = new HColumnDescriptor(family);
     desc.addFamily(hcd);
     getHBaseAdmin().createTable(desc, splitRows);
-    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are assigned
+    // HBaseAdmin only waits for regions to appear in hbase:meta we should wait until they are
+    // assigned
     waitUntilAllRegionsAssigned(tableName);
     return (HTable) getConnection().getTable(tableName);
   }
@@ -1831,10 +1836,27 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    */
   public HRegion createLocalHRegion(TableName tableName, byte[] startKey, byte[] stopKey,
       boolean isReadOnly, Durability durability, WAL wal, byte[]... families) throws IOException {
+    return createLocalHRegionWithInMemoryFlags(tableName,startKey, stopKey, isReadOnly,
+        durability, wal, null, families);
+  }
+
+  public HRegion createLocalHRegionWithInMemoryFlags(TableName tableName, byte[] startKey,
+      byte[] stopKey,
+      boolean isReadOnly, Durability durability, WAL wal, boolean[] compactedMemStore,
+      byte[]... families)
+      throws IOException {
     HTableDescriptor htd = new HTableDescriptor(tableName);
     htd.setReadOnly(isReadOnly);
+    int i=0;
     for (byte[] family : families) {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
+      if(compactedMemStore != null && i < compactedMemStore.length) {
+        hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver.CompactedMemStore");
+      } else {
+        hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver.DefaultMemStore");
+
+      }
+      i++;
       // Set default to be three versions.
       hcd.setMaxVersions(Integer.MAX_VALUE);
       htd.addFamily(hcd);
@@ -1874,7 +1896,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    * @param preserveRegions keep the existing split points
    * @return HTable for the new table
    */
-  public HTable truncateTable(final TableName tableName, final boolean preserveRegions) throws IOException {
+  public HTable truncateTable(final TableName tableName, final boolean preserveRegions) throws
+      IOException {
     Admin admin = getHBaseAdmin();
     admin.truncateTable(tableName, preserveRegions);
     return (HTable) getConnection().getTable(tableName);
@@ -1946,7 +1969,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    * @return Count of rows loaded.
    * @throws IOException
    */
-  public int loadTable(final Table t, final byte[][] f, byte[] value, boolean writeToWAL) throws IOException {
+  public int loadTable(final Table t, final byte[][] f, byte[] value,
+      boolean writeToWAL) throws IOException {
     List<Put> puts = new ArrayList<>();
     for (byte[] row : HBaseTestingUtility.ROWS) {
       Put put = new Put(row);
@@ -2004,7 +2028,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
             }
             if (count != expectedCount) {
               String row = new String(new byte[] {b1,b2,b3});
-              throw new RuntimeException("Row:" + row + " has a seen count of " + count + " instead of " + expectedCount);
+              throw new RuntimeException("Row:" + row + " has a seen count of " + count + " " +
+                  "instead of " + expectedCount);
             }
           }
         }
@@ -2514,7 +2539,8 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    * Create a stubbed out RegionServerService, mainly for getting FS.
    * This version is used by TestTokenAuthentication
    */
-  public RegionServerServices createMockRegionServerService(RpcServerInterface rpc) throws IOException {
+  public RegionServerServices createMockRegionServerService(RpcServerInterface rpc) throws
+      IOException {
     final MockRegionServerServices rss = new MockRegionServerServices(getZooKeeperWatcher());
     rss.setFileSystem(getTestFileSystem());
     rss.setRpcServer(rpc);
@@ -3111,7 +3137,10 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    * Set maxRecoveryErrorCount in DFSClient.  In 0.20 pre-append its hard-coded to 5 and
    * makes tests linger.  Here is the exception you'll see:
    * <pre>
-   * 2010-06-15 11:52:28,511 WARN  [DataStreamer for file /hbase/.logs/wal.1276627923013 block blk_928005470262850423_1021] hdfs.DFSClient$DFSOutputStream(2657): Error Recovery for block blk_928005470262850423_1021 failed  because recovery from primary datanode 127.0.0.1:53683 failed 4 times.  Pipeline was 127.0.0.1:53687, 127.0.0.1:53683. Will retry...
+   * 2010-06-15 11:52:28,511 WARN  [DataStreamer for file /hbase/.logs/wal.1276627923013 block
+   * blk_928005470262850423_1021] hdfs.DFSClient$DFSOutputStream(2657): Error Recovery for block
+   * blk_928005470262850423_1021 failed  because recovery from primary datanode 127.0.0.1:53683
+   * failed 4 times.  Pipeline was 127.0.0.1:53687, 127.0.0.1:53683. Will retry...
    * </pre>
    * @param stream A DFSClient.DFSOutputStream.
    * @param max

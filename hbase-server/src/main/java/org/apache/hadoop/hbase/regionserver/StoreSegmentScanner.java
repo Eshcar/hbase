@@ -1,4 +1,5 @@
 /**
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,18 +19,28 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-
-import java.util.Collection;
+import org.apache.hadoop.hbase.client.Scan;
 
 /**
- * A {@link FlushPolicy} that always flushes all stores for a given region.
+ * An interface for store segment scanner, both for memory segment (memstore segment) and disk
+ * segment (file).
  */
 @InterfaceAudience.Private
-public class FlushAllStoresPolicy extends FlushPolicy {
+public interface StoreSegmentScanner extends KeyValueScanner {
 
-  @Override
-  public Collection<Store> selectStoresToFlush() {
-    return allStoresExcludingFlushInMemory();
-  }
+  /**
+   * Set the sequence id of the scanner.
+   * This is used to determine an order between memory segment scanners.
+   * @param x a unique sequence id
+   */
+  public void setSequenceID(long x);
+
+  /**
+   * Returns whether the given scan should seek in this segment
+   * @param scan
+   * @param oldestUnexpiredTS
+   * @return whether the given scan should seek in this segment
+   */
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
 }

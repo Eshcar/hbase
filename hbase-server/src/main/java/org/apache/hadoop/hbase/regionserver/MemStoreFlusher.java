@@ -165,7 +165,7 @@ class MemStoreFlusher implements FlushRequester {
 
       Region regionToFlush;
       if (bestFlushableRegion != null &&
-          bestAnyRegion.getMemstoreSize() > 2 * bestFlushableRegion.getMemstoreSize()) {
+          bestAnyRegion.getMemstoreTotalSize() > 2 * bestFlushableRegion.getMemstoreTotalSize()) {
         // Even if it's not supposed to be flushed, pick a region if it's more than twice
         // as big as the best flushable one - otherwise when we're under pressure we make
         // lots of little flushes and cause lots of compactions, etc, which just makes
@@ -214,6 +214,7 @@ class MemStoreFlusher implements FlushRequester {
             + humanReadableInt(regionToFlush.getMemstoreSize()));
         flushedOne = flushRegion(regionToFlush, true, true);
 
+      Preconditions.checkState(regionToFlush.getMemstoreTotalSize() > 0);
         if (!flushedOne) {
           LOG.info("Excluding unflushable region " + regionToFlush +
               " - trying to find a different region to flush.");
@@ -356,12 +357,12 @@ class MemStoreFlusher implements FlushRequester {
   }
 
   @Override
-  public void requestFlush(Region r, boolean forceFlushAllStores) {
+  public void requestFlush(Region r, boolean forceFlushAllStores, boolean forceFlushForCompacted) {
     synchronized (regionsInQueue) {
       if (!regionsInQueue.containsKey(r)) {
         // This entry has no delay so it will be added at the top of the flush
         // queue.  It'll come out near immediately.
-        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores);
+        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores, forceFlushForCompacted);
         this.regionsInQueue.put(r, fqe);
         this.flushQueue.add(fqe);
       }
@@ -373,7 +374,7 @@ class MemStoreFlusher implements FlushRequester {
     synchronized (regionsInQueue) {
       if (!regionsInQueue.containsKey(r)) {
         // This entry has some delay
-        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores);
+        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores, false);
         fqe.requeue(delay);
         this.regionsInQueue.put(r, fqe);
         this.flushQueue.add(fqe);
@@ -487,11 +488,13 @@ class MemStoreFlusher implements FlushRequester {
   private boolean flushRegion(final Region region, final boolean emergencyFlush,
       boolean forceFlushAllStores) {
     long startTime = 0;
+    boolean forceFlushInsteadOfCompaction = false;
     synchronized (this.regionsInQueue) {
       FlushRegionEntry fqe = this.regionsInQueue.remove(region);
       // Use the start time of the FlushRegionEntry if available
       if (fqe != null) {
         startTime = fqe.createTime;
+        forceFlushInsteadOfCompaction = fqe.forceFlushForCompacted;
       }
       if (fqe != null && emergencyFlush) {
         // Need to remove from region from delay queue.  When NOT an
@@ -508,7 +511,7 @@ class MemStoreFlusher implements FlushRequester {
     lock.readLock().lock();
     try {
       notifyFlushRequest(region, emergencyFlush);
-      FlushResult flushResult = region.flush(forceFlushAllStores);
+      FlushResult flushResult = region.flush(forceFlushAllStores,forceFlushInsteadOfCompaction);
       boolean shouldCompact = flushResult.isCompactionNeeded();
       // We just want to check the size
       boolean shouldSplit = ((HRegion)region).checkSplit() != null;
@@ -726,12 +729,14 @@ class MemStoreFlusher implements FlushRequester {
     private int requeueCount = 0;
 
     private boolean forceFlushAllStores;
+    private boolean forceFlushForCompacted;
 
-    FlushRegionEntry(final Region r, boolean forceFlushAllStores) {
+    FlushRegionEntry(final Region r, boolean forceFlushAllStores, boolean forceFlushForCompacted) {
       this.region = r;
       this.createTime = EnvironmentEdgeManager.currentTime();
       this.whenToExpire = this.createTime;
       this.forceFlushAllStores = forceFlushAllStores;
+      this.forceFlushForCompacted = forceFlushForCompacted;
     }
 
     /**
