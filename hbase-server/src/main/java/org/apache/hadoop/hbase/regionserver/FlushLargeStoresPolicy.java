@@ -17,14 +17,14 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A {@link FlushPolicy} that only flushes store larger a given threshold. If no store is large
@@ -90,16 +90,17 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
     Collection<Store> stores = region.stores.values();
     Set<Store> specificStoresToFlush = new HashSet<Store>();
     for (Store store : stores) {
-      if (shouldFlush(store)) {
+      if (shouldFlush(store) && !shouldFlushInMemory(store)) {
         specificStoresToFlush.add(store);
       }
     }
     // Didn't find any CFs which were above the threshold for selection.
     if (specificStoresToFlush.isEmpty()) {
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Since none of the CFs were above the size, flushing all.");
+        LOG.debug("Since none of the CFs were above the size, flushing all that are not flushed " +
+            "in memory.");
       }
-      return stores;
+      return allStoresExcludingFlushInMemory();
     } else {
       return specificStoresToFlush;
     }

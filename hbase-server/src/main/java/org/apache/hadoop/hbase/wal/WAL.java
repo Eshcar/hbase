@@ -19,8 +19,7 @@
 
 package org.apache.hadoop.hbase.wal;
 
-import java.io.Closeable;
-import java.io.IOException;
+import com.google.common.annotations.VisibleForTesting;
 import java.util.Set;
 
 import org.apache.hadoop.hbase.HConstants;
@@ -36,7 +35,11 @@ import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A Write Ahead Log (WAL) provides service for reading, writing waledits. This interface provides
@@ -123,9 +126,21 @@ public interface WAL {
   throws IOException;
 
   /**
-   * Sync what we have in the WAL.
-   * @throws IOException
+   * updates the seuence number of a specific store.
+   * depending on the flag: replaces current seq number if the given seq id is bigger,
+   * or even if it is lower than existing one
+   * @param encodedRegionName
+   * @param familyName
+   * @param sequenceid
+   * @param onlyIfGreater
    */
+  void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
+      boolean onlyIfGreater);
+
+    /**
+     * Sync what we have in the WAL.
+     * @throws IOException
+     */
   void sync() throws IOException;
 
   /**
