@@ -39,7 +39,7 @@ module HBaseConstants
   NAME = org.apache.hadoop.hbase.HConstants::NAME
   VERSIONS = org.apache.hadoop.hbase.HConstants::VERSIONS
   IN_MEMORY = org.apache.hadoop.hbase.HConstants::IN_MEMORY
-  MEMSTORE_CLASS_NAME = org.apache.hadoop.hbase.HConstants::MEMSTORE_CLASS_NAME
+  COMPACTED = org.apache.hadoop.hbase.HConstants::COMPACTED
   METADATA = org.apache.hadoop.hbase.HConstants::METADATA
   STOPROW = "STOPROW"
   STARTROW = "STARTROW"

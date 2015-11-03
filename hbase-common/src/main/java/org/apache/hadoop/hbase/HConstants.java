@@ -595,6 +595,7 @@ public final class HConstants {
   public static final String VERSIONS = "VERSIONS";
   public static final String IN_MEMORY = "IN_MEMORY";
   public static final String MEMSTORE_CLASS_NAME = "MEMSTORE_CLASS_NAME";
+  public static final String COMPACTED = "COMPACTED";
   public static final String METADATA = "METADATA";
   public static final String CONFIGURATION = "CONFIGURATION";
 
