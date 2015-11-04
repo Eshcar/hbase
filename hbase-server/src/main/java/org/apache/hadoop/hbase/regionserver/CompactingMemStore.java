@@ -293,6 +293,16 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   /**
+   * Check whether anything need to be done based on the current active set size
+   * For CompactingMemStore, flush the active set to the read-only memory if it's
+   * size is above threshold
+   */
+  @Override
+  protected void checkActiveSize() {
+    return;
+  }
+
+  /**
    * Returns the (maximal) sequence id that is associated with the maximal ts that is smaller than
    * the given ts, and removes all entries in the ts=>seqid map with timestamp smaller than
    * the given ts.

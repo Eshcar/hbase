@@ -481,6 +481,11 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
+   * Check whether anything need to be done based on the current active set size
+   */
+  protected abstract void checkActiveSize();
+
+  /**
    * Returns a list of Store segment scanners, one per each store segment
    * @param readPt the version number required to initialize the scanners
    * @return a list of Store segment scanners, one per each store segment
