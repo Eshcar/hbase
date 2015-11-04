@@ -34,6 +34,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * A memstore implementation which supports in-memory compaction.
@@ -66,6 +68,9 @@ public class CompactingMemStore extends AbstractMemStore {
   private MemStoreCompactor compactor;
   private NavigableMap<Long, Long> timestampToWALSeqId;
   private long flushSizeLowerBound;
+
+  // Thread pool shared by all scanners
+  private static final ExecutorService pool = Executors.newCachedThreadPool();
 
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store) throws IOException {
@@ -139,8 +144,8 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.warn("Snapshot called again without clearing previous. " +
           "Doing nothing. Another ongoing flush or did we fail last attempt?");
     } else {
-      LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, " +
-          "and pipeline tail into snapshot.");
+      LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, "
+          + "and pipeline tail into snapshot.");
       pushActiveToPipeline(active, flushOpSeqId, false);
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
@@ -293,7 +298,12 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   @Override
   protected void checkActiveSize() {
-    if (getActive().getSize() > 0.9*flushSizeLowerBound) {}
+    if (getActive().getSize() > 0.9*flushSizeLowerBound) {
+      Runnable worker = new InMemoryFlusher();
+      LOG.info("Starting the MemStore in-memory flush for store "
+          + store.getColumnFamilyName());
+      pool.execute(worker);
+    }
   }
 
   /**
@@ -330,4 +340,28 @@ public class CompactingMemStore extends AbstractMemStore {
     }
     return res;
   }
+
+  /*----------------------------------------------------------------------
+  * The in-memory-flusher thread performs the flush asynchronously.
+  * There is at most one thread per memstore instance.
+  * It takes the updatesLock exclusively, pushes active into the pipeline,
+  * and compacts the pipeline.
+  */
+  private class InMemoryFlusher implements Runnable {
+
+    @Override public void run() {
+
+      try {
+        // Phase I: Update the pipeline
+
+        // Phase II: Compact the pipeline
+
+      } catch (Exception e) {
+
+        return;
+      }
+
+    }
+  }
+
 }
