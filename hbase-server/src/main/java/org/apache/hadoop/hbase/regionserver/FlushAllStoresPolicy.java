@@ -29,7 +29,7 @@ public class FlushAllStoresPolicy extends FlushPolicy {
 
   @Override
   public Collection<Store> selectStoresToFlush() {
-    return allStoresExcludingFlushInMemory();
+    return region.stores.values();
   }
 
 }

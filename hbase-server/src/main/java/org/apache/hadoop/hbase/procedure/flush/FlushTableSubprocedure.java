@@ -65,8 +65,7 @@ public class FlushTableSubprocedure extends Subprocedure {
       region.startRegionOperation();
       try {
         LOG.debug("Flush region " + region.toString() + " started...");
-        boolean forceFlushInsteadOfCompaction = false;
-        region.flush(true,forceFlushInsteadOfCompaction);
+        region.flush(true);
       } finally {
         LOG.debug("Closing region operation on " + region);
         region.closeRegionOperation();

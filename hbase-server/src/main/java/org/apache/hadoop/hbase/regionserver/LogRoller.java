@@ -184,7 +184,7 @@ public class LogRoller extends HasThread {
         // The regions to flush are those whose number of un-archived WAL files
         // is greater than maximum allowed. In this case, cause even the compacted
         // MemStore flush to disk (last parameter true).
-        requester.requestFlush(r, true, true);
+        requester.requestFlush(r, true);
         scheduled = true;
       }
     }

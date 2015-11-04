@@ -524,4 +524,7 @@ public abstract class AbstractMemStore implements MemStore {
    */
   protected abstract List<StoreSegment> getListOfSegments() throws IOException;
 
+  public long getActiveSize() {
+    return getActive().getSize();
+  }
 }

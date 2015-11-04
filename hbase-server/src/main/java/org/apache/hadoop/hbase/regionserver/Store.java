@@ -286,6 +286,11 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   long getMemStoreSize();
 
   /**
+   * @return The size of this store's active segment, in bytes
+   */
+  long getMemStoreActiveSize();
+
+  /**
    * @return The amount of memory we could flush from this memstore; usually this is equal to
    * {@link #getMemStoreSize()} unless we are carrying snapshots and then it will be the size of
    * outstanding snapshots.
@@ -461,8 +466,7 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   boolean isMemStoreInCompaction();
   // check whether memstore can be compacted
   boolean isCompactedMemStore();
-  // check whether can flush in memory
-  boolean shouldFlushInMemory();
+
   // flush memstore into an in-memory compacted segment
   void flushInMemory(long flushOpSeqId);
   // update wal with a new sequence id

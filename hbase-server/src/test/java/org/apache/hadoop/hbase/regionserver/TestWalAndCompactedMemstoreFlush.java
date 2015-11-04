@@ -215,7 +215,7 @@ public class TestWalAndCompactedMemstoreFlush {
     // Since CF1 and CF3 should be flushed to memory (not to disk),
     // CF2 is going to be flushed to disk.
     // CF1 - nothing to compact, CF3 - should be twice compacted
-    region.flush(false,false);
+    region.flush(false);
 
     // CF3 should be compacted so wait here to be sure the compaction is done
     while (region.getStore(FAMILY3).isMemStoreInCompaction()) Threads.sleep(10);
@@ -280,7 +280,7 @@ public class TestWalAndCompactedMemstoreFlush {
     // Flush again, CF1 is flushed to memory and its pipeline element is flushed to disk
     // CF2 is flushed to disk, because it is not in-memory compacted memstore
     // CF3 is flushed empty to memory (actually nothing happens to CF3)
-    region.flush(false, false);
+    region.flush(false);
 
     // Recalculate everything
     long cf1MemstoreSizePhaseIV = region.getStore(FAMILY1).getMemStoreSize();
@@ -323,7 +323,7 @@ public class TestWalAndCompactedMemstoreFlush {
     // Clearing the existing memstores, CF2 all flushed to disk. The single
     // memstore segment in the compaction pipeline of CF1 and CF3 should be flushed to disk.
     // Note that active sets of CF1 and CF3 are empty
-    region.flush(true, true);
+    region.flush(true);
 
     // Recalculate everything
     long cf1MemstoreSizePhaseV = region.getStore(FAMILY1).getMemStoreSize();
@@ -354,7 +354,7 @@ public class TestWalAndCompactedMemstoreFlush {
       region.put(createPut(5, i));
     }
 
-    region.flush(false,false);
+    region.flush(false);
 
     s = s + "----AFTER THIRD FLUSH, The smallest sequence in region WAL is: "
         + smallestSeqInRegionCurrentMemstorePhaseV
@@ -416,7 +416,7 @@ public class TestWalAndCompactedMemstoreFlush {
         cf1MemstoreSizePhaseI + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     // Flush!
-    region.flush(false, false);
+    region.flush(false);
 
     long cf2MemstoreSizePhaseII = region.getStore(FAMILY2).getMemStoreSize();
 
@@ -459,7 +459,7 @@ public class TestWalAndCompactedMemstoreFlush {
         + smallestSeqCF2PhaseIII +", the smallest sequence in CF3:" + smallestSeqCF3PhaseIII + "\n";
 
     // Flush!
-    region.flush(false, false);
+    region.flush(false);
 
     // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
     while (region.getStore(FAMILY1).isMemStoreInCompaction()) Threads.sleep(10);
