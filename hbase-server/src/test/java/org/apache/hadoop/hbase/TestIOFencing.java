@@ -53,7 +53,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -218,16 +217,6 @@ public class TestIOFencing {
         throw new IOException(ex);
       }
       super.completeCompaction(compactedFiles);
-    }
-
-    @Override public void setForceFlushToDisk() {
-    }
-
-    @Override public boolean isMemStoreInCompaction() {
-      return false;
-    }
-
-    @Override public void flushInMemory(long flushOpSeqId) {
     }
 
     @Override public void updateLowestUnflushedSequenceIdInWal() {

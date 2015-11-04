@@ -460,15 +460,6 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    */
   double getCompactionPressure();
 
-  // turn on the force flush flag to make sure data is flushed to disk
-  void setForceFlushToDisk();
-  // check whether memstore compaction is in progress
-  boolean isMemStoreInCompaction();
-  // check whether memstore can be compacted
-  boolean isCompactedMemStore();
-
-  // flush memstore into an in-memory compacted segment
-  void flushInMemory(long flushOpSeqId);
   // update wal with a new sequence id
   void updateLowestUnflushedSequenceIdInWal();
 
@@ -482,5 +473,6 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
 
   void bulkLoadHFile(StoreFileInfo fileInfo) throws IOException;
 
-  boolean isPrimaryReplicaStore();
+  // methods for tests
+  AbstractMemStore getMemStore();
 }

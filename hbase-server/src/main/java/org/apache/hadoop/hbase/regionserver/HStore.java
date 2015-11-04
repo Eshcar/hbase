@@ -235,8 +235,8 @@ public class HStore implements Store {
     if(className == null) {
       className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
     }
-    if (className.equalsIgnoreCase(CompactedMemStore.class.getName())) {
-      this.memstore = new CompactedMemStore(conf, this.comparator, this);
+    if (className.equalsIgnoreCase(CompactingMemStore.class.getName())) {
+      this.memstore = new CompactingMemStore(conf, this.comparator, this);
     } else {
       this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
           Configuration.class, CellComparator.class }, new Object[] { conf, this.comparator });
@@ -2363,31 +2363,17 @@ public class HStore implements Store {
     return storeEngine.getStoreFileManager().getCompactionPressure();
   }
 
-  @Override
-  public boolean isPrimaryReplicaStore() {
+  private boolean isPrimaryReplicaStore() {
 	   return getRegionInfo().getReplicaId() == HRegionInfo.DEFAULT_REPLICA_ID;
   }
 
   @Override
-  public void setForceFlushToDisk() {
-    this.memstore.setForceFlushToDisk();
-  }
-
-  @Override
-  public boolean isMemStoreInCompaction() {
-    return memstore.isMemStoreInCompaction();
-  }
-
-  @Override public void flushInMemory(long flushOpSeqId) {
-    memstore.flushInMemory(flushOpSeqId);
+  public AbstractMemStore getMemStore() {
+      return this.memstore;
   }
 
   @Override public void updateLowestUnflushedSequenceIdInWal() {
      memstore.updateLowestUnflushedSequenceIdInWal(false); //update even if not greater
   }
 
-  //method for tests
-  @Override public boolean isCompactedMemStore() {
-    return memstore.isCompactibleMemStore();
-  }
 }

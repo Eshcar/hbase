@@ -52,7 +52,7 @@ class MemStoreCompactor {
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
   private CompactionPipeline pipeline;        // the subject for compaction
-  private CompactedMemStore ms;               // backward reference
+  private CompactingMemStore ms;               // backward reference
   private MemStoreScanner scanner;            // scanner for pipeline only
 
   // scanner on top of MemStoreScanner that uses ScanQueryMatcher
@@ -76,7 +76,7 @@ class MemStoreCompactor {
    * The constructor is used only to initialize basics, other parameters
    * needing to start compaction will come with startCompact()
    */
-  public MemStoreCompactor(CompactedMemStore ms, CompactionPipeline pipeline,
+  public MemStoreCompactor(CompactingMemStore ms, CompactionPipeline pipeline,
       CellComparator comparator, Configuration conf) {
 
     this.ms = ms;
@@ -158,7 +158,7 @@ class MemStoreCompactor {
     @Override public void run() {
       ImmutableSegment result = StoreSegmentFactory.instance()
           .createImmutableSegment(conf, comparator,
-              CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+              CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       // the compaction processing
       KeyValue cell;
       try {

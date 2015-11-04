@@ -49,19 +49,19 @@ import java.util.TreeMap;
  * them.
  */
 @InterfaceAudience.Private
-public class CompactedMemStore extends AbstractMemStore {
+public class CompactingMemStore extends AbstractMemStore {
 
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
-  private static final Log LOG = LogFactory.getLog(CompactedMemStore.class);
+  private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private boolean forceFlushToDisk;
   private NavigableMap<Long, Long> timestampToWALSeqId;
 
-  public CompactedMemStore(Configuration conf, CellComparator c,
+  public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store) throws IOException {
     super(conf, c);
     this.store = store;
@@ -142,7 +142,6 @@ public class CompactedMemStore extends AbstractMemStore {
     return new MemStoreSnapshot(this.snapshotId, getSnapshot());
   }
 
-  @Override
   public void flushInMemory(long flushOpSeqId) {
     MutableSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
@@ -238,11 +237,7 @@ public class CompactedMemStore extends AbstractMemStore {
     return forceFlushToDisk;
   }
 
-  @Override public boolean isCompactibleMemStore() {
-    return true;
-  }
-
-  @Override public boolean isMemStoreInCompaction() {
+  public boolean isMemStoreInCompaction() {
     return compactor.isInCompaction();
   }
 
@@ -256,12 +251,17 @@ public class CompactedMemStore extends AbstractMemStore {
     return list;
   }
 
-  private CompactedMemStore resetForceFlush() {
+  private CompactingMemStore resetForceFlush() {
     forceFlushToDisk = false;
     return this;
   }
 
   //methods for tests
+  @Override
+  boolean isCompactingMemStore() {
+    return true;
+  }
+
 
   /**
    * @param cell Find the row that comes after this one.  If null, we return the

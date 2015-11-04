@@ -274,7 +274,6 @@ public class TestHRegionWithInMemoryFlush {
     // First put something in current memstore, which will be in snapshot after flusher.prepare()
     region.put(put);
     assertEquals(208, region.getMemstoreSize());
-    store.setForceFlushToDisk();
     StoreFlushContext storeFlushCtx = store.createFlushContext(12345);
     storeFlushCtx.prepareFlushToDisk(12345);
     assertEquals(208, region.getMemstoreSize());

@@ -81,7 +81,7 @@ public class TestWalAndCompactedMemstoreFlush {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
       // even column families are going to have compacted memstore
       if(i%2 == 0) hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver" +
-              ".CompactedMemStore");
+              ".CompactingMemStore");
       htd.addFamily(hcd);
       i++;
     }
@@ -186,11 +186,11 @@ public class TestWalAndCompactedMemstoreFlush {
     String s = "\n\n----------------------------------\n"
         + "Upon initial insert and before any flush, size of CF1 is:"
         + cf1MemstoreSizePhaseI + ", is CF1 compacted memstore?:"
-        + region.getStore(FAMILY1).isCompactedMemStore() + ". Size of CF2 is:"
+        + region.getStore(FAMILY1).getMemStore().isCompactingMemStore() + ". Size of CF2 is:"
         + cf2MemstoreSizePhaseI + ", is CF2 compacted memstore?:"
-        + region.getStore(FAMILY2).isCompactedMemStore() + ". Size of CF3 is:"
+        + region.getStore(FAMILY2).getMemStore().isCompactingMemStore() + ". Size of CF3 is:"
         + cf3MemstoreSizePhaseI + ", is CF3 compacted memstore?:"
-        + region.getStore(FAMILY3).isCompactedMemStore() + "\n";
+        + region.getStore(FAMILY3).getMemStore().isCompactingMemStore() + "\n";
 
     // The overall smallest LSN in the region's memstores should be the same as
     // the LSN of the smallest edit in CF1
@@ -218,7 +218,9 @@ public class TestWalAndCompactedMemstoreFlush {
     region.flush(false);
 
     // CF3 should be compacted so wait here to be sure the compaction is done
-    while (region.getStore(FAMILY3).isMemStoreInCompaction()) Threads.sleep(10);
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+      Threads
+        .sleep(10);
 
     // Recalculate everything
     long cf1MemstoreSizePhaseII = region.getStore(FAMILY1).getMemStoreSize();
@@ -233,8 +235,8 @@ public class TestWalAndCompactedMemstoreFlush {
     long smallestSeqCF3PhaseII = region.getOldestSeqIdOfStore(FAMILY3);
 
     s = s + "DefaultMemStore DEEP_OVERHEAD is:" + DefaultMemStore.DEEP_OVERHEAD
-        + ", CompactedMemStore DEEP_OVERHEAD is:" + CompactedMemStore.DEEP_OVERHEAD
-        + ", CompactedMemStore DEEP_OVERHEAD_PER_PIPELINE_ITEM is:" + CompactedMemStore
+        + ", CompactingMemStore DEEP_OVERHEAD is:" + CompactingMemStore.DEEP_OVERHEAD
+        + ", CompactingMemStore DEEP_OVERHEAD_PER_PIPELINE_ITEM is:" + CompactingMemStore
         .DEEP_OVERHEAD_PER_PIPELINE_ITEM
         + "\n----After first flush! CF1 should be flushed to memory, but not compacted.---\n"
         + "Size of CF1 is:" + cf1MemstoreSizePhaseII + ", size of CF2 is:" + cf2MemstoreSizePhaseII
@@ -243,7 +245,7 @@ public class TestWalAndCompactedMemstoreFlush {
     // CF1 was flushed to memory, but there is nothing to compact, should
     // remain the same size plus renewed empty skip-list
     assertEquals(cf1MemstoreSizePhaseII,
-        cf1MemstoreSizePhaseI + CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+        cf1MemstoreSizePhaseI + CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
 
     // CF2 should become empty
     assertEquals(DefaultMemStore.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
@@ -462,8 +464,10 @@ public class TestWalAndCompactedMemstoreFlush {
     region.flush(false);
 
     // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
-    while (region.getStore(FAMILY1).isMemStoreInCompaction()) Threads.sleep(10);
-    while (region.getStore(FAMILY3).isMemStoreInCompaction()) Threads.sleep(10);
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+      Threads.sleep(10);
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+      Threads.sleep(10);
 
     long smallestSeqInRegionCurrentMemstorePhaseIV =
         region.getWAL().getEarliestMemstoreSeqNum(region.getRegionInfo().getEncodedNameAsBytes());

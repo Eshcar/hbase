@@ -64,7 +64,7 @@ public class TestCompactedMemStore extends TestCase {
   private static final int QUALIFIER_COUNT = ROW_COUNT;
   private static final byte[] FAMILY = Bytes.toBytes("column");
   private static MemStoreChunkPool chunkPool;
-  private CompactedMemStore cms;
+  private CompactingMemStore cms;
   private HRegion region;
   private HStore store;
   private MultiVersionConcurrencyControl mvcc;
@@ -87,7 +87,7 @@ public class TestCompactedMemStore extends TestCase {
   //    return new KeyValue(row, Bytes.toBytes("test_col"), null,
   //      HConstants.LATEST_TIMESTAMP, value);
   //  }
-  private static void addRows(int count, final CompactedMemStore mem) {
+  private static void addRows(int count, final CompactingMemStore mem) {
     long nanos = System.nanoTime();
 
     for (int i = 0; i < count; i++) {
@@ -137,7 +137,7 @@ public class TestCompactedMemStore extends TestCase {
     HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
     this.region = hbaseUtility.createTestRegion("foobar", hcd);
     this.store = new HStore(region, hcd, conf);
-    this.cms = new CompactedMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR, store);
+    this.cms = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR, store);
     chunkPool = MemStoreChunkPool.getPool(conf);
     assertTrue(chunkPool != null);
   }
@@ -274,7 +274,7 @@ public class TestCompactedMemStore extends TestCase {
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 3: first in snapshot second in kvset
-    this.cms = new CompactedMemStore(HBaseConfiguration.create(),
+    this.cms = new CompactingMemStore(HBaseConfiguration.create(),
         CellComparator.COMPARATOR, store);
     this.cms.add(kv1.clone());
     // As compaction is starting in the background the repetition
@@ -870,11 +870,8 @@ public class TestCompactedMemStore extends TestCase {
       cms.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
       t = cms.timeOfOldestEdit();
       assertTrue(t == 1234);
-      // snapshot() after setForceFlushToDisk() will reset timeOfOldestEdit.
       // The method will also assert
       // the value is reset to Long.MAX_VALUE
-
-      //           t = runSnapshot(compacmemstore, false);
       t = runSnapshot(cms, true);
 
       // test the case that the timeOfOldestEdit is updated after a KV delete
@@ -968,7 +965,7 @@ public class TestCompactedMemStore extends TestCase {
     return ROW_COUNT;
   }
 
-  private long runSnapshot(final CompactedMemStore hmc, boolean useForce)
+  private long runSnapshot(final CompactingMemStore hmc, boolean useForce)
       throws IOException {
     // Save off old state.
     long oldHistorySize = hmc.getSnapshot().getSize();
@@ -1333,13 +1330,13 @@ public class TestCompactedMemStore extends TestCase {
     final byte[] q1 = Bytes.toBytes("q1");
 
     final MultiVersionConcurrencyControl mvcc;
-    final CompactedMemStore compmemstore;
+    final CompactingMemStore compmemstore;
     final AtomicLong startSeqNum;
 
     AtomicReference<Throwable> caughtException;
 
     public ReadOwnWritesTester(int id,
-        CompactedMemStore memstore,
+        CompactingMemStore memstore,
         MultiVersionConcurrencyControl mvcc,
         AtomicReference<Throwable> caughtException,
         AtomicLong startSeqNum) {
