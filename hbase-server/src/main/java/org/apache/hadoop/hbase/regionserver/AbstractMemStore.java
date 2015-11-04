@@ -94,18 +94,6 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
-   * Sets the force flush to disk mode on.
-   * @return this memstore
-   */
-  public abstract AbstractMemStore setForceFlushToDisk();
-
-  /**
-   * Returns true if the force flush to disk mode is set
-   * @return true if the force flush to disk mode is set
-   */
-  abstract boolean isForceFlushToDisk();
-
-  /**
    * Updates the wal with the lowest sequence id (oldest entry) that is still in memory
    * @param onlyIfGreater a flag that marks whether to update the sequence id no matter what or
    *                      only if it is greater than the previous sequence id

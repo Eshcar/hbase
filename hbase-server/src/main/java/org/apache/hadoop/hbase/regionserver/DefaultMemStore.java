@@ -148,15 +148,6 @@ public class DefaultMemStore extends AbstractMemStore {
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 
-  @Override public AbstractMemStore setForceFlushToDisk() {
-    // do nothing
-    return this;
-  }
-
-  @Override boolean isForceFlushToDisk() {
-    return true;
-  }
-
   @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
     return;
   }
