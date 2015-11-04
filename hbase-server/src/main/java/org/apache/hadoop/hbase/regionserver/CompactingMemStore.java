@@ -54,12 +54,18 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+
+  public static final String HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND =
+      "hbase.hregion.percolumnfamilyflush.size.lower.bound";
+
+  private static final long DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND = 1024 * 1024 * 16L;
+
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
-  private boolean forceFlushToDisk;
   private NavigableMap<Long, Long> timestampToWALSeqId;
+  private long flushSizeLowerBound;
 
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store) throws IOException {
@@ -67,8 +73,9 @@ public class CompactingMemStore extends AbstractMemStore {
     this.store = store;
     this.pipeline = new CompactionPipeline(store.getHRegion());
     this.compactor = new MemStoreCompactor(this, pipeline, c, conf);
-    this.forceFlushToDisk = false;
     this.timestampToWALSeqId = new TreeMap<>();
+    this.flushSizeLowerBound = conf.getLong(HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND,
+            DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND);
   }
 
   public static long getStoreSegmentSize(StoreSegment segment) {
@@ -137,7 +144,6 @@ public class CompactingMemStore extends AbstractMemStore {
       pushActiveToPipeline(active, flushOpSeqId, false);
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
-      resetForceFlush();
     }
     return new MemStoreSnapshot(this.snapshotId, getSnapshot());
   }
@@ -225,13 +231,6 @@ public class CompactingMemStore extends AbstractMemStore {
     rollbackActive(cell);
   }
 
-  public AbstractMemStore setForceFlushToDisk() {
-    forceFlushToDisk = true;
-    // stop compactor if currently working, to avoid possible conflict in pipeline
-    compactor.stopCompact();
-    return this;
-  }
-
   public boolean isMemStoreInCompaction() {
     return compactor.isInCompaction();
   }
@@ -244,11 +243,6 @@ public class CompactingMemStore extends AbstractMemStore {
     list.addAll(pipelineList);
     list.add(getSnapshot());
     return list;
-  }
-
-  private CompactingMemStore resetForceFlush() {
-    forceFlushToDisk = false;
-    return this;
   }
 
   //methods for tests
@@ -299,7 +293,7 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   @Override
   protected void checkActiveSize() {
-    return;
+    if (getActive().getSize() > 0.9*flushSizeLowerBound) {}
   }
 
   /**
