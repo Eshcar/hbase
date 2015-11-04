@@ -225,16 +225,11 @@ public class CompactingMemStore extends AbstractMemStore {
     rollbackActive(cell);
   }
 
-  @Override
   public AbstractMemStore setForceFlushToDisk() {
     forceFlushToDisk = true;
     // stop compactor if currently working, to avoid possible conflict in pipeline
     compactor.stopCompact();
     return this;
-  }
-
-  @Override boolean isForceFlushToDisk() {
-    return forceFlushToDisk;
   }
 
   public boolean isMemStoreInCompaction() {
