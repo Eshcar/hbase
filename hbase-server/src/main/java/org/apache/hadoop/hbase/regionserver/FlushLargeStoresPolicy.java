@@ -74,7 +74,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
   }
 
   private boolean shouldFlush(Store store) {
-    if (store.getMemStoreSize() > this.flushSizeLowerBound) {
+    if (store.getMemStoreActiveSize() > this.flushSizeLowerBound) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Flush Column Family " + store.getColumnFamilyName() + " of " +
           region.getRegionInfo().getEncodedName() + " because memstoreSize=" +
@@ -90,17 +90,16 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
     Collection<Store> stores = region.stores.values();
     Set<Store> specificStoresToFlush = new HashSet<Store>();
     for (Store store : stores) {
-      if (shouldFlush(store) && !shouldFlushInMemory(store)) {
+      if (shouldFlush(store)) {
         specificStoresToFlush.add(store);
       }
     }
     // Didn't find any CFs which were above the threshold for selection.
     if (specificStoresToFlush.isEmpty()) {
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Since none of the CFs were above the size, flushing all that are not flushed " +
-            "in memory.");
+        LOG.debug("Since none of the CFs were above the size, flushing all.");
       }
-      return allStoresExcludingFlushInMemory();
+      return stores;
     } else {
       return specificStoresToFlush;
     }

@@ -32,10 +32,8 @@ public interface FlushRequester {
    * @param region the Region requesting the cache flush
    * @param forceFlushAllStores whether we want to flush all stores. e.g., when request from log
    *          rolling.
-   * @param forceFlushForCompacted whether we want to flush also the compacted memstores to disk,
-   *          e.g., when request from log rolling
    */
-  void requestFlush(Region region, boolean forceFlushAllStores, boolean forceFlushForCompacted);
+  void requestFlush(Region region, boolean forceFlushAllStores);
 
   /**
    * Tell the listener the cache needs to be flushed after a delay

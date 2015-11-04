@@ -18,27 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import static org.apache.hadoop.util.StringUtils.humanReadableInt;
-
-import java.io.IOException;
-import java.lang.Thread.UncaughtExceptionHandler;
-import java.lang.management.ManagementFactory;
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.DelayQueue;
-import java.util.concurrent.Delayed;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
+import com.google.common.base.Preconditions;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -60,7 +40,26 @@ import org.apache.hadoop.util.StringUtils.TraditionalBinaryPrefix;
 import org.apache.htrace.Trace;
 import org.apache.htrace.TraceScope;
 
-import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.Delayed;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import static org.apache.hadoop.util.StringUtils.humanReadableInt;
 
 /**
  * Thread that flushes cache on request
@@ -214,7 +213,6 @@ class MemStoreFlusher implements FlushRequester {
             + humanReadableInt(regionToFlush.getMemstoreSize()));
         flushedOne = flushRegion(regionToFlush, true, true);
 
-      Preconditions.checkState(regionToFlush.getMemstoreTotalSize() > 0);
         if (!flushedOne) {
           LOG.info("Excluding unflushable region " + regionToFlush +
               " - trying to find a different region to flush.");
@@ -357,12 +355,12 @@ class MemStoreFlusher implements FlushRequester {
   }
 
   @Override
-  public void requestFlush(Region r, boolean forceFlushAllStores, boolean forceFlushForCompacted) {
+  public void requestFlush(Region r, boolean forceFlushAllStores) {
     synchronized (regionsInQueue) {
       if (!regionsInQueue.containsKey(r)) {
         // This entry has no delay so it will be added at the top of the flush
         // queue.  It'll come out near immediately.
-        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores, forceFlushForCompacted);
+        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores);
         this.regionsInQueue.put(r, fqe);
         this.flushQueue.add(fqe);
       }
@@ -374,7 +372,7 @@ class MemStoreFlusher implements FlushRequester {
     synchronized (regionsInQueue) {
       if (!regionsInQueue.containsKey(r)) {
         // This entry has some delay
-        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores, false);
+        FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores);
         fqe.requeue(delay);
         this.regionsInQueue.put(r, fqe);
         this.flushQueue.add(fqe);
@@ -488,13 +486,11 @@ class MemStoreFlusher implements FlushRequester {
   private boolean flushRegion(final Region region, final boolean emergencyFlush,
       boolean forceFlushAllStores) {
     long startTime = 0;
-    boolean forceFlushInsteadOfCompaction = false;
     synchronized (this.regionsInQueue) {
       FlushRegionEntry fqe = this.regionsInQueue.remove(region);
       // Use the start time of the FlushRegionEntry if available
       if (fqe != null) {
         startTime = fqe.createTime;
-        forceFlushInsteadOfCompaction = fqe.forceFlushForCompacted;
       }
       if (fqe != null && emergencyFlush) {
         // Need to remove from region from delay queue.  When NOT an
@@ -511,7 +507,7 @@ class MemStoreFlusher implements FlushRequester {
     lock.readLock().lock();
     try {
       notifyFlushRequest(region, emergencyFlush);
-      FlushResult flushResult = region.flush(forceFlushAllStores,forceFlushInsteadOfCompaction);
+      FlushResult flushResult = region.flush(forceFlushAllStores);
       boolean shouldCompact = flushResult.isCompactionNeeded();
       // We just want to check the size
       boolean shouldSplit = ((HRegion)region).checkSplit() != null;
@@ -729,14 +725,12 @@ class MemStoreFlusher implements FlushRequester {
     private int requeueCount = 0;
 
     private boolean forceFlushAllStores;
-    private boolean forceFlushForCompacted;
 
-    FlushRegionEntry(final Region r, boolean forceFlushAllStores, boolean forceFlushForCompacted) {
+    FlushRegionEntry(final Region r, boolean forceFlushAllStores) {
       this.region = r;
       this.createTime = EnvironmentEdgeManager.currentTime();
       this.whenToExpire = this.createTime;
       this.forceFlushAllStores = forceFlushAllStores;
-      this.forceFlushForCompacted = forceFlushForCompacted;
     }
 
     /**

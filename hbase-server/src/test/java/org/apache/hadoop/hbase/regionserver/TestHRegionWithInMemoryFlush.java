@@ -406,7 +406,7 @@ public class TestHRegionWithInMemoryFlush {
           // Fail a flush which means the current memstore will hang out as memstore 'snapshot'.
           try {
             LOG.info("Flushing");
-            region.flush(true,true); //force flush to disk instead of in-memory flush
+            region.flush(true); //force flush to disk instead of in-memory flush
             Assert.fail("Didn't bubble up IOE!");
           } catch (DroppedSnapshotException dse) {
             // What we are expecting
@@ -428,7 +428,7 @@ public class TestHRegionWithInMemoryFlush {
           // Do a successful flush.  It will clear the snapshot only.  Thats how flushes work.
           // If already a snapshot, we clear it else we move the memstore to be snapshot and flush
           // it
-          region.flush(true, true);
+          region.flush(true);
           // Make sure our memory accounting is right.
           Assert.assertEquals(sizeOfOnePut * 2, region.getMemstoreTotalSize());
           Assert.assertEquals(sizeOfOnePut * 2, region.getMemstoreSize());
@@ -801,7 +801,7 @@ public class TestHRegionWithInMemoryFlush {
         Put put = new Put(Bytes.toBytes(i));
         put.addColumn(family, Bytes.toBytes(i), Bytes.toBytes(i));
         region.put(put);
-        region.flush(true,true);
+        region.flush(true);
         assertEquals(i+1, region.getStore(family).getStorefilesCount());
       }
 
@@ -905,7 +905,7 @@ public class TestHRegionWithInMemoryFlush {
         Put put = new Put(Bytes.toBytes(i));
         put.addColumn(family, Bytes.toBytes(i), Bytes.toBytes(i));
         region.put(put);
-        region.flush(true,true);
+        region.flush(true);
         assertEquals(i+1, region.getStore(family).getStorefilesCount());
       }
 
@@ -1112,7 +1112,7 @@ public class TestHRegionWithInMemoryFlush {
 
       // start cache flush will throw exception
       try {
-        region.flush(true,true);
+        region.flush(true);
         fail("This should have thrown exception");
       } catch (DroppedSnapshotException unexpected) {
         // this should not be a dropped snapshot exception. Meaning that RS will not abort
@@ -1130,7 +1130,7 @@ public class TestHRegionWithInMemoryFlush {
       wal.flushActions = new FlushAction[] {FlushAction.COMMIT_FLUSH};
 
       try {
-        region.flush(true,true);
+        region.flush(true);
         fail("This should have thrown exception");
       } catch (DroppedSnapshotException expected) {
         // we expect this exception, since we were able to write the snapshot, but failed to
@@ -1152,7 +1152,7 @@ public class TestHRegionWithInMemoryFlush {
       wal.flushActions = new FlushAction[] {FlushAction.COMMIT_FLUSH, FlushAction.ABORT_FLUSH};
 
       try {
-        region.flush(true,true);
+        region.flush(true);
         fail("This should have thrown exception");
       } catch (DroppedSnapshotException expected) {
         // we expect this exception, since we were able to write the snapshot, but failed to
@@ -3770,7 +3770,7 @@ public class TestHRegionWithInMemoryFlush {
           }
         }
         try {
-          region.flush(true,true);
+          region.flush(true);
         } catch (IOException e) {
           if (!done) {
             LOG.error("Error while flusing cache", e);
@@ -3858,7 +3858,7 @@ public class TestHRegionWithInMemoryFlush {
 
       putThread.done();
 
-      region.flush(true,true);
+      region.flush(true);
 
       putThread.join();
       putThread.checkNoError();
@@ -5056,7 +5056,7 @@ public class TestHRegionWithInMemoryFlush {
     this.region = initHRegion(tableName, method, family);
 
     // empty memstore, flush doesn't run
-    HRegion.FlushResult fr = region.flush(true,true);
+    HRegion.FlushResult fr = region.flush(true);
     assertFalse(fr.isFlushSucceeded());
     assertFalse(fr.isCompactionNeeded());
 
@@ -5064,7 +5064,7 @@ public class TestHRegionWithInMemoryFlush {
     for (int i = 0; i < 2; i++) {
       Put put = new Put(tableName.toBytes()).addColumn(family, family, tableName.toBytes());
       region.put(put);
-      fr = region.flush(true,true);
+      fr = region.flush(true);
       assertTrue(fr.isFlushSucceeded());
       assertFalse(fr.isCompactionNeeded());
     }
@@ -5073,7 +5073,7 @@ public class TestHRegionWithInMemoryFlush {
     for (int i = 0; i < 2; i++) {
       Put put = new Put(tableName.toBytes()).addColumn(family, family, tableName.toBytes());
       region.put(put);
-      fr = region.flush(true,true);
+      fr = region.flush(true);
       assertTrue(fr.isFlushSucceeded());
       assertTrue(fr.isCompactionNeeded());
     }

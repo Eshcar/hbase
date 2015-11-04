@@ -70,7 +70,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ChecksumType;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.util.StringUtils;
@@ -2026,6 +2025,14 @@ public class HStore implements Store {
     return this.memstore.size();
   }
 
+  /**
+   * @return The size of this store's active segment, in bytes
+   */
+  @Override
+  public long getMemStoreActiveSize() {
+    return this.memstore.getActiveSize();
+  }
+
   @Override
   public int getCompactPriority() {
     int priority = this.storeEngine.getStoreFileManager().getStoreCompactionPriority();
@@ -2369,10 +2376,6 @@ public class HStore implements Store {
   @Override
   public boolean isMemStoreInCompaction() {
     return memstore.isMemStoreInCompaction();
-  }
-
-  @Override public boolean shouldFlushInMemory() {
-    return memstore.shouldFlushInMemory();
   }
 
   @Override public void flushInMemory(long flushOpSeqId) {
