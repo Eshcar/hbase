@@ -161,6 +161,15 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   /**
+   * Check whether anything need to be done based on the current active set size
+   * Nothing need to be done for the DefaultMemStore
+   */
+  @Override
+  protected void checkActiveSize() {
+    return;
+  }
+
+  /**
    * Code to help figure if our approximation of object heap sizes is close
    * enough.  See hbase-900.  Fills memstores then waits so user can heap
    * dump and bring up resultant hprof in something like jprofiler which
