@@ -131,6 +131,11 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   //methods for tests
+  @Override
+  boolean isCompactingMemStore() {
+    return false;
+  }
+
 
   /**
    * @param cell Find the row that comes after this one.  If null, we return the
@@ -150,18 +155,6 @@ public class DefaultMemStore extends AbstractMemStore {
 
   @Override boolean isForceFlushToDisk() {
     return true;
-  }
-
-  @Override public boolean isCompactibleMemStore() {
-    return false;
-  }
-
-  @Override public boolean isMemStoreInCompaction() {
-    return false;
-  }
-
-  @Override public void flushInMemory(long flushOpSeqId) {
-    return;
   }
 
   @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {

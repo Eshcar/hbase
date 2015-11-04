@@ -29,7 +29,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * The compaction pipeline of a {@link CompactedMemStore}, is a FIFO queue of cell set buckets.
+ * The compaction pipeline of a {@link CompactingMemStore}, is a FIFO queue of cell set buckets.
  * It supports pushing a cell set bucket at the head of the pipeline and pulling a bucket from the
  * tail to flush to disk.
  * It also supports swap operation to allow the compactor swap a subset of the buckets with a new
@@ -49,7 +49,7 @@ public class CompactionPipeline {
 
   private static final ImmutableSegment EMPTY_MEM_STORE_SEGMENT = StoreSegmentFactory.instance()
       .createImmutableSegment(null,
-          CompactedMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+          CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
 
   public CompactionPipeline(HRegion region) {
     this.region = region;
@@ -118,8 +118,8 @@ public class CompactionPipeline {
       swapSuffix(suffix,segment);
       if(region != null) {
         // update the global memstore size counter
-        long suffixSize = CompactedMemStore.getStoreSegmentListSize(suffix);
-        long newSize = CompactedMemStore.getStoreSegmentSize(segment);
+        long suffixSize = CompactingMemStore.getStoreSegmentListSize(suffix);
+        long newSize = CompactingMemStore.getStoreSegmentSize(segment);
         long delta = suffixSize - newSize;
         long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreAdditionalSize(-delta);
         LOG.info("Suffix size: "+ suffixSize+" compacted item size: "+newSize+

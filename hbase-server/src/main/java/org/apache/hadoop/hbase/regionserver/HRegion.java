@@ -3649,7 +3649,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // block writes and force flush
     if (memstoreSize > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
-      requestAndForceFlush(false);
+      requestFlush();
       throw new RegionTooBusyException("Above memstore limit, " +
           "regionName=" + (this.getRegionInfo() == null ? "unknown" :
           this.getRegionInfo().getRegionNameAsString()) +
@@ -3671,7 +3671,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     // force flush
     if (memstoreTotalSize > this.memStoreForceFlushSize) {
-      requestAndForceFlush(true);
+      requestFlush();
       return;
     }
 
@@ -3679,24 +3679,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (memstoreSize > this.memstoreFlushSize) {
       requestFlush();
     }
-  }
-
-  /**
-   * request flush.
-   * If the memstore is not in compaction or we do not need to wait for compactions to end then
-   * force the flush.
-   * @param waitForCompactions whether to wait for the compaction to end or to force the flush
-   *                           without waiting
-   */
-  private void requestAndForceFlush(boolean waitForCompactions) {
-    for (Store s : stores.values()) {
-      if(waitForCompactions && s.isMemStoreInCompaction()) {
-        // do not flush if memstore compaction is in progress
-        continue;
-      }
-      s.setForceFlushToDisk();
-    }
-    requestFlush();
   }
 
   /**

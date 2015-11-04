@@ -511,8 +511,6 @@ public class HMobStore extends HStore {
     }
   }
 
-  @Override public void flushInMemory(long flushOpSeqId) {  }
-
   @Override public void updateLowestUnflushedSequenceIdInWal() { }
 
   public void updateCellsCountCompactedToMob(long count) {

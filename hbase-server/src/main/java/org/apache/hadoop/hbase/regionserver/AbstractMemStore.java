@@ -105,19 +105,6 @@ public abstract class AbstractMemStore implements MemStore {
    */
   abstract boolean isForceFlushToDisk();
 
-
-  /**
-   * Returns true if an in-memory compaction is in progress
-   * @return true if an in-memory compaction is in progress
-   */
-  public abstract boolean isMemStoreInCompaction();
-
-  /**
-   * Flushes the active segment into a different (immutable) memory segments.
-   * @param flushOpSeqId the sequence id used by the wal to mark this flush
-   */
-  public abstract void flushInMemory(long flushOpSeqId);
-
   /**
    * Updates the wal with the lowest sequence id (oldest entry) that is still in memory
    * @param onlyIfGreater a flag that marks whether to update the sequence id no matter what or
@@ -130,11 +117,7 @@ public abstract class AbstractMemStore implements MemStore {
    * Returns true if the memstore supports in-memory compaction
    * @return true if the memstore supports in-memory compaction
    */
-  public abstract boolean isCompactibleMemStore();
-
-  boolean shouldFlushInMemory() {
-    return !isForceFlushToDisk();
-  }
+  abstract boolean isCompactingMemStore();
 
   protected long deepOverhead() {
     return DEEP_OVERHEAD;

@@ -31,7 +31,7 @@ import java.util.SortedSet;
 
 /**
  * This is the scanner for any *MemStore implementation, derived from MemStore.
- * Currently, the scanner works with DefaultMemStore and CompactedMemStore.
+ * Currently, the scanner works with DefaultMemStore and CompactingMemStore.
  * The MemStoreScanner combines StoreSegmentScanner from different StoreSegments and
  * uses the key-value heap and the reversed key-value heap for the aggregated key-values set.
  * It is assumed that only traversing forward or backward is used (without zigzagging in between)
