@@ -54,6 +54,7 @@ class MemStoreCompactor {
   private CompactionPipeline pipeline;        // the subject for compaction
   private CompactingMemStore ms;              // backward reference
   private MemStoreScanner scanner;            // scanner for pipeline only
+  private Store store;
 
   // scanner on top of MemStoreScanner that uses ScanQueryMatcher
   private StoreScanner compactingScanner;
@@ -77,12 +78,20 @@ class MemStoreCompactor {
    * needing to start compaction will come with startCompact()
    */
   public MemStoreCompactor(CompactingMemStore ms, CompactionPipeline pipeline,
-      CellComparator comparator, Configuration conf) {
+      CellComparator comparator, Store store, Configuration conf) {
 
     this.ms = ms;
     this.pipeline = pipeline;
     this.comparator = comparator;
     this.conf = conf;
+    this.store = store;
+  }
+
+  public void startInMemoryFlush() {
+    Runnable worker = new Worker();
+    LOG.info("Starting the MemStore in-memory flush for store "
+        + store.getColumnFamilyName());
+    pool.execute(worker);
   }
 
   /**
@@ -92,7 +101,7 @@ class MemStoreCompactor {
    *
    * is already an ongoing compaction (or pipeline is empty).
    */
-  public boolean startCompact(Store store) throws IOException {
+  public boolean prepareCompaction() throws IOException {
     if (pipeline.isEmpty()) return false;        // no compaction on empty pipeline
 
     if (!inCompaction.get()) {             // dispatch
@@ -111,10 +120,10 @@ class MemStoreCompactor {
       smallestReadPoint = store.getSmallestReadPoint();
       compactingScanner = createScanner(store);
 
-      Runnable worker = new Worker();
-      LOG.info("Starting the MemStore in-memory compaction for store "
-          + store.getColumnFamilyName());
-      pool.execute(worker);
+//      Runnable worker = new Worker();
+//      LOG.info("Starting the MemStore in-memory compaction for store "
+//          + store.getColumnFamilyName());
+//      pool.execute(worker);
       inCompaction.set(true);
       return true;
     }
@@ -156,11 +165,22 @@ class MemStoreCompactor {
   private class Worker implements Runnable {
 
     @Override public void run() {
+      try {
+        ms.plushActiveToPipeline();
+      } catch (IOException e) {
+        LOG.warn("unable to flush active segment into pipeline", e);
+        return;
+      }
+      try {
+        prepareCompaction();
+      } catch (IOException e) {
+        LOG.warn("unable to prepare compaction", e);
+        return;
+      }
       ImmutableSegment result = StoreSegmentFactory.instance()
           .createImmutableSegment(conf, comparator,
               CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       // the compaction processing
-      KeyValue cell;
       try {
         // Phase I: create the compacted MutableCellSetSegment
         compactSegments(result);
