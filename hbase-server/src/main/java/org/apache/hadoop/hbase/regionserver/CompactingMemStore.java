@@ -24,6 +24,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.executor.EventHandler;
+import org.apache.hadoop.hbase.executor.EventType;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
@@ -36,6 +38,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A memstore implementation which supports in-memory compaction.
@@ -67,10 +70,9 @@ public class CompactingMemStore extends AbstractMemStore {
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private NavigableMap<Long, Long> timestampToWALSeqId;
-  private long flushSizeLowerBound;
-
-  // Thread pool shared by all scanners
-  private static final ExecutorService pool = Executors.newCachedThreadPool();
+  private long flushSizeLowerBound;         // the threshold on active size for in-memory flush
+  private final AtomicBoolean inCompaction  // the flag whether the compaction is ongoing
+      = new AtomicBoolean(false);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store) throws IOException {
@@ -146,6 +148,7 @@ public class CompactingMemStore extends AbstractMemStore {
     } else {
       LOG.info("FORCE FLUSH MODE: Pushing active set into compaction pipeline, "
           + "and pipeline tail into snapshot.");
+      stopCompact();
       pushActiveToPipeline(active, flushOpSeqId, false);
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
@@ -154,11 +157,12 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   //internal method, external only for tests
-  public void flushInMemory(long flushOpSeqId) {
+  public void flushInMemory() throws IOException {
     // Phase I: Update the pipeline
     MutableSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
     store.getHRegion().lockUpdatesExcl();
+    long flushOpSeqId = getRegion().getWalSequenceId(getRegion().getWAL());
     pushActiveToPipeline(active, flushOpSeqId, true);
     store.getHRegion().unlockUpdatesExcl();
     // Phase II: Compact the pipeline
@@ -166,6 +170,7 @@ public class CompactingMemStore extends AbstractMemStore {
       // Speculative compaction execution, may be interrupted if flush is forced while
       // compaction is in progress
       compactor.startCompact(store);
+      stopCompact();
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction", e);
     }
@@ -242,7 +247,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   public boolean isMemStoreInCompaction() {
-    return compactor.isInCompaction();
+    return inCompaction.get();
   }
 
   @Override
@@ -305,14 +310,17 @@ public class CompactingMemStore extends AbstractMemStore {
   @Override
   protected void checkActiveSize() {
     if (getActive().getSize() > 0.9*flushSizeLowerBound) {
-      /* The thread is dispatched to flush-in-memory. This cannot be done
-       * on the same thread, because for flush-in-memory we require updatesLock
-       * in exclusive mode while this method is invoked holding updatesLock
-       * in the shared mode. */
-      Runnable worker = new InMemoryFlusher();
-      LOG.info("Dispatching the MemStore in-memory flush for store "
-          + store.getColumnFamilyName());
-      pool.execute(worker);
+      if (!inCompaction.get()) {             // dispatch
+        /* The thread is dispatched to flush-in-memory. This cannot be done
+        * on the same thread, because for flush-in-memory we require updatesLock
+        * in exclusive mode while this method is invoked holding updatesLock
+        * in the shared mode. */
+        EventHandler worker = new InMemoryFlusher();
+        LOG.info("Dispatching the MemStore in-memory flush for store "
+              + store.getColumnFamilyName());
+        store.getHRegion().getRegionServerServices().getExecutorService().submit(worker);
+        inCompaction.set(true);
+      }
     }
   }
 
@@ -357,18 +365,25 @@ public class CompactingMemStore extends AbstractMemStore {
   * It takes the updatesLock exclusively, pushes active into the pipeline,
   * and compacts the pipeline.
   */
-  private class InMemoryFlusher implements Runnable {
+  private class InMemoryFlusher extends EventHandler {
 
-    @Override public void run() {
-
-      try {
-        flushInMemory(6);
-      } catch (Exception e) {
-
-        return;
-      }
-
+   public InMemoryFlusher () {
+     super(store.getHRegion().getRegionServerServices(), EventType.C_M_MODIFY_TABLE);
+   }
+    @Override
+    public void process() throws IOException {
+      flushInMemory();
     }
+  }
+
+  /*----------------------------------------------------------------------
+  * The request to cancel the compaction asynchronous task (caused by in-memory flush)
+  * The compaction may still happen if the request was sent too late
+  * Non-blocking request
+  */
+  public void stopCompact() {
+    if (inCompaction.get()) //isInterrupted.compareAndSet(false, true);
+    inCompaction.set(false);
   }
 
 }

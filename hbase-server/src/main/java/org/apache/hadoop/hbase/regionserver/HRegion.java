@@ -2531,6 +2531,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return scanner;
   }
 
+  public long getWalSequenceId(final WAL wal) throws IOException {
+    return getNextSequenceId(wal);
+  }
+
   protected RegionScanner getScanner(Scan scan, List<KeyValueScanner> additionalScanners,
       boolean copyCellsFromSharedMem) throws IOException {
     startRegionOperation(Operation.SCAN);
