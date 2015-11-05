@@ -38,7 +38,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
   public static final String HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND =
       "hbase.hregion.percolumnfamilyflush.size.lower.bound";
 
-  private static final long DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND = 1024 * 1024 * 16L;
+  public static final long DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND = 1024 * 1024 * 16L;
 
   private long flushSizeLowerBound;
 

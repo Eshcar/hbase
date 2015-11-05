@@ -1216,7 +1216,7 @@ public class TestCompactedMemStore extends TestCase {
     cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
-      Threads.sleep(10);
+      Threads.sleep(1000);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
     assertEquals(528, region.getMemstoreTotalSize());
