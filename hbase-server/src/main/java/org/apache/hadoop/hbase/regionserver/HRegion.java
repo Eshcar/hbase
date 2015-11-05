@@ -1013,6 +1013,18 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return false;
   }
 
+  /* The updatesLock interface required to let the CompactingMemStore
+  * to lock the updatesLock for the in-memory flush */
+  public void lockUpdatesExcl() {
+    this.updatesLock.writeLock().lock();
+  }
+
+  /* The updatesLock interface required to let the CompactingMemStore
+  * to unlock the updatesLock for the in-memory flush */
+  public void unlockUpdatesExcl() {
+    this.updatesLock.writeLock().unlock();
+  }
+
   @Override
   public HDFSBlocksDistribution getHDFSBlocksDistribution() {
     HDFSBlocksDistribution hdfsBlocksDistribution =

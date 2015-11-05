@@ -153,10 +153,15 @@ public class CompactingMemStore extends AbstractMemStore {
     return new MemStoreSnapshot(this.snapshotId, getSnapshot());
   }
 
+  //internal method, external only for tests
   public void flushInMemory(long flushOpSeqId) {
+    // Phase I: Update the pipeline
     MutableSegment active = getActive();
     LOG.info("Pushing active set into compaction pipeline, and initiating compaction.");
+    store.getHRegion().lockUpdatesExcl();
     pushActiveToPipeline(active, flushOpSeqId, true);
+    store.getHRegion().unlockUpdatesExcl();
+    // Phase II: Compact the pipeline
     try {
       // Speculative compaction execution, may be interrupted if flush is forced while
       // compaction is in progress
@@ -292,15 +297,20 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   /**
-   * Check whether anything need to be done based on the current active set size
+   * Check whether anything need to be done based on the current active set size.
+   * The method is invoked on every addition to the active set.
    * For CompactingMemStore, flush the active set to the read-only memory if it's
    * size is above threshold
    */
   @Override
   protected void checkActiveSize() {
     if (getActive().getSize() > 0.9*flushSizeLowerBound) {
+      /* The thread is dispatched to flush-in-memory. This cannot be done
+       * on the same thread, because for flush-in-memory we require updatesLock
+       * in exclusive mode while this method is invoked holding updatesLock
+       * in the shared mode. */
       Runnable worker = new InMemoryFlusher();
-      LOG.info("Starting the MemStore in-memory flush for store "
+      LOG.info("Dispatching the MemStore in-memory flush for store "
           + store.getColumnFamilyName());
       pool.execute(worker);
     }
@@ -352,10 +362,7 @@ public class CompactingMemStore extends AbstractMemStore {
     @Override public void run() {
 
       try {
-        // Phase I: Update the pipeline
-
-        // Phase II: Compact the pipeline
-
+        flushInMemory(6);
       } catch (Exception e) {
 
         return;
