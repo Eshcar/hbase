@@ -588,10 +588,10 @@ public class TestCompactedMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf2, val));
     cms.add(new KeyValue(row, fam, qf3, val));
     //Pushing to pipeline
-    cms.flushInMemory(0);
+    cms.flushInMemory();
     assertEquals(0, cms.getSnapshot().getCellsCount());
     //Creating a snapshot
-    cms.setForceFlushToDisk().snapshot(0);
+    cms.snapshot(0);
     assertEquals(3, cms.getSnapshot().getCellsCount());
     //Adding value to "new" memstore
     assertEquals(0, cms.getActive().getCellsCount());
@@ -970,7 +970,7 @@ public class TestCompactedMemStore extends TestCase {
     // Save off old state.
     long oldHistorySize = hmc.getSnapshot().getSize();
     long prevTimeStamp = hmc.timeOfOldestEdit();
-    if (useForce) hmc.setForceFlushToDisk();
+
     hmc.snapshot(0);
     MemStoreSnapshot snapshot = hmc.snapshot(0);
     if (useForce) {
@@ -1017,7 +1017,6 @@ public class TestCompactedMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    cms.setForceFlushToDisk();
     MemStoreSnapshot snapshot = cms.snapshot(0);
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
@@ -1053,7 +1052,6 @@ public class TestCompactedMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    cms.setForceFlushToDisk();
     MemStoreSnapshot snapshot = cms.snapshot(0);
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
@@ -1081,7 +1079,7 @@ public class TestCompactedMemStore extends TestCase {
     chunkPool.clearChunks();
 
     // Creating another snapshot
-    cms.setForceFlushToDisk();
+
     snapshot = cms.snapshot(0);
     // Adding more value
     cms.add(new KeyValue(row, fam, qf6, val));
@@ -1115,7 +1113,7 @@ public class TestCompactedMemStore extends TestCase {
 
     // Creating a pipeline
     cms.disableCompaction();
-    cms.flushInMemory(0);
+    cms.flushInMemory();
 
     // Adding value to "new" memstore
     assertEquals(0, cms.getActive().getCellsCount());
@@ -1124,14 +1122,14 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(2, cms.getActive().getCellsCount());
 
     // pipeline bucket 2
-    cms.flushInMemory(0);
+    cms.flushInMemory();
     // opening scanner before force flushing
     List<KeyValueScanner> scanners = cms.getScanners(0);
     // Shouldn't putting back the chunks to pool,since some scanners are opening
     // based on their data
     cms.enableCompaction();
     // trigger compaction
-    cms.flushInMemory(0);
+    cms.flushInMemory();
 
     // Adding value to "new" memstore
     assertEquals(0, cms.getActive().getCellsCount());
@@ -1156,10 +1154,10 @@ public class TestCompactedMemStore extends TestCase {
     chunkPool.clearChunks();
 
     // Creating another snapshot
-    cms.setForceFlushToDisk();
+
     MemStoreSnapshot snapshot = cms.snapshot(0);
     cms.clearSnapshot(snapshot.getId());
-    cms.setForceFlushToDisk();
+
     snapshot = cms.snapshot(0);
     // Adding more value
     cms.add(new KeyValue(row, fam, qf2, 4, val));
@@ -1188,7 +1186,7 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(704, region.getMemstoreTotalSize());
 
     long size = cms.getFlushableSize();
-    cms.flushInMemory(0); // push keys to pipeline and compact
+    cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
@@ -1196,7 +1194,6 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(0, cms.getSnapshot().getCellsCount());
     assertEquals(528, region.getMemstoreTotalSize());
 
-    cms.setForceFlushToDisk();
     size = cms.getFlushableSize();
     MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
@@ -1216,7 +1213,7 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(704, region.getMemstoreTotalSize());
 
     long size = cms.getFlushableSize();
-    cms.flushInMemory(0); // push keys to pipeline and compact
+    cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
@@ -1228,7 +1225,7 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(1056, region.getMemstoreTotalSize());
 
     size = cms.getFlushableSize();
-    cms.flushInMemory(0); // push keys to pipeline and compact
+    cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
@@ -1236,7 +1233,6 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(0, cms.getSnapshot().getCellsCount());
     assertEquals(704, region.getMemstoreTotalSize());
 
-    cms.setForceFlushToDisk();
     size = cms.getFlushableSize();
     MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
@@ -1257,7 +1253,7 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(704, region.getMemstoreSize());
 
     long size = cms.getFlushableSize();
-    cms.flushInMemory(0); // push keys to pipeline and compact
+    cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
@@ -1272,7 +1268,7 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.disableCompaction();
     size = cms.getFlushableSize();
-    cms.flushInMemory(0); // push keys to pipeline without compaction
+    cms.flushInMemory(); // push keys to pipeline without compaction
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     assertEquals(0, cms.getSnapshot().getCellsCount());
     assertEquals(0, region.getMemstoreSize());
@@ -1284,7 +1280,7 @@ public class TestCompactedMemStore extends TestCase {
 
     cms.enableCompaction();
     size = cms.getFlushableSize();
-    cms.flushInMemory(0); // push keys to pipeline and compact
+    cms.flushInMemory(); // push keys to pipeline and compact
 //   region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
@@ -1293,7 +1289,6 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(0, region.getMemstoreSize());
     assertEquals(704, region.getMemstoreTotalSize());
 
-    cms.setForceFlushToDisk();
     size = cms.getFlushableSize();
     MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher

@@ -52,7 +52,7 @@ class MemStoreCompactor {
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
   private CompactionPipeline pipeline;        // the subject for compaction
-  private CompactingMemStore ms;               // backward reference
+  private CompactingMemStore ms;              // backward reference
   private MemStoreScanner scanner;            // scanner for pipeline only
 
   // scanner on top of MemStoreScanner that uses ScanQueryMatcher
