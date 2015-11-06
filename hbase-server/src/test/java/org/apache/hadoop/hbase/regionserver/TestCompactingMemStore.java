@@ -58,8 +58,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * compacted memstore test case
  */
 @Category(MediumTests.class)
-public class TestCompactedMemStore extends TestCase {
-  private static final Log LOG = LogFactory.getLog(TestCompactedMemStore.class);
+public class TestCompactingMemStore extends TestCase {
+  private static final Log LOG = LogFactory.getLog(TestCompactingMemStore.class);
   private static final int ROW_COUNT = 10;
   private static final int QUALIFIER_COUNT = ROW_COUNT;
   private static final byte[] FAMILY = Bytes.toBytes("column");

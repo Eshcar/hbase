@@ -57,12 +57,12 @@ import static org.junit.Assert.assertTrue;
  * when part of the memstores are compacted memstores
  */
 @Category({ RegionServerTests.class, LargeTests.class })
-public class TestWalAndCompactedMemstoreFlush {
+public class TestWalAndCompactingMemStoreFlush {
 
-  private static final Log LOG = LogFactory.getLog(TestWalAndCompactedMemstoreFlush.class);
+  private static final Log LOG = LogFactory.getLog(TestWalAndCompactingMemStoreFlush.class);
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static final Path DIR = TEST_UTIL.getDataTestDir("TestHRegion");
-  public static final TableName TABLENAME = TableName.valueOf("TestWalAndCompactedMemstoreFlush",
+  public static final TableName TABLENAME = TableName.valueOf("TestWalAndCompactingMemStoreFlush",
       "t1");
 
   public static final byte[][] FAMILIES = { Bytes.toBytes("f1"), Bytes.toBytes("f2"),
@@ -167,6 +167,11 @@ public class TestWalAndCompactedMemstoreFlush {
       }
     }
 
+    // Now add more puts for CF2, so that we only flush CF2 to disk
+    for (int i = 100; i < 1200; i++) {
+      region.put(createPut(2, i));
+    }
+
     long totalMemstoreSize = region.getMemstoreSize();
 
     // Find the smallest LSNs for edits wrt to each CF.
@@ -209,12 +214,14 @@ public class TestWalAndCompactedMemstoreFlush {
         + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     // Flush!!!!!!!!!!!!!!!!!!!!!!
-    // We have big compacted memstore CF1 and two small memstores:
-    // CF2 (not compacted) and CF3 (compacted)
+    // We have big compacting memstore CF1 and two small memstores:
+    // CF2 (not compacted) and CF3 (compacting)
     // All together they are above the flush size lower bound.
     // Since CF1 and CF3 should be flushed to memory (not to disk),
     // CF2 is going to be flushed to disk.
     // CF1 - nothing to compact, CF3 - should be twice compacted
+    ((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).flushInMemory();
+    ((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).flushInMemory();
     region.flush(false);
 
     // CF3 should be compacted so wait here to be sure the compaction is done
@@ -243,7 +250,7 @@ public class TestWalAndCompactedMemstoreFlush {
 
     // CF1 was flushed to memory, but there is nothing to compact, should
     // remain the same size plus renewed empty skip-list
-    assertEquals(cf1MemstoreSizePhaseII,
+    assertEquals(s, cf1MemstoreSizePhaseII,
         cf1MemstoreSizePhaseI + CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
 
     // CF2 should become empty
@@ -380,11 +387,12 @@ public class TestWalAndCompactedMemstoreFlush {
 
 
   @Test(timeout = 180000)
-  public void testSelectiveFlushWhenNotEnabledAndWALinCompaction() throws IOException {
+  public void testSelectiveFlushWhenEnabledAndWALinCompaction() throws IOException {
     // Set up the configuration
     Configuration conf = HBaseConfiguration.create();
     conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 200 * 1024);
-    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushAllStoresPolicy.class.getName());
+    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushLargeStoresPolicy.class.getName());
+    conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND, 100 * 1024);
 
     // Intialize the HRegion
     HRegion region = initHRegion("testSelectiveFlushWhenNotEnabled", conf);
@@ -397,6 +405,10 @@ public class TestWalAndCompactedMemstoreFlush {
           region.put(createPut(3, i));
         }
       }
+    }
+    // Now add more puts for CF2, so that we only flush CF2 to disk
+    for (int i = 100; i < 1200; i++) {
+      region.put(createPut(2, i));
     }
 
     long totalMemstoreSize = region.getMemstoreSize();
@@ -417,6 +429,13 @@ public class TestWalAndCompactedMemstoreFlush {
         cf1MemstoreSizePhaseI + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     // Flush!
+    ((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).flushInMemory();
+    ((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).flushInMemory();
+    // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
+    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreInCompaction())
+      Threads.sleep(10);
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+      Threads.sleep(10);
     region.flush(false);
 
     long cf2MemstoreSizePhaseII = region.getStore(FAMILY2).getMemStoreSize();
@@ -447,6 +466,10 @@ public class TestWalAndCompactedMemstoreFlush {
         }
       }
     }
+    // Now add more puts for CF2, so that we only flush CF2 to disk
+    for (int i = 100; i < 1200; i++) {
+      region.put(createPut(2, i));
+    }
 
     long smallestSeqInRegionCurrentMemstorePhaseIII =
         region.getWAL().getEarliestMemstoreSeqNum(region.getRegionInfo().getEncodedNameAsBytes());
@@ -460,13 +483,14 @@ public class TestWalAndCompactedMemstoreFlush {
         + smallestSeqCF2PhaseIII +", the smallest sequence in CF3:" + smallestSeqCF3PhaseIII + "\n";
 
     // Flush!
-    region.flush(false);
-
+    ((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).flushInMemory();
+    ((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).flushInMemory();
     // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
     while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreInCompaction())
       Threads.sleep(10);
     while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
       Threads.sleep(10);
+    region.flush(false);
 
     long smallestSeqInRegionCurrentMemstorePhaseIV =
         region.getWAL().getEarliestMemstoreSeqNum(region.getRegionInfo().getEncodedNameAsBytes());
@@ -480,7 +504,7 @@ public class TestWalAndCompactedMemstoreFlush {
         + smallestSeqCF2PhaseIV +", the smallest sequence in CF3:" + smallestSeqCF3PhaseIV + "\n";
 
     // now check that the LSN of the entire WAL, of CF1 and of CF3 has progressed due to compaction
-    assertTrue(smallestSeqInRegionCurrentMemstorePhaseIV >
+    assertTrue(s, smallestSeqInRegionCurrentMemstorePhaseIV >
         smallestSeqInRegionCurrentMemstorePhaseIII);
     assertTrue(smallestSeqCF1PhaseIV > smallestSeqCF1PhaseIII);
     assertTrue(smallestSeqCF3PhaseIV > smallestSeqCF3PhaseIII);
