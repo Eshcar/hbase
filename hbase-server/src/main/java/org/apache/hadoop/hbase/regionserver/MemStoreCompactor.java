@@ -66,10 +66,6 @@ class MemStoreCompactor {
   // a static version of the CellSetMgrs list from the pipeline
   private VersionedSegmentsList versionedList;
   private final CellComparator comparator;
-
-  // Thread pool shared by all scanners
-  private static final ExecutorService pool = Executors.newCachedThreadPool();
-  private final AtomicBoolean inCompaction  = new AtomicBoolean(false);
   private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
   /**
@@ -83,15 +79,8 @@ class MemStoreCompactor {
     this.ms = ms;
     this.pipeline = pipeline;
     this.comparator = comparator;
-    this.conf = conf;
+    this.conf  = conf;
     this.store = store;
-  }
-
-  public void startInMemoryFlush() {
-    Runnable worker = new Worker();
-    LOG.info("Starting the MemStore in-memory flush for store "
-        + store.getColumnFamilyName());
-    pool.execute(worker);
   }
 
   /**
@@ -101,33 +90,28 @@ class MemStoreCompactor {
    *
    * is already an ongoing compaction (or pipeline is empty).
    */
-  public boolean prepareCompaction() throws IOException {
-    if (pipeline.isEmpty()) return false;        // no compaction on empty pipeline
+  public boolean startCompact() throws IOException {
+    if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
 
-    if (!inCompaction.get()) {             // dispatch
-      List<StoreSegmentScanner> scanners = new ArrayList<StoreSegmentScanner>();
-      this.versionedList =               // get the list of CellSetMgrs from the pipeline
-          pipeline.getVersionedList();     // the list is marked with specific version
+    List<StoreSegmentScanner> scanners = new ArrayList<StoreSegmentScanner>();
+    this.versionedList = pipeline.getVersionedList(); // get the list of segments from the pipeline
+                                                      // the list is marked with specific version
 
-      // create the list of scanners with maximally possible read point, meaning that
-      // all KVs are going to be returned by the pipeline traversing
-      for (StoreSegment segment : this.versionedList.getStoreSegments()) {
+    // create the list of scanners with maximally possible read point, meaning that
+    // all KVs are going to be returned by the pipeline traversing
+    for (StoreSegment segment : this.versionedList.getStoreSegments()) {
         scanners.add(segment.getScanner(Long.MAX_VALUE));
-      }
-      scanner =
+    }
+    scanner =
           new MemStoreScanner(ms, scanners, Long.MAX_VALUE, MemStoreScanner.Type.COMPACT_FORWARD);
 
-      smallestReadPoint = store.getSmallestReadPoint();
-      compactingScanner = createScanner(store);
+    smallestReadPoint = store.getSmallestReadPoint();
+    compactingScanner = createScanner(store);
 
-//      Runnable worker = new Worker();
-//      LOG.info("Starting the MemStore in-memory compaction for store "
-//          + store.getColumnFamilyName());
-//      pool.execute(worker);
-      inCompaction.set(true);
-      return true;
-    }
-    return false;
+    LOG.info("Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
+
+    doCompact();
+    return true;
   }
 
   /*----------------------------------------------------------------------
@@ -136,13 +120,9 @@ class MemStoreCompactor {
   * Non-blocking request
   */
   public void stopCompact() {
-    if (inCompaction.get()) isInterrupted.compareAndSet(false, true);
-    inCompaction.set(false);
+    isInterrupted.compareAndSet(false, true);
   }
 
-  public boolean isInCompaction() {
-    return inCompaction.get();
-  }
 
   /*----------------------------------------------------------------------
   * Close the scanners and clear the pointers in order to allow good
@@ -162,44 +142,31 @@ class MemStoreCompactor {
   * The solo (per compactor) thread only reads the compaction pipeline.
   * There is at most one thread per memstore instance.
   */
-  private class Worker implements Runnable {
+  private void doCompact() {
 
-    @Override public void run() {
-      try {
-        ms.plushActiveToPipeline();
-      } catch (IOException e) {
-        LOG.warn("unable to flush active segment into pipeline", e);
-        return;
+    ImmutableSegment result = StoreSegmentFactory.instance()  // create the scanner
+        .createImmutableSegment(conf, comparator,
+            CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+
+    // the compaction processing
+    try {
+      // Phase I: create the compacted MutableCellSetSegment
+      compactSegments(result);
+
+      // Phase II: swap the old compaction pipeline
+      if (!isInterrupted.get()) {
+        pipeline.swap(versionedList, result);
+        // update the wal so it can be truncated and not get too long
+        ms.updateLowestUnflushedSequenceIdInWal(true); // only if greater
       }
-      try {
-        prepareCompaction();
-      } catch (IOException e) {
-        LOG.warn("unable to prepare compaction", e);
-        return;
-      }
-      ImmutableSegment result = StoreSegmentFactory.instance()
-          .createImmutableSegment(conf, comparator,
-              CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
-      // the compaction processing
-      try {
-        // Phase I: create the compacted MutableCellSetSegment
-        compactSegments(result);
-        // Phase II: swap the old compaction pipeline
-        if (!Thread.currentThread().isInterrupted()) {
-          pipeline.swap(versionedList, result);
-          // update the wal so it can be truncated and not get too long
-          ms.updateLowestUnflushedSequenceIdInWal(true); // only if greater
-        }
-      } catch (Exception e) {
+    } catch (Exception e) {
         LOG.debug("Interrupting the MemStore in-memory compaction for store " + ms.getFamilyName());
         Thread.currentThread().interrupt();
         return;
-      } finally {
-        stopCompact();
+    } finally {
         releaseResources();
-      }
-
     }
+
   }
 
   /**
@@ -249,16 +216,6 @@ class MemStoreCompactor {
         kvs.clear();
       }
     } while (hasMore && (!isInterrupted.get()));
-  }
-
-  // methods for tests
-  @VisibleForTesting
-  void toggleCompaction(boolean on) {
-    if (on) {
-      inCompaction.set(false);
-    } else {
-      inCompaction.set(true);
-    }
   }
 
 }
