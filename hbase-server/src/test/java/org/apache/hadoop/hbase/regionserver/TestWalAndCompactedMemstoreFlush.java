@@ -219,8 +219,7 @@ public class TestWalAndCompactedMemstoreFlush {
 
     // CF3 should be compacted so wait here to be sure the compaction is done
     while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
-      Threads
-        .sleep(10);
+      Threads.sleep(10);
 
     // Recalculate everything
     long cf1MemstoreSizePhaseII = region.getStore(FAMILY1).getMemStoreSize();
@@ -464,7 +463,7 @@ public class TestWalAndCompactedMemstoreFlush {
     region.flush(false);
 
     // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
-    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreInCompaction())
       Threads.sleep(10);
     while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
       Threads.sleep(10);

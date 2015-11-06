@@ -166,7 +166,7 @@ class SequenceIdAccounting {
       boolean onlyIfGreater) {
     if(sequenceId == null) return;
     Long highest = this.highestSequenceIds.get(encodedRegionName);
-    if(sequenceId > highest) {
+    if(highest == null || sequenceId > highest) {
       this.highestSequenceIds.put(encodedRegionName,sequenceId);
     }
     synchronized (this.tieLock) {
