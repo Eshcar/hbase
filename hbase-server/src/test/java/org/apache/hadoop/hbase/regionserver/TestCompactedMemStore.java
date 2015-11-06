@@ -1254,6 +1254,9 @@ public class TestCompactedMemStore extends TestCase {
 
     long size = cms.getFlushableSize();
     cms.flushInMemory(); // push keys to pipeline and compact
+
+    String tstStr = "\n\nFlushable size after first flush in memory:" + size
+        + ". Is MemmStore in compaction?:" + cms.isMemStoreInCompaction();
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
     while (cms.isMemStoreInCompaction()) {
       Threads.sleep(10);
@@ -1263,6 +1266,10 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(528, region.getMemstoreTotalSize());
 
     addRowsByKeys(cms, keys2);
+
+    tstStr = tstStr + " After adding second part of the keys. Memstore size: "
+        + region.getMemstoreSize() + ", Memstore Total Size: " + region.getMemstoreTotalSize() + "\n\n";
+
     assertEquals(528, region.getMemstoreSize());
     assertEquals(1056, region.getMemstoreTotalSize());
 
@@ -1298,6 +1305,8 @@ public class TestCompactedMemStore extends TestCase {
     assertEquals(0, region.getMemstoreTotalSize());
 
     cms.clearSnapshot(snapshot.getId());
+
+    //assertTrue(tstStr, false);
   }
 
   private void addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
