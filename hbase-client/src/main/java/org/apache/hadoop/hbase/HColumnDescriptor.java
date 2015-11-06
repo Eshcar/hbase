@@ -714,7 +714,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @return the memstore class name if was set by the user.
    */
   public String getMemStoreClassName() {
-    if(isCompacted()) return "org.apache.hadoop.hbase.regionserver.CompactedMemStore";
+    if(isCompacted()) return "org.apache.hadoop.hbase.regionserver.CompactingMemStore";
     return "org.apache.hadoop.hbase.regionserver.DefaultMemStore";
   }
 
@@ -724,7 +724,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    */
   public HColumnDescriptor setMemStoreClass(String className) {
 
-    if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactedMemStore")) {
+    if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactingMemStore")) {
       return setValue(HConstants.COMPACTED, Boolean.toString(true));
     }
     else return setValue(HConstants.COMPACTED, Boolean.toString(false));
