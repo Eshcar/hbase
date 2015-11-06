@@ -66,6 +66,8 @@ public class CompactingMemStore extends AbstractMemStore {
   private long flushSizeLowerBound;         // the threshold on active size for in-memory flush
   private final AtomicBoolean inCompaction  // the flag whether the compaction is ongoing
       = new AtomicBoolean(false);
+  private final AtomicBoolean allowCompaction   // the flag for tests only
+      = new AtomicBoolean(true);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store) throws IOException {
@@ -167,8 +169,11 @@ public class CompactingMemStore extends AbstractMemStore {
     return new MemStoreSnapshot(this.snapshotId, getSnapshot());
   }
 
-  //internal method, external only for tests
+  // internal method, external only for tests
+  // when invoked directly from tests it must be verified that the caller doesn't hold updatesLock,
+  // otherwise there is a deadlock
   public void flushInMemory() throws IOException {
+
     // Phase I: Update the pipeline
     getHRegion().lockUpdatesExcl();
     MutableSegment active = getActive();
@@ -179,10 +184,16 @@ public class CompactingMemStore extends AbstractMemStore {
     getHRegion().unlockUpdatesExcl();
     // Phase II: Compact the pipeline
     try {
-      // Speculative compaction execution, may be interrupted if flush is forced while
-      // compaction is in progress
-      compactor.startCompact();
-      inCompaction.set(false);
+      if (allowCompaction.get()) {
+        // setting the inCompaction flag again for the case this method is invoked directly
+        // (only in tests) in the common path setting from true to true is idempotent
+        inCompaction.set(true);
+
+        // Speculative compaction execution, may be interrupted if flush is forced while
+        // compaction is in progress
+        compactor.startCompact();
+        inCompaction.set(false);
+      }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction", e);
     }
@@ -298,11 +309,11 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   void disableCompaction() {
-    inCompaction.set(true);
+    allowCompaction.set(false);
   }
 
   void enableCompaction() {
-    inCompaction.set(false);
+    allowCompaction.set(true);
   }
 
   public HRegion getHRegion() {
@@ -322,16 +333,16 @@ public class CompactingMemStore extends AbstractMemStore {
   @Override
   protected void checkActiveSize() {
     if (getActive().getSize() > 0.9*flushSizeLowerBound) { // size above flush threshold
-       if (!inCompaction.get()) {             // dispatch a thread if not already dispatched
-        /* The thread is dispatched to flush-in-memory. This cannot be done
-        * on the same thread, because for flush-in-memory we require updatesLock
-        * in exclusive mode while this method (checkActiveSize) is invoked holding updatesLock
-        * in the shared mode. */
-        EventHandler worker = new InMemoryFlusher();
-        LOG.info("Dispatching the MemStore in-memory flush for store "
-              + store.getColumnFamilyName());
-        getHRegion().getRegionServerServices().getExecutorService().submit(worker);
-        inCompaction.set(true);
+       if (allowCompaction.get() && !inCompaction.get()) { // dispatch thread if not already
+          /* The thread is dispatched to flush-in-memory. This cannot be done
+          * on the same thread, because for flush-in-memory we require updatesLock
+          * in exclusive mode while this method (checkActiveSize) is invoked holding updatesLock
+          * in the shared mode. */
+          EventHandler worker = new InMemoryFlusher();
+          LOG.info("Dispatching the MemStore in-memory flush for store "
+                + store.getColumnFamilyName());
+          getHRegion().getRegionServerServices().getExecutorService().submit(worker);
+          inCompaction.set(true);
       }
     }
   }
