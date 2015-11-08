@@ -152,6 +152,8 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.apache.zookeeper.data.Stat;
+import sun.misc.Signal;
+import sun.misc.SignalHandler;
 
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
@@ -185,8 +187,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import sun.misc.Signal;
-import sun.misc.SignalHandler;
 
 /**
  * HRegionServer makes a set of HRegions available to clients. It checks in with
@@ -1721,6 +1721,7 @@ public class HRegionServer extends HasThread implements
         conf.getInt("hbase.regionserver.region.replica.flusher.threads",
           conf.getInt("hbase.regionserver.executor.openregion.threads", 3)));
     }
+    this.service.startExecutorService(ExecutorType.RS_IN_MEMORY_FLUSH, 3);
 
     Threads.setDaemonThreadRunning(this.walRoller.getThread(), getName() + ".logRoller",
         uncaughtExceptionHandler);

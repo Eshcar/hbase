@@ -265,7 +265,14 @@ public enum EventType {
    *
    * RS_REGION_REPLICA_FLUSH
    */
-  RS_REGION_REPLICA_FLUSH   (82, ExecutorType.RS_REGION_REPLICA_FLUSH_OPS);
+  RS_REGION_REPLICA_FLUSH   (82, ExecutorType.RS_REGION_REPLICA_FLUSH_OPS),
+
+  /**
+   * RS in-memory flush and compaction in compacting memstores. <br>
+   *
+   * RS_IN_MEMORY_FLUSH
+   */
+  RS_IN_MEMORY_FLUSH   (85, ExecutorType.RS_IN_MEMORY_FLUSH);
 
   private final int code;
   private final ExecutorType executor;

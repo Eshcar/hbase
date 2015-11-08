@@ -225,7 +225,7 @@ public class TestWalAndCompactingMemStoreFlush {
     region.flush(false);
 
     // CF3 should be compacted so wait here to be sure the compaction is done
-    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreFlushingInMemory())
       Threads.sleep(10);
 
     // Recalculate everything
@@ -432,9 +432,9 @@ public class TestWalAndCompactingMemStoreFlush {
     ((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).flushInMemory();
     ((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).flushInMemory();
     // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
-    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreInCompaction())
+    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreFlushingInMemory())
       Threads.sleep(10);
-    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreFlushingInMemory())
       Threads.sleep(10);
     region.flush(false);
 
@@ -486,9 +486,9 @@ public class TestWalAndCompactingMemStoreFlush {
     ((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).flushInMemory();
     ((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).flushInMemory();
     // CF1 and CF3 should be compacted so wait here to be sure the compaction is done
-    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreInCompaction())
+    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).isMemStoreFlushingInMemory())
       Threads.sleep(10);
-    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreInCompaction())
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).isMemStoreFlushingInMemory())
       Threads.sleep(10);
     region.flush(false);
 

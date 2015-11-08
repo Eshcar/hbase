@@ -1138,7 +1138,7 @@ public class TestCompactingMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf1, 3, val));
     assertEquals(3, cms.getActive().getCellsCount());
 
-    while (cms.isMemStoreInCompaction()) {
+    while (cms.isMemStoreFlushingInMemory()) {
       Threads.sleep(10);
     }
 
@@ -1188,7 +1188,7 @@ public class TestCompactingMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreInCompaction()) {
+    while (cms.isMemStoreFlushingInMemory()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1215,7 +1215,7 @@ public class TestCompactingMemStore extends TestCase {
     long size = cms.getFlushableSize();
     cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreInCompaction()) {
+    while (cms.isMemStoreFlushingInMemory()) {
       Threads.sleep(1000);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1227,7 +1227,7 @@ public class TestCompactingMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.flushInMemory(); // push keys to pipeline and compact
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreInCompaction()) {
+    while (cms.isMemStoreFlushingInMemory()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1256,9 +1256,9 @@ public class TestCompactingMemStore extends TestCase {
     cms.flushInMemory(); // push keys to pipeline and compact
 
     String tstStr = "\n\nFlushable size after first flush in memory:" + size
-        + ". Is MemmStore in compaction?:" + cms.isMemStoreInCompaction();
+        + ". Is MemmStore in compaction?:" + cms.isMemStoreFlushingInMemory();
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreInCompaction()) {
+    while (cms.isMemStoreFlushingInMemory()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
@@ -1289,7 +1289,7 @@ public class TestCompactingMemStore extends TestCase {
     size = cms.getFlushableSize();
     cms.flushInMemory(); // push keys to pipeline and compact
 //   region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher thread
-    while (cms.isMemStoreInCompaction()) {
+    while (cms.isMemStoreFlushingInMemory()) {
       Threads.sleep(10);
     }
     assertEquals(0, cms.getSnapshot().getCellsCount());
