@@ -19,16 +19,12 @@
 
 package org.apache.hadoop.hbase.wal;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Set;
-
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
-// imports we use from yet-to-be-moved regionsever.wal
 import org.apache.hadoop.hbase.regionserver.wal.CompressionContext;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
@@ -36,7 +32,11 @@ import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Set;
+
+// imports we use from yet-to-be-moved regionsever.wal
 
 /**
  * A Write Ahead Log (WAL) provides service for reading, writing waledits. This interface provides
@@ -121,6 +121,18 @@ public interface WAL {
   long append(HTableDescriptor htd, HRegionInfo info, WALKey key, WALEdit edits,
     boolean inMemstore)
   throws IOException;
+
+  /**
+   * updates the seuence number of a specific store.
+   * depending on the flag: replaces current seq number if the given seq id is bigger,
+   * or even if it is lower than existing one
+   * @param encodedRegionName
+   * @param familyName
+   * @param sequenceid
+   * @param onlyIfGreater
+   */
+  void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
+      boolean onlyIfGreater);
 
   /**
    * Sync what we have in the WAL.

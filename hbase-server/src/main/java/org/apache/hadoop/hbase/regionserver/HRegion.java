@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,51 +17,19 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.EOFException;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.lang.reflect.Constructor;
-import java.text.ParseException;
-import java.util.AbstractList;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NavigableMap;
-import java.util.NavigableSet;
-import java.util.RandomAccess;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionService;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.Message;
+import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
+import com.google.protobuf.TextFormat;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -183,19 +150,50 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.htrace.Trace;
 import org.apache.htrace.TraceScope;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Descriptors;
-import com.google.protobuf.Message;
-import com.google.protobuf.RpcCallback;
-import com.google.protobuf.RpcController;
-import com.google.protobuf.Service;
-import com.google.protobuf.TextFormat;
+import java.io.EOFException;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.lang.reflect.Constructor;
+import java.text.ParseException;
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
+import java.util.RandomAccess;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @InterfaceAudience.Private
 public class HRegion implements HeapSize, PropagatingConfigurationObserver, Region {
@@ -270,7 +268,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  private final AtomicLong memstoreSize = new AtomicLong(0);
+  // size of active set in memstore
+  private final AtomicLong memstoreActiveSize = new AtomicLong(0);
+  // size of overflow memstore segments, e.g., in compaction pipeline
+  private final AtomicLong memstoreOverflowSize = new AtomicLong(0);
 
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
@@ -571,6 +572,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private long flushCheckInterval;
   // flushPerChanges is to prevent too many changes in memstore
   private long flushPerChanges;
+  // force flush size is set to be the average of flush size and blocking size
+  private long memStoreForceFlushSize;
   private long blockingMemStoreSize;
   final long threadWakeFrequency;
   // Used to guard closes
@@ -757,6 +760,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.blockingMemStoreSize = this.memstoreFlushSize *
         conf.getLong(HConstants.HREGION_MEMSTORE_BLOCK_MULTIPLIER,
                 HConstants.DEFAULT_HREGION_MEMSTORE_BLOCK_MULTIPLIER);
+    // set force flush size to be between flush size and blocking size
+    this.memStoreForceFlushSize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
   }
 
   /**
@@ -1010,6 +1015,18 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return false;
   }
 
+  /* The updatesLock interface required to let the CompactingMemStore
+  * to lock the updatesLock for the in-memory flush */
+  public void lockUpdatesExcl() {
+    this.updatesLock.writeLock().lock();
+  }
+
+  /* The updatesLock interface required to let the CompactingMemStore
+  * to unlock the updatesLock for the in-memory flush */
+  public void unlockUpdatesExcl() {
+    this.updatesLock.writeLock().unlock();
+  }
+
   @Override
   public HDFSBlocksDistribution getHDFSBlocksDistribution() {
     HDFSBlocksDistribution hdfsBlocksDistribution =
@@ -1080,7 +1097,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (this.rsAccounting != null) {
       rsAccounting.addAndGetGlobalMemstoreSize(memStoreSize);
     }
-    return this.memstoreSize.addAndGet(memStoreSize);
+    return this.memstoreActiveSize.addAndGet(memStoreSize);
+  }
+
+  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+    if (this.rsAccounting != null) {
+      rsAccounting.addAndGetGlobalMemstoreAdditionalSize(size);
+    }
+    return this.memstoreOverflowSize.addAndGet(size);
   }
 
   @Override
@@ -1118,7 +1142,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   @Override
   public long getMemstoreSize() {
-    return memstoreSize.get();
+    return memstoreActiveSize.get();
+  }
+
+  private long getMemstoreOverflowSize() {
+    return memstoreOverflowSize.get();
+  }
+
+  @Override
+  public long getMemstoreTotalSize() {
+    return getMemstoreSize() + getMemstoreOverflowSize();
   }
 
   @Override
@@ -1412,7 +1445,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // Don't flush the cache if we are aborting
       if (!abort && canFlush) {
         int flushCount = 0;
-        while (this.memstoreSize.get() > 0) {
+        while (this.getMemstoreTotalSize() > 0) {
           try {
             if (flushCount++ > 0) {
               int actualFlushes = flushCount - 1;
@@ -1421,7 +1454,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 // so we do not lose data
                 throw new DroppedSnapshotException("Failed clearing memory after " +
                   actualFlushes + " attempts on region: " +
-                    Bytes.toStringBinary(getRegionInfo().getRegionName()));
+                    Bytes.toStringBinary(getRegionInfo().getRegionName())
+                    + " memstore size: " + getMemstoreSize() + " total size (memstore + pipeline)" +
+                    ": " + getMemstoreTotalSize());
               }
               LOG.info("Running extra flush, " + actualFlushes +
                 " (carrying snapshot?) " + this);
@@ -1456,7 +1491,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               getRegionServerServices().abort("Assertion failed while closing store "
                 + getRegionInfo().getRegionNameAsString() + " " + store
                 + ". flushableSize expected=0, actual= " + flushableSize
-                + ". Current memstoreSize=" + getMemstoreSize() + ". Maybe a coprocessor "
+                + ". Current memstoreActiveSize=" + getMemstoreSize() + ". Maybe a coprocessor "
                 + "operation failed and left the memstore in a partially updated state.", null);
             }
           }
@@ -1495,10 +1530,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
 
       this.closed.set(true);
+      if (getMemstoreTotalSize() != 0) LOG.error(getRegionInfo().getEncodedName()+" Memstore size" +
+          " is " + getMemstoreTotalSize());
       if (!canFlush) {
-        addAndGetGlobalMemstoreSize(-memstoreSize.get());
-      } else if (memstoreSize.get() != 0) {
-        LOG.error("Memstore size is " + memstoreSize.get());
+        addAndGetGlobalMemstoreSize(-memstoreActiveSize.get());
+      } else if (memstoreActiveSize.get() != 0) {
+        LOG.error(getRegionInfo().getEncodedName()+" Memstore size is " + memstoreActiveSize.get());
       }
       if (coprocessorHost != null) {
         status.setStatus("Running coprocessor post-close hooks");
@@ -1583,7 +1620,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     * @return True if its worth doing a flush before we put up the close flag.
     */
   private boolean worthPreFlushing() {
-    return this.memstoreSize.get() >
+    return this.memstoreActiveSize.get() >
       this.conf.getLong("hbase.hregion.preclose.flush.size", 1024 * 1024 * 5);
   }
 
@@ -1853,8 +1890,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   @Override
-  public FlushResult flush(boolean force) throws IOException {
-    return flushcache(force, false);
+  public FlushResult flush(boolean forceFlushAllStores) throws IOException {
+    return flushcache(forceFlushAllStores, false);
   }
 
   /**
@@ -2090,13 +2127,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     final long startTime = EnvironmentEdgeManager.currentTime();
     // If nothing to flush, return, but we need to safely update the region sequence id
-    if (this.memstoreSize.get() <= 0) {
+    if (getMemstoreTotalSize() <= 0) {
       // Take an update lock because am about to change the sequence id and we want the sequence id
       // to be at the border of the empty memstore.
       MultiVersionConcurrencyControl.WriteEntry writeEntry = null;
       this.updatesLock.writeLock().lock();
       try {
-        if (this.memstoreSize.get() <= 0) {
+        if (this.getMemstoreTotalSize() <= 0) {
           // Presume that if there are still no edits in the memstore, then there are no edits for
           // this region out in the WAL subsystem so no need to do any trickery clearing out
           // edits in the WAL system. Up the sequence number so the resulting flush id is for
@@ -2144,7 +2181,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
       }
       LOG.info("Flushing " + + storesToFlush.size() + "/" + stores.size() +
-        " column families, memstore=" + StringUtils.byteDesc(this.memstoreSize.get()) +
+        " column families, memstore=" + StringUtils.byteDesc(this.memstoreActiveSize.get()) +
         ((perCfExtras != null && perCfExtras.length() > 0)? perCfExtras.toString(): "") +
         ((wal != null) ? "" : "; WAL is null, using passed sequenceid=" + myseqid));
     }
@@ -2223,9 +2260,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             desc, false, mvcc);
         }
 
-        // Prepare flush (take a snapshot)
+        // Prepare flush to disk (take a snapshot)
         for (StoreFlushContext flush : storeFlushCtxs.values()) {
-          flush.prepare();
+          flush.prepareFlushToDisk(flushOpSeqId);
         }
       } catch (IOException ex) {
         if (wal != null) {
@@ -2413,6 +2450,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
 
     // If we get to here, the HStores have been written.
+
+    // stores that do in memory flushes might still have data in memory therefor need to update the
+    // wal w.r.t. their content
+    updateLowestUnflushedSequenceIdInWal(storesToFlush);
     if (wal != null) {
       wal.completeCacheFlush(this.getRegionInfo().getEncodedNameAsBytes());
     }
@@ -2432,7 +2473,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
 
     long time = EnvironmentEdgeManager.currentTime() - startTime;
-    long memstoresize = this.memstoreSize.get();
+    long memstoresize = this.memstoreActiveSize.get();
     String msg = "Finished memstore flush of ~"
         + StringUtils.byteDesc(totalFlushableSizeOfFlushableStores) + "/"
         + totalFlushableSizeOfFlushableStores + ", currentsize="
@@ -2447,6 +2488,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         FlushResult.Result.FLUSHED_COMPACTION_NEEDED :
           FlushResult.Result.FLUSHED_NO_COMPACTION_NEEDED,
         flushOpSeqId);
+  }
+
+  // stores that do in memory flushes might still have data in memory therefor need to update the
+  // wal w.r.t. their content
+  private void updateLowestUnflushedSequenceIdInWal(Collection<Store> storesToFlush) {
+    for(Store s :storesToFlush) {
+      s.updateLowestUnflushedSequenceIdInWal();
+    }
   }
 
   /**
@@ -2479,6 +2528,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   public RegionScanner getScanner(Scan scan, boolean copyCellsFromSharedMem) throws IOException {
     RegionScanner scanner = getScanner(scan, null, copyCellsFromSharedMem);
     return scanner;
+  }
+
+  public long getWalSequenceId(final WAL wal) throws IOException {
+    return getNextSequenceId(wal);
   }
 
   protected RegionScanner getScanner(Scan scan, List<KeyValueScanner> additionalScanners,
@@ -2818,10 +2871,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           initialized = true;
         }
         long addedSize = doMiniBatchMutation(batchOp);
-        long newSize = this.addAndGetGlobalMemstoreSize(addedSize);
-        if (isFlushSize(newSize)) {
-          requestFlush();
-        }
+        this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded();
       }
     } finally {
       closeRegionOperation(op);
@@ -3609,7 +3660,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // If catalog region, do not impose resource constraints or block updates.
     if (this.getRegionInfo().isMetaRegion()) return;
 
-    if (this.memstoreSize.get() > this.blockingMemStoreSize) {
+    long memstoreSize = this.getMemstoreTotalSize();
+    // block writes and force flush
+    if (memstoreSize > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
       requestFlush();
       throw new RegionTooBusyException("Above memstore limit, " +
@@ -3617,8 +3670,29 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           this.getRegionInfo().getRegionNameAsString()) +
           ", server=" + (this.getRegionServerServices() == null ? "unknown" :
           this.getRegionServerServices().getServerName()) +
-          ", memstoreSize=" + memstoreSize.get() +
+          ", memstoreActiveSize=" + memstoreSize +
           ", blockingMemStoreSize=" + blockingMemStoreSize);
+    }
+  }
+
+  /**
+   * requests flush if the size of all memstores in region exceeds the flush thresholds; force
+   * the flush if it exceeds the force flush threshold
+   * @throws RegionTooBusyException
+   */
+  private void requestFlushIfNeeded() throws RegionTooBusyException {
+    long memstoreSize = this.getMemstoreSize();
+    long memstoreTotalSize = this.getMemstoreTotalSize(); // including compaction pipelines
+
+    // force flush
+    if (memstoreTotalSize > this.memStoreForceFlushSize) {
+      requestFlush();
+      return;
+    }
+
+    // (regular) flush
+    if (memstoreSize > this.memstoreFlushSize) {
+      requestFlush();
     }
   }
 
@@ -4546,7 +4620,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     long snapshotSize = s.getFlushableSize();
     this.addAndGetGlobalMemstoreSize(-snapshotSize);
     StoreFlushContext ctx = s.createFlushContext(currentSeqId);
-    ctx.prepare();
+    ctx.prepareFlushToDisk(currentSeqId);
     ctx.abort();
     return snapshotSize;
   }
@@ -5165,7 +5239,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       long c = count.decrementAndGet();
       if (c <= 0) {
         synchronized (lock) {
-          if (count.get() <= 0 ){
+          if (count.get() <= 0){
             usable.set(false);
             RowLockContext removed = lockedRows.remove(row);
             assert removed == this: "we should never remove a different context";
@@ -5970,7 +6044,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     protected boolean isStopRow(Cell currentRowCell) {
       return currentRowCell == null
-          || (stopRow != null && comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length) >= isScan);
+          || (stopRow != null &&
+          comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length) >= isScan);
     }
 
     @Override
@@ -6703,7 +6778,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       return null;
     }
     ClientProtos.RegionLoadStats.Builder stats = ClientProtos.RegionLoadStats.newBuilder();
-    stats.setMemstoreLoad((int) (Math.min(100, (this.memstoreSize.get() * 100) / this
+    stats.setMemstoreLoad((int) (Math.min(100, (this.getMemstoreTotalSize() * 100) / this
         .memstoreFlushSize)));
     stats.setHeapOccupancy((int)rsServices.getHeapMemoryManager().getHeapOccupancyPercent()*100);
     stats.setCompactionPressure((int)rsServices.getCompactionPressure()*100 > 100 ? 100 :
@@ -6882,9 +6957,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     } finally {
       closeRegionOperation();
-      if (!mutations.isEmpty() &&
-          isFlushSize(this.addAndGetGlobalMemstoreSize(addedSize))) {
-        requestFlush();
+      if (!mutations.isEmpty()) {
+        this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded();
       }
     }
   }
@@ -7122,6 +7197,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             //store the kvs to the temporary memstore before writing WAL
             tempMemstore.put(store, kvs);
           }
+          this.addAndGetGlobalMemstoreSize(size);
 
           // Actually write to WAL now
           if (walEdits != null && !walEdits.isEmpty()) {
@@ -7208,10 +7284,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       this.metricsRegion.updateAppend();
     }
 
-    if (flush) {
-      // Request a cache flush. Do it outside update lock.
-      requestFlush();
-    }
+    // Request a cache flush. Do it outside update lock.
+    requestFlushIfNeeded();
 
     return mutate.isReturnResults() ? Result.create(allKVs) : null;
   }
@@ -7399,8 +7473,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 }
               }
             }
-            size = this.addAndGetGlobalMemstoreSize(size);
-            flush = isFlushSize(size);
+            this.addAndGetGlobalMemstoreSize(size);
           }
         } finally {
           this.updatesLock.readLock().unlock();
@@ -7433,10 +7506,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
     }
 
-    if (flush) {
-      // Request a cache flush.  Do it outside update lock.
-      requestFlush();
-    }
+    // Request a cache flush.  Do it outside update lock.
+    requestFlushIfNeeded();
+
     return mutation.isReturnResults() ? Result.create(allKVs) : null;
   }
 
@@ -7456,7 +7528,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   public static final long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
       ClassSize.ARRAY +
-      43 * ClassSize.REFERENCE + 3 * Bytes.SIZEOF_INT +
+      46 * ClassSize.REFERENCE + 2 * Bytes.SIZEOF_INT +
       (14 * Bytes.SIZEOF_LONG) +
       5 * Bytes.SIZEOF_BOOLEAN);
 
@@ -8087,5 +8159,29 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   public CellComparator getCellCompartor() {
     return this.getRegionInfo().isMetaRegion() ? CellComparator.META_COMPARATOR
         : CellComparator.COMPARATOR;
+  }
+
+
+  //// method for debugging tests
+  public void throwException(String title, String regionName) {
+    String msg = title+", ";
+    msg += getRegionInfo().toString();
+    msg += getRegionInfo().isMetaRegion() ? " meta region " : " ";
+    msg += getRegionInfo().isMetaTable() ? " meta table " : " ";
+    msg += "stores: ";
+    for(Store s : getStores()) {
+      msg += s.getFamily().getNameAsString();
+      msg += " size: ";
+      msg += s.getMemStoreSize();
+      msg += " ";
+    }
+    msg += "end-of-stores";
+    msg += ", memstore size ";
+    msg += getMemstoreSize();
+    msg += ", total memstore size ";
+    msg += getMemstoreTotalSize();
+    if(getRegionInfo().getRegionNameAsString().startsWith(regionName)) {
+      throw new RuntimeException(msg);
+    }
   }
 }

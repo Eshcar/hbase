@@ -17,13 +17,6 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.NavigableSet;
-
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
@@ -32,6 +25,8 @@ import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.conf.PropagatingConfigurationObserver;
 import org.apache.hadoop.hbase.io.HeapSize;
@@ -44,6 +39,11 @@ import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.security.User;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.NavigableSet;
 
 /**
  * Interface for objects that hold a column family in a Region. Its a memstore and a set of zero or
@@ -286,6 +286,11 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   long getMemStoreSize();
 
   /**
+   * @return The size of this store's active segment, in bytes
+   */
+  long getMemStoreActiveSize();
+
+  /**
    * @return The amount of memory we could flush from this memstore; usually this is equal to
    * {@link #getMemStoreSize()} unless we are carrying snapshots and then it will be the size of
    * outstanding snapshots.
@@ -455,6 +460,9 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    */
   double getCompactionPressure();
 
+  // update wal with a new sequence id
+  void updateLowestUnflushedSequenceIdInWal();
+
    /**
     * Replaces the store files that the store has with the given files. Mainly used by
     * secondary region replicas to keep up to date with
@@ -465,5 +473,6 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
 
   void bulkLoadHFile(StoreFileInfo fileInfo) throws IOException;
 
-  boolean isPrimaryReplicaStore();
+  // methods for tests
+  AbstractMemStore getMemStore();
 }
