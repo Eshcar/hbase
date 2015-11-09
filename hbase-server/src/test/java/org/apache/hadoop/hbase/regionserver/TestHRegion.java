@@ -4305,7 +4305,7 @@ public class TestHRegion {
     }
   }
 
-//  @Test
+  @Test
   public void testgetHDFSBlocksDistribution() throws Exception {
     HBaseTestingUtility htu = new HBaseTestingUtility();
     // Why do we set the block size in this test?  If we set it smaller than the kvs, then we'll
