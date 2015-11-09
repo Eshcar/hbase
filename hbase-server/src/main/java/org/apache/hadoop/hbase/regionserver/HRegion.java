@@ -268,9 +268,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   // TODO: account for each registered handler in HeapSize computation
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
-  private final AtomicLong memstoreActiveSize = new AtomicLong(0); // size of active set in memstore
+  // size of active set in memstore
+  private final AtomicLong memstoreActiveSize = new AtomicLong(0);
   // size of overflow memstore segments, e.g., in compaction pipeline
   private final AtomicLong memstoreOverflowSize = new AtomicLong(0);
+
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
   final Counter dataInMemoryWithoutWAL = new Counter();
@@ -1891,8 +1893,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   @Override
   public FlushResult flush(boolean forceFlushAllStores) throws IOException {
-    boolean writeFlushRequestWalMarker = false;
-    return flushcache(forceFlushAllStores, writeFlushRequestWalMarker);
+    return flushcache(forceFlushAllStores, false);
   }
 
   /**

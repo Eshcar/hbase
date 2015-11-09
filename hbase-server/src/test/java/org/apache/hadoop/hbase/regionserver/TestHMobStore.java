@@ -465,7 +465,7 @@ public class TestHMobStore {
     this.store.snapshot();
     flushStore(store, id++);
     Assert.assertEquals(storeFilesSize, this.store.getStorefiles().size());
-    Assert.assertEquals(0, ((DefaultMemStore)this.store.memstore).getActive().getCellsCount());
+    Assert.assertEquals(0, this.store.memstore.getActive().getCellsCount());
   }
 
   /**

@@ -18,25 +18,24 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.Server;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
+import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.HasThread;
+import org.apache.hadoop.hbase.wal.WAL;
+import org.apache.hadoop.ipc.RemoteException;
+
 import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.Server;
-import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
-import org.apache.hadoop.hbase.wal.WAL;
-import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.HasThread;
-import org.apache.hadoop.ipc.RemoteException;
-
-import com.google.common.annotations.VisibleForTesting;
 
 /**
  * Runs periodically to determine if the WAL should be rolled.
@@ -182,8 +181,8 @@ public class LogRoller extends HasThread {
       if (requester != null) {
         // force flushing all stores to clean old logs
         // The regions to flush are those whose number of un-archived WAL files
-        // is greater than maximum allowed. In this case, cause even the compacted
-        // MemStore flush to disk (last parameter true).
+        // is greater than maximum allowed. In this case, even causes compacting
+        // MemStores flush to disk (last parameter true).
         requester.requestFlush(r, true);
         scheduled = true;
       }

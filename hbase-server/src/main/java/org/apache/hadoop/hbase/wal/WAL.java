@@ -20,14 +20,11 @@
 package org.apache.hadoop.hbase.wal;
 
 import com.google.common.annotations.VisibleForTesting;
-import java.util.Set;
-
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
-// imports we use from yet-to-be-moved regionsever.wal
 import org.apache.hadoop.hbase.regionserver.wal.CompressionContext;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
@@ -37,9 +34,7 @@ import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A Write Ahead Log (WAL) provides service for reading, writing waledits. This interface provides
@@ -137,10 +132,10 @@ public interface WAL {
   void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
       boolean onlyIfGreater);
 
-    /**
-     * Sync what we have in the WAL.
-     * @throws IOException
-     */
+  /**
+   * Sync what we have in the WAL.
+   * @throws IOException
+   */
   void sync() throws IOException;
 
   /**

@@ -172,7 +172,11 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   public static final boolean DEFAULT_IN_MEMORY = false;
 
   /**
+<<<<<<< HEAD
    * Default setting for whether to set the memstore of this column family as compacted or not.
+=======
+   * Default setting for whether to set the memstore of this column family as compacting or not.
+>>>>>>> small_fixes
    */
   public static final boolean DEFAULT_IN_MEMORY_COMPACTION = false;
 
