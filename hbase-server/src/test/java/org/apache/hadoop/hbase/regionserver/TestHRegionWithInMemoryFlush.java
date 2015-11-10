@@ -2272,7 +2272,8 @@ public class TestHRegionWithInMemoryFlush {
         // no TS specified == use latest. should not error
         region.put(new Put(row).addColumn(fam, Bytes.toBytes("qual"), Bytes.toBytes("value")));
         // TS out of range. should error
-        region.put(new Put(row).addColumn(fam, Bytes.toBytes("qual"), System.currentTimeMillis() + 2000,
+        region.put(new Put(row).addColumn(fam, Bytes.toBytes("qual"),
+            System.currentTimeMillis() + 2000,
             Bytes.toBytes("value")));
         fail("Expected IOE for TS out of configured timerange");
       } catch (FailedSanityCheckException ioe) {

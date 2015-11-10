@@ -226,11 +226,14 @@ public class CompactingMemStore extends AbstractMemStore {
       * on the same thread, because for flush-in-memory we require updatesLock
       * in exclusive mode while this method (checkActiveSize) is invoked holding updatesLock
       * in the shared mode. */
-      InMemoryFlushWorker worker = new InMemoryFlushWorker();
-      LOG.info("Dispatching the MemStore in-memory flush for store "
-          + store.getColumnFamilyName());
-      getPool().submit(worker);
-      inMemoryFlushInProgress.set(true);
+      ExecutorService pool = getPool();
+      if(pool != null) {
+        InMemoryFlushWorker worker = new InMemoryFlushWorker();
+        LOG.info("Dispatching the MemStore in-memory flush for store "
+            + store.getColumnFamilyName());
+        pool.submit(worker);
+        inMemoryFlushInProgress.set(true);
+      }
     }
   }
 
@@ -249,8 +252,8 @@ public class CompactingMemStore extends AbstractMemStore {
     // Phase II: Compact the pipeline
     try {
       if (allowCompaction.get()) {
-        // setting the inMemoryFlushInProgress flag again for the case this method is invoked directly
-        // (only in tests) in the common path setting from true to true is idempotent
+        // setting the inMemoryFlushInProgress flag again for the case this method is invoked
+        // directly (only in tests) in the common path setting from true to true is idempotent
         inMemoryFlushInProgress.set(true);
         // Speculative compaction execution, may be interrupted if flush is forced while
         // compaction is in progress
@@ -305,7 +308,9 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private ExecutorService getPool() {
-    return getHRegion().getRegionServerServices().getExecutorService();
+    RegionServerServices rs = getHRegion().getRegionServerServices();
+    if(rs==null) return null;
+    return rs.getExecutorService();
   }
 
   private boolean shouldFlushInMemory() {
@@ -427,7 +432,8 @@ public class CompactingMemStore extends AbstractMemStore {
       if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
 
       List<StoreSegmentScanner> scanners = new ArrayList<StoreSegmentScanner>();
-      this.versionedList = pipeline.getVersionedList(); // get the list of segments from the pipeline
+      // get the list of segments from the pipeline
+      this.versionedList = pipeline.getVersionedList();
       // the list is marked with specific version
 
       // create the list of scanners with maximally possible read point, meaning that
@@ -442,7 +448,8 @@ public class CompactingMemStore extends AbstractMemStore {
       smallestReadPoint = store.getSmallestReadPoint();
       compactingScanner = createScanner(store);
 
-      LOG.info("Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
+      LOG.info("Starting the MemStore in-memory compaction for store " +
+          store.getColumnFamilyName());
 
       doCompact();
       return true;

@@ -137,7 +137,8 @@ public class TestCompactingMemStore extends TestCase {
     HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
     this.region = hbaseUtility.createTestRegion("foobar", hcd);
     this.store = new HStore(region, hcd, conf);
-    this.cms = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR, store);
+    this.cms = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR,
+        store);
     chunkPool = MemStoreChunkPool.getPool(conf);
     assertTrue(chunkPool != null);
   }
@@ -1267,8 +1268,9 @@ public class TestCompactingMemStore extends TestCase {
 
     addRowsByKeys(cms, keys2);
 
-    tstStr = tstStr + " After adding second part of the keys. Memstore size: "
-        + region.getMemstoreSize() + ", Memstore Total Size: " + region.getMemstoreTotalSize() + "\n\n";
+    tstStr += " After adding second part of the keys. Memstore size: " +
+        region.getMemstoreSize() + ", Memstore Total Size: " + region.getMemstoreTotalSize() +
+        "\n\n";
 
     assertEquals(528, region.getMemstoreSize());
     assertEquals(1056, region.getMemstoreTotalSize());
