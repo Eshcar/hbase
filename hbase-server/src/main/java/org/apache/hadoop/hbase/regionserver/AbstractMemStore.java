@@ -446,6 +446,7 @@ public abstract class AbstractMemStore implements MemStore {
   private long internalAdd(final Cell toAdd) {
     long s = active.add(toAdd);
     setOldestEditTimeToNow();
+    checkActiveSize();
     return s;
   }
 

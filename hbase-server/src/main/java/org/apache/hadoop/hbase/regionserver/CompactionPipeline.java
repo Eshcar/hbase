@@ -121,7 +121,7 @@ public class CompactionPipeline {
         long suffixSize = CompactingMemStore.getStoreSegmentListSize(suffix);
         long newSize = CompactingMemStore.getStoreSegmentSize(segment);
         long delta = suffixSize - newSize;
-        long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreAdditionalSize(-delta);
+        long globalMemstoreAdditionalSize = region.addAndGetGlobalMemstoreOverflowSize(-delta);
         LOG.info("Suffix size: "+ suffixSize+" compacted item size: "+newSize+
             " globalMemstoreAdditionalSize: "+globalMemstoreAdditionalSize);
       }

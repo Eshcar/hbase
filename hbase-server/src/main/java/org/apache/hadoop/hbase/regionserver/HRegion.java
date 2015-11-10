@@ -1100,9 +1100,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return this.memstoreActiveSize.addAndGet(memStoreSize);
   }
 
-  public long addAndGetGlobalMemstoreAdditionalSize(long size) {
+  public long addAndGetGlobalMemstoreOverflowSize(long size) {
     if (this.rsAccounting != null) {
-      rsAccounting.addAndGetGlobalMemstoreAdditionalSize(size);
+      rsAccounting.addAndGetGlobalMemstoreOverflowSize(size);
     }
     return this.memstoreOverflowSize.addAndGet(size);
   }

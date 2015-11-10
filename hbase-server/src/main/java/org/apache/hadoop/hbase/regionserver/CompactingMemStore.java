@@ -309,8 +309,14 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    return (getActive().getSize() > 0.9*flushSizeLowerBound && // size above flush threshold
-        allowCompaction.get() && !inMemoryFlushInProgress.get()); // dispatch thread if not already
+    if(getActive().getSize() > 0.9*flushSizeLowerBound) { // size above flush threshold
+      String msg = "SHOULD FLUSH IN-MEMORY:  active size="+getActive().getSize();
+      msg += " threshold="+0.9*flushSizeLowerBound;
+      msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
+      msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
+      return (allowCompaction.get() && !inMemoryFlushInProgress.get());
+    }
+    return false;
   }
 
   /**
@@ -332,7 +338,7 @@ public class CompactingMemStore extends AbstractMemStore {
       active.setSize(active.getSize() - deepOverhead() + DEEP_OVERHEAD_PER_PIPELINE_ITEM);
       long size = getStoreSegmentSize(active);
       resetCellSet();
-      updateRegionAdditionalMemstoreSizeCounter(size); //push size into pipeline
+      updateRegionOverflowMemstoreSizeCounter(size); //push size into pipeline
       if (needToUpdateRegionMemStoreSizeCounter) {
         updateRegionMemStoreSizeCounter(-size);
       }
@@ -347,16 +353,16 @@ public class CompactingMemStore extends AbstractMemStore {
       setSnapshot(tail);
       long size = getStoreSegmentSize(tail);
       setSnapshotSize(size);
-      updateRegionAdditionalMemstoreSizeCounter(-size); //pull size out of pipeline
+      updateRegionOverflowMemstoreSizeCounter(-size); //pull size out of pipeline
     }
   }
 
-  private void updateRegionAdditionalMemstoreSizeCounter(long size) {
+  private void updateRegionOverflowMemstoreSizeCounter(long size) {
     if (getHRegion() != null) {
-      long globalMemstoreAdditionalSize = getHRegion().addAndGetGlobalMemstoreAdditionalSize(size);
+      long globalMemStoreOverflowSize = getHRegion().addAndGetGlobalMemstoreOverflowSize(size);
       // no need to update global memstore size as it is updated by the flusher
-      LOG.debug(getHRegion().getRegionInfo().getEncodedName() + " globalMemstoreAdditionalSize: " +
-          globalMemstoreAdditionalSize);
+      LOG.debug(getHRegion().getRegionInfo().getEncodedName() + " globalMemStoreOverflowSize: " +
+          globalMemStoreOverflowSize);
     }
   }
 
