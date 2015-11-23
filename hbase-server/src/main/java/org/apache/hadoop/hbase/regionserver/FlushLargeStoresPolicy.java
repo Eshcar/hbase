@@ -17,14 +17,14 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A {@link FlushPolicy} that only flushes store larger a given threshold. If no store is large
@@ -38,7 +38,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
   public static final String HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND =
       "hbase.hregion.percolumnfamilyflush.size.lower.bound";
 
-  private static final long DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND = 1024 * 1024 * 16L;
+  public static final long DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND = 1024 * 1024 * 16L;
 
   private long flushSizeLowerBound;
 
@@ -74,7 +74,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
   }
 
   private boolean shouldFlush(Store store) {
-    if (store.getMemStoreSize() > this.flushSizeLowerBound) {
+    if (store.getMemStoreActiveSize() > this.flushSizeLowerBound) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Flush Column Family " + store.getColumnFamilyName() + " of " +
           region.getRegionInfo().getEncodedName() + " because memstoreSize=" +

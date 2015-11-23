@@ -18,13 +18,7 @@
  */
 package org.apache.hadoop.hbase;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
@@ -41,7 +35,12 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.PrettyPrinter;
 import org.apache.hadoop.hbase.util.PrettyPrinter.Unit;
 
-import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * An HColumnDescriptor contains information about a column family such as the
@@ -154,7 +153,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * Default number of versions of a record to keep.
    */
   public static final int DEFAULT_VERSIONS = HBaseConfiguration.create().getInt(
-    "hbase.column.max.version", 1);
+      "hbase.column.max.version", 1);
 
   /**
    * Default is not to keep a minimum of versions.
@@ -171,6 +170,15 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * Default setting for whether to try and serve this column family from memory or not.
    */
   public static final boolean DEFAULT_IN_MEMORY = false;
+
+  /**
+<<<<<<< HEAD
+   * Default setting for whether to set the memstore of this column family as compacted or not.
+=======
+   * Default setting for whether to set the memstore of this column family as compacting or not.
+>>>>>>> small_fixes
+   */
+  public static final boolean DEFAULT_IN_MEMORY_COMPACTION = false;
 
   /**
    * Default setting for preventing deleted from being collected immediately.
@@ -257,6 +265,8 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
       DEFAULT_VALUES.put(TTL, String.valueOf(DEFAULT_TTL));
       DEFAULT_VALUES.put(BLOCKSIZE, String.valueOf(DEFAULT_BLOCKSIZE));
       DEFAULT_VALUES.put(HConstants.IN_MEMORY, String.valueOf(DEFAULT_IN_MEMORY));
+      DEFAULT_VALUES.put(HConstants.IN_MEMORY_COMPACTION, String.valueOf(
+          DEFAULT_IN_MEMORY_COMPACTION));
       DEFAULT_VALUES.put(BLOCKCACHE, String.valueOf(DEFAULT_BLOCKCACHE));
       DEFAULT_VALUES.put(KEEP_DELETED_CELLS, String.valueOf(DEFAULT_KEEP_DELETED));
       DEFAULT_VALUES.put(DATA_BLOCK_ENCODING, String.valueOf(DEFAULT_DATA_BLOCK_ENCODING));
@@ -329,6 +339,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
     setMinVersions(DEFAULT_MIN_VERSIONS);
     setKeepDeletedCells(DEFAULT_KEEP_DELETED);
     setInMemory(DEFAULT_IN_MEMORY);
+    setCompacted(DEFAULT_IN_MEMORY_COMPACTION);
     setBlockCacheEnabled(DEFAULT_BLOCKCACHE);
     setTimeToLive(DEFAULT_TTL);
     setCompressionType(Compression.Algorithm.valueOf(DEFAULT_COMPRESSION.toUpperCase()));
@@ -681,6 +692,47 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    */
   public HColumnDescriptor setInMemory(boolean inMemory) {
     return setValue(HConstants.IN_MEMORY, Boolean.toString(inMemory));
+  }
+
+  /**
+   * @return True if we prefer to keep the in-memory data compacted
+   *          for this column family in the HRegionServer cache
+   */
+  public boolean isCompacted() {
+    String value = getValue(HConstants.IN_MEMORY_COMPACTION);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+    return DEFAULT_IN_MEMORY_COMPACTION;
+  }
+
+  /**
+   * @param compacted True if we prefer to keep the in-memory data compacted
+   *                  for this column family in the HRegionServer cache
+   * @return this (for chained invocation)
+   */
+  public HColumnDescriptor setCompacted(boolean compacted) {
+    return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(compacted));
+  }
+
+  /**
+   * @return the memstore class name if was set by the user.
+   */
+  public String getMemStoreClassName() {
+    if(isCompacted()) return "org.apache.hadoop.hbase.regionserver.CompactingMemStore";
+    return "org.apache.hadoop.hbase.regionserver.DefaultMemStore";
+  }
+
+  /**
+   * @param className the name of the class to be used as a memstore
+   * @return this (for chained invocation)
+   */
+  public HColumnDescriptor setMemStoreClass(String className) {
+
+    if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactingMemStore")) {
+      return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(true));
+    }
+    else return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(false));
   }
 
   public KeepDeletedCells getKeepDeletedCells() {

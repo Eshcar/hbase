@@ -1,4 +1,5 @@
 /**
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,33 +18,37 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
-import java.util.Collection;
+import java.util.LinkedList;
 
 /**
- * A flush policy determines the stores that need to be flushed when flushing a region.
+ * A list of segment managers coupled with the version of the memstore (version at the time it was
+ * created).
+ * This structure helps to guarantee that the compaction pipeline updates after the compaction is
+ * updated in a consistent (atomic) way.
+ * Specifically, swapping some of the elements in a compaction pipeline with a new compacted
+ * element is permitted only if the pipeline version is the same as the version attached to the
+ * elements.
+ *
  */
 @InterfaceAudience.Private
-public abstract class FlushPolicy extends Configured {
+public class VersionedSegmentsList {
 
-  /**
-   * The region configured for this flush policy.
-   */
-  protected HRegion region;
+  private final LinkedList<ImmutableSegment> storeSegments;
+  private final long version;
 
-  /**
-   * Upon construction, this method will be called with the region to be governed. It will be called
-   * once and only once.
-   */
-  protected void configureForRegion(HRegion region) {
-    this.region = region;
+  public VersionedSegmentsList(
+          LinkedList<ImmutableSegment> storeSegments, long version) {
+    this.storeSegments = storeSegments;
+    this.version = version;
   }
 
-  /**
-   * @return the stores need to be flushed.
-   */
-  public abstract Collection<Store> selectStoresToFlush();
+  public LinkedList<ImmutableSegment> getStoreSegments() {
+    return storeSegments;
+  }
 
+  public long getVersion() {
+    return version;
+  }
 }

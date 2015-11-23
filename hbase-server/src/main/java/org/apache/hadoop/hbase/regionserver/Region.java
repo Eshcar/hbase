@@ -17,11 +17,10 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.Message;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
@@ -49,10 +48,10 @@ import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.CoprocessorServic
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.wal.WALSplitter.MutationReplay;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.protobuf.Message;
-import com.google.protobuf.RpcController;
-import com.google.protobuf.Service;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Regions store data for a certain region of a table.  It stores all columns
@@ -189,6 +188,9 @@ public interface Region extends ConfigurationObserver {
 
   /** @return memstore size for this region, in bytes */
   long getMemstoreSize();
+
+  /** @return total memstore size, including additional, like compactoin pipelines */
+  public long getMemstoreTotalSize();
 
   /** @return the number of mutations processed bypassing the WAL */
   long getNumMutationsWithoutWAL();
@@ -636,14 +638,14 @@ public interface Region extends ConfigurationObserver {
    *
    * <p>This method may block for some time, so it should not be called from a
    * time-sensitive thread.
-   * @param force whether we want to force a flush of all stores
+   * @param forceFlushAllStores whether we want to force a flush of all stores
    * @return FlushResult indicating whether the flush was successful or not and if
    * the region needs compacting
    *
    * @throws IOException general io exceptions
    * because a snapshot was not properly persisted.
    */
-  FlushResult flush(boolean force) throws IOException;
+  FlushResult flush(boolean forceFlushAllStores) throws IOException;
 
   /**
    * Synchronously compact all stores in the region.

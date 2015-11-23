@@ -1,4 +1,5 @@
 /**
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,33 +18,29 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-
-import java.util.Collection;
+import org.apache.hadoop.hbase.client.Scan;
 
 /**
- * A flush policy determines the stores that need to be flushed when flushing a region.
+ * An interface for store segment scanner, both for memory segment (memstore segment) and disk
+ * segment (file).
  */
 @InterfaceAudience.Private
-public abstract class FlushPolicy extends Configured {
+public interface StoreSegmentScanner extends KeyValueScanner {
 
   /**
-   * The region configured for this flush policy.
+   * Set the sequence id of the scanner.
+   * This is used to determine an order between memory segment scanners.
+   * @param x a unique sequence id
    */
-  protected HRegion region;
+  public void setSequenceID(long x);
 
   /**
-   * Upon construction, this method will be called with the region to be governed. It will be called
-   * once and only once.
+   * Returns whether the given scan should seek in this segment
+   * @param scan
+   * @param oldestUnexpiredTS
+   * @return whether the given scan should seek in this segment
    */
-  protected void configureForRegion(HRegion region) {
-    this.region = region;
-  }
-
-  /**
-   * @return the stores need to be flushed.
-   */
-  public abstract Collection<Store> selectStoresToFlush();
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
 }
