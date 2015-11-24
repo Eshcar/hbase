@@ -47,7 +47,7 @@ public enum ExecutorType {
   RS_PARALLEL_SEEK           (26),
   RS_LOG_REPLAY_OPS          (27),
   RS_REGION_REPLICA_FLUSH_OPS  (28),
-  RS_IN_MEMORY_FLUSH          (29);
+  RS_IN_MEMORY_FLUSH_AND_COMPACTION (29);
 
   ExecutorType(int value) {}
 

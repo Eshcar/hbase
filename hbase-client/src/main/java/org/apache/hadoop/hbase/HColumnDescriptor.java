@@ -172,11 +172,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   public static final boolean DEFAULT_IN_MEMORY = false;
 
   /**
-<<<<<<< HEAD
-   * Default setting for whether to set the memstore of this column family as compacted or not.
-=======
    * Default setting for whether to set the memstore of this column family as compacting or not.
->>>>>>> small_fixes
    */
   public static final boolean DEFAULT_IN_MEMORY_COMPACTION = false;
 
@@ -698,7 +694,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @return True if we prefer to keep the in-memory data compacted
    *          for this column family in the HRegionServer cache
    */
-  public boolean isCompacted() {
+  public boolean isInMemoryCompaction() {
     String value = getValue(HConstants.IN_MEMORY_COMPACTION);
     if (value != null) {
       return Boolean.parseBoolean(value);
@@ -719,7 +715,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @return the memstore class name if was set by the user.
    */
   public String getMemStoreClassName() {
-    if(isCompacted()) return "org.apache.hadoop.hbase.regionserver.CompactingMemStore";
+    if(isInMemoryCompaction()) return "org.apache.hadoop.hbase.regionserver.CompactingMemStore";
     return "org.apache.hadoop.hbase.regionserver.DefaultMemStore";
   }
 

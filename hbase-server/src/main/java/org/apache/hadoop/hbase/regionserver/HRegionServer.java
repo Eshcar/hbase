@@ -1721,7 +1721,7 @@ public class HRegionServer extends HasThread implements
         conf.getInt("hbase.regionserver.region.replica.flusher.threads",
           conf.getInt("hbase.regionserver.executor.openregion.threads", 3)));
     }
-    this.service.startExecutorService(ExecutorType.RS_IN_MEMORY_FLUSH, 3);
+    this.service.startExecutorService(ExecutorType.RS_IN_MEMORY_FLUSH_AND_COMPACTION, 3);
 
     Threads.setDaemonThreadRunning(this.walRoller.getThread(), getName() + ".logRoller",
         uncaughtExceptionHandler);

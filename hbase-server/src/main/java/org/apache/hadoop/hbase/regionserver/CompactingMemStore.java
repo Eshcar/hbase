@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.executor.EventHandler;
 import org.apache.hadoop.hbase.executor.EventType;
 import org.apache.hadoop.hbase.executor.ExecutorService;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
@@ -93,6 +94,10 @@ public class CompactingMemStore extends AbstractMemStore {
       flushSizeLowerBound =
           conf.getLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND,
               FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND
+            + " is not specified, use global config(" + flushSizeLowerBound + ") instead");
+      }
     } else {
       try {
         flushSizeLowerBound = Long.parseLong(flushedSizeLowerBoundString);
@@ -100,6 +105,10 @@ public class CompactingMemStore extends AbstractMemStore {
         flushSizeLowerBound =
             conf.getLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND,
                 FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND);
+        LOG.warn("Number format exception when parsing "
+            + FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND + " for table "
+            + getHRegion().getTableDesc().getTableName() + ":" + flushedSizeLowerBoundString + ". "
+            + nfe + ", use global config(" + flushSizeLowerBound + ") instead");
       }
     }
   }
@@ -148,8 +157,8 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.warn("Snapshot called again without clearing previous. " +
           "Doing nothing. Another ongoing flush or did we fail last attempt?");
     } else {
-      LOG.info("FLUSHING TO DISK: Pushing active segment into compaction pipeline, "
-          + "and pipeline tail into snapshot.");
+      LOG.info("FLUSHING TO DISK: region "+ getHRegion().getRegionInfo().getRegionNameAsString()
+          + "store: "+ Bytes.toString(getFamilyName()));
       stopCompact();
       pushActiveToPipeline(active, flushOpSeqId, false);
       this.snapshotId = EnvironmentEdgeManager.currentTime();
@@ -243,12 +252,15 @@ public class CompactingMemStore extends AbstractMemStore {
   void flushInMemory() throws IOException {
     // Phase I: Update the pipeline
     getHRegion().lockUpdatesExcl();
-    MutableSegment active = getActive();
-    LOG.info("IN-MEMORY FLUSH: Pushing active segment into compaction pipeline, " +
-        "and initiating compaction.");
-    long flushOpSeqId = getHRegion().getWalSequenceId(getHRegion().getWAL());
-    pushActiveToPipeline(active, flushOpSeqId, true);
-    getHRegion().unlockUpdatesExcl();
+    try {
+      MutableSegment active = getActive();
+      LOG.info("IN-MEMORY FLUSH: Pushing active segment into compaction pipeline, " +
+          "and initiating compaction.");
+      long flushOpSeqId = getHRegion().getWalSequenceId(getHRegion().getWAL());
+      pushActiveToPipeline(active, flushOpSeqId, true);
+    } finally {
+      getHRegion().unlockUpdatesExcl();
+    }
     // Phase II: Compact the pipeline
     try {
       if (allowCompaction.get()) {
@@ -260,7 +272,9 @@ public class CompactingMemStore extends AbstractMemStore {
         compactor.startCompact();
       }
     } catch (IOException e) {
-      LOG.warn("Unable to run memstore compaction", e);
+      LOG.warn("Unable to run memstore compaction. region "
+          + getHRegion().getRegionInfo().getRegionNameAsString()
+          + "store: "+ Bytes.toString(getFamilyName()), e);
     }
   }
 
@@ -280,17 +294,16 @@ public class CompactingMemStore extends AbstractMemStore {
     // timestamp than the given one. Return the seq id that is associated with *last* ts (if not
     // null) that is smaller than the given ts
     for (Long ts : timestampToWALSeqId.keySet()) {
+      if (last != null) {
+        tsToRemove.add(last);
+      }
       if (ts >= minTimestamp) {
         break;
       }
       // else ts < min ts in memstore, therefore can use sequence id to truncate wal
-      if (last != null) {
-        tsToRemove.add(last);
-      }
       last = ts;
     }
     if (last != null) {
-      tsToRemove.add(last);
       res = timestampToWALSeqId.get(last);
     }
     for (Long ts : tsToRemove) {
@@ -315,10 +328,6 @@ public class CompactingMemStore extends AbstractMemStore {
 
   private boolean shouldFlushInMemory() {
     if(getActive().getSize() > 0.9*flushSizeLowerBound) { // size above flush threshold
-      String msg = "SHOULD FLUSH IN-MEMORY:  active size="+getActive().getSize();
-      msg += " threshold="+0.9*flushSizeLowerBound;
-      msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
-      msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
     return false;
@@ -391,7 +400,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private class InMemoryFlushWorker extends EventHandler {
 
     public InMemoryFlushWorker () {
-      super(getHRegion().getRegionServerServices(), EventType.RS_IN_MEMORY_FLUSH);
+      super(getHRegion().getRegionServerServices(), EventType.RS_IN_MEMORY_FLUSH_AND_COMPACTION);
     }
 
     @Override
@@ -600,4 +609,12 @@ public class CompactingMemStore extends AbstractMemStore {
     return lowest;
   }
 
+  // debug method
+  private void debug() {
+    String msg = "active size="+getActive().getSize();
+    msg += " threshold="+0.9*flushSizeLowerBound;
+    msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
+    msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
+    LOG.debug(msg);
+  }
 }
