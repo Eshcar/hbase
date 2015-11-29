@@ -672,7 +672,7 @@ public class TestReversibleScanners {
         }
       }
     }
-    memstore.snapshot(0);
+    memstore.snapshot();
     // Add another half of the keyvalues to snapshot
     for (int i = 0; i < ROWSIZE; i++) {
       for (int j = 0; j < QUALSIZE; j++) {

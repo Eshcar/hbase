@@ -48,15 +48,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A memstore implementation which supports in-memory compaction.
- * A compaction pipeline is added between the active set and the snapshot data structures;
- * it consists of a list of kv-sets that are subject to compaction.
- * The semantics of the prepare-for-flush phase are changed: instead of shifting the current active
- * set to snapshot, the active set is pushed into the pipeline.
- * Like the snapshot, all pipeline components are read-only; updates only affect the active set.
- * To ensure this property we take advantage of the existing blocking mechanism -- the active set
- * is pushed to the pipeline while holding updatesLock in exclusive mode.
- * Periodically, a compaction is applied in the background to all pipeline components resulting
- * in a single read-only component. The ``old'' components are discarded when no scanner is reading
+ * A compaction pipeline is added between the active segment and the snapshot segment;
+ * it consists of a list of segments that are subject to compaction.
+ * By compaction we mean removing overwritten entries that are not needed by scans.
+ * Like the snapshot, all pipeline segments are read-only; updates only affect the active segment.
+ * To ensure this property we take advantage of the existing blocking mechanism -- the active
+ * segment is pushed to the pipeline while holding updatesLock in exclusive mode.
+ * Periodically, a compaction is applied in the background to all pipeline segments resulting
+ * in a single read-only segment. The ``old'' components are discarded when no scanner is reading
  * them.
  */
 @InterfaceAudience.Private
@@ -66,7 +65,8 @@ public class CompactingMemStore extends AbstractMemStore {
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
-  private HStore store;
+  private HRegion region;
+  private Store store;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   private NavigableMap<Long, Long> timestampToWALSeqId;
@@ -77,8 +77,9 @@ public class CompactingMemStore extends AbstractMemStore {
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
-      HStore store) throws IOException {
+      HRegion region, Store store) throws IOException {
     super(conf, c);
+    this.region = region;
     this.store = store;
     this.pipeline = new CompactionPipeline(getHRegion());
     this.compactor = new MemStoreCompactor();
@@ -194,7 +195,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @Override
-  public LinkedList<StoreSegment> getListOfSegments() {
+  protected LinkedList<StoreSegment> getListOfSegments() {
     LinkedList<StoreSegment> pipelineList = pipeline.getStoreSegmentList();
     LinkedList<StoreSegment> list = new LinkedList<StoreSegment>();
     list.add(getActive());
@@ -313,7 +314,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private HRegion getHRegion() {
-    return store.getHRegion();
+    return region;
   }
 
   private byte[] getFamilyName() {
@@ -394,8 +395,8 @@ public class CompactingMemStore extends AbstractMemStore {
   /*----------------------------------------------------------------------
   * The in-memory-flusher thread performs the flush asynchronously.
   * There is at most one thread per memstore instance.
-  * It takes the updatesLock exclusively, pushes active into the pipeline,
-  * and compacts the pipeline.
+  * It takes the updatesLock exclusively, only to push active segment into the pipeline.
+  * It then compacts the pipeline without holding the lock.
   */
   private class InMemoryFlushWorker extends EventHandler {
 
@@ -569,14 +570,6 @@ public class CompactingMemStore extends AbstractMemStore {
       } while (hasMore && (!isInterrupted.get()));
     }
 
-  }
-
-  //----------------------------------------------------------------------
-  //methods for tests
-  //----------------------------------------------------------------------
-  @Override
-  boolean isCompactingMemStore() {
-    return true;
   }
 
   boolean isMemStoreFlushingInMemory() {

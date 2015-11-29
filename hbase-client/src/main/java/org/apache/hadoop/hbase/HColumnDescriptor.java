@@ -174,7 +174,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   /**
    * Default setting for whether to set the memstore of this column family as compacting or not.
    */
-  public static final boolean DEFAULT_IN_MEMORY_COMPACTION = false;
+  public static final boolean DEFAULT_IN_MEMORY_FLUSH_AND_COMPACTION = false;
 
   /**
    * Default setting for preventing deleted from being collected immediately.
@@ -261,8 +261,8 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
       DEFAULT_VALUES.put(TTL, String.valueOf(DEFAULT_TTL));
       DEFAULT_VALUES.put(BLOCKSIZE, String.valueOf(DEFAULT_BLOCKSIZE));
       DEFAULT_VALUES.put(HConstants.IN_MEMORY, String.valueOf(DEFAULT_IN_MEMORY));
-      DEFAULT_VALUES.put(HConstants.IN_MEMORY_COMPACTION, String.valueOf(
-          DEFAULT_IN_MEMORY_COMPACTION));
+      DEFAULT_VALUES.put(HConstants.IN_MEMORY_FLUSH_AND_COMPACTION, String.valueOf(
+          DEFAULT_IN_MEMORY_FLUSH_AND_COMPACTION));
       DEFAULT_VALUES.put(BLOCKCACHE, String.valueOf(DEFAULT_BLOCKCACHE));
       DEFAULT_VALUES.put(KEEP_DELETED_CELLS, String.valueOf(DEFAULT_KEEP_DELETED));
       DEFAULT_VALUES.put(DATA_BLOCK_ENCODING, String.valueOf(DEFAULT_DATA_BLOCK_ENCODING));
@@ -335,7 +335,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
     setMinVersions(DEFAULT_MIN_VERSIONS);
     setKeepDeletedCells(DEFAULT_KEEP_DELETED);
     setInMemory(DEFAULT_IN_MEMORY);
-    setCompacted(DEFAULT_IN_MEMORY_COMPACTION);
+    setCompacted(DEFAULT_IN_MEMORY_FLUSH_AND_COMPACTION);
     setBlockCacheEnabled(DEFAULT_BLOCKCACHE);
     setTimeToLive(DEFAULT_TTL);
     setCompressionType(Compression.Algorithm.valueOf(DEFAULT_COMPRESSION.toUpperCase()));
@@ -695,11 +695,11 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    *          for this column family in the HRegionServer cache
    */
   public boolean isInMemoryCompaction() {
-    String value = getValue(HConstants.IN_MEMORY_COMPACTION);
+    String value = getValue(HConstants.IN_MEMORY_FLUSH_AND_COMPACTION);
     if (value != null) {
       return Boolean.parseBoolean(value);
     }
-    return DEFAULT_IN_MEMORY_COMPACTION;
+    return DEFAULT_IN_MEMORY_FLUSH_AND_COMPACTION;
   }
 
   /**
@@ -708,7 +708,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @return this (for chained invocation)
    */
   public HColumnDescriptor setCompacted(boolean compacted) {
-    return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(compacted));
+    return setValue(HConstants.IN_MEMORY_FLUSH_AND_COMPACTION, Boolean.toString(compacted));
   }
 
   /**
@@ -720,15 +720,16 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   }
 
   /**
+   * This method is needed for testing
    * @param className the name of the class to be used as a memstore
    * @return this (for chained invocation)
    */
   public HColumnDescriptor setMemStoreClass(String className) {
 
     if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactingMemStore")) {
-      return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(true));
+      return setValue(HConstants.IN_MEMORY_FLUSH_AND_COMPACTION, Boolean.toString(true));
     }
-    else return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(false));
+    else return setValue(HConstants.IN_MEMORY_FLUSH_AND_COMPACTION, Boolean.toString(false));
   }
 
   public KeepDeletedCells getKeepDeletedCells() {

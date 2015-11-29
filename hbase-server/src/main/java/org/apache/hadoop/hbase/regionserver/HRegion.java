@@ -572,8 +572,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private long flushCheckInterval;
   // flushPerChanges is to prevent too many changes in memstore
   private long flushPerChanges;
-  // force flush size is set to be the average of flush size and blocking size
-  private long memStoreForceFlushSize;
+  // total flush size is set to be the average of flush size and blocking size
+  private long memStoreTotalFlushSize;
   private long blockingMemStoreSize;
   final long threadWakeFrequency;
   // Used to guard closes
@@ -761,7 +761,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         conf.getLong(HConstants.HREGION_MEMSTORE_BLOCK_MULTIPLIER,
                 HConstants.DEFAULT_HREGION_MEMSTORE_BLOCK_MULTIPLIER);
     // set force flush size to be between flush size and blocking size
-    this.memStoreForceFlushSize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
+    this.memStoreTotalFlushSize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
   }
 
   /**
@@ -3695,7 +3695,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     long memstoreTotalSize = this.getMemstoreTotalSize(); // including compaction pipelines
 
     // force flush
-    if (memstoreTotalSize > this.memStoreForceFlushSize) {
+    if (memstoreTotalSize > this.memStoreTotalFlushSize) {
       requestFlush();
       return;
     }

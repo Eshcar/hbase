@@ -109,7 +109,8 @@ public class DefaultMemStore extends AbstractMemStore {
     return list;
   }
 
-  @Override protected List<StoreSegment> getListOfSegments() throws IOException {
+  @Override
+  protected List<StoreSegment> getListOfSegments() throws IOException {
     List<StoreSegment> list = new ArrayList<StoreSegment>(2);
     list.add(0, getActive());
     list.add(1, getSnapshot());
@@ -129,13 +130,6 @@ public class DefaultMemStore extends AbstractMemStore {
     rollbackSnapshot(cell);
     rollbackActive(cell);
   }
-
-  //methods for tests
-  @Override
-  boolean isCompactingMemStore() {
-    return false;
-  }
-
 
   /**
    * @param cell Find the row that comes after this one.  If null, we return the

@@ -112,7 +112,7 @@ public class MemStoreWrapper {
    * @throws IOException
    */
   public void flushMemStore() throws IOException {
-    MemStoreSnapshot snapshot = memstore.snapshot(0);
+    MemStoreSnapshot snapshot = memstore.snapshot();
     internalFlushCache(snapshot);
     memstore.clearSnapshot(snapshot.getId());
   }

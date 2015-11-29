@@ -191,11 +191,11 @@ public class TestWalAndCompactingMemStoreFlush {
     String s = "\n\n----------------------------------\n"
         + "Upon initial insert and before any flush, size of CF1 is:"
         + cf1MemstoreSizePhaseI + ", is CF1 compacted memstore?:"
-        + region.getStore(FAMILY1).getMemStore().isCompactingMemStore() + ". Size of CF2 is:"
+        + isCompactingMemStore(region, FAMILY1) + ". Size of CF2 is:"
         + cf2MemstoreSizePhaseI + ", is CF2 compacted memstore?:"
-        + region.getStore(FAMILY2).getMemStore().isCompactingMemStore() + ". Size of CF3 is:"
+        + isCompactingMemStore(region, FAMILY2) + ". Size of CF3 is:"
         + cf3MemstoreSizePhaseI + ", is CF3 compacted memstore?:"
-        + region.getStore(FAMILY3).getMemStore().isCompactingMemStore() + "\n";
+        + isCompactingMemStore(region, FAMILY3) + "\n";
 
     // The overall smallest LSN in the region's memstores should be the same as
     // the LSN of the smallest edit in CF1
@@ -379,13 +379,9 @@ public class TestWalAndCompactingMemStoreFlush {
     HBaseTestingUtility.closeRegionAndWAL(region);
   }
 
-
-
-
-
-
-
-
+  private static boolean isCompactingMemStore(Region region, byte[] family) {
+    return !(region.getStore(family).getMemStore() instanceof DefaultMemStore);
+  }
 
   @Test(timeout = 180000)
   public void testSelectiveFlushWhenEnabledAndWALinCompaction() throws IOException {

@@ -134,7 +134,7 @@ public class TestDefaultMemStore extends TestCase {
         // Row count is same as column count.
         assertEquals(rowCount, result.size());
         if (count == 2) {
-          this.memstore.snapshot(0);
+          this.memstore.snapshot();
           LOG.info("Snapshotted");
         }
         result.clear();
@@ -161,7 +161,7 @@ public class TestDefaultMemStore extends TestCase {
         assertEquals("count=" + count + ", result=" + result, rowCount, result.size());
         count++;
         if (count == snapshotIndex) {
-          MemStoreSnapshot snapshot = this.memstore.snapshot(0);
+          MemStoreSnapshot snapshot = this.memstore.snapshot();
           this.memstore.clearSnapshot(snapshot.getId());
           // Added more rows into kvset.  But the scanner wont see these rows.
           addRows(this.memstore, ts);
@@ -198,13 +198,13 @@ public class TestDefaultMemStore extends TestCase {
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 2: both kvs in snapshot
-    this.memstore.snapshot(0);
+    this.memstore.snapshot();
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 3: first in snapshot second in kvset
     this.memstore = new DefaultMemStore();
     this.memstore.add(kv1.clone());
-    this.memstore.snapshot(0);
+    this.memstore.snapshot();
     this.memstore.add(kv2.clone());
     verifyScanAcrossSnapshot2(kv1, kv2);
   }
@@ -562,7 +562,7 @@ public class TestDefaultMemStore extends TestCase {
     memstore.add(new KeyValue(row, fam ,qf2, val));
     memstore.add(new KeyValue(row, fam ,qf3, val));
     //Creating a snapshot
-    memstore.snapshot(0);
+    memstore.snapshot();
     assertEquals(3, memstore.getSnapshot().getCellsCount());
     //Adding value to "new" memstore
     assertEquals(0, memstore.getActive().getCellsCount());
@@ -980,7 +980,7 @@ public class TestDefaultMemStore extends TestCase {
   private long runSnapshot(final DefaultMemStore hmc) throws UnexpectedStateException {
     // Save off old state.
     int oldHistorySize = hmc.getSnapshot().getCellsCount();
-    MemStoreSnapshot snapshot = hmc.snapshot(0);
+    MemStoreSnapshot snapshot = hmc.snapshot();
     // Make some assertions about what just happened.
     assertTrue("History size has not increased", oldHistorySize < hmc.getSnapshot().getCellsCount
         ());

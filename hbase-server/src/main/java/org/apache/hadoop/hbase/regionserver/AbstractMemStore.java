@@ -100,13 +100,6 @@ public abstract class AbstractMemStore implements MemStore {
    */
   public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater);
 
-  //method for tests
-  /**
-   * Returns true if the memstore supports in-memory compaction
-   * @return true if the memstore supports in-memory compaction
-   */
-  abstract boolean isCompactingMemStore();
-
   protected long deepOverhead() {
     return DEEP_OVERHEAD;
   }
@@ -169,6 +162,14 @@ public abstract class AbstractMemStore implements MemStore {
     Cell toAdd = maybeCloneWithAllocator(deleteCell);
     long s = internalAdd(toAdd);
     return s;
+  }
+
+  /**
+   * An override on snapshot so the no arg version of the method implies zero seq num,
+   * like for cases without wal
+   */
+  public MemStoreSnapshot snapshot() {
+    return snapshot(0);
   }
 
   /**

@@ -38,7 +38,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * The pipeline version is updated whenever swapping buckets or pulling the bucket at the tail.
  */
 @InterfaceAudience.Private
-public class CompactionPipeline {
+class CompactionPipeline {
   private static final Log LOG = LogFactory.getLog(CompactionPipeline.class);
 
   private final HRegion region;

@@ -138,7 +138,7 @@ public class TestCompactingMemStore extends TestCase {
     this.region = hbaseUtility.createTestRegion("foobar", hcd);
     this.store = new HStore(region, hcd, conf);
     this.cms = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR,
-        store);
+        region, store);
     chunkPool = MemStoreChunkPool.getPool(conf);
     assertTrue(chunkPool != null);
   }
@@ -203,7 +203,7 @@ public class TestCompactingMemStore extends TestCase {
         if (count == 2) {
           // the test should be still correct although the compaction is starting in the background
           // there should be nothing to compact
-          this.cms.snapshot(0);
+          this.cms.snapshot();
           LOG.info("Snapshotted");
         }
         result.clear();
@@ -233,7 +233,7 @@ public class TestCompactingMemStore extends TestCase {
         assertEquals("count=" + count + ", result=" + result, rowCount, result.size());
         count++;
         if (count == snapshotIndex) {
-          MemStoreSnapshot snapshot = this.cms.snapshot(0);
+          MemStoreSnapshot snapshot = this.cms.snapshot();
           this.cms.clearSnapshot(snapshot.getId());
           // Added more rows into kvset.  But the scanner wont see these rows.
           addRows(this.cms, ts);
@@ -271,17 +271,17 @@ public class TestCompactingMemStore extends TestCase {
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 2: both kvs in snapshot
-    this.cms.snapshot(0);
+    this.cms.snapshot();
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 3: first in snapshot second in kvset
     this.cms = new CompactingMemStore(HBaseConfiguration.create(),
-        CellComparator.COMPARATOR, store);
+        CellComparator.COMPARATOR, region, store);
     this.cms.add(kv1.clone());
     // As compaction is starting in the background the repetition
     // of the k1 might be removed BUT the scanners created earlier
     // should look on the OLD MutableCellSetSegment, so this should be OK...
-    this.cms.snapshot(0);
+    this.cms.snapshot();
     this.cms.add(kv2.clone());
     verifyScanAcrossSnapshot2(kv1,kv2);
   }
@@ -592,7 +592,7 @@ public class TestCompactingMemStore extends TestCase {
     cms.flushInMemory();
     assertEquals(0, cms.getSnapshot().getCellsCount());
     //Creating a snapshot
-    cms.snapshot(0);
+    cms.snapshot();
     assertEquals(3, cms.getSnapshot().getCellsCount());
     //Adding value to "new" memstore
     assertEquals(0, cms.getActive().getCellsCount());
@@ -972,8 +972,8 @@ public class TestCompactingMemStore extends TestCase {
     long oldHistorySize = hmc.getSnapshot().getSize();
     long prevTimeStamp = hmc.timeOfOldestEdit();
 
-    hmc.snapshot(0);
-    MemStoreSnapshot snapshot = hmc.snapshot(0);
+    hmc.snapshot();
+    MemStoreSnapshot snapshot = hmc.snapshot();
     if (useForce) {
       // Make some assertions about what just happened.
       assertTrue("History size has not increased", oldHistorySize < snapshot.getSize());
@@ -1018,7 +1018,7 @@ public class TestCompactingMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    MemStoreSnapshot snapshot = cms.snapshot(0);
+    MemStoreSnapshot snapshot = cms.snapshot();
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -1053,7 +1053,7 @@ public class TestCompactingMemStore extends TestCase {
     cms.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    MemStoreSnapshot snapshot = cms.snapshot(0);
+    MemStoreSnapshot snapshot = cms.snapshot();
     assertEquals(3, cms.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -1081,7 +1081,7 @@ public class TestCompactingMemStore extends TestCase {
 
     // Creating another snapshot
 
-    snapshot = cms.snapshot(0);
+    snapshot = cms.snapshot();
     // Adding more value
     cms.add(new KeyValue(row, fam, qf6, val));
     cms.add(new KeyValue(row, fam, qf7, val));
@@ -1156,10 +1156,10 @@ public class TestCompactingMemStore extends TestCase {
 
     // Creating another snapshot
 
-    MemStoreSnapshot snapshot = cms.snapshot(0);
+    MemStoreSnapshot snapshot = cms.snapshot();
     cms.clearSnapshot(snapshot.getId());
 
-    snapshot = cms.snapshot(0);
+    snapshot = cms.snapshot();
     // Adding more value
     cms.add(new KeyValue(row, fam, qf2, 4, val));
     cms.add(new KeyValue(row, fam, qf3, 4, val));
@@ -1196,7 +1196,7 @@ public class TestCompactingMemStore extends TestCase {
     assertEquals(528, region.getMemstoreTotalSize());
 
     size = cms.getFlushableSize();
-    MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     ImmutableSegment s = cms.getSnapshot();
     assertEquals(3, s.getCellsCount());
@@ -1235,7 +1235,7 @@ public class TestCompactingMemStore extends TestCase {
     assertEquals(704, region.getMemstoreTotalSize());
 
     size = cms.getFlushableSize();
-    MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     ImmutableSegment s = cms.getSnapshot();
     assertEquals(4, s.getCellsCount());
@@ -1299,7 +1299,7 @@ public class TestCompactingMemStore extends TestCase {
     assertEquals(704, region.getMemstoreTotalSize());
 
     size = cms.getFlushableSize();
-    MemStoreSnapshot snapshot = cms.snapshot(0); // push keys to snapshot
+    MemStoreSnapshot snapshot = cms.snapshot(); // push keys to snapshot
 //    region.addAndGetGlobalMemstoreSize(-size);  // simulate flusher
     ImmutableSegment s = cms.getSnapshot();
     assertEquals(4, s.getCellsCount());

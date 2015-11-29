@@ -236,7 +236,7 @@ public class HStore implements Store {
       className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
     }
     if (className.equalsIgnoreCase(CompactingMemStore.class.getName())) {
-      this.memstore = new CompactingMemStore(conf, this.comparator, this);
+      this.memstore = new CompactingMemStore(conf, this.comparator, this.getHRegion(), this);
     } else {
       this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
           Configuration.class, CellComparator.class }, new Object[] { conf, this.comparator });
@@ -914,7 +914,7 @@ public class HStore implements Store {
   void snapshot() {
     this.lock.writeLock().lock();
     try {
-      this.memstore.snapshot(0);
+      this.memstore.snapshot();
     } finally {
       this.lock.writeLock().unlock();
     }
