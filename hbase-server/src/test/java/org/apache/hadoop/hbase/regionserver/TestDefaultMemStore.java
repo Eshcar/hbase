@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-
 /** memstore test case */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestDefaultMemStore extends TestCase {
