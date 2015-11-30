@@ -59,9 +59,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 /** memstore test case */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestDefaultMemStore extends TestCase {
@@ -735,41 +732,6 @@ public class TestDefaultMemStore extends TestCase {
 
     assertEquals(2, memstore.getActive().getCellsCount());
     assertEquals(delete, memstore.getActive().first());
-  }
-
-  ////////////////////////////////////
-  //Test for timestamps
-  ////////////////////////////////////
-
-  /**
-   * Test to ensure correctness when using Memstore with multiple timestamps
-   */
-  public void testMultipleTimestamps() throws Exception {
-    long[] timestamps = new long[] {20,10,5,1};
-    Scan scan = new Scan();
-
-    for (long timestamp: timestamps)
-      addRows(memstore,timestamp);
-
-    byte[] fam = Bytes.toBytes("fam");
-    HColumnDescriptor hcd = mock(HColumnDescriptor.class);
-    when(hcd.getName()).thenReturn(fam);
-    Store store = mock(Store.class);
-    when(store.getFamily()).thenReturn(hcd);
-    scan.setColumnFamilyTimeRange(fam, 0, 2);
-    assertTrue(memstore.shouldSeek(scan, store, Long.MIN_VALUE));
-
-    scan.setColumnFamilyTimeRange(fam, 20, 82);
-    assertTrue(memstore.shouldSeek(scan, store, Long.MIN_VALUE));
-
-    scan.setColumnFamilyTimeRange(fam, 10, 20);
-    assertTrue(memstore.shouldSeek(scan, store, Long.MIN_VALUE));
-
-    scan.setColumnFamilyTimeRange(fam, 8, 12);
-    assertTrue(memstore.shouldSeek(scan, store, Long.MIN_VALUE));
-
-    scan.setColumnFamilyTimeRange(fam, 28, 42);
-    assertTrue(!memstore.shouldSeek(scan, store, Long.MIN_VALUE));
   }
 
   ////////////////////////////////////
