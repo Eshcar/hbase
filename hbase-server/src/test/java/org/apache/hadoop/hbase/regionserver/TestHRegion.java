@@ -179,7 +179,6 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-
 /**
  * Basic stand-alone testing of HRegion.  No clusters!
  *
