@@ -85,11 +85,11 @@ public abstract class AbstractMemStore implements MemStore {
   * Calculate how the MemStore size has changed.  Includes overhead of the
   * backing Map.
   * @param cell
-  * @param notpresent True if the cell was NOT present in the set.
+  * @param notPresent True if the cell was NOT present in the set.
   * @return change in size
   */
-  static long heapSizeChange(final Cell cell, final boolean notpresent) {
-    return notpresent ? ClassSize.align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY
+  static long heapSizeChange(final Cell cell, final boolean notPresent) {
+    return notPresent ? ClassSize.align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY
         + CellUtil.estimatedHeapSizeOf(cell)) : 0;
   }
 
@@ -117,18 +117,18 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
-   * Update or insert the specified KeyValues.
+   * Update or insert the specified Cells.
    * <p>
-   * For each KeyValue, insert into MemStore.  This will atomically upsert the
-   * value for that row/family/qualifier.  If a KeyValue did already exist,
+   * For each Cell, insert into MemStore.  This will atomically upsert the
+   * value for that row/family/qualifier.  If a Cell did already exist,
    * it will then be removed.
    * <p>
    * Currently the memstoreTS is kept at 0 so as each insert happens, it will
    * be immediately visible.  May want to change this so it is atomic across
-   * all KeyValues.
+   * all Cells.
    * <p>
    * This is called under row lock, so Get operations will still see updates
-   * atomically.  Scans will only see each KeyValue update as atomic.
+   * atomically.  Scans will only see each Cell update as atomic.
    *
    * @param cells
    * @param readpoint readpoint below which we can safely remove duplicate KVs

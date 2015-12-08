@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 /**
  * ImmutableSegment is an abstract class that extends the API supported by a {@link StoreSegment},
@@ -30,6 +31,7 @@ import org.apache.hadoop.hbase.Cell;
  * segment, e.g. {@link StoreSegment#rollback(Cell)} and {@link StoreSegment#getCellSet()}, which
  * can be very inefficient.
  */
+@InterfaceAudience.Private
 public abstract class ImmutableSegment extends StoreSegment {
 
   public ImmutableSegment(StoreSegment segment) {
