@@ -19,11 +19,6 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -36,6 +31,10 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The MemStore holds in-memory modifications to the Store.  Modifications
@@ -144,7 +143,6 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
-    return;
   }
 
   /**
@@ -200,9 +198,6 @@ public class DefaultMemStore extends AbstractMemStore {
     LOG.info("memstore2 estimated size=" + size);
     final int seconds = 30;
     LOG.info("Waiting " + seconds + " seconds while heap dump is taken");
-    //for (int i = 0; i < seconds; i++) {
-      // Thread.sleep(1000);
-    //}
     LOG.info("Exiting.");
   }
 

@@ -20,12 +20,14 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 import java.util.SortedSet;
 
 /**
  * An abstraction of a mutable segment in memstore, specifically the active segment.
  */
+@InterfaceAudience.Private
 public abstract class MutableSegment extends StoreSegment {
 
   /**

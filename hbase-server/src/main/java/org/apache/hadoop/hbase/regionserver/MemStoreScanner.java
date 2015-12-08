@@ -213,7 +213,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public synchronized boolean backwardSeek(Cell cell) throws IOException {
-    initiBackwardHeapIfNeeded(cell, false);
+    initBackwardHeapIfNeeded(cell, false);
     return backwardHeap.backwardSeek(cell);
   }
 
@@ -225,7 +225,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public synchronized boolean seekToPreviousRow(Cell cell) throws IOException {
-    initiBackwardHeapIfNeeded(cell, false);
+    initBackwardHeapIfNeeded(cell, false);
     if (backwardHeap.peek() == null) restartBackwardHeap(cell);
     return backwardHeap.seekToPreviousRow(cell);
   }
@@ -237,7 +237,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     // however seekToLastRow() was implemented in internal MemStoreScanner
     // so I wonder whether we need to come with our own workaround, or to update
     // ReversedKeyValueHeap
-    return initiBackwardHeapIfNeeded(KeyValue.LOWESTKEY, true);
+    return initBackwardHeapIfNeeded(KeyValue.LOWESTKEY, true);
   }
 
   /**
@@ -286,11 +286,11 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   /**
    * Checks whether the type of the scan suits the assumption of moving backward
    */
-  private boolean initiBackwardHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
+  private boolean initBackwardHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
     boolean res = false;
     if (toLast && (type != Type.UNDEFINED))
       throw new IllegalStateException(
-          "Wrong usage of initiBackwardHeapIfNeeded in parameters. The type is:" + type.toString());
+          "Wrong usage of initBackwardHeapIfNeeded in parameters. The type is:" + type.toString());
     if (type == Type.UNDEFINED) {
       // In case we started from peek, release the forward heap
       // and build backward. Set the correct type. Thus this turn
@@ -300,9 +300,10 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         forwardHeap = null;
         // before building the heap seek for the relevant key on the scanners,
         // for the heap to be built from the scanners correctly
-        for (StoreSegmentScanner scan : scanners)
+        for (StoreSegmentScanner scan : scanners) {
           if (toLast) res |= scan.seekToLastRow();
           else res |= scan.backwardSeek(cell);
+        }
         this.backwardHeap =
             new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
         type = Type.USER_SCAN_BACKWARD;

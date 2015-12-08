@@ -42,8 +42,8 @@ final class MutableCellSetSegment extends MutableSegment {
   private final CellComparator comparator;
   private final AtomicLong size;
 
-  // private c-tors. Instantiate objects only using factory
-  public MutableCellSetSegment(CellSet cellSet, MemStoreLAB memStoreLAB, long size,
+  // Instantiate objects only using factory
+  MutableCellSetSegment(CellSet cellSet, MemStoreLAB memStoreLAB, long size,
       CellComparator comparator) {
     this.cellSet = cellSet;
     this.memStoreLAB = memStoreLAB;

@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 /**
@@ -28,6 +29,7 @@ import org.apache.hadoop.hbase.util.CollectionBackedScanner;
  * pipeline, that consists only of immutable segments.
  * The compaction may generate different type of immutable segment
  */
+@InterfaceAudience.Private
 public class ImmutableSegmentAdapter extends ImmutableSegment {
 
   final private MutableSegment adaptee;
