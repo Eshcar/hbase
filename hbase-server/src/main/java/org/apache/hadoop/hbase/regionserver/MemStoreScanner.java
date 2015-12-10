@@ -84,16 +84,16 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     this.readPoint = readPoint;
     this.type = type;
     switch (type) {
-    case UNDEFINED:
-    case USER_SCAN_FORWARD:
-    case COMPACT_FORWARD:
-      this.forwardHeap = new KeyValueHeap(scanners, ms.getComparator());
-      break;
-    case USER_SCAN_BACKWARD:
-      this.backwardHeap = new ReversedKeyValueHeap(scanners, ms.getComparator());
-      break;
-    default:
-      throw new IllegalArgumentException("Unknown scanner type in MemStoreScanner");
+      case UNDEFINED:
+      case USER_SCAN_FORWARD:
+      case COMPACT_FORWARD:
+        this.forwardHeap = new KeyValueHeap(scanners, ms.getComparator());
+        break;
+      case USER_SCAN_BACKWARD:
+        this.backwardHeap = new ReversedKeyValueHeap(scanners, ms.getComparator());
+        break;
+      default:
+        throw new IllegalArgumentException("Unknown scanner type in MemStoreScanner");
     }
     this.backwardReferenceToMemStore = ms;
     this.scanners = scanners;
@@ -108,7 +108,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public synchronized Cell peek() {
-    if (type == Type.USER_SCAN_BACKWARD) return backwardHeap.peek();
+    if (type == Type.USER_SCAN_BACKWARD) {
+      return backwardHeap.peek();
+    }
     return forwardHeap.peek();
   }
 
@@ -226,7 +228,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   @Override
   public synchronized boolean seekToPreviousRow(Cell cell) throws IOException {
     initBackwardHeapIfNeeded(cell, false);
-    if (backwardHeap.peek() == null) restartBackwardHeap(cell);
+    if (backwardHeap.peek() == null) {
+      restartBackwardHeap(cell);
+    }
     return backwardHeap.seekToPreviousRow(cell);
   }
 
@@ -242,17 +246,19 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
   /**
    * Check if this memstore may contain the required keys
-   *
-   * @param scan
    * @return False if the key definitely does not exist in this Memstore
    */
   @Override
   public synchronized boolean shouldUseScanner(Scan scan, Store store, long oldestUnexpiredTS) {
 
-    if (type == Type.COMPACT_FORWARD) return true;
+    if (type == Type.COMPACT_FORWARD) {
+      return true;
+    }
 
     for (StoreSegmentScanner sc : scanners) {
-      if (sc.shouldSeek(scan, oldestUnexpiredTS)) return true;
+      if (sc.shouldSeek(scan, oldestUnexpiredTS)) {
+        return true;
+      }
     }
     return false;
   }
@@ -276,8 +282,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   private boolean restartBackwardHeap(Cell cell) throws IOException {
     boolean res = false;
-    for (StoreSegmentScanner scan : scanners)
+    for (StoreSegmentScanner scan : scanners) {
       res |= scan.seekToPreviousRow(cell);
+    }
     this.backwardHeap =
         new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
     return res;
@@ -288,9 +295,10 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   private boolean initBackwardHeapIfNeeded(Cell cell, boolean toLast) throws IOException {
     boolean res = false;
-    if (toLast && (type != Type.UNDEFINED))
+    if (toLast && (type != Type.UNDEFINED)) {
       throw new IllegalStateException(
           "Wrong usage of initBackwardHeapIfNeeded in parameters. The type is:" + type.toString());
+    }
     if (type == Type.UNDEFINED) {
       // In case we started from peek, release the forward heap
       // and build backward. Set the correct type. Thus this turn
@@ -301,8 +309,11 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         // before building the heap seek for the relevant key on the scanners,
         // for the heap to be built from the scanners correctly
         for (StoreSegmentScanner scan : scanners) {
-          if (toLast) res |= scan.seekToLastRow();
-          else res |= scan.backwardSeek(cell);
+          if (toLast) {
+            res |= scan.seekToLastRow();
+          } else {
+            res |= scan.backwardSeek(cell);
+          }
         }
         this.backwardHeap =
             new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
@@ -310,8 +321,9 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
       }
     }
 
-    if (type == Type.USER_SCAN_FORWARD)
+    if (type == Type.USER_SCAN_FORWARD) {
       throw new IllegalStateException("Traversing backward with forward scan");
+    }
     return res;
   }
 
@@ -319,9 +331,12 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * Checks whether the type of the scan suits the assumption of moving forward
    */
   private void assertForward() throws IllegalStateException {
-    if (type == Type.UNDEFINED) type = Type.USER_SCAN_FORWARD;
+    if (type == Type.UNDEFINED) {
+      type = Type.USER_SCAN_FORWARD;
+    }
 
-    if (type == Type.USER_SCAN_BACKWARD)
+    if (type == Type.USER_SCAN_BACKWARD) {
       throw new IllegalStateException("Traversing forward with backward scan");
+    }
   }
 }

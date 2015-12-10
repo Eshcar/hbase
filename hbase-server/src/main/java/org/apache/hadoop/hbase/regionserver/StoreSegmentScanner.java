@@ -37,8 +37,6 @@ public interface StoreSegmentScanner extends KeyValueScanner {
 
   /**
    * Returns whether the given scan should seek in this segment
-   * @param scan
-   * @param oldestUnexpiredTS
    * @return whether the given scan should seek in this segment
    */
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS);

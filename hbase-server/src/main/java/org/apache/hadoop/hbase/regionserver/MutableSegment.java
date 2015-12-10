@@ -39,7 +39,6 @@ public abstract class MutableSegment extends StoreSegment {
 
   /**
    * Increases the heap size counter of the segment by the given delta
-   * @param delta
    */
   public abstract void incSize(long delta);
 

@@ -62,7 +62,6 @@ public abstract class StoreSegment {
 
   /**
    * Creates the scanner that is able to scan the concrete segment
-   * @param readPoint
    * @return a scanner for the given read point
    */
   public abstract StoreSegmentScanner getScanner(long readPoint);
@@ -81,21 +80,18 @@ public abstract class StoreSegment {
 
   /**
    * Adds the given cell into the segment
-   * @param cell
    * @return the change in the heap size
    */
   public abstract long add(Cell cell);
 
   /**
    * Removes the given cell from the segment
-   * @param cell
    * @return the change in the heap size
    */
   public abstract long rollback(Cell cell);
 
   /**
    * Returns the first cell in the segment that has equal or greater key than the given cell
-   * @param cell
    * @return the first cell in the segment that has equal or greater key than the given cell
    */
   public abstract Cell getFirstAfter(Cell cell);
@@ -108,14 +104,12 @@ public abstract class StoreSegment {
   /**
    * If the segment has a memory allocator the cell is being cloned to this space, and returned;
    * otherwise the given cell is returned
-   * @param cell
    * @return either the given cell or its clone
    */
   public abstract Cell maybeCloneWithAllocator(Cell cell);
 
   /**
    * Setting the heap size of the segment - used to account for different class overheads
-   * @param size
    * @return this object
    */
   public abstract StoreSegment setSize(long size);
@@ -135,7 +129,6 @@ public abstract class StoreSegment {
   // Debug methods
   /**
    * Dumps all cells of the segment into the given log
-   * @param log
    */
   public abstract void dump(Log log);
 

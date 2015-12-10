@@ -106,7 +106,7 @@ public abstract class AbstractMemStore implements MemStore {
 
   /**
    * Write an update
-   * @param cell
+   * @param cell the cell to be added
    * @return approximate size of the passed cell & newly added cell which maybe different than the
    *         passed-in cell
    */
@@ -130,7 +130,7 @@ public abstract class AbstractMemStore implements MemStore {
    * This is called under row lock, so Get operations will still see updates
    * atomically.  Scans will only see each Cell update as atomic.
    *
-   * @param cells
+   * @param cells the cells to be updated
    * @param readpoint readpoint below which we can safely remove duplicate KVs
    * @return change in memstore size
    */
@@ -154,7 +154,7 @@ public abstract class AbstractMemStore implements MemStore {
 
   /**
    * Write a delete
-   * @param deleteCell
+   * @param deleteCell the cell to be deleted
    * @return approximate size of the passed key and value.
    */
   @Override
@@ -175,7 +175,6 @@ public abstract class AbstractMemStore implements MemStore {
   /**
    * The passed snapshot was successfully persisted; it can be let go.
    * @param id Id of the snapshot to clean out.
-   * @throws UnexpectedStateException
    * @see MemStore#snapshot(long)
    */
   @Override
@@ -272,18 +271,18 @@ public abstract class AbstractMemStore implements MemStore {
 
 
   /**
-   * Inserts the specified KeyValue into MemStore and deletes any existing
-   * versions of the same row/family/qualifier as the specified KeyValue.
+   * Inserts the specified Cell into MemStore and deletes any existing
+   * versions of the same row/family/qualifier as the specified Cell.
    * <p>
-   * First, the specified KeyValue is inserted into the Memstore.
+   * First, the specified Cell is inserted into the Memstore.
    * <p>
-   * If there are any existing KeyValues in this MemStore with the same row,
+   * If there are any existing Cell in this MemStore with the same row,
    * family, and qualifier, they are removed.
    * <p>
    * Callers must hold the read lock.
    *
-   * @param cell
-   * @param readpoint
+   * @param cell the cell to be updated
+   * @param readpoint readpoint below which we can safely remove duplicate KVs
    * @return change in size of MemStore
    */
   private long upsert(Cell cell, long readpoint) {
@@ -366,8 +365,9 @@ public abstract class AbstractMemStore implements MemStore {
     SortedSet<Cell> tail = key == null? set: set.tailSet(key);
     // Iterate until we fall into the next row; i.e. move off current row
     for (Cell cell: tail) {
-      if (comparator.compareRows(cell, key) <= 0)
+      if (comparator.compareRows(cell, key) <= 0) {
         continue;
+      }
       // Note: Not suppressing deletes or expired cells.  Needs to be handled
       // by higher up functions.
       result = cell;
@@ -383,13 +383,6 @@ public abstract class AbstractMemStore implements MemStore {
    * store will ensure that the insert/delete each are atomic. A scanner/reader will either
    * get the new value, or the old value and all readers will eventually only see the new
    * value after the old was removed.
-   *
-   * @param row
-   * @param family
-   * @param qualifier
-   * @param newValue
-   * @param now
-   * @return  Timestamp
    */
   @VisibleForTesting
   @Override
@@ -491,14 +484,12 @@ public abstract class AbstractMemStore implements MemStore {
    * Returns a list of Store segment scanners, one per each store segment
    * @param readPt the version number required to initialize the scanners
    * @return a list of Store segment scanners, one per each store segment
-   * @throws IOException
    */
   protected abstract List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
 
   /**
    * Returns an ordered list of segments from most recent to oldest in memstore
    * @return an ordered list of segments from most recent to oldest in memstore
-   * @throws IOException
    */
   protected abstract List<StoreSegment> getListOfSegments() throws IOException;
 
