@@ -38,7 +38,6 @@ interface StoreFlushContext {
    * Requires pausing writes.
    *
    * A very short operation.
-   * @param flushOpSeqId
    */
   void prepareFlushToDisk(long flushOpSeqId);
 

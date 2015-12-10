@@ -179,11 +179,11 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    *                          this query, based on TTL
    * @return true if the scanner should be included in the query
    * <p/>
-   * This functionality should be resolved in the higher level which is
-   * MemStoreScanner, currently returns true as default. Doesn't throw
-   * IllegalStateException in order not to change the signature of the
-   * overridden method
    */
+  // This functionality should be resolved in the higher level which is
+  // MemStoreScanner, currently returns true as default. Doesn't throw
+  // IllegalStateException in order not to change the signature of the
+  // overridden method
   @Override
   public boolean shouldUseScanner(Scan scan, Store store, long oldestUnexpiredTS) {
     return true;
@@ -201,7 +201,6 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    * This scanner is working solely on the in-memory MemStore therefore this
    * interface is not relevant.
    *
-   * @param c
    * @param forward  do a forward-only "reseek" instead of a random-access seek
    * @param useBloom whether to enable multi-column Bloom filter optimization
    */
@@ -249,8 +248,7 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
   /**
    * ---------------------------------------------------------
    *
-   * @return true if this is a file scanner. Otherwise a memory scanner is
-   * assumed.
+   * @return true if this is a file scanner. Otherwise a memory scanner is assumed.
    */
   @Override
   public boolean isFileScanner() {
@@ -266,9 +264,8 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    * otherwise seek the scanner at the first Cell of the row which is the
    * previous row of specified KeyValue
    *
-   * @param key seek KeyValue
-   * @return true if the scanner is at the valid KeyValue, false if such
-   * KeyValue does not exist
+   * @param key seek Cell
+   * @return true if the scanner is at the valid KeyValue, false if such Cell does not exist
    */
   @Override
   public boolean backwardSeek(Cell key) throws IOException {
@@ -287,7 +284,7 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    *
    * @param cell seek value
    * @return true if the scanner at the first valid Cell of previous row,
-   * false if not existing such Cell
+   *     false if not existing such Cell
    */
   @Override
   public boolean seekToPreviousRow(Cell cell) throws IOException {
@@ -324,7 +321,6 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    * Seek the scanner at the first KeyValue of last row
    *
    * @return true if scanner has values left, false if the underlying data is empty
-   * @throws java.io.IOException
    */
   @Override
   public boolean seekToLastRow() throws IOException {
@@ -347,9 +343,8 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
    * ---------------------------------------------------------
    *
    * @return the next key in the index (the key to seek to the next block)
-   * if known, or null otherwise
-   * <p/>
-   * Not relevant for in-memory scanner
+   *     if known, or null otherwise
+   *     Not relevant for in-memory scanner
    */
   @Override
   public Cell getNextIndexedKey() {

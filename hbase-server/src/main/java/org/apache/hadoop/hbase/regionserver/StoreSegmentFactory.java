@@ -36,7 +36,9 @@ public final class StoreSegmentFactory {
 
   private StoreSegmentFactory() {}
   private static StoreSegmentFactory instance = new StoreSegmentFactory();
-  public static StoreSegmentFactory instance() { return instance; }
+  public static StoreSegmentFactory instance() {
+    return instance;
+  }
 
   public ImmutableSegment createImmutableSegment(final Configuration conf,
       final CellComparator comparator, long size) {
@@ -70,8 +72,8 @@ public final class StoreSegmentFactory {
   private MutableSegment generateMutableSegment(
       final Configuration conf, CellComparator comparator, MemStoreLAB memStoreLAB, long size) {
     // TBD use configuration to set type of segment
-      CellSet set = new CellSet(comparator);
-      return new MutableCellSetSegment(set, memStoreLAB, size, comparator);
+    CellSet set = new CellSet(comparator);
+    return new MutableCellSetSegment(set, memStoreLAB, size, comparator);
   }
 
   private MemStoreLAB getMemStoreLAB(Configuration conf) {
