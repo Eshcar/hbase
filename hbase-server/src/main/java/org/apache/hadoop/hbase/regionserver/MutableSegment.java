@@ -28,7 +28,7 @@ import java.util.SortedSet;
  * An abstraction of a mutable segment in memstore, specifically the active segment.
  */
 @InterfaceAudience.Private
-public abstract class MutableSegment extends StoreSegment {
+public abstract class MutableSegment extends Segment {
 
   /**
    * Returns a subset of the segment cell set, which starts with the given cell

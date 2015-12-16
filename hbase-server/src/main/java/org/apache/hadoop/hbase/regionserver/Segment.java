@@ -31,17 +31,17 @@ import org.apache.hadoop.hbase.client.Scan;
  * segments from active set to snapshot set in the default implementation.
  */
 @InterfaceAudience.Private
-public abstract class StoreSegment {
+public abstract class Segment {
 
   private final TimeRangeTracker timeRangeTracker;
   protected volatile boolean tagsPresent;
 
-  protected StoreSegment() {
+  protected Segment() {
     this.timeRangeTracker = new TimeRangeTracker();
     this.tagsPresent = false;
   }
 
-  protected StoreSegment(StoreSegment segment) {
+  protected Segment(Segment segment) {
     this.timeRangeTracker = segment.getTimeRangeTracker();
     this.tagsPresent = segment.isTagsPresent();
   }
@@ -64,7 +64,7 @@ public abstract class StoreSegment {
    * Creates the scanner that is able to scan the concrete segment
    * @return a scanner for the given read point
    */
-  public abstract StoreSegmentScanner getScanner(long readPoint);
+  public abstract SegmentScanner getScanner(long readPoint);
 
   /**
    * Returns whether the segment has any cells
@@ -112,7 +112,7 @@ public abstract class StoreSegment {
    * Setting the heap size of the segment - used to account for different class overheads
    * @return this object
    */
-  public abstract StoreSegment setSize(long size);
+  public abstract Segment setSize(long size);
 
   /**
    * Returns the heap size of the segment

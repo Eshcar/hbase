@@ -90,7 +90,7 @@ public class DefaultMemStore extends AbstractMemStore {
     } else {
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       if (!getActive().isEmpty()) {
-        ImmutableSegment immutableSegment = StoreSegmentFactory.instance().
+        ImmutableSegment immutableSegment = SegmentFactory.instance().
             createImmutableSegment(getConfiguration(), getActive());
         setSnapshot(immutableSegment);
         setSnapshotSize(keySize());
@@ -102,16 +102,16 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  protected List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException {
-    List<StoreSegmentScanner> list = new ArrayList<StoreSegmentScanner>(2);
+  protected List<SegmentScanner> getListOfScanners(long readPt) throws IOException {
+    List<SegmentScanner> list = new ArrayList<SegmentScanner>(2);
     list.add(0, getActive().getScanner(readPt));
     list.add(1, getSnapshot().getScanner(readPt));
     return list;
   }
 
   @Override
-  protected List<StoreSegment> getListOfSegments() throws IOException {
-    List<StoreSegment> list = new ArrayList<StoreSegment>(2);
+  protected List<Segment> getListOfSegments() throws IOException {
+    List<Segment> list = new ArrayList<Segment>(2);
     list.add(0, getActive());
     list.add(1, getSnapshot());
     return list;
@@ -142,7 +142,7 @@ public class DefaultMemStore extends AbstractMemStore {
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 
-  @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
+  @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfMoreRecent) {
   }
 
   /**

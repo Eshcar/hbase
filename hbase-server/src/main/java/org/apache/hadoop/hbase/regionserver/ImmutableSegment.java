@@ -23,18 +23,18 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 /**
- * ImmutableSegment is an abstract class that extends the API supported by a {@link StoreSegment},
+ * ImmutableSegment is an abstract class that extends the API supported by a {@link Segment},
  * and is not needed for a {@link MutableSegment}. Specifically, the method
  * {@link ImmutableSegment#getScannerForMemStoreSnapshot()} builds a special scanner for the
  * {@link MemStoreSnapshot} object.
  * In addition, this class overrides methods that are not likely to be supported by an immutable
- * segment, e.g. {@link StoreSegment#rollback(Cell)} and {@link StoreSegment#getCellSet()}, which
+ * segment, e.g. {@link Segment#rollback(Cell)} and {@link Segment#getCellSet()}, which
  * can be very inefficient.
  */
 @InterfaceAudience.Private
-public abstract class ImmutableSegment extends StoreSegment {
+public abstract class ImmutableSegment extends Segment {
 
-  public ImmutableSegment(StoreSegment segment) {
+  public ImmutableSegment(Segment segment) {
     super(segment);
   }
 

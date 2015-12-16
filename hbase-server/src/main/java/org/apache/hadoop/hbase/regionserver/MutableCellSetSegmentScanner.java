@@ -31,13 +31,17 @@ import java.util.SortedSet;
  * A scanner of a single cells segment {@link MutableCellSetSegment}.
  */
 @InterfaceAudience.Private
-class MutableCellSetSegmentScanner implements StoreSegmentScanner {
+class MutableCellSetSegmentScanner implements SegmentScanner {
 
-  private final MutableCellSetSegment segment;  // the observed structure
-  private long readPoint;                 // the highest relevant MVCC
-  private Iterator<Cell> iter;        // the current iterator that can be reinitialized by
+  // the observed structure
+  private final MutableCellSetSegment segment;
+  // the highest relevant MVCC
+  private long readPoint;
+  // the current iterator that can be reinitialized by
   // seek(), backwardSeek(), or reseek()
-  private Cell current = null;        // the pre-calculated cell to be returned by peek()
+  private Iterator<Cell> iter;
+  // the pre-calculated cell to be returned by peek()
+  private Cell current = null;
   // or next()
   // A flag represents whether could stop skipping KeyValues for MVCC
   // if have encountered the next row. Only used for reversed scan
@@ -108,7 +112,8 @@ class MutableCellSetSegmentScanner implements StoreSegmentScanner {
     }
     // restart the iterator from new key
     iter = segment.tailSet(cell).iterator();
-    last = null;      // last is going to be reinitialized in the next getNext() call
+    // last is going to be reinitialized in the next getNext() call
+    last = null;
     current = getNext();
     return (current != null);
   }

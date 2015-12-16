@@ -52,7 +52,7 @@ final class MutableCellSetSegment extends MutableSegment {
   }
 
   @Override
-  public StoreSegmentScanner getScanner(long readPoint) {
+  public SegmentScanner getScanner(long readPoint) {
     return new MutableCellSetSegmentScanner(this, readPoint);
   }
 
@@ -133,7 +133,7 @@ final class MutableCellSetSegment extends MutableSegment {
   }
 
   @Override
-  public StoreSegment setSize(long size) {
+  public Segment setSize(long size) {
     this.size.set(size);
     return this;
   }
@@ -150,7 +150,6 @@ final class MutableCellSetSegment extends MutableSegment {
     }
   }
 
-  //**** Public methods for mutable memstore segment
   @Override
   public SortedSet<Cell> tailSet(Cell firstCell) {
     return getCellSet().tailSet(firstCell);

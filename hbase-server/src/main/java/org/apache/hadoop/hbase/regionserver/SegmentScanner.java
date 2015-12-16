@@ -26,7 +26,7 @@ import org.apache.hadoop.hbase.client.Scan;
  * segment (file).
  */
 @InterfaceAudience.Private
-public interface StoreSegmentScanner extends KeyValueScanner {
+public interface SegmentScanner extends KeyValueScanner {
 
   /**
    * Set the sequence id of the scanner.

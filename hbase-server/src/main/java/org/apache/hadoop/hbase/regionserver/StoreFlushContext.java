@@ -39,7 +39,7 @@ interface StoreFlushContext {
    *
    * A very short operation.
    */
-  void prepareFlushToDisk(long flushOpSeqId);
+  void prepare();
 
   /**
    * Flush the cache (create the new store file)
