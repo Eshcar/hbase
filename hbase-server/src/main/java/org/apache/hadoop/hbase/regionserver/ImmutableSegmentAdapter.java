@@ -24,7 +24,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 /**
- * An immutable memstore segment which wraps and adapts a mutable segment.
+ * This segment is adapting a mutable segment making it into an immutable segment.
  * This is used when a mutable segment is moved to being a snapshot or pushed into a compaction
  * pipeline, that consists only of immutable segments.
  * The compaction may generate different type of immutable segment
@@ -44,52 +44,64 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
     return new CollectionBackedScanner(adaptee.getCellSet(), adaptee.getComparator());
   }
 
-  @Override public StoreSegmentScanner getScanner(long readPoint) {
+  @Override
+  public SegmentScanner getScanner(long readPoint) {
     return adaptee.getScanner(readPoint);
   }
 
-  @Override public boolean isEmpty() {
+  @Override
+  public boolean isEmpty() {
     return adaptee.isEmpty();
   }
 
-  @Override public int getCellsCount() {
+  @Override
+  public int getCellsCount() {
     return adaptee.getCellsCount();
   }
 
-  @Override public long add(Cell cell) {
+  @Override
+  public long add(Cell cell) {
     return adaptee.add(cell);
   }
 
-  @Override public Cell getFirstAfter(Cell cell) {
+  @Override
+  public Cell getFirstAfter(Cell cell) {
     return adaptee.getFirstAfter(cell);
   }
 
-  @Override public void close() {
+  @Override
+  public void close() {
     adaptee.close();
   }
 
-  @Override public Cell maybeCloneWithAllocator(Cell cell) {
+  @Override
+  public Cell maybeCloneWithAllocator(Cell cell) {
     return adaptee.maybeCloneWithAllocator(cell);
   }
 
-  @Override public StoreSegment setSize(long size) {
+  @Override
+  public Segment setSize(long size) {
     adaptee.setSize(size);
     return this;
   }
 
-  @Override public long getSize() {
+  @Override
+  public long getSize() {
     return adaptee.getSize();
   }
 
-  @Override public long rollback(Cell cell) {
+  @Override
+  public long rollback(Cell cell) {
     return adaptee.rollback(cell);
   }
 
-  @Override public CellSet getCellSet() {
+  @Override
+  public CellSet getCellSet() {
     return adaptee.getCellSet();
   }
 
-  @Override public void dump(Log log) {
+  @Override
+  public void dump(Log log) {
     adaptee.dump(log);
   }
 }

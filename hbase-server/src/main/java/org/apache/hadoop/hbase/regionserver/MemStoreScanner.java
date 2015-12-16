@@ -29,9 +29,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * This is the scanner for any *MemStore implementation, derived from MemStore.
- * Currently, the scanner works with DefaultMemStore and CompactingMemStore.
- * The MemStoreScanner combines StoreSegmentScanner from different StoreSegments and
+ * This is the scanner for any MemStore implementation, derived from MemStore.
+ * The MemStoreScanner combines SegmentScanner from different Segments and
  * uses the key-value heap and the reversed key-value heap for the aggregated key-values set.
  * It is assumed that only traversing forward or backward is used (without zigzagging in between)
  */
@@ -47,16 +46,21 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     USER_SCAN_BACKWARD
   }
 
-  private KeyValueHeap forwardHeap;           // heap of scanners used for traversing forward
-  private ReversedKeyValueHeap backwardHeap;  // reversed scanners heap for traversing backward
+  // heap of scanners used for traversing forward
+  private KeyValueHeap forwardHeap;
+  // reversed scanners heap for traversing backward
+  private ReversedKeyValueHeap backwardHeap;
 
-  private Type type = Type.UNDEFINED;         // The type of the scan is defined by constructor
+  // The type of the scan is defined by constructor
   // or according to the first usage
+  private Type type = Type.UNDEFINED;
 
   private long readPoint;
-  List<StoreSegmentScanner> scanners;      // remember the initial version of the scanners list
-  private AbstractMemStore                    // pointer back to the relevant MemStore
-      backwardReferenceToMemStore;        // is needed for shouldSeek() method
+  // remember the initial version of the scanners list
+  List<SegmentScanner> scanners;
+  // pointer back to the relevant MemStore
+  // is needed for shouldSeek() method
+  private AbstractMemStore backwardReferenceToMemStore;
 
   /**
    * Constructor.
@@ -78,7 +82,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     this(ms, readPt, Type.UNDEFINED);
   }
 
-  public MemStoreScanner(AbstractMemStore ms, List<StoreSegmentScanner> scanners, long readPoint,
+  public MemStoreScanner(AbstractMemStore ms, List<SegmentScanner> scanners, long readPoint,
       Type type) throws IOException {
     super();
     this.readPoint = readPoint;
@@ -121,11 +125,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   public synchronized Cell next() throws IOException {
     KeyValueHeap heap = (Type.USER_SCAN_BACKWARD == type) ? backwardHeap : forwardHeap;
 
-    for (Cell currentCell = heap.next();     // loop over till the next suitable value
-         currentCell != null;                // take next value from the heap
+    // loop over till the next suitable value
+    // take next value from the heap
+    for (Cell currentCell = heap.next();
+         currentCell != null;
          currentCell = heap.next()) {
 
-      // all the logic of presenting cells is inside the internal StoreSegmentScanners
+      // all the logic of presenting cells is inside the internal SegmentScanners
       // located inside the heap
 
       return currentCell;
@@ -255,7 +261,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
       return true;
     }
 
-    for (StoreSegmentScanner sc : scanners) {
+    for (SegmentScanner sc : scanners) {
       if (sc.shouldSeek(scan, oldestUnexpiredTS)) {
         return true;
       }
@@ -268,7 +274,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   public String toString() {
     String msg = "";
     int i = 1;
-    for (StoreSegmentScanner scanner : scanners) {
+    for (SegmentScanner scanner : scanners) {
       msg += "scanner (" + i + ") " + scanner.toString() + " ||| ";
       i++;
     }
@@ -282,7 +288,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   private boolean restartBackwardHeap(Cell cell) throws IOException {
     boolean res = false;
-    for (StoreSegmentScanner scan : scanners) {
+    for (SegmentScanner scan : scanners) {
       res |= scan.seekToPreviousRow(cell);
     }
     this.backwardHeap =
@@ -308,7 +314,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
         forwardHeap = null;
         // before building the heap seek for the relevant key on the scanners,
         // for the heap to be built from the scanners correctly
-        for (StoreSegmentScanner scan : scanners) {
+        for (SegmentScanner scan : scanners) {
           if (toLast) {
             res |= scan.seekToLastRow();
           } else {

@@ -49,12 +49,12 @@ public abstract class AbstractMemStore implements MemStore {
   private final CellComparator comparator;
 
   // active segment absorbs write operations
-  volatile private MutableSegment active;
+  private volatile MutableSegment active;
   // Snapshot of memstore.  Made for flusher.
-  volatile private ImmutableSegment snapshot;
-  volatile long snapshotId;
+  private volatile ImmutableSegment snapshot;
+  protected volatile long snapshotId;
   // Used to track when to flush
-  volatile private long timeOfOldestEdit;
+  private volatile long timeOfOldestEdit;
 
   public final static long FIXED_OVERHEAD = ClassSize.align(
       ClassSize.OBJECT +
@@ -70,14 +70,14 @@ public abstract class AbstractMemStore implements MemStore {
     this.conf = conf;
     this.comparator = c;
     resetCellSet();
-    this.snapshot = StoreSegmentFactory.instance().createImmutableSegment(conf, c, 0);
+    this.snapshot = SegmentFactory.instance().createImmutableSegment(conf, c, 0);
 
   }
 
   protected void resetCellSet() {
     // Reset heap to not include any keys
-    this.active = StoreSegmentFactory.instance().createMutableSegment(
-        conf, comparator, deepOverhead());
+    this.active = SegmentFactory.instance().createMutableSegment(
+        conf, comparator, DEEP_OVERHEAD);
     this.timeOfOldestEdit = Long.MAX_VALUE;
   }
 
@@ -95,14 +95,10 @@ public abstract class AbstractMemStore implements MemStore {
 
   /**
    * Updates the wal with the lowest sequence id (oldest entry) that is still in memory
-   * @param onlyIfGreater a flag that marks whether to update the sequence id no matter what or
+   * @param onlyIfMoreRecent a flag that marks whether to update the sequence id no matter what or
    *                      only if it is greater than the previous sequence id
    */
-  public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater);
-
-  protected long deepOverhead() {
-    return DEEP_OVERHEAD;
-  }
+  public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfMoreRecent);
 
   /**
    * Write an update
@@ -185,9 +181,9 @@ public abstract class AbstractMemStore implements MemStore {
     }
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
-    StoreSegment oldSnapshot = this.snapshot;
+    Segment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = StoreSegmentFactory.instance().createImmutableSegment(
+      this.snapshot = SegmentFactory.instance().createImmutableSegment(
           getComparator(), 0);
     }
     this.snapshotId = -1;
@@ -233,7 +229,7 @@ public abstract class AbstractMemStore implements MemStore {
     String res = "";
     int i = 1;
     try {
-      for (StoreSegment segment : getListOfSegments()) {
+      for (Segment segment : getListOfSegments()) {
         res += "Segment (" + i + ") " + segment.toString() + "; ";
         i++;
       }
@@ -451,7 +447,7 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   protected long keySize() {
-    return heapSize() - deepOverhead();
+    return heapSize() - DEEP_OVERHEAD;
   }
 
   protected CellComparator getComparator() {
@@ -485,13 +481,13 @@ public abstract class AbstractMemStore implements MemStore {
    * @param readPt the version number required to initialize the scanners
    * @return a list of Store segment scanners, one per each store segment
    */
-  protected abstract List<StoreSegmentScanner> getListOfScanners(long readPt) throws IOException;
+  protected abstract List<SegmentScanner> getListOfScanners(long readPt) throws IOException;
 
   /**
    * Returns an ordered list of segments from most recent to oldest in memstore
    * @return an ordered list of segments from most recent to oldest in memstore
    */
-  protected abstract List<StoreSegment> getListOfSegments() throws IOException;
+  protected abstract List<Segment> getListOfSegments() throws IOException;
 
   public long getActiveSize() {
     return getActive().getSize();

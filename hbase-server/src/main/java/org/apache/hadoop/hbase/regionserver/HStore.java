@@ -100,7 +100,6 @@ import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.StringUtils.TraditionalBinaryPrefix;
 
-
 /**
  * A Store holds a column family in a Region.  Its a memstore and a set of zero
  * or more StoreFiles, which stretch backwards over time.
@@ -2060,11 +2059,10 @@ public class HStore implements Store {
     /**
      * This is not thread safe. The caller should have a lock on the region or the store.
      * If necessary, the lock can be added with the patch provided in HBASE-10087
-     * @param flushOpSeqId the sequence id that is attached to the flush operation in the wal
      */
     @Override
-    public void prepareFlushToDisk(long flushOpSeqId) {
-      this.snapshot = memstore.snapshot(flushOpSeqId);
+    public void prepare() {
+      this.snapshot = memstore.snapshot(cacheFlushSeqNum);
       this.cacheFlushCount = snapshot.getCellsCount();
       this.cacheFlushSize = snapshot.getSize();
       committedFiles = new ArrayList<Path>(1);

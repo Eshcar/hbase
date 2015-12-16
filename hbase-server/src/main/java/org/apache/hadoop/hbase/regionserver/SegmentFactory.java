@@ -28,15 +28,15 @@ import org.apache.hadoop.hbase.util.ReflectionUtils;
  * Generate concrete store segments.
  */
 @InterfaceAudience.Private
-public final class StoreSegmentFactory {
+public final class SegmentFactory {
 
   static final String USEMSLAB_KEY = "hbase.hregion.memstore.mslab.enabled";
   static final boolean USEMSLAB_DEFAULT = true;
   static final String MSLAB_CLASS_NAME = "hbase.regionserver.mslab.class";
 
-  private StoreSegmentFactory() {}
-  private static StoreSegmentFactory instance = new StoreSegmentFactory();
-  public static StoreSegmentFactory instance() {
+  private SegmentFactory() {}
+  private static SegmentFactory instance = new SegmentFactory();
+  public static SegmentFactory instance() {
     return instance;
   }
 

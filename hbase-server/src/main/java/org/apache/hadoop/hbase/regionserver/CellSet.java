@@ -31,21 +31,19 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * A {@link java.util.Set} of {@link Cell}s implemented on top of a
- * {@link java.util.concurrent.ConcurrentSkipListMap}.  Works like a
- * {@link java.util.concurrent.ConcurrentSkipListSet} in all but one regard:
- * An add will overwrite if already an entry for the added key.  In other words,
- * where CSLS does "Adds the specified element to this set if it is not already
- * present.", this implementation "Adds the specified element to this set EVEN
- * if it is already present overwriting what was there previous".  The call to
- * add returns true if no value in the backing map or false if there was an
- * entry with same key (though value may be different).
- * <p>Otherwise,
- * has same attributes as ConcurrentSkipListSet: e.g. tolerant of concurrent
- * get and set and won't throw ConcurrentModificationException when iterating.
+ * A {@link java.util.Set} of {@link Cell}s, where an add will overwrite the entry if already
+ * exists in the set.  The call to add returns true if no value in the backing map or false if
+ * there was an entry with same key (though value may be different).
+ * implementation is tolerant of concurrent get and set and won't throw
+ * ConcurrentModificationException when iterating.
  */
 @InterfaceAudience.Private
 public class CellSet implements NavigableSet<Cell>  {
+  // Implemented on top of a {@link java.util.concurrent.ConcurrentSkipListMap}
+  // Differ from CSLS in one respect, where CSLS does "Adds the specified element to this set if it
+  // is not already present.", this implementation "Adds the specified element to this set EVEN
+  // if it is already present overwriting what was there previous".
+  // Otherwise, has same attributes as ConcurrentSkipListSet
   private final ConcurrentNavigableMap<Cell, Cell> delegatee;
 
   CellSet(final CellComparator c) {
