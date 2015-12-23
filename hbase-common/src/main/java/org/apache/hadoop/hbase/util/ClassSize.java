@@ -20,14 +20,14 @@
 
 package org.apache.hadoop.hbase.util;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 /**
  * Class for determining the "size" of a class, an attempt to calculate the
@@ -109,6 +109,8 @@ public class ClassSize {
 
   /** Overhead for CellSkipListSet */
   public static final int CELL_SKIPLIST_SET;
+
+  public static final int STORE_SERVICES;
 
   /* Are we running on jdk7? */
   private static final boolean JDK7;
@@ -193,6 +195,8 @@ public class ClassSize {
     TIMERANGE_TRACKER = align(ClassSize.OBJECT + Bytes.SIZEOF_LONG * 2);
 
     CELL_SKIPLIST_SET = align(OBJECT + REFERENCE);
+
+    STORE_SERVICES = align(OBJECT + REFERENCE + ATOMIC_LONG);
   }
 
   /**
