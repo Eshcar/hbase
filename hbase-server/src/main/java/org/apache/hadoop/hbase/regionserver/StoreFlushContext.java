@@ -25,6 +25,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
 
+import java.io.IOException;
+import java.util.List;
+
 /**
  * A package protected interface for a store flushing.
  * A store flush context carries the state required to prepare/flush/commit the store's cache.
