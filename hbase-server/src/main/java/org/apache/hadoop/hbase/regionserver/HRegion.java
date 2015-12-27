@@ -3901,7 +3901,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   private void requestFlushIfNeeded() throws RegionTooBusyException {
     long memstoreUpperSize = this.getMemstoreSize();
-    long memstoreLowerSize = this.getStoreServices().getMemstoreSizeForFlushPolicy();
+    long memstoreLowerSize = this.getStoreServices().getMemstoreActiveSize();
     long memstoreUpperThreshold = this.getMemStoreSoftFlushSize();
     long memstoreLowerThreshold = this.getMemstoreFlushSize();
 

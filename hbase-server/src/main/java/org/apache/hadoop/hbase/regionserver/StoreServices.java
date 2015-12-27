@@ -18,14 +18,21 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import org.apache.hadoop.hbase.wal.WAL;
-
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.wal.WAL;
+
 /**
- *
+ * StoreServices class is the interface through which memstore access services at the region level.
+ * It also maintains additional data that is updated by memstores and can be queried by the region.
+ * For example, when using alternative memory formats or due to compaction the memstore needs to
+ * take occasional lock and update size counters at the region level.
  */
+@InterfaceAudience.Private
+@InterfaceStability.Evolving
 public class StoreServices {
 
   private final HRegion region;
@@ -54,17 +61,13 @@ public class StoreServices {
     return this.memstoreFluctuatingSize.addAndGet(size);
   }
 
-  public long getMemstoreSizeForFlushPolicy() {
-    return this.region.getMemstoreSize() - getMemstoreFluctuatingSize();
+  public long getMemstoreActiveSize() {
+    return this.region.getMemstoreSize() - memstoreFluctuatingSize.get();
   }
 
   public long getWalSequenceId() throws IOException {
     WAL wal = this.region.getWAL();
     return this.region.getNextSequenceId(wal);
-  }
-
-  private long getMemstoreFluctuatingSize() {
-    return memstoreFluctuatingSize.get();
   }
 
 }
