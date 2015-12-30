@@ -514,7 +514,7 @@ public class HMobStore extends HStore {
   @Override public void finalizeFlush() {
   }
 
-  @Override public long getMemStoreSizeForFlushPolicy() {
+  @Override public long getMemStoreActiveSize() {
     return getMemStoreSize();
   }
 

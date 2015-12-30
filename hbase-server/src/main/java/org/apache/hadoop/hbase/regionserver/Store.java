@@ -17,6 +17,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.NavigableSet;
+
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
@@ -39,11 +44,6 @@ import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.security.User;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.NavigableSet;
 
 /**
  * Interface for objects that hold a column family in a Region. Its a memstore and a set of zero or
@@ -501,5 +501,5 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
   /**
    * @return the size by which the flush policy decided whether or not to flush the store.
    */
-  long getMemStoreSizeForFlushPolicy();
+  long getMemStoreActiveSize();
 }

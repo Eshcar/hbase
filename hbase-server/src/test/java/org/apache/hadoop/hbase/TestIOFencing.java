@@ -17,6 +17,11 @@
  */
 package org.apache.hadoop.hbase;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+
 import com.google.common.collect.Lists;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -46,11 +51,6 @@ import org.apache.hadoop.hbase.util.JVMClusterUtil.RegionServerThread;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -209,7 +209,7 @@ public class TestIOFencing {
     @Override public void finalizeFlush() {
     }
 
-    @Override public long getMemStoreSizeForFlushPolicy() {
+    @Override public long getMemStoreActiveSize() {
       return getMemStoreSize();
     }
   }

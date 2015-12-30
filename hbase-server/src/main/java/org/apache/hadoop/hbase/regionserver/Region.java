@@ -17,6 +17,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Message;
 import com.google.protobuf.RpcController;
@@ -47,11 +52,6 @@ import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.GetRegionInfoRespo
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.CoprocessorServiceCall;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.wal.WALSplitter.MutationReplay;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Regions store data for a certain region of a table.  It stores all columns
@@ -190,7 +190,7 @@ public interface Region extends ConfigurationObserver {
   long getMemstoreSize();
 
   /** @return store services for this region, to access services required by store level needs */
-  StoreServices getStoreServices();
+  RegionStoresProxy getRegionStoresProxy();
 
   /** @return the number of mutations processed bypassing the WAL */
   long getNumMutationsWithoutWAL();

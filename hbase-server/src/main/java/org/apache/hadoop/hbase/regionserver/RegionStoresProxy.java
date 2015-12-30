@@ -26,21 +26,21 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.wal.WAL;
 
 /**
- * StoreServices class is the interface through which memstore access services at the region level.
+ * RegionStoresProxy class is the interface through which memstore access services at the region level.
  * It also maintains additional data that is updated by memstores and can be queried by the region.
  * For example, when using alternative memory formats or due to compaction the memstore needs to
  * take occasional lock and update size counters at the region level.
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class StoreServices {
+public class RegionStoresProxy {
 
   private final HRegion region;
 
   // size of fluctuating memstore segments, e.g., in compaction pipeline
   private final AtomicLong memstoreFluctuatingSize = new AtomicLong(0);
 
-  public StoreServices(HRegion region) {
+  public RegionStoresProxy(HRegion region) {
     this.region = region;
 
   }
@@ -57,11 +57,11 @@ public class StoreServices {
     return this.region.addAndGetGlobalMemstoreSize(size);
   }
 
-  public long addAndGetFluctuatingMemstoreSize(long size) {
+  public long addAndGetGlobalMemstoreFluctuatingSize(long size) {
     return this.memstoreFluctuatingSize.addAndGet(size);
   }
 
-  public long getMemstoreActiveSize() {
+  public long getGlobalMemstoreActiveSize() {
     return this.region.getMemstoreSize() - memstoreFluctuatingSize.get();
   }
 

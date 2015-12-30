@@ -18,6 +18,20 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.Message;
+import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
+import com.google.protobuf.TextFormat;
+
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -185,20 +199,6 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.htrace.Trace;
 import org.apache.htrace.TraceScope;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Descriptors;
-import com.google.protobuf.Message;
-import com.google.protobuf.RpcCallback;
-import com.google.protobuf.RpcController;
-import com.google.protobuf.Service;
-import com.google.protobuf.TextFormat;
-
 @InterfaceAudience.Private
 public class HRegion implements HeapSize, PropagatingConfigurationObserver, Region {
   private static final Log LOG = LogFactory.getLog(HRegion.class);
@@ -273,7 +273,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private Map<String, Service> coprocessorServiceHandlers = Maps.newHashMap();
 
   private final AtomicLong memstoreSize = new AtomicLong(0);
-  private final StoreServices storeServices = new StoreServices(this);
+  private final RegionStoresProxy regionStoresProxy = new RegionStoresProxy(this);
 
   // Debug possible data loss due to WAL off
   final Counter numMutationsWithoutWAL = new Counter();
@@ -562,7 +562,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   final WriteState writestate = new WriteState();
 
-  long memstoreFlushSize;
+  long memstoreFlushSizeLB;
+  private long memStoreFlushSizeUB;
   final long timestampSlop;
   final long rowProcessorTimeout;
 
@@ -573,8 +574,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   final RegionServerServices rsServices;
   private RegionServerAccounting rsAccounting;
   private long flushCheckInterval;
-  // In some cases we want to have a soft flush threshold
-  private long memStoreSoftFlushSize;
   // flushPerChanges is to prevent too many changes in memstore
   private long flushPerChanges;
   private long blockingMemStoreSize;
@@ -759,12 +758,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       flushSize = conf.getLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE,
         HTableDescriptor.DEFAULT_MEMSTORE_FLUSH_SIZE);
     }
-    this.memstoreFlushSize = flushSize;
-    this.blockingMemStoreSize = this.memstoreFlushSize *
+    this.memstoreFlushSizeLB = flushSize;
+    this.blockingMemStoreSize = this.memstoreFlushSizeLB *
         conf.getLong(HConstants.HREGION_MEMSTORE_BLOCK_MULTIPLIER,
                 HConstants.DEFAULT_HREGION_MEMSTORE_BLOCK_MULTIPLIER);
     // set force flush size to be between flush size and blocking size
-    this.memStoreSoftFlushSize = (this.memstoreFlushSize + this.blockingMemStoreSize) / 2;
+    this.memStoreFlushSizeUB = (this.memstoreFlushSizeLB + this.blockingMemStoreSize) / 2;
 
   }
 
@@ -1155,9 +1154,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return memstoreSize.get();
   }
 
-  @Override
-  public StoreServices getStoreServices() {
-    return storeServices;
+  public RegionStoresProxy getRegionStoresProxy() {
+    return regionStoresProxy;
   }
 
   @Override
@@ -3900,13 +3898,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   private void requestFlushIfNeeded() throws RegionTooBusyException {
-    long memstoreUpperSize = this.getMemstoreSize();
-    long memstoreLowerSize = this.getStoreServices().getMemstoreActiveSize();
-    long memstoreUpperThreshold = this.getMemStoreSoftFlushSize();
-    long memstoreLowerThreshold = this.getMemstoreFlushSize();
+    long memstoreTotalSize = this.getMemstoreSize();
+    long memstoreActiveSize = this.getRegionStoresProxy().getGlobalMemstoreActiveSize();
+    long memstoreUpperThreshold = this.getMemStoreFlushSizeUB();
+    long memstoreLowerThreshold = this.getMemstoreFlushSizeLB();
 
-    if(memstoreLowerSize > memstoreLowerThreshold ||
-        memstoreUpperSize > memstoreUpperThreshold) {
+    if(memstoreActiveSize > memstoreLowerThreshold ||
+        memstoreTotalSize > memstoreUpperThreshold) {
       requestFlush();
     }
   }
@@ -3933,7 +3931,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * @return True if size is over the flush threshold
    */
   private boolean isFlushSize(final long size) {
-    return size > this.memstoreFlushSize;
+    return size > this.memstoreFlushSizeLB;
   }
 
   /**
@@ -6839,7 +6837,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     ClientProtos.RegionLoadStats.Builder stats = ClientProtos.RegionLoadStats.newBuilder();
     stats.setMemstoreLoad((int) (Math.min(100, (this.memstoreSize.get() * 100) / this
-        .memstoreFlushSize)));
+        .memstoreFlushSizeLB)));
     stats.setHeapOccupancy((int)rsServices.getHeapMemoryManager().getHeapOccupancyPercent()*100);
     stats.setCompactionPressure((int)rsServices.getCompactionPressure()*100 > 100 ? 100 :
                 (int)rsServices.getCompactionPressure()*100);
@@ -8210,12 +8208,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         : CellComparator.COMPARATOR;
   }
 
-  public long getMemstoreFlushSize() {
-    return this.memstoreFlushSize;
+  public long getMemstoreFlushSizeLB() {
+    return this.memstoreFlushSizeLB;
   }
 
-  private long getMemStoreSoftFlushSize() {
-    return this.memStoreSoftFlushSize;
+  private long getMemStoreFlushSizeUB() {
+    return this.memStoreFlushSizeUB;
   }
 
   //// method for debugging tests

@@ -17,11 +17,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.List;
+
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.io.HeapSize;
-
-import java.util.List;
 
 /**
  * The MemStore holds in-memory modifications to the Store. Modifications are {@link Cell}s.
@@ -144,5 +144,5 @@ public interface MemStore extends HeapSize {
   /**
    * @return the size by which the flush policy decided whether or not to flush the store.
    */
-  long getMemStoreSizeForFlushPolicy();
+  long getMemStoreActiveSize();
 }
