@@ -43,6 +43,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -93,13 +99,6 @@ import org.apache.hadoop.hbase.util.ReflectionUtils;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.StringUtils.TraditionalBinaryPrefix;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 /**
  * A Store holds a column family in a Region.  Its a memstore and a set of zero
@@ -349,7 +348,7 @@ public class HStore implements Store {
   @Override
   public long getMemstoreFlushSize() {
     // TODO: Why is this in here?  The flushsize of the region rather than the store?  St.Ack
-    return this.region.memstoreFlushSize;
+    return this.region.memstoreFlushSizeLB;
   }
 
   @Override
@@ -2315,6 +2314,14 @@ public class HStore implements Store {
       lock.readLock().unlock();
     }
     removeCompactedFiles(copyCompactedfiles);
+  }
+
+  @Override public void finalizeFlush() {
+    memstore.finalizeFlush();
+  }
+
+  @Override public long getMemStoreActiveSize() {
+    return memstore.getMemStoreActiveSize();
   }
 
   private ThreadPoolExecutor getThreadPoolExecutor(int maxThreads) {

@@ -57,7 +57,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
     }
     // For multiple families, lower bound is the "average flush size" by default
     // unless setting in configuration is larger.
-    long flushSizeLowerBound = region.getMemstoreFlushSize() / familyNumber;
+    long flushSizeLowerBound = region.getMemstoreFlushSizeLB() / familyNumber;
     long minimumLowerBound =
         getConf().getLong(HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
           DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
@@ -89,7 +89,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
   }
 
   private boolean shouldFlush(Store store) {
-    if (store.getMemStoreSize() > this.flushSizeLowerBound) {
+    if (store.getMemStoreActiveSize() > this.flushSizeLowerBound) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Flush Column Family " + store.getColumnFamilyName() + " of " +
           region.getRegionInfo().getEncodedName() + " because memstoreSize=" +

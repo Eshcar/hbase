@@ -19,8 +19,8 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.util.List;
 
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.io.HeapSize;
 
 /**
@@ -134,4 +134,15 @@ public interface MemStore extends HeapSize {
    * @return Total memory occupied by this MemStore.
    */
   long size();
+
+  /**
+   * This method is called when it is clear that the flush to disk is completed.
+   * The store may do any post-flush actions at this point.
+   * One example is to update the wal with sequence number that is known only at the store level.
+   */
+  void finalizeFlush();
+  /**
+   * @return the size by which the flush policy decided whether or not to flush the store.
+   */
+  long getMemStoreActiveSize();
 }
