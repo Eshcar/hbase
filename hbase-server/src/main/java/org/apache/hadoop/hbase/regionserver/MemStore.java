@@ -17,12 +17,12 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.io.HeapSize;
-
-import java.io.IOException;
-import java.util.List;
 
 /**
  * The MemStore holds in-memory modifications to the Store. Modifications are {@link Cell}s.
