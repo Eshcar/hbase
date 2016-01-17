@@ -554,7 +554,7 @@ public class TestStore {
     this.store.snapshot();
     flushStore(store, id++);
     Assert.assertEquals(storeFilessize, this.store.getStorefiles().size());
-    Assert.assertEquals(0, this.store.memstore.getActive().getCellsCount());
+    Assert.assertEquals(0, ((AbstractMemStore)this.store.memstore).getActive().getCellsCount());
   }
 
   private void assertCheck() {
@@ -599,7 +599,7 @@ public class TestStore {
     flushStore(store, id++);
     Assert.assertEquals(1, this.store.getStorefiles().size());
     // from the one we inserted up there, and a new one
-    Assert.assertEquals(2, this.store.memstore.getActive().getCellsCount());
+    Assert.assertEquals(2, ((AbstractMemStore)this.store.memstore).getActive().getCellsCount());
 
     // how many key/values for this row are there?
     Get get = new Get(row);
@@ -668,7 +668,7 @@ public class TestStore {
     }
 
     long computedSize=0;
-    for (Cell cell : this.store.memstore.getActive().getCellSet()) {
+    for (Cell cell : ((AbstractMemStore)this.store.memstore).getActive().getCellSet()) {
       long kvsize = DefaultMemStore.heapSizeChange(cell, true);
       //System.out.println(kv + " size= " + kvsize + " kvsize= " + kv.heapSize());
       computedSize += kvsize;
@@ -700,7 +700,7 @@ public class TestStore {
     // then flush.
     flushStore(store, id++);
     Assert.assertEquals(1, this.store.getStorefiles().size());
-    Assert.assertEquals(1, this.store.memstore.getActive().getCellsCount());
+    Assert.assertEquals(1, ((AbstractMemStore)this.store.memstore).getActive().getCellsCount());
 
     // now increment again:
     newValue += 1;

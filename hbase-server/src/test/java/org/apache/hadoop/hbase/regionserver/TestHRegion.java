@@ -2449,7 +2449,7 @@ public class TestHRegion {
       // This is kinda hacky, but better than nothing...
       long now = System.currentTimeMillis();
       DefaultMemStore memstore = (DefaultMemStore) ((HStore) region.getStore(fam1)).memstore;
-      Cell firstCell = ((HStore) region.getStore(fam1)).memstore.getActive().first();
+      Cell firstCell = memstore.getActive().first();
       assertTrue(firstCell.getTimestamp() <= now);
       now = firstCell.getTimestamp();
       for (Cell cell : memstore.getActive().getCellSet()) {
