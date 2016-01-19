@@ -18,7 +18,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.lang.StringBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -26,7 +28,6 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
@@ -226,17 +227,17 @@ public abstract class AbstractMemStore implements MemStore {
 
   @Override
   public String toString() {
-    String res = "";
+	StringBuffer buf = new StringBuffer();
     int i = 1;
     try {
-      for (Segment segment : getListOfSegments()) {
-        res += "Segment (" + i + ") " + segment.toString() + "; ";
+	  for (Segment segment : getListOfSegments()) {
+        buf.append("Segment (" + i + ") " + segment.toString() + "; ");
         i++;
       }
     } catch (IOException e){
       return e.toString();
     }
-    return res;
+    return buf.toString();
   }
 
   protected void rollbackSnapshot(Cell cell) {

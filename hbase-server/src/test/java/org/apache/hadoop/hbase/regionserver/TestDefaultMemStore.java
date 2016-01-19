@@ -811,7 +811,7 @@ public class TestDefaultMemStore extends TestCase {
     assert(newSize > oldSize);
     //The kv1 should be removed.
     assert(memstore.getActive().getCellsCount() == 2);
-    
+
     KeyValue kv4 = KeyValueTestUtil.create("r", "f", "q", 104, "v");
     kv4.setSequenceId(1);
     l.clear(); l.add(kv4);

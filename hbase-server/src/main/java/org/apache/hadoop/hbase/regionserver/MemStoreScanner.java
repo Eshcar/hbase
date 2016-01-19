@@ -20,6 +20,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
+import java.lang.StringBuffer;
 import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
@@ -272,13 +273,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   // debug method
   @Override
   public String toString() {
-    String msg = "";
+    StringBuffer buf = new StringBuffer();
     int i = 1;
     for (SegmentScanner scanner : scanners) {
-      msg += "scanner (" + i + ") " + scanner.toString() + " ||| ";
+      buf.append("scanner (" + i + ") " + scanner.toString() + " ||| ");
       i++;
     }
-    return msg;
+    return buf.toString();
   }
   /****************** Private methods ******************/
   /**
