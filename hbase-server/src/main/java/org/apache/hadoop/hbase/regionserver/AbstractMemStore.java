@@ -20,7 +20,6 @@ package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.lang.StringBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -227,10 +226,10 @@ public abstract class AbstractMemStore implements MemStore {
 
   @Override
   public String toString() {
-	StringBuffer buf = new StringBuffer();
+    StringBuffer buf = new StringBuffer();
     int i = 1;
     try {
-	  for (Segment segment : getListOfSegments()) {
+      for (Segment segment : getListOfSegments()) {
         buf.append("Segment (" + i + ") " + segment.toString() + "; ");
         i++;
       }
