@@ -38,17 +38,14 @@ import org.apache.hadoop.hbase.util.ByteRange;
 final class MutableCellSetSegment extends MutableSegment {
 
   private volatile CellSet cellSet;
-  private volatile MemStoreLAB memStoreLAB;
   private final CellComparator comparator;
-  private final AtomicLong size;
 
   // Instantiate objects only using factory
   MutableCellSetSegment(CellSet cellSet, MemStoreLAB memStoreLAB, long size,
       CellComparator comparator) {
+    super(memStoreLAB, size);
     this.cellSet = cellSet;
-    this.memStoreLAB = memStoreLAB;
     this.comparator = comparator;
-    this.size = new AtomicLong(size);
   }
 
   @Override
@@ -87,7 +84,7 @@ final class MutableCellSetSegment extends MutableSegment {
     if (found != null && found.getSequenceId() == cell.getSequenceId()) {
       long sz = AbstractMemStore.heapSizeChange(cell, true);
       remove(cell);
-      size.addAndGet(-sz);
+      incSize(-sz);
       return sz;
     }
     return 0;
@@ -103,47 +100,6 @@ final class MutableCellSetSegment extends MutableSegment {
   }
 
   @Override
-  public void close() {
-    MemStoreLAB mslab = getMemStoreLAB();
-    if(mslab != null) {
-      mslab.close();
-    }
-    // do not set MSLab to null as scanners may still be reading the data here and need to decrease
-    // the counter when they finish
-  }
-
-  @Override
-  public Cell maybeCloneWithAllocator(Cell cell) {
-    if (getMemStoreLAB() == null) {
-      return cell;
-    }
-
-    int len = KeyValueUtil.length(cell);
-    ByteRange alloc = getMemStoreLAB().allocateBytes(len);
-    if (alloc == null) {
-      // The allocation was too large, allocator decided
-      // not to do anything with it.
-      return cell;
-    }
-    assert alloc.getBytes() != null;
-    KeyValueUtil.appendToByteArray(cell, alloc.getBytes(), alloc.getOffset());
-    KeyValue newKv = new KeyValue(alloc.getBytes(), alloc.getOffset(), len);
-    newKv.setSequenceId(cell.getSequenceId());
-    return newKv;
-  }
-
-  @Override
-  public Segment setSize(long size) {
-    this.size.set(size);
-    return this;
-  }
-
-  @Override
-  public long getSize() {
-    return size.get();
-  }
-
-  @Override
   public void dump(Log log) {
     for (Cell cell: getCellSet()) {
       log.debug(cell);
@@ -153,10 +109,6 @@ final class MutableCellSetSegment extends MutableSegment {
   @Override
   public SortedSet<Cell> tailSet(Cell firstCell) {
     return getCellSet().tailSet(firstCell);
-  }
-  @Override
-  public void incSize(long delta) {
-    size.addAndGet(delta);
   }
   @Override
   public CellSet getCellSet() {
@@ -180,18 +132,6 @@ final class MutableCellSetSegment extends MutableSegment {
     return getCellSet().headSet(firstKeyOnRow);
   }
 
-  public void incScannerCount() {
-    if(getMemStoreLAB() != null) {
-      getMemStoreLAB().incScannerCount();
-    }
-  }
-
-  public void decScannerCount() {
-    if(getMemStoreLAB() != null) {
-      getMemStoreLAB().decScannerCount();
-    }
-  }
-
   public int compare(Cell left, Cell right) {
     return getComparator().compare(left, right);
   }
@@ -206,15 +146,6 @@ final class MutableCellSetSegment extends MutableSegment {
 
   private boolean remove(Cell e) {
     return getCellSet().remove(e);
-  }
-
-  private void updateMetaInfo(Cell toAdd, long s) {
-    getTimeRangeTracker().includeTimestamp(toAdd);
-    size.addAndGet(s);
-  }
-
-  private MemStoreLAB getMemStoreLAB() {
-    return memStoreLAB;
   }
 
   // methods for tests

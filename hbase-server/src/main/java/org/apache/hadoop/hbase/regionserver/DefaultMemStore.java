@@ -127,8 +127,8 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public void rollback(Cell cell) {
-    rollbackSnapshot(cell);
-    rollbackActive(cell);
+    rollbackInSnapshot(cell);
+    rollbackInActive(cell);
   }
 
   /**

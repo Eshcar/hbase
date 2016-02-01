@@ -69,5 +69,4 @@ public abstract class ImmutableSegment extends Segment {
    */
   public abstract KeyValueScanner getScannerForMemStoreSnapshot();
 
-
 }

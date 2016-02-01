@@ -18,10 +18,15 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.util.ByteRange;
 
 /**
  * This is an abstraction of a segment maintained in a memstore, e.g., the active
@@ -33,31 +38,23 @@ import org.apache.hadoop.hbase.client.Scan;
 @InterfaceAudience.Private
 public abstract class Segment {
 
+  private volatile MemStoreLAB memStoreLAB;
+  private final AtomicLong size;
   private final TimeRangeTracker timeRangeTracker;
   protected volatile boolean tagsPresent;
 
-  protected Segment() {
+  protected Segment(MemStoreLAB memStoreLAB, long size) {
+    this.memStoreLAB = memStoreLAB;
+    this.size = new AtomicLong(size);
     this.timeRangeTracker = new TimeRangeTracker();
     this.tagsPresent = false;
   }
 
   protected Segment(Segment segment) {
+    this.memStoreLAB = segment.getMemStoreLAB();
+    this.size = new AtomicLong(segment.getSize());
     this.timeRangeTracker = segment.getTimeRangeTracker();
     this.tagsPresent = segment.isTagsPresent();
-  }
-
-  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
-    return (getTimeRangeTracker().includesTimeRange(scan.getTimeRange())
-        && (getTimeRangeTracker().getMaximumTimestamp() >=
-        oldestUnexpiredTS));
-  }
-
-  public long getMinTimestamp() {
-    return getTimeRangeTracker().getMinimumTimestamp();
-  }
-
-  public boolean isTagsPresent() {
-    return tagsPresent;
   }
 
   /**
@@ -97,34 +94,110 @@ public abstract class Segment {
   public abstract Cell getFirstAfter(Cell cell);
 
   /**
+   * Returns a set of all cells in the segment
+   * @return a set of all cells in the segment
+   */
+  public abstract CellSet getCellSet();
+
+  /**
    * Closing a segment before it is being discarded
    */
-  public abstract void close();
+  public void close() {
+    MemStoreLAB mslab = getMemStoreLAB();
+    if(mslab != null) {
+      mslab.close();
+    }
+    // do not set MSLab to null as scanners may still be reading the data here and need to decrease
+    // the counter when they finish
+  }
 
   /**
    * If the segment has a memory allocator the cell is being cloned to this space, and returned;
    * otherwise the given cell is returned
    * @return either the given cell or its clone
    */
-  public abstract Cell maybeCloneWithAllocator(Cell cell);
+  public Cell maybeCloneWithAllocator(Cell cell) {
+    if (getMemStoreLAB() == null) {
+      return cell;
+    }
+
+    int len = KeyValueUtil.length(cell);
+    ByteRange alloc = getMemStoreLAB().allocateBytes(len);
+    if (alloc == null) {
+      // The allocation was too large, allocator decided
+      // not to do anything with it.
+      return cell;
+    }
+    assert alloc.getBytes() != null;
+    KeyValueUtil.appendToByteArray(cell, alloc.getBytes(), alloc.getOffset());
+    KeyValue newKv = new KeyValue(alloc.getBytes(), alloc.getOffset(), len);
+    newKv.setSequenceId(cell.getSequenceId());
+    return newKv;
+  }
+
+  public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
+    return (getTimeRangeTracker().includesTimeRange(scan.getTimeRange())
+        && (getTimeRangeTracker().getMaximumTimestamp() >=
+        oldestUnexpiredTS));
+  }
+
+  public long getMinTimestamp() {
+    return getTimeRangeTracker().getMinimumTimestamp();
+  }
+
+  public boolean isTagsPresent() {
+    return tagsPresent;
+  }
+
+  public void incScannerCount() {
+    if(getMemStoreLAB() != null) {
+      getMemStoreLAB().incScannerCount();
+    }
+  }
+
+  public void decScannerCount() {
+    if(getMemStoreLAB() != null) {
+      getMemStoreLAB().decScannerCount();
+    }
+  }
 
   /**
    * Setting the heap size of the segment - used to account for different class overheads
    * @return this object
    */
-  public abstract Segment setSize(long size);
+
+  public Segment setSize(long size) {
+    this.size.set(size);
+    return this;
+  }
 
   /**
    * Returns the heap size of the segment
    * @return the heap size of the segment
    */
-  public abstract long getSize();
+  public long getSize() {
+    return size.get();
+  }
 
   /**
-   * Returns a set of all cells in the segment
-   * @return a set of all cells in the segment
+   * Increases the heap size counter of the segment by the given delta
    */
-  public abstract CellSet getCellSet();
+  public void incSize(long delta) {
+    size.addAndGet(delta);
+  }
+
+  public TimeRangeTracker getTimeRangeTracker() {
+    return timeRangeTracker;
+  }
+
+  protected void updateMetaInfo(Cell toAdd, long s) {
+    getTimeRangeTracker().includeTimestamp(toAdd);
+    size.addAndGet(s);
+  }
+
+  private MemStoreLAB getMemStoreLAB() {
+    return memStoreLAB;
+  }
 
   // Debug methods
   /**
@@ -140,10 +213,6 @@ public abstract class Segment {
     res += "size "+getSize()+"; ";
     res += "Min ts "+getMinTimestamp()+"; ";
     return res;
-  }
-
-  protected TimeRangeTracker getTimeRangeTracker() {
-    return timeRangeTracker;
   }
 
 }

@@ -239,7 +239,7 @@ public abstract class AbstractMemStore implements MemStore {
     return buf.toString();
   }
 
-  protected void rollbackSnapshot(Cell cell) {
+  protected void rollbackInSnapshot(Cell cell) {
     // If the key is in the snapshot, delete it. We should not update
     // this.size, because that tracks the size of only the memstore and
     // not the snapshot. The flush of this snapshot to disk has not
@@ -248,7 +248,7 @@ public abstract class AbstractMemStore implements MemStore {
     snapshot.rollback(cell);
   }
 
-  protected void rollbackActive(Cell cell) {
+  protected void rollbackInActive(Cell cell) {
     // If the key is in the memstore, delete it. Update this.size.
     long sz = active.rollback(cell);
     if (sz != 0) {

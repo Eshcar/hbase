@@ -30,17 +30,16 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 @InterfaceAudience.Private
 public abstract class MutableSegment extends Segment {
 
+  protected MutableSegment(MemStoreLAB memStoreLAB, long size) {
+    super(memStoreLAB, size);
+  }
+
   /**
    * Returns a subset of the segment cell set, which starts with the given cell
    * @param firstCell a cell in the segment
    * @return a subset of the segment cell set, which starts with the given cell
    */
   public abstract SortedSet<Cell> tailSet(Cell firstCell);
-
-  /**
-   * Increases the heap size counter of the segment by the given delta
-   */
-  public abstract void incSize(long delta);
 
   /**
    * Returns the Cell comparator used by this segment
