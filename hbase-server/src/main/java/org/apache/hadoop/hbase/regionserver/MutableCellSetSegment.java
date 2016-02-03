@@ -20,15 +20,11 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.util.Iterator;
 import java.util.SortedSet;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.util.ByteRange;
 
 /**
  * This mutable store segment encapsulates a mutable cell set and its respective memory allocation
