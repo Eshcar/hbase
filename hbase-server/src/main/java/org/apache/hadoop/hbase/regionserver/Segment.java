@@ -61,7 +61,7 @@ public abstract class Segment {
    * Creates the scanner that is able to scan the concrete segment
    * @return a scanner for the given read point
    */
-  public abstract SegmentScanner getScanner(long readPoint);
+  public abstract SegmentScanner getSegmentScanner(long readPoint);
 
   /**
    * Returns whether the segment has any cells

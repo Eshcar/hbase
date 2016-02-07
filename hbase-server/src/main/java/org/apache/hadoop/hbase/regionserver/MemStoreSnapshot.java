@@ -39,7 +39,7 @@ public class MemStoreSnapshot {
     this.cellsCount = snapshot.getCellsCount();
     this.size = snapshot.getSize();
     this.timeRangeTracker = snapshot.getTimeRangeTracker();
-    this.scanner = snapshot.getScannerForMemStoreSnapshot();
+    this.scanner = snapshot.getKeyValueScanner();
     this.tagsPresent = snapshot.isTagsPresent();
   }
 

@@ -40,13 +40,13 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
   }
 
   @Override
-  public KeyValueScanner getScannerForMemStoreSnapshot() {
+  public KeyValueScanner getKeyValueScanner() {
     return new CollectionBackedScanner(adaptee.getCellSet(), adaptee.getComparator());
   }
 
   @Override
-  public SegmentScanner getScanner(long readPoint) {
-    return adaptee.getScanner(readPoint);
+  public SegmentScanner getSegmentScanner(long readPoint) {
+    return adaptee.getSegmentScanner(readPoint);
   }
 
   @Override

@@ -45,7 +45,7 @@ final class MutableCellSetSegment extends MutableSegment {
   }
 
   @Override
-  public SegmentScanner getScanner(long readPoint) {
+  public SegmentScanner getSegmentScanner(long readPoint) {
     return new MutableCellSetSegmentScanner(this, readPoint);
   }
 
