@@ -142,13 +142,13 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
    * @return true if the scanner is at the valid KeyValue, false if such Cell does not exist
    */
   @Override
-  public boolean backwardSeek(Cell key) throws IOException {
-    seek(key);    // seek forward then go backward
-    if (peek() == null || segment.compareRows(peek(), key) > 0) {
-      return seekToPreviousRow(key);
+    public boolean backwardSeek(Cell key) throws IOException {
+      seek(key);    // seek forward then go backward
+      if (peek() == null || segment.compareRows(peek(), key) > 0) {
+        return seekToPreviousRow(key);
+      }
+      return true;
     }
-    return true;
-  }
 
   /**
    * Seek the scanner at the first Cell of the row which is the previous row

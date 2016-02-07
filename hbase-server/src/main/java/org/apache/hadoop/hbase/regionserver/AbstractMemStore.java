@@ -45,6 +45,8 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 @InterfaceAudience.Private
 public abstract class AbstractMemStore implements MemStore {
 
+  private static final long NO_SNAPSHOT_ID = -1;
+
   private final Configuration conf;
   private final CellComparator comparator;
 
@@ -71,7 +73,7 @@ public abstract class AbstractMemStore implements MemStore {
     this.comparator = c;
     resetCellSet();
     this.snapshot = SegmentFactory.instance().createImmutableSegment(conf, c, 0);
-
+    this.snapshotId = NO_SNAPSHOT_ID;
   }
 
   protected void resetCellSet() {
@@ -186,7 +188,7 @@ public abstract class AbstractMemStore implements MemStore {
       this.snapshot = SegmentFactory.instance().createImmutableSegment(
           getComparator(), 0);
     }
-    this.snapshotId = -1;
+    this.snapshotId = NO_SNAPSHOT_ID;
     oldSnapshot.close();
   }
 
@@ -212,7 +214,7 @@ public abstract class AbstractMemStore implements MemStore {
 
 
   /**
-   * @return scanner on memstore and snapshot in this order.
+   * @return a list containing a single memstore scanner.
    */
   @Override
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {

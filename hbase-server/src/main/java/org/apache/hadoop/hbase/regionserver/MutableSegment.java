@@ -39,7 +39,7 @@ public abstract class MutableSegment extends Segment {
    * @param firstCell a cell in the segment
    * @return a subset of the segment cell set, which starts with the given cell
    */
-  public abstract SortedSet<Cell> tailSet(Cell firstCell);
+    public abstract SortedSet<Cell> tailSet(Cell firstCell);
 
   /**
    * Returns the Cell comparator used by this segment
