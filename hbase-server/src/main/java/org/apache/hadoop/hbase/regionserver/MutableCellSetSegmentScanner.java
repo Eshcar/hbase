@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -73,7 +72,6 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
     return current;
   }
 
-
   /**
    * Return the next Cell in this scanner, iterating the scanner
    * @return the next Cell or null if end of scanner
@@ -84,7 +82,6 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
     current = getNext();                  // update the currently observed Cell
     return oldCurrent;
   }
-
 
   /**
    * Seek the scanner at or after the specified Cell.
@@ -130,7 +127,6 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
     return (current != null);
   }
 
-
   /**
    * Seek the scanner at or before the row of specified Cell, it firstly
    * tries to seek the scanner at or after the specified Cell, return if
@@ -142,13 +138,13 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
    * @return true if the scanner is at the valid KeyValue, false if such Cell does not exist
    */
   @Override
-    public boolean backwardSeek(Cell key) throws IOException {
-      seek(key);    // seek forward then go backward
-      if (peek() == null || segment.compareRows(peek(), key) > 0) {
-        return seekToPreviousRow(key);
-      }
-      return true;
+  public boolean backwardSeek(Cell key) throws IOException {
+    seek(key);    // seek forward then go backward
+    if (peek() == null || segment.compareRows(peek(), key) > 0) {
+      return seekToPreviousRow(key);
     }
+    return true;
+  }
 
   /**
    * Seek the scanner at the first Cell of the row which is the previous row
@@ -212,7 +208,7 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
     return segment;
   }
 
-/********************* Private Methods **********************/
+  /********************* Private Methods **********************/
 
   /**
    * Private internal method for iterating over the segment,
@@ -229,8 +225,8 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
           return next;                    // skip irrelevant versions
         }
         if (stopSkippingKVsIfNextRow &&   // for backwardSeek() stay in the
-                startKV != null &&        // boundaries of a single row
-                segment.compareRows(next, startKV) > 0) {
+            startKV != null &&        // boundaries of a single row
+            segment.compareRows(next, startKV) > 0) {
           return null;
         }
       } // end of while
@@ -243,7 +239,6 @@ class MutableCellSetSegmentScanner extends SegmentScanner {
       }
     }
   }
-
 
   /**
    * Private internal method that returns the higher of the two key values, or null
