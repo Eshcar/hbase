@@ -57,7 +57,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
     }
     // For multiple families, lower bound is the "average flush size" by default
     // unless setting in configuration is larger.
-    long flushSizeLowerBound = region.getMemstoreFlushSizeLB() / familyNumber;
+    long flushSizeLowerBound = region.getMemstoreFlushSize() / familyNumber;
     long minimumLowerBound =
         getConf().getLong(HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
           DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
