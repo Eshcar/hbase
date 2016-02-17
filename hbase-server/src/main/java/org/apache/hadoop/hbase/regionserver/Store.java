@@ -498,8 +498,4 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    */
   void finalizeFlush();
 
-  /**
-   * @return the size by which the flush policy decided whether or not to flush the store.
-   */
-  long getMemStoreActiveSize();
 }

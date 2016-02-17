@@ -208,10 +208,6 @@ public class TestIOFencing {
 
     @Override public void finalizeFlush() {
     }
-
-    @Override public long getMemStoreActiveSize() {
-      return getMemStoreSize();
-    }
   }
 
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();

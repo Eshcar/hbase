@@ -89,7 +89,7 @@ public class FlushLargeStoresPolicy extends FlushPolicy {
   }
 
   private boolean shouldFlush(Store store) {
-    if (store.getMemStoreActiveSize() > this.flushSizeLowerBound) {
+    if (store.getMemStoreSize() > this.flushSizeLowerBound) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Flush Column Family " + store.getColumnFamilyName() + " of " +
           region.getRegionInfo().getEncodedName() + " because memstoreSize=" +

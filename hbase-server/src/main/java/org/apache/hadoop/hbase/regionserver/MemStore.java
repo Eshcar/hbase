@@ -151,8 +151,4 @@ public interface MemStore extends HeapSize {
    * One example is to update the wal with sequence number that is known only at the store level.
    */
   void finalizeFlush();
-  /**
-   * @return the size by which the flush policy decided whether or not to flush the store.
-   */
-  long getMemStoreActiveSize();
 }

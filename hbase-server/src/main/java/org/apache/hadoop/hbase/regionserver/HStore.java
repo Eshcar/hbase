@@ -2369,9 +2369,6 @@ public class HStore implements Store {
     memstore.finalizeFlush();
   }
 
-  @Override public long getMemStoreActiveSize() {
-    return memstore.getMemStoreActiveSize();
-  }
   private void clearCompactedfiles(final List<StoreFile> filesToRemove) throws IOException {
     if (LOG.isTraceEnabled()) {
       LOG.trace("Clearing the compacted file " + filesToRemove + " from this store");
