@@ -19,7 +19,6 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
@@ -27,7 +26,8 @@ import org.apache.hadoop.hbase.wal.WAL;
 
 /**
  * Services a Store needs from a Region.
- * RegionServicesForStores class is the interface through which memstore access services at the region level.
+ * RegionServicesForStores class is the interface through which memstore access services at the
+ * region level.
  * For example, when using alternative memory formats or due to compaction the memstore needs to
  * take occasional lock and update size counters at the region level.
  */

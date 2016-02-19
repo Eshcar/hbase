@@ -2048,7 +2048,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * Should the store be flushed because it is old enough.
    * <p>
    * Every FlushPolicy should call this to determine whether a store is old enough to flush (except
-   * that you always flush all stores). Otherwise the {@link #shouldFlush()} method will always
+   * that you always flush all stores). Otherwise the method will always
    * returns true which will make a lot of flush requests.
    */
   boolean shouldFlushStore(Store store) {
@@ -7874,22 +7874,23 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   //// method for debugging tests
   public void throwException(String title, String regionName) {
-    String msg = title + ", ";
-    msg += getRegionInfo().toString();
-    msg += getRegionInfo().isMetaRegion() ? " meta region " : " ";
-    msg += getRegionInfo().isMetaTable() ? " meta table " : " ";
-    msg += "stores: ";
+    StringBuffer buf = new StringBuffer();
+    buf.append(title + ", ");
+    buf.append(getRegionInfo().toString());
+    buf.append(getRegionInfo().isMetaRegion() ? " meta region " : " ");
+    buf.append(getRegionInfo().isMetaTable() ? " meta table " : " ");
+    buf.append("stores: ");
     for (Store s : getStores()) {
-      msg += s.getFamily().getNameAsString();
-      msg += " size: ";
-      msg += s.getMemStoreSize();
-      msg += " ";
+      buf.append(s.getFamily().getNameAsString());
+      buf.append(" size: ");
+      buf.append(s.getMemStoreSize());
+      buf.append(" ");
     }
-    msg += "end-of-stores";
-    msg += ", memstore size ";
-    msg += getMemstoreSize();
+    buf.append("end-of-stores");
+    buf.append(", memstore size ");
+    buf.append(getMemstoreSize());
     if (getRegionInfo().getRegionNameAsString().startsWith(regionName)) {
-      throw new RuntimeException(msg);
+      throw new RuntimeException(buf.toString());
     }
   }
 }
