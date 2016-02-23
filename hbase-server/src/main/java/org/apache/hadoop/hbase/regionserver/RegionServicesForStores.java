@@ -53,9 +53,4 @@ public class RegionServicesForStores {
     return this.region.addAndGetGlobalMemstoreSize(size);
   }
 
-  public long getWalSequenceId() throws IOException {
-    WAL wal = this.region.getWAL();
-    return this.region.getNextSequenceId(wal);
-  }
-
 }

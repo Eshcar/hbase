@@ -2898,8 +2898,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           initialized = true;
         }
         long addedSize = doMiniBatchMutate(batchOp);
-        this.addAndGetGlobalMemstoreSize(addedSize);
-        requestFlushIfNeeded();
+        long newSize = this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded(newSize);
       }
     } finally {
       closeRegionOperation(op);
@@ -3776,11 +3776,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
   }
 
-  private void requestFlushIfNeeded() throws RegionTooBusyException {
-    long memstoreTotalSize = this.getMemstoreSize();
-    long memstoreThreshold = this.getMemstoreFlushSize();
-
-    if(memstoreTotalSize > memstoreThreshold) {
+  private void requestFlushIfNeeded(long memstoreTotalSize) throws RegionTooBusyException {
+    if(memstoreTotalSize > this.getMemstoreFlushSize()) {
       requestFlush();
     }
   }
@@ -6885,8 +6882,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     } finally {
       closeRegionOperation();
       if (!mutations.isEmpty()) {
-        this.addAndGetGlobalMemstoreSize(addedSize);
-        requestFlushIfNeeded();
+        long newSize = this.addAndGetGlobalMemstoreSize(addedSize);
+        requestFlushIfNeeded(newSize);
       }
     }
   }
