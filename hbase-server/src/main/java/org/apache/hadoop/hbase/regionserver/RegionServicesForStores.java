@@ -18,11 +18,8 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
-import org.apache.hadoop.hbase.wal.WAL;
 
 /**
  * Services a Store needs from a Region.

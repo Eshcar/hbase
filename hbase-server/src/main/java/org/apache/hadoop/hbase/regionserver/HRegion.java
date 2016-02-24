@@ -7870,7 +7870,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   //// method for debugging tests
-  public void throwException(String title, String regionName) {
+  void throwException(String title, String regionName) {
     StringBuffer buf = new StringBuffer();
     buf.append(title + ", ");
     buf.append(getRegionInfo().toString());
