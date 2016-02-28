@@ -50,19 +50,6 @@ public abstract class ImmutableSegment extends Segment {
   }
 
   /**
-   * Returns a set of all the cells in the segment.
-   * The implementation of this method might be very inefficient for some immutable segments
-   * that do not maintain a cell set. Therefore by default this method is not supported.
-   * It may be invoked by tests in specific cases where it is known to be supported {@link
-   * ImmutableSegmentAdapter}
-   */
-  @Override
-  public CellSet getCellSet() {
-    throw new NotImplementedException("Immutable Segment does not support this operation by " +
-        "default");
-  }
-
-  /**
    * Builds a special scanner for the MemStoreSnapshot object that may be different than the
    * general segment scanner.
    * @return a special scanner for the MemStoreSnapshot object

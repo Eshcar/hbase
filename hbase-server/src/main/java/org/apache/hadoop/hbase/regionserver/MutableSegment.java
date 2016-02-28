@@ -35,17 +35,10 @@ public abstract class MutableSegment extends Segment {
   }
 
   /**
-   * Returns a subset of the segment cell set, which starts with the given cell
-   * @param firstCell a cell in the segment
-   * @return a subset of the segment cell set, which starts with the given cell
+   * Adds the given cell into the segment
+   * @return the change in the heap size
    */
-  public abstract SortedSet<Cell> tailSet(Cell firstCell);
-
-  /**
-   * Returns the Cell comparator used by this segment
-   * @return the Cell comparator used by this segment
-   */
-  public abstract CellComparator getComparator();
+  public abstract long add(Cell cell);
 
   //methods for test
 

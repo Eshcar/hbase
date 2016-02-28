@@ -18,8 +18,8 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
@@ -50,26 +50,6 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
   }
 
   @Override
-  public boolean isEmpty() {
-    return adaptee.isEmpty();
-  }
-
-  @Override
-  public int getCellsCount() {
-    return adaptee.getCellsCount();
-  }
-
-  @Override
-  public long add(Cell cell) {
-    return adaptee.add(cell);
-  }
-
-  @Override
-  public Cell getFirstAfter(Cell cell) {
-    return adaptee.getFirstAfter(cell);
-  }
-
-  @Override
   public void close() {
     adaptee.close();
   }
@@ -86,11 +66,6 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
   }
 
   @Override
-  public long getSize() {
-    return adaptee.getSize();
-  }
-
-  @Override
   public long rollback(Cell cell) {
     return adaptee.rollback(cell);
   }
@@ -100,8 +75,8 @@ public class ImmutableSegmentAdapter extends ImmutableSegment {
     return adaptee.getCellSet();
   }
 
-  @Override
-  public void dump(Log log) {
-    adaptee.dump(log);
+  @Override protected CellComparator getComparator() {
+    return adaptee.getComparator();
   }
+
 }

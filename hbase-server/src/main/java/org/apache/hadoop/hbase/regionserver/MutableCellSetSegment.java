@@ -46,32 +46,12 @@ final class MutableCellSetSegment extends MutableSegment {
 
   @Override
   public SegmentScanner getSegmentScanner(long readPoint) {
-    return new MutableCellSetSegmentScanner(this, readPoint);
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return getCellSet().isEmpty();
-  }
-
-  @Override
-  public int getCellsCount() {
-    return getCellSet().size();
+    return new SegmentScanner(this, readPoint);
   }
 
   @Override
   public long add(Cell cell) {
-    boolean succ = getCellSet().add(cell);
-    long s = AbstractMemStore.heapSizeChange(cell, succ);
-    updateMetaInfo(cell, s);
-    // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
-    // When we use ACL CP or Visibility CP which deals with Tags during
-    // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
-    // parse the byte[] to identify the tags length.
-    if(cell.getTagsLength() > 0) {
-      tagsPresent = true;
-    }
-    return s;
+    return internalAdd(cell);
   }
 
   @Override
@@ -87,53 +67,12 @@ final class MutableCellSetSegment extends MutableSegment {
   }
 
   @Override
-  public Cell getFirstAfter(Cell cell) {
-    SortedSet<Cell> snTailSet = tailSet(cell);
-    if (!snTailSet.isEmpty()) {
-      return snTailSet.first();
-    }
-    return null;
-  }
-
-  @Override
-  public void dump(Log log) {
-    for (Cell cell: getCellSet()) {
-      log.debug(cell);
-    }
-  }
-
-  @Override
-  public SortedSet<Cell> tailSet(Cell firstCell) {
-    return getCellSet().tailSet(firstCell);
-  }
-  @Override
-  public CellSet getCellSet() {
+  protected CellSet getCellSet() {
     return cellSet;
   }
   @Override
-  public CellComparator getComparator() {
+  protected CellComparator getComparator() {
     return comparator;
-  }
-
-  //*** Methods for MemStoreSegmentsScanner
-  public Cell last() {
-    return getCellSet().last();
-  }
-
-  public Iterator<Cell> iterator() {
-    return getCellSet().iterator();
-  }
-
-  public SortedSet<Cell> headSet(Cell firstKeyOnRow) {
-    return getCellSet().headSet(firstKeyOnRow);
-  }
-
-  public int compare(Cell left, Cell right) {
-    return getComparator().compare(left, right);
-  }
-
-  public int compareRows(Cell left, Cell right) {
-    return getComparator().compareRows(left, right);
   }
 
   private Cell get(Cell cell) {

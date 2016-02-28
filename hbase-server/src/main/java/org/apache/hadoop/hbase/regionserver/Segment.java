@@ -18,10 +18,13 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.Iterator;
+import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -64,40 +67,38 @@ public abstract class Segment {
   public abstract SegmentScanner getSegmentScanner(long readPoint);
 
   /**
-   * Returns whether the segment has any cells
-   * @return whether the segment has any cells
-   */
-  public abstract boolean isEmpty();
-
-  /**
-   * Returns number of cells in segment
-   * @return number of cells in segment
-   */
-  public abstract int getCellsCount();
-
-  /**
-   * Adds the given cell into the segment
-   * @return the change in the heap size
-   */
-  public abstract long add(Cell cell);
-
-  /**
    * Removes the given cell from the segment
    * @return the change in the heap size
    */
   public abstract long rollback(Cell cell);
 
   /**
+   * Returns whether the segment has any cells
+   * @return whether the segment has any cells
+   */
+  public boolean isEmpty() {
+    return getCellSet().isEmpty();
+  }
+
+  /**
+   * Returns number of cells in segment
+   * @return number of cells in segment
+   */
+  public int getCellsCount() {
+    return getCellSet().size();
+  }
+
+  /**
    * Returns the first cell in the segment that has equal or greater key than the given cell
    * @return the first cell in the segment that has equal or greater key than the given cell
    */
-  public abstract Cell getFirstAfter(Cell cell);
-
-  /**
-   * Returns a set of all cells in the segment
-   * @return a set of all cells in the segment
-   */
-  public abstract CellSet getCellSet();
+  public Cell getFirstAfter(Cell cell) {
+    SortedSet<Cell> snTailSet = tailSet(cell);
+    if (!snTailSet.isEmpty()) {
+      return snTailSet.first();
+    }
+    return null;
+  }
 
   /**
    * Closing a segment before it is being discarded
@@ -190,9 +191,65 @@ public abstract class Segment {
     return timeRangeTracker;
   }
 
+  //*** Methods for MemStoreSegmentsScanner
+  public Cell last() {
+    return getCellSet().last();
+  }
+
+  public Iterator<Cell> iterator() {
+    return getCellSet().iterator();
+  }
+
+  public SortedSet<Cell> headSet(Cell firstKeyOnRow) {
+    return getCellSet().headSet(firstKeyOnRow);
+  }
+
+  public int compare(Cell left, Cell right) {
+    return getComparator().compare(left, right);
+  }
+
+  public int compareRows(Cell left, Cell right) {
+    return getComparator().compareRows(left, right);
+  }
+
+  /**
+   * Returns a set of all cells in the segment
+   * @return a set of all cells in the segment
+   */
+  protected abstract CellSet getCellSet();
+
+  /**
+   * Returns the Cell comparator used by this segment
+   * @return the Cell comparator used by this segment
+   */
+  protected abstract CellComparator getComparator();
+
+  protected long internalAdd(Cell cell) {
+    boolean succ = getCellSet().add(cell);
+    long s = AbstractMemStore.heapSizeChange(cell, succ);
+    updateMetaInfo(cell, s);
+    // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
+    // When we use ACL CP or Visibility CP which deals with Tags during
+    // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
+    // parse the byte[] to identify the tags length.
+    if(cell.getTagsLength() > 0) {
+      tagsPresent = true;
+    }
+    return s;
+  }
+
   protected void updateMetaInfo(Cell toAdd, long s) {
     getTimeRangeTracker().includeTimestamp(toAdd);
     size.addAndGet(s);
+  }
+
+  /**
+   * Returns a subset of the segment cell set, which starts with the given cell
+   * @param firstCell a cell in the segment
+   * @return a subset of the segment cell set, which starts with the given cell
+   */
+  protected SortedSet<Cell> tailSet(Cell firstCell) {
+    return getCellSet().tailSet(firstCell);
   }
 
   private MemStoreLAB getMemStoreLAB() {
@@ -203,7 +260,11 @@ public abstract class Segment {
   /**
    * Dumps all cells of the segment into the given log
    */
-  public abstract void dump(Log log);
+  void dump(Log log) {
+    for (Cell cell: getCellSet()) {
+      log.debug(cell);
+    }
+  }
 
   @Override
   public String toString() {
