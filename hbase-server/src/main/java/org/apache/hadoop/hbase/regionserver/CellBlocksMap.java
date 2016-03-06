@@ -48,7 +48,7 @@ public class CellBlocksMap<K,V> implements ConcurrentNavigableMap<K,V> {
     this.maxCellIdx = b.length;
   }
 
-  private CellBlocksMap(Comparator<? super K> comparator, K[] b, int min, int max, boolean d){
+  public CellBlocksMap(Comparator<? super K> comparator, K[] b, int min, int max, boolean d){
     this.comparator = comparator;
     this.blocks = b;
     this.minCellIdx = min;
