@@ -23,6 +23,7 @@ import org.apache.hadoop.hbase.Cell;
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
+import junit.framework.Assert;
 
 /**
  * BlocksMap stores a constant number of elements and is immutable after creation stage.
@@ -49,6 +50,7 @@ public class CellBlocksMap<K,V> implements ConcurrentNavigableMap<K,V> {
   }
 
   public CellBlocksMap(Comparator<? super K> comparator, K[] b, int min, int max, boolean d){
+    //assert(false);
     this.comparator = comparator;
     this.blocks = b;
     this.minCellIdx = min;
@@ -261,9 +263,11 @@ public class CellBlocksMap<K,V> implements ConcurrentNavigableMap<K,V> {
 
   // -------------------------------- Iterator K --------------------------------
   private final class CellBlocksIteratorK implements Iterator<K> {
-    int index;
+    int index = minCellIdx;
 
     private CellBlocksIteratorK(boolean d) {
+//      org.junit.Assert.assertTrue("\nInitializing K iterator, descending?:" + d + "\n",false);
+
       isDescending = d;
       index = isDescending ? maxCellIdx-1 : minCellIdx;
     }
@@ -288,9 +292,12 @@ public class CellBlocksMap<K,V> implements ConcurrentNavigableMap<K,V> {
 
   // -------------------------------- Iterator V --------------------------------
   private final class CellBlocksIteratorV implements Iterator<V> {
-    int index;
+    int index = minCellIdx;
 
     private CellBlocksIteratorV(boolean d) {
+//      org.junit.Assert.assertTrue("\n\nInitializing V iterator, descending?:" + d
+//          + ". The CellBlocksMap first element is " + firstKey() + "\n",false);
+
       isDescending = d;
       index = isDescending ? maxCellIdx-1 : minCellIdx;
     }
@@ -302,7 +309,13 @@ public class CellBlocksMap<K,V> implements ConcurrentNavigableMap<K,V> {
 
     @Override
     public V next() {
+
       V result = (V) blocks[index];
+
+//      org.junit.Assert.assertTrue("\n\nGetting next from V iterator, descending?:" + isDescending
+//          + ". The CellBlocksMap first element is " + firstKey() + " and Iterator's index is "
+//          + index + ". Going to return " + result + "\n",false);
+
       if (isDescending) index--; else index++;
       return result;
     }
@@ -408,7 +421,9 @@ public class CellBlocksMap<K,V> implements ConcurrentNavigableMap<K,V> {
 
     @Override public boolean contains(Object o) { return containsKey(o); }
 
-    @Override public Iterator<V> iterator() { return new CellBlocksIteratorV(false); }
+    @Override public Iterator<V> iterator() {
+      return (isDescending) ? new CellBlocksIteratorV(true) : new CellBlocksIteratorV(false);
+    }
 
     @Override public Object[] toArray() { throw new UnsupportedOperationException(); }
 

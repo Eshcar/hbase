@@ -60,35 +60,45 @@ public class TestCellBlocksSet extends TestCase {
     cbSet = new CellSet(cbMap);
   }
 
-  /*public void testAdd() throws Exception {
-    byte [] bytes = Bytes.toBytes(getName());
-    KeyValue kv = new KeyValue(bytes, bytes, bytes, bytes);
-    this.cbSet.add(kv);
-    assertTrue(this.cbSet.contains(kv));
-    assertEquals(1, this.cbSet.size());
+  public void testBasics() throws Exception {
+
+    assertEquals(3, this.cbSet.size());   // check size
+
+    assertTrue(this.cbSet.contains(cells[0]));  // check first
     Cell first = this.cbSet.first();
-    assertTrue(kv.equals(first));
-    assertTrue(Bytes.equals(kv.getValueArray(), kv.getValueOffset(), kv.getValueLength(),
-      first.getValueArray(), first.getValueOffset(), first.getValueLength()));
-    // Now try overwritting
-    byte [] overwriteValue = Bytes.toBytes("overwrite");
-    KeyValue overwrite = new KeyValue(bytes, bytes, bytes, overwriteValue);
-    this.cbSet.add(overwrite);
-    assertEquals(1, this.cbSet.size());
-    first = this.cbSet.first();
-    assertTrue(Bytes.equals(overwrite.getValueArray(), overwrite.getValueOffset(),
-      overwrite.getValueLength(), first.getValueArray(), first.getValueOffset(),
-      first.getValueLength()));
-    assertFalse(Bytes.equals(CellUtil.cloneValue(overwrite), CellUtil.cloneValue(kv)));
-  }*/
+    assertTrue(cells[0].equals(first));
+
+    assertTrue(this.cbSet.contains(cells[NUM_OF_CELLS - 1]));  // check last
+    Cell last = this.cbSet.last();
+    assertTrue(cells[NUM_OF_CELLS - 1].equals(last));
+
+    SortedSet<Cell> tail = this.cbSet.tailSet(cells[1]);  // check tail abd head sizes
+    assertEquals(2, tail.size());
+    SortedSet<Cell> head = this.cbSet.headSet(cells[1]);
+    assertEquals(1, head.size());
+
+    Cell tailFirst = tail.first();
+    assertTrue(cells[1].equals(tailFirst));
+    Cell tailLast = tail.last();
+    assertTrue(cells[2].equals(tailLast));
+
+    Cell headFirst = head.first();
+    assertTrue(cells[0].equals(headFirst));
+    Cell headLast = head.last();
+    assertTrue(cells[0].equals(headLast));
+  }
 
   public void testIterators() throws Exception {
 
     // Assert that we have NUM_OF_CELLS values and that they are in order
     int count = 0;
     for (Cell kv: this.cbSet) {
-      assertEquals("" + count,
-          Bytes.toString(kv.getQualifierArray(), kv.getQualifierOffset(), kv.getQualifierLength()));
+      assertEquals("\n\n-------------------------------------------------------------------\n"
+              + "Comparing iteration number " + (count + 1) + " the returned cell: " + kv
+              + ", the first Cell in the CellBlocksMap: " + cells[count]
+              + ", and the same transformed to String: " + cells[count].toString()
+              + "\n-------------------------------------------------------------------\n",
+              cells[count], kv);
       count++;
     }
     assertEquals(NUM_OF_CELLS, count);
@@ -97,75 +107,11 @@ public class TestCellBlocksSet extends TestCase {
     count = 0;
     for (Iterator<Cell> i = this.cbSet.descendingIterator(); i.hasNext();) {
       Cell kv = i.next();
-      assertEquals("" + (NUM_OF_CELLS - (count + 1)),
-          Bytes.toString(kv.getQualifierArray(), kv.getQualifierOffset(), kv.getQualifierLength()));
+      assertEquals(cells[NUM_OF_CELLS - (count + 1)], kv);
       count++;
     }
     assertEquals(NUM_OF_CELLS, count);
   }
 
-//  public void testDescendingIterator() throws Exception {
-//    byte [] bytes = Bytes.toBytes(getName());
-//    byte [] value1 = Bytes.toBytes("1");
-//    byte [] value2 = Bytes.toBytes("2");
-//    final int total = 3;
-//    for (int i = 0; i < total; i++) {
-//      this.cbSet.add(new KeyValue(bytes, bytes, Bytes.toBytes("" + i), value1));
-//    }
-//    // Assert that we added 'total' values and that they are in order
-//    int count = 0;
-//    for (Iterator<Cell> i = this.cbSet.descendingIterator(); i.hasNext();) {
-//      Cell kv = i.next();
-//      assertEquals("" + (total - (count + 1)),
-//        Bytes.toString(kv.getQualifierArray(), kv.getQualifierOffset(), kv.getQualifierLength()));
-//      assertTrue(Bytes.equals(kv.getValueArray(), kv.getValueOffset(), kv.getValueLength(), value1,
-//        0, value1.length));
-//      count++;
-//    }
-//    assertEquals(total, count);
-//    // Now overwrite with a new value.
-//    for (int i = 0; i < total; i++) {
-//      this.cbSet.add(new KeyValue(bytes, bytes, Bytes.toBytes("" + i), value2));
-//    }
-//    // Assert that we added 'total' values and that they are in order and that
-//    // we are getting back value2
-//    count = 0;
-//    for (Iterator<Cell> i = this.cbSet.descendingIterator(); i.hasNext();) {
-//      Cell kv = i.next();
-//      assertEquals("" + (total - (count + 1)),
-//        Bytes.toString(kv.getQualifierArray(), kv.getQualifierOffset(), kv.getQualifierLength()));
-//      assertTrue(Bytes.equals(kv.getValueArray(), kv.getValueOffset(), kv.getValueLength(), value2,
-//        0, value2.length));
-//      count++;
-//    }
-//    assertEquals(total, count);
-//  }
-//
-//  public void testHeadTail() throws Exception {
-//    byte [] bytes = Bytes.toBytes(getName());
-//    byte [] value1 = Bytes.toBytes("1");
-//    byte [] value2 = Bytes.toBytes("2");
-//    final int total = 3;
-//    KeyValue splitter = null;
-//    for (int i = 0; i < total; i++) {
-//      KeyValue kv = new KeyValue(bytes, bytes, Bytes.toBytes("" + i), value1);
-//      if (i == 1) splitter = kv;
-//      this.cbSet.add(kv);
-//    }
-//    SortedSet<Cell> tail = this.cbSet.tailSet(splitter);
-//    assertEquals(2, tail.size());
-//    SortedSet<Cell> head = this.cbSet.headSet(splitter);
-//    assertEquals(1, head.size());
-//    // Now ensure that we get back right answer even when we do tail or head.
-//    // Now overwrite with a new value.
-//    for (int i = 0; i < total; i++) {
-//      this.cbSet.add(new KeyValue(bytes, bytes, Bytes.toBytes("" + i), value2));
-//    }
-//    tail = this.cbSet.tailSet(splitter);
-//    assertTrue(Bytes.equals(tail.first().getValueArray(), tail.first().getValueOffset(),
-//      tail.first().getValueLength(), value2, 0, value2.length));
-//    head = this.cbSet.headSet(splitter);
-//    assertTrue(Bytes.equals(head.first().getValueArray(), head.first().getValueOffset(),
-//      head.first().getValueLength(), value2, 0, value2.length));
-//  }
+
 }
