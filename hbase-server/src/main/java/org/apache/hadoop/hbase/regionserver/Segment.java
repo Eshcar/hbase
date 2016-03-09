@@ -43,6 +43,7 @@ public abstract class Segment {
 
   private volatile CellSet cellSet;
   private final CellComparator comparator;
+  private long minSequenceId;
   private volatile MemStoreLAB memStoreLAB;
   private final AtomicLong size;
   private final TimeRangeTracker timeRangeTracker;
@@ -52,6 +53,7 @@ public abstract class Segment {
       size) {
     this.cellSet = cellSet;
     this.comparator = comparator;
+    this.minSequenceId = Long.MAX_VALUE;
     this.memStoreLAB = memStoreLAB;
     this.size = new AtomicLong(size);
     this.timeRangeTracker = new TimeRangeTracker();
@@ -61,6 +63,7 @@ public abstract class Segment {
   protected Segment(Segment segment) {
     this.cellSet = segment.getCellSet();
     this.comparator = segment.getComparator();
+    this.minSequenceId = segment.getMinSequenceId();
     this.memStoreLAB = segment.getMemStoreLAB();
     this.size = new AtomicLong(segment.getSize());
     this.timeRangeTracker = segment.getTimeRangeTracker();
@@ -190,6 +193,10 @@ public abstract class Segment {
     size.addAndGet(delta);
   }
 
+  public long getMinSequenceId() {
+    return minSequenceId;
+  }
+
   public TimeRangeTracker getTimeRangeTracker() {
     return timeRangeTracker;
   }
@@ -241,6 +248,7 @@ public abstract class Segment {
   protected void updateMetaInfo(Cell toAdd, long s) {
     getTimeRangeTracker().includeTimestamp(toAdd);
     size.addAndGet(s);
+    minSequenceId = Math.min(minSequenceId, toAdd.getSequenceId());
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
     // When we use ACL CP or Visibility CP which deals with Tags during
     // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not

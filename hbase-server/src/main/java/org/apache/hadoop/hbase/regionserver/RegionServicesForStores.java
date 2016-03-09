@@ -18,8 +18,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.wal.WAL;
 
 /**
  * Services a Store needs from a Region.
@@ -39,15 +42,35 @@ public class RegionServicesForStores {
   }
 
   public void blockUpdates() {
-    this.region.blockUpdates();
+    region.blockUpdates();
   }
 
   public void unblockUpdates() {
-    this.region.unblockUpdates();
+    region.unblockUpdates();
   }
 
   public long addAndGetGlobalMemstoreSize(long size) {
-    return this.region.addAndGetGlobalMemstoreSize(size);
+    return region.addAndGetGlobalMemstoreSize(size);
   }
 
+  public HTableDescriptor getTableDesc() {
+    return region.getTableDesc();
+  }
+
+  public HRegionInfo getRegionInfo() {
+    return region.getRegionInfo();
+  }
+
+  public WAL getWAL() {
+    return region.getWAL();
+  }
+
+  public RegionServerServices getRegionServerServices() {
+    return region.getRegionServerServices();
+  }
+
+  // methods for tests
+  long getGlobalMemstoreTotalSize() {
+    return region.getMemstoreSize();
+  }
 }

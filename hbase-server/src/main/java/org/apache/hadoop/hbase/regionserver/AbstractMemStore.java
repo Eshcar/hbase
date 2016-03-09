@@ -202,18 +202,6 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
-   * On flush, how much memory we will clear from the active cell set.
-   *
-   * @return size of data that is going to be flushed from active set
-   */
-  @Override
-  public long getFlushableSize() {
-    long snapshotSize = getSnapshot().getSize();
-    return snapshotSize > 0 ? snapshotSize : keySize();
-  }
-
-
-  /**
    * @return a list containing a single memstore scanner.
    */
   @Override

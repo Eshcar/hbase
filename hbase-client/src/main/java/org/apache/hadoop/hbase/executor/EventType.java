@@ -272,7 +272,14 @@ public enum EventType {
    *
    * RS_COMPACTED_FILES_DISCHARGER
    */
-  RS_COMPACTED_FILES_DISCHARGER (83, ExecutorType.RS_COMPACTED_FILES_DISCHARGER);
+  RS_COMPACTED_FILES_DISCHARGER (83, ExecutorType.RS_COMPACTED_FILES_DISCHARGER),
+
+  /**
+   * RS in-memory flush and compaction in compacting memstores. <br>
+   *
+   * RS_IN_MEMORY_FLUSH_AND_COMPACTION
+   */
+  RS_IN_MEMORY_FLUSH_AND_COMPACTION   (84, ExecutorType.RS_IN_MEMORY_FLUSH_AND_COMPACTION);
 
   private final int code;
   private final ExecutorType executor;

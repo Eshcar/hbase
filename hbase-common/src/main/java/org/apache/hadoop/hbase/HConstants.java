@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hbase;
 
-import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -27,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
@@ -592,6 +591,7 @@ public final class HConstants {
   public static final String NAME = "NAME";
   public static final String VERSIONS = "VERSIONS";
   public static final String IN_MEMORY = "IN_MEMORY";
+  public static final String IN_MEMORY_COMPACTION = "IN_MEMORY_COMPACTION";
   public static final String METADATA = "METADATA";
   public static final String CONFIGURATION = "CONFIGURATION";
 
