@@ -91,7 +91,7 @@ public class DefaultMemStore extends AbstractMemStore {
       this.snapshotId = EnvironmentEdgeManager.currentTime();
       if (!getActive().isEmpty()) {
         ImmutableSegment immutableSegment = SegmentFactory.instance().
-            createImmutableSegment(getConfiguration(), getActive());
+            createImmutableSegment(getActive());
         setSnapshot(immutableSegment);
         setSnapshotSize(keySize());
         resetCellSet();
@@ -99,6 +99,17 @@ public class DefaultMemStore extends AbstractMemStore {
     }
     return new MemStoreSnapshot(this.snapshotId, getSnapshot());
 
+  }
+
+  /**
+   * On flush, how much memory we will clear from the active cell set.
+   *
+   * @return size of data that is going to be flushed from active set
+   */
+  @Override
+  public long getFlushableSize() {
+    long snapshotSize = getSnapshot().getSize();
+    return snapshotSize > 0 ? snapshotSize : keySize();
   }
 
   @Override
@@ -150,6 +161,10 @@ public class DefaultMemStore extends AbstractMemStore {
 
   @Override
   public void finalizeFlush() {
+  }
+
+  @Override public boolean isCompactingMemStore() {
+    return false;
   }
 
   /**

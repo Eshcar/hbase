@@ -151,4 +151,6 @@ public interface MemStore extends HeapSize {
    * One example is to update the wal with sequence number that is known only at the store level.
    */
   void finalizeFlush();
+
+  boolean isCompactingMemStore();
 }
