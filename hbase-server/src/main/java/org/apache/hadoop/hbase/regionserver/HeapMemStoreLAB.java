@@ -191,7 +191,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // No current chunk, so we want to allocate one. We race
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
-      c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize);
+      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize);
+      c = chunkPool.getChunk();
       if (curChunk.compareAndSet(null, c)) {
         // we won race - now we need to actually do the expensive
         // allocation step
@@ -227,12 +228,18 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     /** Size of chunk in bytes */
     private final int size;
 
+    /* A unique identifier of a chunk inside MemStoreChunkPool */
+    private final long id;
+
+    /* Chunk's index serves as replacement for pointer */
+
     /**
      * Create an uninitialized chunk. Note that memory is not allocated yet, so
      * this is cheap.
      * @param size in bytes
      */
-    Chunk(int size) {
+    Chunk(int size, long id) {
+      this.id = id;
       this.size = size;
     }
 
@@ -310,6 +317,14 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       return "Chunk@" + System.identityHashCode(this) +
         " allocs=" + allocCount.get() + "waste=" +
         (data.length - nextFreeOffset.get());
+    }
+
+    public long getId() {
+      return id;
+    }
+
+    public byte[] getData() {
+      return data;
     }
   }
 }

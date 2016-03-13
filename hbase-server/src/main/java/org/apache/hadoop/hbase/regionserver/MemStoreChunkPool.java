@@ -19,11 +19,8 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.lang.management.ManagementFactory;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
@@ -76,6 +73,10 @@ public class MemStoreChunkPool {
   private static final int statThreadPeriod = 60 * 5;
   private AtomicLong createdChunkCount = new AtomicLong();
   private AtomicLong reusedChunkCount = new AtomicLong();
+  private AtomicInteger totalChunkCount = new AtomicInteger();
+
+  // IDs Mapping of all chunks
+  private final ConcurrentMap<Integer, Chunk> chunksMap = new ConcurrentHashMap<Integer, Chunk>();
 
   MemStoreChunkPool(Configuration conf, int chunkSize, int maxCount,
       int initialCount) {
@@ -83,10 +84,12 @@ public class MemStoreChunkPool {
     this.chunkSize = chunkSize;
     this.reclaimedChunks = new LinkedBlockingQueue<Chunk>();
     for (int i = 0; i < initialCount; i++) {
-      Chunk chunk = new Chunk(chunkSize);
+      Chunk chunk = new Chunk(chunkSize,i);
+      chunksMap.put(i, chunk);
       chunk.init();
       reclaimedChunks.add(chunk);
     }
+    totalChunkCount.set(initialCount);
     final String n = Thread.currentThread().getName();
     scheduleThreadPool = Executors.newScheduledThreadPool(1,
         new ThreadFactoryBuilder().setNameFormat(n+"-MemStoreChunkPool Statistics")
@@ -103,7 +106,9 @@ public class MemStoreChunkPool {
   Chunk getChunk() {
     Chunk chunk = reclaimedChunks.poll();
     if (chunk == null) {
-      chunk = new Chunk(chunkSize);
+      int i = totalChunkCount.getAndIncrement();
+      chunk = new Chunk(chunkSize,i);
+      chunksMap.put(i, chunk);
       createdChunkCount.incrementAndGet();
     } else {
       chunk.reset();
@@ -123,6 +128,14 @@ public class MemStoreChunkPool {
       return;
     }
     chunks.drainTo(reclaimedChunks, maxNumToPutback);
+  }
+
+  /**
+   * Given a chunk ID return reference to the relevant chunk
+   * @return a chunk
+   */
+  Chunk translateIdToChunk(long id) {
+    return chunksMap.get(new Long(id));
   }
 
   /**
