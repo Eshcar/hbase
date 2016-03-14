@@ -22,14 +22,11 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.hbase.Cell;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentNavigableMap;
 import junit.framework.Assert;
 
 /**
- * CellBlocks stores a constant number of elements and is immutable after creation stage.
- * Due to being immutable the CellBlocks can be implemented as array.
- * The CellBlocks uses no synchronization primitives, it is assumed to be created by a
- * single thread and then it can be read-only by multiple threads.
+ * CellBlocksOnHeap is a simple array of Cells allocated using JVM.
+ * As all java arrays it is array of references pointing to Cell objects
  */
 public class CellBlocksOnHeap extends CellBlocks {
 
@@ -42,7 +39,7 @@ public class CellBlocksOnHeap extends CellBlocks {
   }
 
   @Override
-  protected CellBlocks createCellBlocksMap(Comparator<? super Cell> comparator, int min, int max,
+  protected CellBlocks createCellBlocks(Comparator<? super Cell> comparator, int min, int max,
       boolean d) {
     return new CellBlocksOnHeap(comparator,this.block,min,max,d);
   }

@@ -73,9 +73,8 @@ public class MemStoreChunkPool {
   private static final int statThreadPeriod = 60 * 5;
   private AtomicLong createdChunkCount = new AtomicLong();
   private AtomicLong reusedChunkCount = new AtomicLong();
-  private AtomicInteger totalChunkCount = new AtomicInteger();
 
-  // IDs Mapping of all chunks
+  // IDs Mapping of all chunks (key 0 is forbidden)
   private final ConcurrentMap<Integer, Chunk> chunksMap = new ConcurrentHashMap<Integer, Chunk>();
 
   MemStoreChunkPool(Configuration conf, int chunkSize, int maxCount,
@@ -83,13 +82,12 @@ public class MemStoreChunkPool {
     this.maxCount = maxCount;
     this.chunkSize = chunkSize;
     this.reclaimedChunks = new LinkedBlockingQueue<Chunk>();
+
     for (int i = 0; i < initialCount; i++) {
-      Chunk chunk = new Chunk(chunkSize,i);
-      chunksMap.put(i, chunk);
-      chunk.init();
+      Chunk chunk = allocateChunk();
       reclaimedChunks.add(chunk);
     }
-    totalChunkCount.set(initialCount);
+
     final String n = Thread.currentThread().getName();
     scheduleThreadPool = Executors.newScheduledThreadPool(1,
         new ThreadFactoryBuilder().setNameFormat(n+"-MemStoreChunkPool Statistics")
@@ -106,9 +104,7 @@ public class MemStoreChunkPool {
   Chunk getChunk() {
     Chunk chunk = reclaimedChunks.poll();
     if (chunk == null) {
-      int i = totalChunkCount.getAndIncrement();
-      chunk = new Chunk(chunkSize,i);
-      chunksMap.put(i, chunk);
+      chunk = allocateChunk();
       createdChunkCount.incrementAndGet();
     } else {
       chunk.reset();
@@ -134,8 +130,8 @@ public class MemStoreChunkPool {
    * Given a chunk ID return reference to the relevant chunk
    * @return a chunk
    */
-  Chunk translateIdToChunk(long id) {
-    return chunksMap.get(new Long(id));
+  Chunk translateIdToChunk(int id) {
+    return chunksMap.get(id);
   }
 
   /**
@@ -159,6 +155,24 @@ public class MemStoreChunkPool {
    */
   void clearChunks() {
     this.reclaimedChunks.clear();
+  }
+
+  /*
+   * Only used in testing
+   */
+  ConcurrentMap<Integer, Chunk> getChunksMap() {
+    return this.chunksMap;
+  }
+
+  /*
+   * Allocate and register Chunk
+   */
+  private Chunk allocateChunk() {
+    int newId = chunksMap.size() + 1; // the number of the new chunk
+    Chunk chunk = new Chunk(chunkSize,newId);
+    chunksMap.put(newId, chunk);
+    chunk.init();
+    return chunk;
   }
 
   private static class StatisticsThread extends Thread {

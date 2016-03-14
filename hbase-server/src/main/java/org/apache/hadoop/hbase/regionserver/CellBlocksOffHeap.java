@@ -25,16 +25,15 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import java.util.Comparator;
+import junit.framework.Assert;
 
 /**
- * CellBlocks stores a constant number of elements and is immutable after creation stage.
- * Due to being immutable the CellBlocks can be implemented as array.
- * The CellBlocks uses no synchronization primitives, it is assumed to be created by a
- * single thread and then it can be read-only by multiple threads.
+ * CellBlocksOffHeap is a byte array holding all that is needed to access a Cell, which
+ * is actually saved on another deeper byte array
  */
 public class CellBlocksOffHeap extends CellBlocks {
 
-  byte block[];
+  private byte block[];
   private final Configuration conf;
 
   public CellBlocksOffHeap(Comparator<? super Cell> comparator, Configuration conf,
@@ -45,18 +44,31 @@ public class CellBlocksOffHeap extends CellBlocks {
   }
 
   @Override
-  protected CellBlocks createCellBlocksMap(Comparator<? super Cell> comparator, int min, int max,
+  protected CellBlocks createCellBlocks(Comparator<? super Cell> comparator, int min, int max,
       boolean d) {
     return new CellBlocksOffHeap(comparator, this.conf, this.block, min, max, d);
   }
 
   @Override
   protected Cell getCellFromIndex(int i) {
+//    org.junit.Assert.assertTrue("\nGetting Cell from index:" + i + "\n",false);
+
     int offsetInBytes = 3*i*(Integer.SIZE / Byte.SIZE);
+
+//    org.junit.Assert.assertTrue("\n\nGetting Cell from index: " + i
+//        + ", offset to the start: " + offsetInBytes + ", the start of bytes array: " + block
+//        + "\n\n",false);
+
     int chunkId = Bytes.toInt(block,offsetInBytes);
-    int offsetOfCell = Bytes.toInt(block,offsetInBytes+3*(Integer.SIZE / Byte.SIZE));
-    int lengthOfCell = Bytes.toInt(block,offsetInBytes+6*(Integer.SIZE / Byte.SIZE));
+    int offsetOfCell = Bytes.toInt(block,offsetInBytes+(Integer.SIZE / Byte.SIZE));
+    int lengthOfCell = Bytes.toInt(block,offsetInBytes+2*(Integer.SIZE / Byte.SIZE));
     byte[] chunk = MemStoreChunkPool.getPool(conf).translateIdToChunk(chunkId).getData();
+
+//    org.junit.Assert.assertTrue("\n\n<<<<<< Getting Cell from index: " + i
+//        + "(got deep chunk), offset to the start: " + offsetInBytes + ", the start of bytes array: "
+//        + block + ", the (deep) chunk id: " + chunkId + ", offset of cell in deep buffer: "
+//        + offsetOfCell + "\n\n",false);
+
     Cell result = new KeyValue(chunk, offsetOfCell, lengthOfCell);
     return result;
   }

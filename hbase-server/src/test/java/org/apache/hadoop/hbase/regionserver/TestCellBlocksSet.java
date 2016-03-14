@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import junit.framework.TestCase;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
@@ -27,18 +28,22 @@ import org.junit.experimental.categories.Category;
 
 import java.util.Iterator;
 import java.util.SortedSet;
+import static org.junit.Assert.assertTrue;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestCellBlocksSet extends TestCase {
 
   private static final int NUM_OF_CELLS = 3;
 
-  private byte[] deepBuffer;      // deep cell data
-  private byte[] shallowBuffer;   // shallow cell data
-
   private Cell cells[];
-  private CellBlocksOnHeap cbMap;
-  private CellSet cbSet;
+  private CellBlocksOnHeap cbOnHeap;
+  private CellBlocksOffHeap cbOffHeap;
+
+  private final static Configuration conf = new Configuration();
+  private static MemStoreChunkPool chunkPool;
+
+
+
 
   protected void setUp() throws Exception {
     super.setUp();
@@ -56,49 +61,47 @@ public class TestCellBlocksSet extends TestCase {
     final KeyValue kv3 = new KeyValue(three, f, q, 30, v);
 
     cells = new Cell[] {kv1,kv2,kv3};
-    cbMap = new CellBlocksOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
-    cbSet = new CellSet(cbMap);
+    cbOnHeap = new CellBlocksOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
 
-    /*---------------- shallow cells to bytes start ----------------*/
-    deepBuffer = new byte[128];
-    shallowBuffer = new byte[64];
-    int offset = 0;
-    int pos = offset;
+    conf.setBoolean(SegmentFactory.USEMSLAB_KEY, true);
+    conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
+    MemStoreChunkPool.chunkPoolDisabled = false;
+    chunkPool = MemStoreChunkPool.getPool(conf);
+    assertTrue(chunkPool != null);
 
-    KeyValueUtil.appendToByteArray(kv1, deepBuffer, offset);
-    pos = Bytes.putInt(shallowBuffer, pos, 0);                        // chunk index
-    pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
-    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv1)); // length
-    offset += KeyValueUtil.length(kv1);
-
-    KeyValueUtil.appendToByteArray(kv2, deepBuffer, offset);
-    pos = Bytes.putInt(shallowBuffer, pos, 0);                    // chunk index
-    pos = Bytes.putInt(shallowBuffer, pos, offset);               // offset
-    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv2)); // length
-    offset += KeyValueUtil.length(kv2);
-
-    KeyValueUtil.appendToByteArray(kv3, deepBuffer, offset);
-    pos = Bytes.putInt(shallowBuffer, pos, 0);                    // chunk index
-    pos = Bytes.putInt(shallowBuffer, pos, offset);               // offset
-    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv3)); // length
-    /*---------------- shallow cells to bytes end   ----------------*/
+    byte[] b = shallowCellsToBuffer(kv1, kv2, kv3);
+    cbOffHeap = new CellBlocksOffHeap(CellComparator.COMPARATOR, conf, b, 0, NUM_OF_CELLS, false);
   }
 
-  public void testBasics() throws Exception {
+  /* Create and test CellSet based on CellBlocksOnHeap */
+  public void testCellBlocksOnHeap() throws Exception {
+    CellSet cs = new CellSet(cbOnHeap);
+    testCellBlocks(cs);
+    testIterators(cs);
+  }
 
-    assertEquals(3, this.cbSet.size());   // check size
+  /* Create and test CellSet based on CellBlocksOffHeap */
+  public void testCellBlocksOffHeap() throws Exception {
+    CellSet cs = new CellSet(cbOffHeap);
+    testCellBlocks(cs);
+    testIterators(cs);
+  }
 
-    assertTrue(this.cbSet.contains(cells[0]));  // check first
-    Cell first = this.cbSet.first();
+  /* Generic basic test for immutable CellSet */
+  private void testCellBlocks(CellSet cs) throws Exception {
+    assertEquals(NUM_OF_CELLS, cs.size());    // check size
+
+    assertTrue(cs.contains(cells[0]));        // check first
+    Cell first = cs.first();
     assertTrue(cells[0].equals(first));
 
-    assertTrue(this.cbSet.contains(cells[NUM_OF_CELLS - 1]));  // check last
-    Cell last = this.cbSet.last();
+    assertTrue(cs.contains(cells[NUM_OF_CELLS - 1]));  // check last
+    Cell last = cs.last();
     assertTrue(cells[NUM_OF_CELLS - 1].equals(last));
 
-    SortedSet<Cell> tail = this.cbSet.tailSet(cells[1]);  // check tail abd head sizes
+    SortedSet<Cell> tail = cs.tailSet(cells[1]);  // check tail abd head sizes
     assertEquals(2, tail.size());
-    SortedSet<Cell> head = this.cbSet.headSet(cells[1]);
+    SortedSet<Cell> head = cs.headSet(cells[1]);
     assertEquals(1, head.size());
 
     Cell tailFirst = tail.first();
@@ -112,11 +115,12 @@ public class TestCellBlocksSet extends TestCase {
     assertTrue(cells[0].equals(headLast));
   }
 
-  public void testIterators() throws Exception {
+  /* Generic iterators test for immutable CellSet */
+  private void testIterators(CellSet cs) throws Exception {
 
     // Assert that we have NUM_OF_CELLS values and that they are in order
     int count = 0;
-    for (Cell kv: this.cbSet) {
+    for (Cell kv: cs) {
       assertEquals("\n\n-------------------------------------------------------------------\n"
               + "Comparing iteration number " + (count + 1) + " the returned cell: " + kv
               + ", the first Cell in the CellBlocksMap: " + cells[count]
@@ -129,7 +133,7 @@ public class TestCellBlocksSet extends TestCase {
 
     // Test descending iterator
     count = 0;
-    for (Iterator<Cell> i = this.cbSet.descendingIterator(); i.hasNext();) {
+    for (Iterator<Cell> i = cs.descendingIterator(); i.hasNext();) {
       Cell kv = i.next();
       assertEquals(cells[NUM_OF_CELLS - (count + 1)], kv);
       count++;
@@ -137,80 +141,41 @@ public class TestCellBlocksSet extends TestCase {
     assertEquals(NUM_OF_CELLS, count);
   }
 
+  /* Create byte array holding shallow Cells referencing to the deep Cells data */
+  private byte[] shallowCellsToBuffer(Cell kv1, Cell kv2, Cell kv3) {
+    HeapMemStoreLAB.Chunk chunkD = chunkPool.getChunk();
+    HeapMemStoreLAB.Chunk chunkS = chunkPool.getChunk();
 
+    byte[] deepBuffer = chunkD.getData();
+    byte[] shallowBuffer = chunkS.getData();
+    int offset = 0;
+    int pos = offset;
 
-  /*---------------------------------- Shallow Cell ----------------------------------*/
-  static class ShallowCell implements Cell {
-    @Override public byte[] getRowArray() {
-      return new byte[0];
-    }
+//    assertTrue("\n\n<<<<< Preparing for CellBlocksOffHeap, shallow chunk: " + chunkS
+//        + " has index: " + chunkS.getId() + " \n\n", false);
 
-    @Override public int getRowOffset() {
-      return 0;
-    }
+    KeyValueUtil.appendToByteArray(kv1, deepBuffer, offset);      // write deep cell data
 
-    @Override public short getRowLength() {
-      return 0;
-    }
+//    assertTrue("\n\n<<<<< Preparing for CellBlocksOffHeap, shallow chunk: " + chunkS
+//        + " has index: " + chunkS.getId() + ", deep chunk: " + chunkD
+//        + " has index: " + chunkD.getId() + "\n\n", false);
 
-    @Override public byte[] getFamilyArray() {
-      return new byte[0];
-    }
+    pos = Bytes.putInt(shallowBuffer, pos, chunkD.getId());           // write deep chunk index
+    pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
+    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv1)); // length
+    offset += KeyValueUtil.length(kv1);
 
-    @Override public int getFamilyOffset() {
-      return 0;
-    }
+    KeyValueUtil.appendToByteArray(kv2, deepBuffer, offset);          // write deep cell data
+    pos = Bytes.putInt(shallowBuffer, pos, chunkD.getId());           // deep chunk index
+    pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
+    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv2)); // length
+    offset += KeyValueUtil.length(kv2);
 
-    @Override public byte getFamilyLength() {
-      return 0;
-    }
+    KeyValueUtil.appendToByteArray(kv3, deepBuffer, offset);          // write deep cell data
+    pos = Bytes.putInt(shallowBuffer, pos, chunkD.getId());           // deep chunk index
+    pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
+    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv3)); // length
 
-    @Override public byte[] getQualifierArray() {
-      return new byte[0];
-    }
-
-    @Override public int getQualifierOffset() {
-      return 0;
-    }
-
-    @Override public int getQualifierLength() {
-      return 0;
-    }
-
-    @Override public long getTimestamp() {
-      return 0;
-    }
-
-    @Override public byte getTypeByte() {
-      return 0;
-    }
-
-    @Override public long getSequenceId() {
-      return 0;
-    }
-
-    @Override public byte[] getValueArray() {
-      return new byte[0];
-    }
-
-    @Override public int getValueOffset() {
-      return 0;
-    }
-
-    @Override public int getValueLength() {
-      return 0;
-    }
-
-    @Override public byte[] getTagsArray() {
-      return new byte[0];
-    }
-
-    @Override public int getTagsOffset() {
-      return 0;
-    }
-
-    @Override public int getTagsLength() {
-      return 0;
-    }
+    return shallowBuffer;
   }
 }

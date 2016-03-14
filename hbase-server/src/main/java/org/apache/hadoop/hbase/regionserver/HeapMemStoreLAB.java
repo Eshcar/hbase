@@ -88,9 +88,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     this.chunkPool = MemStoreChunkPool.getPool(conf);
 
     // if we don't exclude allocations >CHUNK_SIZE, we'd infiniteloop on one!
-    Preconditions.checkArgument(
-      maxAlloc <= chunkSize,
-      MAX_ALLOC_KEY + " must be less than " + CHUNK_SIZE_KEY);
+    Preconditions.checkArgument(maxAlloc <= chunkSize,
+        MAX_ALLOC_KEY + " must be less than " + CHUNK_SIZE_KEY);
   }
 
   /**
@@ -191,12 +190,12 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // No current chunk, so we want to allocate one. We race
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
-      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize);
-      c = chunkPool.getChunk();
+      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize); 14921
+      c = chunkPool.getChunk(); // 14921
       if (curChunk.compareAndSet(null, c)) {
         // we won race - now we need to actually do the expensive
         // allocation step
-        c.init();
+        // c.init(); 14921
         this.chunkQueue.add(c);
         return c;
       } else if (chunkPool != null) {
@@ -205,6 +204,14 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // someone else won race - that's fine, we'll try to grab theirs
       // in the next iteration of the loop.
     }
+  }
+
+  /** 14921
+   * Given a chunk ID return reference to the relevant chunk
+   * @return a chunk
+   */
+  Chunk translateIdToChunk(int id) {
+    return chunkPool.translateIdToChunk(id);
   }
 
   /**
@@ -229,7 +236,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     private final int size;
 
     /* A unique identifier of a chunk inside MemStoreChunkPool */
-    private final long id;
+    private final int id;
 
     /* Chunk's index serves as replacement for pointer */
 
@@ -238,7 +245,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
      * this is cheap.
      * @param size in bytes
      */
-    Chunk(int size, long id) {
+    Chunk(int size, int id) {
       this.id = id;
       this.size = size;
     }
@@ -319,7 +326,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
         (data.length - nextFreeOffset.get());
     }
 
-    public long getId() {
+    public int getId() {
       return id;
     }
 

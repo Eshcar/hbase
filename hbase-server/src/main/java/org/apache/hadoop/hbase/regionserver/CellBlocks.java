@@ -22,34 +22,34 @@ import org.apache.hadoop.hbase.Cell;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
-import junit.framework.Assert;
 
 /**
  * CellBlocks stores a constant number of elements and is immutable after creation stage.
  * Due to being immutable the CellBlocks can be implemented as array.
+ * The actual array is on- or off-heap and is implemented in concrete class derived from CellBlocks.
  * The CellBlocks uses no synchronization primitives, it is assumed to be created by a
  * single thread and then it can be read-only by multiple threads.
  */
 public abstract class CellBlocks implements ConcurrentNavigableMap<Cell,Cell> {
 
   private final Comparator<? super Cell> comparator;
-
   private int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
   private int maxCellIdx   = 0;   // the index of the maximal cell (for sub-sets)
   private boolean isDescending = false; // array can be easily traversed backward in descending order
 
-
+  /* C-tor */
   public CellBlocks(Comparator<? super Cell> comparator, int min, int max, boolean d){
-    //assert(false);
     this.comparator = comparator;
     this.minCellIdx = min;
     this.maxCellIdx = max;
     this.isDescending = d;
   }
 
-  protected abstract CellBlocks createCellBlocksMap(Comparator<? super Cell> comparator,
-      int min, int max, boolean d);
+  /* Used for abstract CellBlocks creation, implemented by derived class */
+  protected abstract CellBlocks createCellBlocks(Comparator<? super Cell> comparator, int min,
+      int max, boolean d);
 
+  /* Assuming array underneath implementation this comes instead of array[i] */
   protected abstract Cell getCellFromIndex(int i);
 
   /**
@@ -102,25 +102,25 @@ public abstract class CellBlocks implements ConcurrentNavigableMap<Cell,Cell> {
     if (!fromInclusive && fromIndex >= 0) fromIndex++;
     else if (fromIndex < 0) fromIndex = -(fromIndex + 1);
 
-    return createCellBlocksMap(comparator,fromIndex,toIndex,false);
+    return createCellBlocks(comparator, fromIndex, toIndex, false);
   }
 
   @Override public ConcurrentNavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
     int index = find(toKey);
     if (inclusive && index >= 0) index++;
     else if (index < 0) index = -(index + 1) - 1;
-    return createCellBlocksMap(comparator,minCellIdx,index,false);
+    return createCellBlocks(comparator, minCellIdx, index, false);
   }
 
   @Override public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
     int index = find(fromKey);
     if (!inclusive && index >= 0) index++;
     else if (index < 0) index = -(index + 1);
-    return createCellBlocksMap(comparator,index,maxCellIdx,false);
+    return createCellBlocks(comparator, index, maxCellIdx, false);
   }
 
   @Override public ConcurrentNavigableMap<Cell, Cell> descendingMap() {
-    return createCellBlocksMap(comparator,minCellIdx,maxCellIdx,true);
+    return createCellBlocks(comparator, minCellIdx, maxCellIdx, true);
   }
 
   @Override public ConcurrentNavigableMap<Cell, Cell> subMap(Cell k, Cell k1) {
@@ -423,7 +423,5 @@ public abstract class CellBlocks implements ConcurrentNavigableMap<Cell,Cell> {
 
 
   }
-
-
 
 }
