@@ -214,6 +214,16 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return chunkPool.translateIdToChunk(id);
   }
 
+  /** 14921
+   * Use instead of allocateBytes() when new full chunk is needed
+   * @return a chunk
+   */
+  Chunk allocateChunk() {
+    Chunk c = chunkPool.getChunk();
+    this.chunkQueue.add(c);
+    return c;
+  }
+
   /**
    * A chunk of memory out of which allocations are sliced.
    */

@@ -34,19 +34,19 @@ import junit.framework.Assert;
 public class CellBlocksOffHeap extends CellBlocks {
 
   private byte block[];
-  private final Configuration conf;
+  private final HeapMemStoreLAB memStoreLAB;
 
-  public CellBlocksOffHeap(Comparator<? super Cell> comparator, Configuration conf,
+  public CellBlocksOffHeap(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
       byte b[], int min, int max, boolean d) {
     super(comparator,min,max,d);
     this.block = b;
-    this.conf = conf;
+    this.memStoreLAB = memStoreLAB;
   }
 
   @Override
   protected CellBlocks createCellBlocks(Comparator<? super Cell> comparator, int min, int max,
       boolean d) {
-    return new CellBlocksOffHeap(comparator, this.conf, this.block, min, max, d);
+    return new CellBlocksOffHeap(comparator, this.memStoreLAB, this.block, min, max, d);
   }
 
   @Override
@@ -62,7 +62,7 @@ public class CellBlocksOffHeap extends CellBlocks {
     int chunkId = Bytes.toInt(block,offsetInBytes);
     int offsetOfCell = Bytes.toInt(block,offsetInBytes+(Integer.SIZE / Byte.SIZE));
     int lengthOfCell = Bytes.toInt(block,offsetInBytes+2*(Integer.SIZE / Byte.SIZE));
-    byte[] chunk = MemStoreChunkPool.getPool(conf).translateIdToChunk(chunkId).getData();
+    byte[] chunk = memStoreLAB.translateIdToChunk(chunkId).getData();
 
 //    org.junit.Assert.assertTrue("\n\n<<<<<< Getting Cell from index: " + i
 //        + "(got deep chunk), offset to the start: " + offsetInBytes + ", the start of bytes array: "
