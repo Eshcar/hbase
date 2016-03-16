@@ -59,7 +59,8 @@ public class CellSet implements NavigableSet<Cell>  {
   }
 
   public Iterator<Cell> descendingIterator() {
-    return this.delegatee.descendingMap().values().iterator();
+    return this.delegatee.navigableKeySet().descendingIterator();
+    //return this.delegatee.descendingMap().values().iterator();
   }
 
   public NavigableSet<Cell> descendingSet() {

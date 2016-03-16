@@ -36,8 +36,8 @@ public class TestCellBlocksSet extends TestCase {
   private static final int NUM_OF_CELLS = 3;
 
   private Cell cells[];
-  private CellBlocksOnHeap cbOnHeap;
-  private CellBlocksOffHeap cbOffHeap;
+  private CellBlockOnHeap cbOnHeap;
+  private CellBlockOffHeap cbOffHeap;
 
   private final static Configuration conf = new Configuration();
   private HeapMemStoreLAB mslab;
@@ -47,7 +47,7 @@ public class TestCellBlocksSet extends TestCase {
   protected void setUp() throws Exception {
     super.setUp();
 
-    // create array of Cells to bass to the CellBlocks under CellSet
+    // create array of Cells to bass to the CellBlock under CellSet
     final byte[] one = Bytes.toBytes(1);
     final byte[] two = Bytes.toBytes(2);
     final byte[] three = Bytes.toBytes(3);
@@ -60,25 +60,26 @@ public class TestCellBlocksSet extends TestCase {
     final KeyValue kv3 = new KeyValue(three, f, q, 30, v);
 
     cells = new Cell[] {kv1,kv2,kv3};
-    cbOnHeap = new CellBlocksOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
+    cbOnHeap = new CellBlockOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS);
 
     conf.setBoolean(SegmentFactory.USEMSLAB_KEY, true);
     conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
     MemStoreChunkPool.chunkPoolDisabled = false;
     mslab = new HeapMemStoreLAB(conf);
 
-    byte[] b = shallowCellsToBuffer(kv1, kv2, kv3);
-    cbOffHeap = new CellBlocksOffHeap(CellComparator.COMPARATOR, mslab, b, 0, NUM_OF_CELLS, false);
+    HeapMemStoreLAB.Chunk[] c = shallowCellsToBuffer(kv1, kv2, kv3);
+    int chunkSize = conf.getInt(HeapMemStoreLAB.CHUNK_SIZE_KEY, HeapMemStoreLAB.CHUNK_SIZE_DEFAULT);
+    cbOffHeap = new CellBlockOffHeap(CellComparator.COMPARATOR, mslab, c, 0, NUM_OF_CELLS, chunkSize);
   }
 
-  /* Create and test CellSet based on CellBlocksOnHeap */
+  /* Create and test CellSet based on CellBlockOnHeap */
   public void testCellBlocksOnHeap() throws Exception {
     CellSet cs = new CellSet(cbOnHeap);
     testCellBlocks(cs);
     testIterators(cs);
   }
 
-  /* Create and test CellSet based on CellBlocksOffHeap */
+  /* Create and test CellSet based on CellBlockOffHeap */
   public void testCellBlocksOffHeap() throws Exception {
     CellSet cs = new CellSet(cbOffHeap);
     testCellBlocks(cs);
@@ -140,21 +141,22 @@ public class TestCellBlocksSet extends TestCase {
   }
 
   /* Create byte array holding shallow Cells referencing to the deep Cells data */
-  private byte[] shallowCellsToBuffer(Cell kv1, Cell kv2, Cell kv3) {
+  private HeapMemStoreLAB.Chunk[] shallowCellsToBuffer(Cell kv1, Cell kv2, Cell kv3) {
     HeapMemStoreLAB.Chunk chunkD = mslab.allocateChunk();
     HeapMemStoreLAB.Chunk chunkS = mslab.allocateChunk();
+    HeapMemStoreLAB.Chunk result[] = {chunkS};
 
     byte[] deepBuffer = chunkD.getData();
     byte[] shallowBuffer = chunkS.getData();
     int offset = 0;
     int pos = offset;
 
-//    assertTrue("\n\n<<<<< Preparing for CellBlocksOffHeap, shallow chunk: " + chunkS
+//    assertTrue("\n\n<<<<< Preparing for CellBlockOffHeap, shallow chunk: " + chunkS
 //        + " has index: " + chunkS.getId() + " \n\n", false);
 
     KeyValueUtil.appendToByteArray(kv1, deepBuffer, offset);      // write deep cell data
 
-//    assertTrue("\n\n<<<<< Preparing for CellBlocksOffHeap, shallow chunk: " + chunkS
+//    assertTrue("\n\n<<<<< Preparing for CellBlockOffHeap, shallow chunk: " + chunkS
 //        + " has index: " + chunkS.getId() + ", deep chunk: " + chunkD
 //        + " has index: " + chunkD.getId() + "\n\n", false);
 
@@ -174,6 +176,6 @@ public class TestCellBlocksSet extends TestCase {
     pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
     pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv3)); // length
 
-    return shallowBuffer;
+    return result;
   }
 }
