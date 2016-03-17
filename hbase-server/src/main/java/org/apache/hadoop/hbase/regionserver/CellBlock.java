@@ -28,6 +28,8 @@ import java.util.SortedSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * CellBlock stores a constant number of elements and is immutable after creation stage.
@@ -113,7 +115,7 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
                                                     Cell toKey,
                                                     boolean toInclusive) {
     int toIndex = getValidIndex(toKey, toInclusive);
-    int fromIndex = (getValidIndex(fromKey, !fromInclusive))-1;
+    int fromIndex = (getValidIndex(fromKey, !fromInclusive));
 
     if (fromIndex > toIndex) throw new IllegalArgumentException("inconsistent range");
     return createCellBlocks(comparator, fromIndex, toIndex);
@@ -127,7 +129,11 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
-    int index = (getValidIndex(fromKey, !inclusive))-1;
+    int index = (getValidIndex(fromKey, !inclusive));
+
+//    assertTrue("\n\n<<<<<<<<<<<< Getting tailMap from index: " + index
+//        + ", inclusive?:" + inclusive + "; the cell: " + fromKey.toString() + "\n\n",false);
+
     return createCellBlocks(comparator, index, maxCellIdx);
   }
 

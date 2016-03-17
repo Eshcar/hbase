@@ -80,11 +80,11 @@ public class TestCellBlocksSet extends TestCase {
   }
 
   /* Create and test CellSet based on CellBlockOffHeap */
-  public void testCellBlocksOffHeap() throws Exception {
-    CellSet cs = new CellSet(cbOffHeap);
-    testCellBlocks(cs);
-    testIterators(cs);
-  }
+//  public void testCellBlocksOffHeap() throws Exception {
+//    CellSet cs = new CellSet(cbOffHeap);
+//    testCellBlocks(cs);
+//    testIterators(cs);
+//  }
 
   /* Generic basic test for immutable CellSet */
   private void testCellBlocks(CellSet cs) throws Exception {
