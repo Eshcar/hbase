@@ -43,18 +43,19 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   private final Comparator<? super Cell> comparator;
   private int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
   private int maxCellIdx   = 0;   // the index of the maximal cell (for sub-sets)
-
+  private boolean descending = false;
 
   /* C-tor */
-  public CellBlock(Comparator<? super Cell> comparator, int min, int max){
+  public CellBlock(Comparator<? super Cell> comparator, int min, int max, boolean d){
     this.comparator = comparator;
     this.minCellIdx = min;
     this.maxCellIdx = max;
+    this.descending = d;
   }
 
   /* Used for abstract CellBlock creation, implemented by derived class */
   protected abstract CellBlock createCellBlocks(Comparator<? super Cell> comparator, int min,
-      int max);
+      int max, boolean descending);
 
   /* Returns the i-th cell in the cell block */
   protected abstract Cell getCellFromIndex(int i);
@@ -118,13 +119,13 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     int fromIndex = (getValidIndex(fromKey, !fromInclusive));
 
     if (fromIndex > toIndex) throw new IllegalArgumentException("inconsistent range");
-    return createCellBlocks(comparator, fromIndex, toIndex);
+    return createCellBlocks(comparator, fromIndex, toIndex, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
     int index = getValidIndex(toKey, inclusive);
-    return createCellBlocks(comparator, minCellIdx, index);
+    return createCellBlocks(comparator, minCellIdx, index, descending);
   }
 
   @Override
@@ -134,12 +135,12 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 //    assertTrue("\n\n<<<<<<<<<<<< Getting tailMap from index: " + index
 //        + ", inclusive?:" + inclusive + "; the cell: " + fromKey.toString() + "\n\n",false);
 
-    return createCellBlocks(comparator, index, maxCellIdx);
+    return createCellBlocks(comparator, index, maxCellIdx, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> descendingMap() {
-    return createCellBlocks(comparator, minCellIdx, maxCellIdx);
+    return createCellBlocks(comparator, minCellIdx, maxCellIdx, true);
   }
 
   @Override
@@ -158,12 +159,14 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   @Override
   public Cell firstKey() {
     if (isEmpty()) return null;
+    if (descending) getCellFromIndex(maxCellIdx-1);
     return getCellFromIndex(minCellIdx);
   }
 
   @Override
   public Cell lastKey() {
     if (isEmpty()) return null;
+    if (descending) return getCellFromIndex(minCellIdx);
     return getCellFromIndex(maxCellIdx-1);
   }
 
@@ -171,8 +174,13 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   public Cell lowerKey(Cell k) {
     if (isEmpty()) return null;
     int index = find(k);
-    if (index >= 0) index -= 1; // There's a key exactly equal.
-    else index = -(index + 1) - 1;
+    if (descending) {
+      if (index >= 0) index++; // There's a key exactly equal.
+      else index = -(index + 1);
+    } else {
+      if (index >= 0) index--; // There's a key exactly equal.
+      else index = -(index + 1) - 1;
+    }
     return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
   }
 
@@ -180,7 +188,11 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   public Cell floorKey(Cell k) {
     if (isEmpty()) return null;
     int index = find(k);
-    if (index < 0) index = -(index + 1) - 1;
+    if (descending) {
+      if (index < 0)  index = -(index + 1);
+    } else {
+      if (index < 0) index = -(index + 1) - 1;
+    }
     return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
   }
 
@@ -188,7 +200,11 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   public Cell ceilingKey(Cell k) {
     if (isEmpty()) return null;
     int index = find(k);
-    if (index < 0)  index = -(index + 1);
+    if (descending) {
+      if (index < 0) index = -(index + 1) - 1;
+    } else {
+      if (index < 0) index = -(index + 1);
+    }
     return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
   }
 
@@ -196,8 +212,13 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   public Cell higherKey(Cell k) {
     if (isEmpty()) return null;
     int index = find(k);
-    if (index >= 0) index++; // There's a key exactly equal.
-    else index = -(index + 1);
+    if (descending) {
+      if (index >= 0) index--; // There's a key exactly equal.
+      else index = -(index + 1) - 1;
+    } else {
+      if (index >= 0) index++; // There's a key exactly equal.
+      else index = -(index + 1);
+    }
     return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
   }
 
@@ -282,7 +303,7 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 
   // -------------------------------- Sub-Sets --------------------------------
   @Override
-  public NavigableSet<Cell> navigableKeySet() { return new CellBlocksSet(); }
+  public NavigableSet<Cell> navigableKeySet() { throw new UnsupportedOperationException(); }
 
   @Override 
   public NavigableSet<Cell> descendingKeySet() { throw new UnsupportedOperationException(); }
@@ -299,23 +320,21 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 
   // -------------------------------- Iterator K --------------------------------
   private final class CellBlocksIterator implements Iterator<Cell> {
-    int index = minCellIdx;
-    boolean isDescending = false;
+    int index;
 
-    private CellBlocksIterator(boolean d) {
-      isDescending = d;
-      index = d ? maxCellIdx-1 : minCellIdx;
+    private CellBlocksIterator() {
+      index = descending ? maxCellIdx-1 : minCellIdx;
     }
 
     @Override
     public boolean hasNext() {
-      return isDescending ? (index >= minCellIdx) : (index < maxCellIdx);
+      return descending ? (index >= minCellIdx) : (index < maxCellIdx);
     }
 
     @Override
     public Cell next() {
       Cell result = getCellFromIndex(index);
-      if (isDescending) index--; else index++;
+      if (descending) index--; else index++;
       return result;
     }
 
@@ -326,120 +345,6 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   
-  // -------------------------------- Navigable Set --------------------------------
-  private final class CellBlocksSet implements NavigableSet<Cell> {
-
-    @Override
-    public Cell lower(Cell k)       { return lowerKey(k); }
-
-    @Override
-    public Cell floor(Cell k)       { return floorKey(k); }
-
-    @Override
-    public Cell ceiling(Cell k)     { return ceilingKey(k); }
-
-    @Override
-    public Cell higher(Cell k)      { return higherKey(k); }
-
-    @Override
-    public Cell first()          { return firstKey(); }
-
-    @Override
-    public Cell last()           { return lastKey(); }
-
-    @Override
-    public Cell pollFirst()      { throw new UnsupportedOperationException(); }
-
-    @Override
-    public Cell pollLast()       { throw new UnsupportedOperationException(); }
-
-    @Override
-    public int size()         { return size(); }
-
-    @Override
-    public boolean isEmpty()  { return isEmpty(); }
-
-    @Override
-    public void clear()       { throw new UnsupportedOperationException();  }
-
-    @Override
-    public boolean contains(Object o) { return containsKey(o); }
-
-    @Override
-    public Comparator<? super Cell> comparator() { return comparator; }
-
-    @Override
-    public Iterator<Cell> iterator() { return new CellBlocksIterator(false); }
-
-    @Override
-    public Iterator<Cell> descendingIterator() { return new CellBlocksIterator(true); }
-
-    @Override
-    public Object[] toArray() { throw new UnsupportedOperationException(); }
-
-    @Override
-    public <T> T[] toArray(T[] ts) { throw new UnsupportedOperationException(); }
-
-    @Override
-    public boolean add(Cell k)   { throw new UnsupportedOperationException(); }
-
-    @Override
-    public boolean remove(Object o) { throw new UnsupportedOperationException(); }
-
-    @Override
-    public boolean containsAll(Collection<?> collection) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends Cell> collection) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean retainAll(Collection<?> collection) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean removeAll(Collection<?> collection) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public NavigableSet<Cell> descendingSet() { throw new UnsupportedOperationException(); }
-
-    @Override
-    public SortedSet<Cell> subSet(Cell k, Cell e1) { throw new UnsupportedOperationException(); }
-
-    @Override
-    public NavigableSet<Cell> subSet(Cell k, boolean b, Cell e1, boolean b1) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public NavigableSet<Cell> headSet(Cell k, boolean b) { // headMap should be used instead
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public NavigableSet<Cell> tailSet(Cell k, boolean b) { // tailMap should be used instead
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SortedSet<Cell> headSet(Cell k) { // headMap should be used instead
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SortedSet<Cell> tailSet(Cell k) { // tailMap should be used instead
-      throw new UnsupportedOperationException();
-    }
-
-
-  }
-
   // -------------------------------- Collection --------------------------------
   private final class CellBlocksCollection implements Collection<Cell> {
 
@@ -457,7 +362,7 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 
     @Override
     public Iterator<Cell> iterator() {
-      return new CellBlocksIterator(false);
+      return new CellBlocksIterator();
     }
 
     @Override

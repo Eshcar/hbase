@@ -49,8 +49,8 @@ public class CellBlockOffHeap extends CellBlock {
   private final int bytesInCell = 3*(Integer.SIZE / Byte.SIZE); // each Cell requires 3 integers
 
   public CellBlockOffHeap(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
-      HeapMemStoreLAB.Chunk chunks[], int min, int max, int chunkSize) {
-    super(comparator,min,max);
+      HeapMemStoreLAB.Chunk chunks[], int min, int max, int chunkSize, boolean d) {
+    super(comparator,min,max, d);
     this.chunks = chunks;
     this.memStoreLAB = memStoreLAB;
     this.numOfCellsInsideChunk = chunkSize / bytesInCell;
@@ -58,9 +58,10 @@ public class CellBlockOffHeap extends CellBlock {
 
   /* To be used by base class only to create a sub-CellBlock */
   @Override
-  protected CellBlock createCellBlocks(Comparator<? super Cell> comparator, int min, int max) {
+  protected CellBlock createCellBlocks(Comparator<? super Cell> comparator,
+      int min, int max, boolean d) {
     return new CellBlockOffHeap(comparator, this.memStoreLAB, this.chunks, min, max,
-        this.numOfCellsInsideChunk*bytesInCell);
+        this.numOfCellsInsideChunk*bytesInCell, d);
   }
 
   @Override

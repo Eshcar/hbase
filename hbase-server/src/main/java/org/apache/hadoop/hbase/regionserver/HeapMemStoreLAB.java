@@ -190,8 +190,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // No current chunk, so we want to allocate one. We race
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
-      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize); 14921
-      c = chunkPool.getChunk(); // 14921
+      c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize, 5); //14921
+      //c = chunkPool.getChunk(); // 14921
       if (curChunk.compareAndSet(null, c)) {
         // we won race - now we need to actually do the expensive
         // allocation step

@@ -60,7 +60,7 @@ public class TestCellBlocksSet extends TestCase {
     final KeyValue kv3 = new KeyValue(three, f, q, 30, v);
 
     cells = new Cell[] {kv1,kv2,kv3};
-    cbOnHeap = new CellBlockOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS);
+    cbOnHeap = new CellBlockOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
 
     conf.setBoolean(SegmentFactory.USEMSLAB_KEY, true);
     conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
@@ -69,7 +69,8 @@ public class TestCellBlocksSet extends TestCase {
 
     HeapMemStoreLAB.Chunk[] c = shallowCellsToBuffer(kv1, kv2, kv3);
     int chunkSize = conf.getInt(HeapMemStoreLAB.CHUNK_SIZE_KEY, HeapMemStoreLAB.CHUNK_SIZE_DEFAULT);
-    cbOffHeap = new CellBlockOffHeap(CellComparator.COMPARATOR, mslab, c, 0, NUM_OF_CELLS, chunkSize);
+    cbOffHeap = new CellBlockOffHeap(CellComparator.COMPARATOR, mslab,
+        c, 0, NUM_OF_CELLS, chunkSize, false);
   }
 
   /* Create and test CellSet based on CellBlockOnHeap */
@@ -80,11 +81,11 @@ public class TestCellBlocksSet extends TestCase {
   }
 
   /* Create and test CellSet based on CellBlockOffHeap */
-//  public void testCellBlocksOffHeap() throws Exception {
-//    CellSet cs = new CellSet(cbOffHeap);
-//    testCellBlocks(cs);
-//    testIterators(cs);
-//  }
+  public void testCellBlocksOffHeap() throws Exception {
+    CellSet cs = new CellSet(cbOffHeap);
+    testCellBlocks(cs);
+    testIterators(cs);
+  }
 
   /* Generic basic test for immutable CellSet */
   private void testCellBlocks(CellSet cs) throws Exception {
