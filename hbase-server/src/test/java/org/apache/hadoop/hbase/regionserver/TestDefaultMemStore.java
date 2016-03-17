@@ -63,25 +63,29 @@ import java.util.concurrent.atomic.AtomicReference;
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestDefaultMemStore extends TestCase {
   private static final Log LOG = LogFactory.getLog(TestDefaultMemStore.class);
-  private DefaultMemStore memstore;
-  private static final int ROW_COUNT = 10;
-  private static final int QUALIFIER_COUNT = ROW_COUNT;
-  private static final byte [] FAMILY = Bytes.toBytes("column");
-  private MultiVersionConcurrencyControl mvcc;
-  private AtomicLong startSeqNum = new AtomicLong(0);
+  protected AbstractMemStore memstore;
+  protected static final int ROW_COUNT = 10;
+  protected static final int QUALIFIER_COUNT = ROW_COUNT;
+  protected static final byte[] FAMILY = Bytes.toBytes("column");
+  protected MultiVersionConcurrencyControl mvcc;
+  protected AtomicLong startSeqNum = new AtomicLong(0);
 
   @Override
   public void setUp() throws Exception {
-    super.setUp();
-    this.mvcc = new MultiVersionConcurrencyControl();
+    internalSetUp();
     this.memstore = new DefaultMemStore();
   }
 
+  protected void internalSetUp() throws Exception {
+    super.setUp();
+    this.mvcc = new MultiVersionConcurrencyControl();
+  }
+
   public void testPutSameKey() {
-    byte [] bytes = Bytes.toBytes(getName());
+    byte[] bytes = Bytes.toBytes(getName());
     KeyValue kv = new KeyValue(bytes, bytes, bytes, bytes);
     this.memstore.add(kv);
-    byte [] other = Bytes.toBytes("somethingelse");
+    byte[] other = Bytes.toBytes("somethingelse");
     KeyValue samekey = new KeyValue(bytes, bytes, bytes, other);
     this.memstore.add(samekey);
     Cell found = this.memstore.getActive().first();
@@ -91,6 +95,7 @@ public class TestDefaultMemStore extends TestCase {
 
   /**
    * Test memstore snapshot happening while scanning.
+   *
    * @throws IOException
    */
   public void testScanAcrossSnapshot() throws IOException {
@@ -177,6 +182,7 @@ public class TestDefaultMemStore extends TestCase {
 
   /**
    * A simple test which verifies the 3 possible states when scanning across snapshot.
+   *
    * @throws IOException
    * @throws CloneNotSupportedException
    */
@@ -209,7 +215,7 @@ public class TestDefaultMemStore extends TestCase {
     verifyScanAcrossSnapshot2(kv1, kv2);
   }
 
-  private void verifyScanAcrossSnapshot2(KeyValue kv1, KeyValue kv2)
+  protected void verifyScanAcrossSnapshot2(KeyValue kv1, KeyValue kv2)
       throws IOException {
     List<KeyValueScanner> memstorescanners = this.memstore.getScanners(mvcc.getReadPoint());
     assertEquals(1, memstorescanners.size());
@@ -220,7 +226,7 @@ public class TestDefaultMemStore extends TestCase {
     assertNull(scanner.next());
   }
 
-  private void assertScannerResults(KeyValueScanner scanner, KeyValue[] expected)
+  protected void assertScannerResults(KeyValueScanner scanner, KeyValue[] expected)
       throws IOException {
     scanner.seek(KeyValueUtil.createFirstOnRow(new byte[]{}));
     List<Cell> returned = Lists.newArrayList();
@@ -505,11 +511,11 @@ public class TestDefaultMemStore extends TestCase {
     // Add more versions to make it a little more interesting.
     Thread.sleep(1);
     addRows(this.memstore);
-    Cell closestToEmpty = this.memstore.getNextRow(KeyValue.LOWESTKEY);
+    Cell closestToEmpty = ((DefaultMemStore)this.memstore).getNextRow(KeyValue.LOWESTKEY);
     assertTrue(CellComparator.COMPARATOR.compareRows(closestToEmpty,
       new KeyValue(Bytes.toBytes(0), System.currentTimeMillis())) == 0);
     for (int i = 0; i < ROW_COUNT; i++) {
-      Cell nr = this.memstore.getNextRow(new KeyValue(Bytes.toBytes(i),
+      Cell nr = ((DefaultMemStore)this.memstore).getNextRow(new KeyValue(Bytes.toBytes(i),
         System.currentTimeMillis()));
       if (i + 1 == ROW_COUNT) {
         assertEquals(nr, null);
@@ -532,8 +538,7 @@ public class TestDefaultMemStore extends TestCase {
         int rowId = startRowId + i;
         Cell left = results.get(0);
         byte[] row1 = Bytes.toBytes(rowId);
-        assertTrue(
-            "Row name",
+        assertTrue("Row name",
             CellComparator.COMPARATOR.compareRows(left, row1, 0, row1.length) == 0);
         assertEquals("Count of columns", QUALIFIER_COUNT, results.size());
         List<Cell> row = new ArrayList<Cell>();
@@ -558,9 +563,9 @@ public class TestDefaultMemStore extends TestCase {
     byte [] val = Bytes.toBytes("testval");
 
     //Setting up memstore
-    memstore.add(new KeyValue(row, fam ,qf1, val));
-    memstore.add(new KeyValue(row, fam ,qf2, val));
-    memstore.add(new KeyValue(row, fam ,qf3, val));
+    memstore.add(new KeyValue(row, fam, qf1, val));
+    memstore.add(new KeyValue(row, fam, qf2, val));
+    memstore.add(new KeyValue(row, fam, qf3, val));
     //Creating a snapshot
     memstore.snapshot();
     assertEquals(3, memstore.getSnapshot().getCellsCount());
@@ -584,7 +589,7 @@ public class TestDefaultMemStore extends TestCase {
     KeyValue put1 = new KeyValue(row, fam, qf1, ts1, val);
     long ts2 = ts1 + 1;
     KeyValue put2 = new KeyValue(row, fam, qf1, ts2, val);
-    long ts3 = ts2 +1;
+    long ts3 = ts2 + 1;
     KeyValue put3 = new KeyValue(row, fam, qf1, ts3, val);
     memstore.add(put1);
     memstore.add(put2);
@@ -618,7 +623,7 @@ public class TestDefaultMemStore extends TestCase {
     KeyValue put1 = new KeyValue(row, fam, qf1, ts1, val);
     long ts2 = ts1 + 1;
     KeyValue put2 = new KeyValue(row, fam, qf1, ts2, val);
-    long ts3 = ts2 +1;
+    long ts3 = ts2 + 1;
     KeyValue put3 = new KeyValue(row, fam, qf1, ts3, val);
     memstore.add(put1);
     memstore.add(put2);
@@ -636,10 +641,9 @@ public class TestDefaultMemStore extends TestCase {
     expected.add(put2);
     expected.add(put1);
 
-
     assertEquals(4, memstore.getActive().getCellsCount());
     int i = 0;
-    for (Cell cell: memstore.getActive().getCellSet()) {
+    for (Cell cell : memstore.getActive().getCellSet()) {
       assertEquals(expected.get(i++), cell);
     }
   }
@@ -675,11 +679,9 @@ public class TestDefaultMemStore extends TestCase {
     expected.add(put4);
     expected.add(put3);
 
-
-
     assertEquals(5, memstore.getActive().getCellsCount());
     int i = 0;
-    for (Cell cell: memstore.getActive().getCellSet()) {
+    for (Cell cell : memstore.getActive().getCellSet()) {
       assertEquals(expected.get(i++), cell);
     }
   }
@@ -709,6 +711,7 @@ public class TestDefaultMemStore extends TestCase {
     assertEquals(2, memstore.getActive().getCellsCount());
     assertEquals(delete, memstore.getActive().first());
   }
+
   public void testRetainsDeleteColumn() throws IOException {
     // add a put to memstore
     memstore.add(KeyValueTestUtil.create("row1", "fam", "a", 100, "dont-care"));
@@ -883,7 +886,7 @@ public class TestDefaultMemStore extends TestCase {
     checkShouldFlush(conf, false);
   }
 
-  private void checkShouldFlush(Configuration conf, boolean expected) throws Exception {
+  protected void checkShouldFlush(Configuration conf, boolean expected) throws Exception {
     try {
       EnvironmentEdgeForMemstoreTest edge = new EnvironmentEdgeForMemstoreTest();
       EnvironmentEdgeManager.injectEdge(edge);
@@ -898,7 +901,7 @@ public class TestDefaultMemStore extends TestCase {
       s.add(KeyValueTestUtil.create("r", "f", "q", 100, "v"));
       edge.setCurrentTimeMillis(1234 + 100);
       StringBuffer sb = new StringBuffer();
-      assertTrue(region.shouldFlush(sb) == false);
+      assertTrue(!region.shouldFlush(sb));
       edge.setCurrentTimeMillis(1234 + 10000);
       assertTrue(region.shouldFlush(sb) == expected);
     } finally {
@@ -954,7 +957,7 @@ public class TestDefaultMemStore extends TestCase {
    * @return How many rows we added.
    * @throws IOException
    */
-  private int addRows(final MemStore hmc) {
+  protected int addRows(final AbstractMemStore hmc) {
     return addRows(hmc, HConstants.LATEST_TIMESTAMP);
   }
 
@@ -964,10 +967,10 @@ public class TestDefaultMemStore extends TestCase {
    * @return How many rows we added.
    * @throws IOException
    */
-  private int addRows(final MemStore hmc, final long ts) {
+  protected int addRows(final MemStore hmc, final long ts) {
     for (int i = 0; i < ROW_COUNT; i++) {
-      long timestamp = ts == HConstants.LATEST_TIMESTAMP?
-        System.currentTimeMillis(): ts;
+      long timestamp = ts == HConstants.LATEST_TIMESTAMP ?
+        System.currentTimeMillis() : ts;
       for (int ii = 0; ii < QUALIFIER_COUNT; ii++) {
         byte [] row = Bytes.toBytes(i);
         byte [] qf = makeQualifier(i, ii);
@@ -977,7 +980,7 @@ public class TestDefaultMemStore extends TestCase {
     return ROW_COUNT;
   }
 
-  private long runSnapshot(final DefaultMemStore hmc) throws UnexpectedStateException {
+  private long runSnapshot(final AbstractMemStore hmc) throws UnexpectedStateException {
     // Save off old state.
     int oldHistorySize = hmc.getSnapshot().getCellsCount();
     MemStoreSnapshot snapshot = hmc.snapshot();
@@ -993,7 +996,7 @@ public class TestDefaultMemStore extends TestCase {
   private void isExpectedRowWithoutTimestamps(final int rowIndex,
       List<Cell> kvs) {
     int i = 0;
-    for (Cell kv: kvs) {
+    for (Cell kv : kvs) {
       byte[] expectedColname = makeQualifier(rowIndex, i++);
       assertTrue("Column name", CellUtil.matchingQualifier(kv, expectedColname));
       // Value is column name as bytes.  Usually result is

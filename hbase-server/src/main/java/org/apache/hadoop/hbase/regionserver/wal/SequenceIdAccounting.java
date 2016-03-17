@@ -162,6 +162,9 @@ class SequenceIdAccounting {
     }
   }
 
+  /**
+   * Update the store sequence id, e.g., upon executing in-memory compaction
+   */
   void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceId,
       boolean onlyIfGreater) {
     if(sequenceId == null) return;

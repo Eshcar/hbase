@@ -58,15 +58,13 @@ public class FlushAllLargeStoresPolicy extends FlushLargeStoresPolicy{
         specificStoresToFlush.add(store);
       }
     }
+    if (!specificStoresToFlush.isEmpty()) return specificStoresToFlush;
+
     // Didn't find any CFs which were above the threshold for selection.
-    if (specificStoresToFlush.isEmpty()) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Since none of the CFs were above the size, flushing all.");
-      }
-      return stores;
-    } else {
-      return specificStoresToFlush;
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Since none of the CFs were above the size, flushing all.");
     }
+    return stores;
   }
 
   @Override

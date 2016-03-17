@@ -48,11 +48,9 @@ import org.apache.hadoop.hbase.wal.WAL;
  * A memstore implementation which supports in-memory compaction.
  * A compaction pipeline is added between the active set and the snapshot data structures;
  * it consists of a list of kv-sets that are subject to compaction.
- * The semantics of the prepare-for-flush phase are changed: instead of shifting the current active
- * set to snapshot, the active set is pushed into the pipeline.
  * Like the snapshot, all pipeline components are read-only; updates only affect the active set.
  * To ensure this property we take advantage of the existing blocking mechanism -- the active set
- * is pushed to the pipeline while holding updatesLock in exclusive mode.
+ * is pushed to the pipeline while holding the region's updatesLock in exclusive mode.
  * Periodically, a compaction is applied in the background to all pipeline components resulting
  * in a single read-only component. The ``old'' components are discarded when no scanner is reading
  * them.
@@ -62,6 +60,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+  public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
@@ -172,10 +171,10 @@ public class CompactingMemStore extends AbstractMemStore {
           + "store: "+ Bytes.toString(getFamilyName()));
       stopCompact();
       pushActiveToPipeline(active);
-      this.snapshotId = EnvironmentEdgeManager.currentTime();
+      snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
     }
-    return new MemStoreSnapshot(this.snapshotId, getSnapshot());
+    return new MemStoreSnapshot(snapshotId, getSnapshot());
   }
 
   /**
@@ -185,6 +184,7 @@ public class CompactingMemStore extends AbstractMemStore {
   @Override public long getFlushableSize() {
     long snapshotSize = getSnapshot().getSize();
     if(snapshotSize == 0) {
+      //if snapshot is empty the tail of the pipeline is flushed
       snapshotSize = pipeline.getTailSize();
     }
     return snapshotSize > 0 ? snapshotSize : keySize();
@@ -235,7 +235,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   /**
    * Check whether anything need to be done based on the current active set size.
-   * The method is invoked on every addition to the active set.
+   * The method is invoked upon every addition to the active set.
    * For CompactingMemStore, flush the active set to the read-only memory if it's
    * size is above threshold
    */
@@ -247,7 +247,7 @@ public class CompactingMemStore extends AbstractMemStore {
       * in exclusive mode while this method (checkActiveSize) is invoked holding updatesLock
       * in the shared mode. */
       ExecutorService pool = getPool();
-      if(pool != null) {
+      if(pool != null) { // the pool can be null in some tests scenarios
         InMemoryFlushWorker worker = new InMemoryFlushWorker();
         LOG.info("Dispatching the MemStore in-memory flush for store "
             + store.getColumnFamilyName());
@@ -257,7 +257,7 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
-  // internal method, visible only for tests
+  // internally used method, externally visible only for tests
   // when invoked directly from tests it must be verified that the caller doesn't hold updatesLock,
   // otherwise there is a deadlock
   void flushInMemory() throws IOException {
@@ -294,12 +294,12 @@ public class CompactingMemStore extends AbstractMemStore {
 
   private ExecutorService getPool() {
     RegionServerServices rs = getRegionServices().getRegionServerServices();
-    if(rs==null) return null;
-    return rs.getExecutorService();
+    return (rs != null) ? rs.getExecutorService() : null;
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > 0.9*flushSizeLowerBound) { // size above flush threshold
+    if(getActive().getSize() > IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound) {
+      // size above flush threshold
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
     return false;
@@ -376,7 +376,7 @@ public class CompactingMemStore extends AbstractMemStore {
     // smallest read point for any ongoing MemStore scan
     private long smallestReadPoint;
 
-    // a static version of the CellSetMgrs list from the pipeline
+    // a static version of the segment list from the pipeline
     private VersionedSegmentsList versionedList;
     private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
@@ -392,12 +392,12 @@ public class CompactingMemStore extends AbstractMemStore {
 
       List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
       // get the list of segments from the pipeline
-      this.versionedList = pipeline.getVersionedList();
+      versionedList = pipeline.getVersionedList();
       // the list is marked with specific version
 
       // create the list of scanners with maximally possible read point, meaning that
       // all KVs are going to be returned by the pipeline traversing
-      for (Segment segment : this.versionedList.getStoreSegments()) {
+      for (Segment segment : versionedList.getStoreSegments()) {
         scanners.add(segment.getSegmentScanner(Long.MAX_VALUE));
       }
       scanner =
@@ -557,7 +557,7 @@ public class CompactingMemStore extends AbstractMemStore {
   // debug method
   private void debug() {
     String msg = "active size="+getActive().getSize();
-    msg += " threshold="+0.9*flushSizeLowerBound;
+    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
     msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
     LOG.debug(msg);
