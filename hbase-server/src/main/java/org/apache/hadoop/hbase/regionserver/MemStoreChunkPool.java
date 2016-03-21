@@ -73,8 +73,9 @@ public class MemStoreChunkPool {
   private static final int statThreadPeriod = 60 * 5;
   private AtomicLong createdChunkCount = new AtomicLong();
   private AtomicLong reusedChunkCount = new AtomicLong();
+  private AtomicInteger chunkIDs = new AtomicInteger(1);  // 14921
 
-  // IDs Mapping of all chunks (key 0 is forbidden)
+  // 14921: IDs Mapping of all chunks (key 0 is forbidden)
   private final ConcurrentMap<Integer, Chunk> chunksMap = new ConcurrentHashMap<Integer, Chunk>();
 
   MemStoreChunkPool(Configuration conf, int chunkSize, int maxCount,
@@ -85,7 +86,6 @@ public class MemStoreChunkPool {
 
     for (int i = 0; i < initialCount; i++) {
       Chunk chunk = allocateChunk();
-      reclaimedChunks.add(chunk);
     }
 
     final String n = Thread.currentThread().getName();
@@ -108,6 +108,7 @@ public class MemStoreChunkPool {
       createdChunkCount.incrementAndGet();
     } else {
       chunk.reset();
+      chunk.init(); // 14921
       reusedChunkCount.incrementAndGet();
     }
     return chunk;
@@ -168,7 +169,7 @@ public class MemStoreChunkPool {
    * Allocate and register Chunk
    */
   private Chunk allocateChunk() {
-    int newId = chunksMap.size() + 1; // the number of the new chunk
+    int newId = chunkIDs.getAndAdd(1); // the number of the new chunk
     Chunk chunk = new Chunk(chunkSize,newId);
     chunksMap.put(newId, chunk);
     chunk.init();

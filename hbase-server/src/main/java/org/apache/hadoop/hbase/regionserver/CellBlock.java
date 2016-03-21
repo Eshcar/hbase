@@ -75,7 +75,9 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 
     while (begin <= end) {
       int mid = begin + ((end - begin) / 2);
+
       Cell midCell = getCellFromIndex(mid);
+
       int compareRes = comparator.compare(midCell, needle);
 
       // 0 means equals. We found the key.
@@ -131,10 +133,6 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   @Override
   public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
     int index = (getValidIndex(fromKey, !inclusive));
-
-//    assertTrue("\n\n<<<<<<<<<<<< Getting tailMap from index: " + index
-//        + ", inclusive?:" + inclusive + "; the cell: " + fromKey.toString() + "\n\n",false);
-
     return createCellBlocks(comparator, index, maxCellIdx, descending);
   }
 

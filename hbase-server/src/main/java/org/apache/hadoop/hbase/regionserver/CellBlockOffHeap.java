@@ -72,7 +72,7 @@ public class CellBlockOffHeap extends CellBlock {
     i = i - chunkIndex*numOfCellsInsideChunk;
 
     // find inside chunk
-    int offsetInBytes = 3*i*(Integer.SIZE / Byte.SIZE);
+    int offsetInBytes = i*bytesInCell;
     int chunkId = Bytes.toInt(block,offsetInBytes);
     int offsetOfCell = Bytes.toInt(block,offsetInBytes+(Integer.SIZE / Byte.SIZE));
     int lengthOfCell = Bytes.toInt(block,offsetInBytes+2*(Integer.SIZE / Byte.SIZE));

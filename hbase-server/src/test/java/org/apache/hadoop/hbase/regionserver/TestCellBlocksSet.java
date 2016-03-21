@@ -91,7 +91,7 @@ public class TestCellBlocksSet extends TestCase {
   private void testCellBlocks(CellSet cs) throws Exception {
     assertEquals(NUM_OF_CELLS, cs.size());    // check size
 
-    assertTrue(cs.contains(cells[0]));        // check first
+    assertTrue(cs.contains(cells[0]));        // check existance of the first
     Cell first = cs.first();
     assertTrue(cells[0].equals(first));
 
@@ -151,15 +151,7 @@ public class TestCellBlocksSet extends TestCase {
     byte[] shallowBuffer = chunkS.getData();
     int offset = 0;
     int pos = offset;
-
-//    assertTrue("\n\n<<<<< Preparing for CellBlockOffHeap, shallow chunk: " + chunkS
-//        + " has index: " + chunkS.getId() + " \n\n", false);
-
     KeyValueUtil.appendToByteArray(kv1, deepBuffer, offset);      // write deep cell data
-
-//    assertTrue("\n\n<<<<< Preparing for CellBlockOffHeap, shallow chunk: " + chunkS
-//        + " has index: " + chunkS.getId() + ", deep chunk: " + chunkD
-//        + " has index: " + chunkD.getId() + "\n\n", false);
 
     pos = Bytes.putInt(shallowBuffer, pos, chunkD.getId());           // write deep chunk index
     pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset

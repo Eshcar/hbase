@@ -30,6 +30,7 @@ import org.apache.hadoop.hbase.util.ByteRange;
 import org.apache.hadoop.hbase.util.SimpleMutableByteRange;
 
 import com.google.common.base.Preconditions;
+import static org.junit.Assert.assertTrue;
 
 /**
  * A memstore-local allocation buffer.
@@ -109,9 +110,9 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     }
 
     while (true) {
-      Chunk c = getOrMakeChunk();
+      Chunk c = getOrMakeChunk(size);
 
-      // Try to allocate from this chunk
+        // Try to allocate from this chunk
       int allocOffset = c.alloc(size);
       if (allocOffset != -1) {
         // We succeeded - this is the common case - small alloc
@@ -178,8 +179,10 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   /**
    * Get the current chunk, or, if there is no current chunk,
    * allocate a new one from the JVM.
+   * @param size
    */
-  private Chunk getOrMakeChunk() {
+  private Chunk getOrMakeChunk(int size) {
+
     while (true) {
       // Try to get the chunk
       Chunk c = curChunk.get();
@@ -190,12 +193,21 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // No current chunk, so we want to allocate one. We race
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
-      c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize, 5); //14921
-      //c = chunkPool.getChunk(); // 14921
+
+      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize, 5); //14921
+
+      if(chunkPool != null) {
+        c = chunkPool.getChunk();
+      } else {
+        c = new Chunk(chunkSize, 5);
+        c.init();
+      }
+
       if (curChunk.compareAndSet(null, c)) {
         // we won race - now we need to actually do the expensive
         // allocation step
-        // c.init(); 14921
+
+        //c.init(); //14921
         this.chunkQueue.add(c);
         return c;
       } else if (chunkPool != null) {
@@ -245,7 +257,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     /** Size of chunk in bytes */
     private final int size;
 
-    /* A unique identifier of a chunk inside MemStoreChunkPool */
+    /* 14921: A unique identifier of a chunk inside MemStoreChunkPool */
     private final int id;
 
     /* Chunk's index serves as replacement for pointer */
@@ -276,13 +288,15 @@ public class HeapMemStoreLAB implements MemStoreLAB {
         assert failInit; // should be true.
         throw e;
       }
+
       // Mark that it's ready for use
       boolean initted = nextFreeOffset.compareAndSet(
           UNINITIALIZED, 0);
       // We should always succeed the above CAS since only one thread
       // calls init()!
-      Preconditions.checkState(initted,
-          "Multiple threads tried to init same chunk");
+      Preconditions.checkState(initted, "Multiple threads tried to init same chunk");
+
+      //org.junit.Assert.assertTrue("\n\n inside chunk initialization 3", false);
     }
 
     /**
@@ -338,10 +352,10 @@ public class HeapMemStoreLAB implements MemStoreLAB {
 
     public int getId() {
       return id;
-    }
+    }   // 14921
 
     public byte[] getData() {
       return data;
-    }
+    } // 14921
   }
 }
