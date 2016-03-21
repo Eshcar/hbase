@@ -25,10 +25,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
+import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
 import org.apache.hadoop.hbase.util.Bytes;
 
 /**

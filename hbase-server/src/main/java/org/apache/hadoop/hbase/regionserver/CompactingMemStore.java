@@ -104,8 +104,8 @@ public class CompactingMemStore extends AbstractMemStore {
                 FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
         LOG.warn("Number format exception when parsing "
             + FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND + " for table "
-            + getRegionServices().getTableDesc().getTableName() + ":" + flushedSizeLowerBoundString + ". "
-            + nfe + ", use global config(" + flushSizeLowerBound + ") instead");
+            + getRegionServices().getTableDesc().getTableName() + ":" + flushedSizeLowerBoundString
+            + ". " + nfe + ", use global config(" + flushSizeLowerBound + ") instead");
       }
     }
   }
@@ -167,8 +167,8 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.warn("Snapshot called again without clearing previous. " +
           "Doing nothing. Another ongoing flush or did we fail last attempt?");
     } else {
-      LOG.info("FLUSHING TO DISK: region "+ getRegionServices().getRegionInfo().getRegionNameAsString()
-          + "store: "+ Bytes.toString(getFamilyName()));
+      LOG.info("FLUSHING TO DISK: region "+ getRegionServices().getRegionInfo()
+          .getRegionNameAsString() + "store: "+ getFamilyName());
       stopCompact();
       pushActiveToPipeline(active);
       snapshotId = EnvironmentEdgeManager.currentTime();
@@ -195,7 +195,7 @@ public class CompactingMemStore extends AbstractMemStore {
     long minSequenceId = pipeline.getMinSequenceId();
     if(minSequenceId != Long.MAX_VALUE) {
       byte[] encodedRegionName = getRegionServices().getRegionInfo().getEncodedNameAsBytes();
-      byte[] familyName = getFamilyName();
+      byte[] familyName = getFamilyNameInByte();
       WAL wal = getRegionServices().getWAL();
       if (wal != null) {
         wal.updateStore(encodedRegionName, familyName, minSequenceId, onlyIfGreater);
@@ -284,11 +284,15 @@ public class CompactingMemStore extends AbstractMemStore {
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
           + getRegionServices().getRegionInfo().getRegionNameAsString()
-          + "store: "+ Bytes.toString(getFamilyName()), e);
+          + "store: "+ getFamilyName(), e);
     }
   }
 
-  private byte[] getFamilyName() {
+  private String getFamilyName() {
+    return Bytes.toString(getFamilyNameInByte());
+  }
+
+  private byte[] getFamilyNameInByte() {
     return store.getFamily().getName();
   }
 
@@ -350,7 +354,8 @@ public class CompactingMemStore extends AbstractMemStore {
   private class InMemoryFlushWorker extends EventHandler {
 
     public InMemoryFlushWorker () {
-      super(getRegionServices().getRegionServerServices(), EventType.RS_IN_MEMORY_FLUSH_AND_COMPACTION);
+      super(getRegionServices().getRegionServerServices(),
+          EventType.RS_IN_MEMORY_FLUSH_AND_COMPACTION);
     }
 
     @Override
