@@ -19,22 +19,21 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.Comparator;
 import org.apache.hadoop.hbase.Cell;
 
-import java.util.*;
-
 /**
- * CellBlockOnHeap is a simple array of Cells allocated using JVM.
+ * CellBlockObjectArray is a simple array of Cells allocated using JVM.
  * As all java arrays it is array of references pointing to Cell objects
  */
-public class CellBlockOnHeap extends CellBlock {
+public class CellBlockObjectArray extends CellBlock {
 
-  Cell block[];
+  Cell[] block;
 
-  /* The Cells Array is created only when CellBlockOnHeap is created, all sub-CellBlocks use
+  /* The Cells Array is created only when CellBlockObjectArray is created, all sub-CellBlocks use
    * boundary indexes */
-  public CellBlockOnHeap(Comparator<? super Cell> comparator, Cell b[],
-      int min, int max, boolean d) {
+  public CellBlockObjectArray(Comparator<? super Cell> comparator, Cell[] b, int min, int max,
+      boolean d) {
     super(comparator,min,max,d);
     this.block = b;
   }
@@ -43,7 +42,7 @@ public class CellBlockOnHeap extends CellBlock {
   @Override
   protected CellBlock createCellBlocks(Comparator<? super Cell> comparator,
       int min, int max, boolean d) {
-    return new CellBlockOnHeap(comparator,this.block,min,max,d);
+    return new CellBlockObjectArray(comparator,this.block,min,max,d);
   }
 
   @Override

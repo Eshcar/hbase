@@ -36,8 +36,8 @@ public class TestCellBlocksSet extends TestCase {
   private static final int NUM_OF_CELLS = 3;
 
   private Cell cells[];
-  private CellBlockOnHeap cbOnHeap;
-  private CellBlockOffHeap cbOffHeap;
+  private CellBlockObjectArray cbOnHeap;
+  private CellBlockSerialized cbOffHeap;
 
   private final static Configuration conf = new Configuration();
   private HeapMemStoreLAB mslab;
@@ -60,7 +60,7 @@ public class TestCellBlocksSet extends TestCase {
     final KeyValue kv3 = new KeyValue(three, f, q, 30, v);
 
     cells = new Cell[] {kv1,kv2,kv3};
-    cbOnHeap = new CellBlockOnHeap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
+    cbOnHeap = new CellBlockObjectArray(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
 
     conf.setBoolean(SegmentFactory.USEMSLAB_KEY, true);
     conf.setFloat(MemStoreChunkPool.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
@@ -69,18 +69,18 @@ public class TestCellBlocksSet extends TestCase {
 
     HeapMemStoreLAB.Chunk[] c = shallowCellsToBuffer(kv1, kv2, kv3);
     int chunkSize = conf.getInt(HeapMemStoreLAB.CHUNK_SIZE_KEY, HeapMemStoreLAB.CHUNK_SIZE_DEFAULT);
-    cbOffHeap = new CellBlockOffHeap(CellComparator.COMPARATOR, mslab,
+    cbOffHeap = new CellBlockSerialized(CellComparator.COMPARATOR, mslab,
         c, 0, NUM_OF_CELLS, chunkSize, false);
   }
 
-  /* Create and test CellSet based on CellBlockOnHeap */
+  /* Create and test CellSet based on CellBlockObjectArray */
   public void testCellBlocksOnHeap() throws Exception {
     CellSet cs = new CellSet(cbOnHeap);
     testCellBlocks(cs);
     testIterators(cs);
   }
 
-  /* Create and test CellSet based on CellBlockOffHeap */
+  /* Create and test CellSet based on CellBlockSerialized */
   public void testCellBlocksOffHeap() throws Exception {
     CellSet cs = new CellSet(cbOffHeap);
     testCellBlocks(cs);

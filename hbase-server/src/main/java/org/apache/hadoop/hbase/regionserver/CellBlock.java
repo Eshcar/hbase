@@ -22,14 +22,13 @@ import org.apache.hadoop.hbase.Cell;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Iterator;
-import java.util.NavigableSet;
-import java.util.SortedSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+
+
 
 /**
  * CellBlock stores a constant number of elements and is immutable after creation stage.
@@ -61,13 +60,13 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   protected abstract Cell getCellFromIndex(int i);
 
   /**
-   * Binary search for a given key in between given boundaries of the array
-   * @param needle The key to look for in all of the entries
-   * @return Same return value as Arrays.binarySearch.
+   * Binary search for a given key in between given boundaries of the array.
    * Positive returned numbers mean the index.
    * Negative returned numbers means the key not found.
    * The absolute value of the output is the
    * possible insert index for the searched key: (-1 * insertion point) - 1
+   * @param needle The key to look for in all of the entries
+   * @return Same return value as Arrays.binarySearch.
    */
   private int find(Cell needle) {
     int begin = minCellIdx;
@@ -102,13 +101,19 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   @Override
-  public Comparator<? super Cell> comparator() { return comparator; }
+  public Comparator<? super Cell> comparator() {
+    return comparator;
+  }
 
   @Override
-  public int size() { return maxCellIdx-minCellIdx; }
+  public int size() {
+    return maxCellIdx-minCellIdx;
+  }
 
   @Override
-  public boolean isEmpty() { return (maxCellIdx==minCellIdx); }
+  public boolean isEmpty() {
+    return (maxCellIdx==minCellIdx);
+  }
 
 
   // ---------------- Sub-Maps ----------------
@@ -147,10 +152,14 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   @Override 
-  public ConcurrentNavigableMap<Cell, Cell> headMap(Cell k) { return this.headMap(k, true); }
+  public ConcurrentNavigableMap<Cell, Cell> headMap(Cell k) {
+    return this.headMap(k, true);
+  }
 
   @Override 
-  public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell k) { return this.tailMap(k, true); }
+  public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell k) {
+    return this.tailMap(k, true);
+  }
 
 
   // -------------------------------- Key's getters --------------------------------
@@ -243,28 +252,44 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   // -------------------------------- Entry's getters --------------------------------
   // all interfaces returning Entries are unsupported because we are dealing only with the keys
   @Override 
-  public Entry<Cell, Cell> lowerEntry(Cell k) { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> lowerEntry(Cell k) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> higherEntry(Cell k) { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> higherEntry(Cell k) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> ceilingEntry(Cell k) { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> ceilingEntry(Cell k) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> floorEntry(Cell k) { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> floorEntry(Cell k) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> firstEntry() { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> firstEntry() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> lastEntry() { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> lastEntry() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> pollFirstEntry() { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> pollFirstEntry() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public Entry<Cell, Cell> pollLastEntry() { throw new UnsupportedOperationException(); }
+  public Entry<Cell, Cell> pollLastEntry() {
+    throw new UnsupportedOperationException();
+  }
 
 
   // -------------------------------- Updates --------------------------------
@@ -273,16 +298,24 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   // fill up with Cells and provided in construction time.
   // Later the structure is immutable.
   @Override
-  public Cell put(Cell k, Cell v) { throw new UnsupportedOperationException(); }
+  public Cell put(Cell k, Cell v) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
-  public void clear() { throw new UnsupportedOperationException(); }
+  public void clear() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
-  public Cell remove(Object o) { throw new UnsupportedOperationException(); }
+  public Cell remove(Object o) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public boolean replace(Cell k, Cell v, Cell v1) { throw new UnsupportedOperationException(); }
+  public boolean replace(Cell k, Cell v, Cell v1) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
   public void putAll(Map<? extends Cell, ? extends Cell> map) {
@@ -290,30 +323,46 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   @Override
-  public Cell putIfAbsent(Cell k, Cell v) { throw new UnsupportedOperationException(); }
+  public Cell putIfAbsent(Cell k, Cell v) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public boolean remove(Object o, Object o1) { throw new UnsupportedOperationException(); }
+  public boolean remove(Object o, Object o1) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
-  public Cell replace(Cell k, Cell v) { throw new UnsupportedOperationException(); }
+  public Cell replace(Cell k, Cell v) {
+    throw new UnsupportedOperationException();
+  }
 
 
   // -------------------------------- Sub-Sets --------------------------------
   @Override
-  public NavigableSet<Cell> navigableKeySet() { throw new UnsupportedOperationException(); }
+  public NavigableSet<Cell> navigableKeySet() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override 
-  public NavigableSet<Cell> descendingKeySet() { throw new UnsupportedOperationException(); }
+  public NavigableSet<Cell> descendingKeySet() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
-  public NavigableSet<Cell> keySet() { throw new UnsupportedOperationException(); }
+  public NavigableSet<Cell> keySet() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
-  public Collection<Cell> values() { return new CellBlocksCollection(); }
+  public Collection<Cell> values() {
+    return new CellBlocksCollection();
+  }
 
   @Override
-  public Set<Entry<Cell, Cell>> entrySet() { throw new UnsupportedOperationException(); }
+  public Set<Entry<Cell, Cell>> entrySet() {
+    throw new UnsupportedOperationException();
+  }
 
 
   // -------------------------------- Iterator K --------------------------------
@@ -332,7 +381,8 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     @Override
     public Cell next() {
       Cell result = getCellFromIndex(index);
-      if (descending) index--; else index++;
+      if (descending) index--;
+      else index++;
       return result;
     }
 
@@ -347,16 +397,24 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   private final class CellBlocksCollection implements Collection<Cell> {
 
     @Override
-    public int size()         { return size(); }
+    public int size()         {
+      return CellBlock.this.size();
+    }
 
     @Override
-    public boolean isEmpty()  { return isEmpty(); }
+    public boolean isEmpty()  {
+      return CellBlock.this.isEmpty();
+    }
 
     @Override
-    public void clear()       { throw new UnsupportedOperationException();  }
+    public void clear()       {
+      throw new UnsupportedOperationException();
+    }
 
     @Override
-    public boolean contains(Object o) { return containsKey(o); }
+    public boolean contains(Object o) {
+      return containsKey(o);
+    }
 
     @Override
     public Iterator<Cell> iterator() {
@@ -364,16 +422,24 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     }
 
     @Override
-    public Object[] toArray() { throw new UnsupportedOperationException(); }
+    public Object[] toArray() {
+      throw new UnsupportedOperationException();
+    }
 
     @Override
-    public <T> T[] toArray(T[] ts) { throw new UnsupportedOperationException(); }
+    public <T> T[] toArray(T[] ts) {
+      throw new UnsupportedOperationException();
+    }
 
     @Override
-    public boolean add(Cell k) { throw new UnsupportedOperationException(); }
+    public boolean add(Cell k) {
+      throw new UnsupportedOperationException();
+    }
 
     @Override
-    public boolean remove(Object o) { throw new UnsupportedOperationException(); }
+    public boolean remove(Object o) {
+      throw new UnsupportedOperationException();
+    }
 
     @Override
     public boolean containsAll(Collection<?> collection) {

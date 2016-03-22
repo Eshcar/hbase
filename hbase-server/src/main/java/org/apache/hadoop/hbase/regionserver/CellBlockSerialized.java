@@ -19,14 +19,15 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.Comparator;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.util.Bytes;
 
-import java.util.Comparator;
+
 
 /**
- * CellBlockOffHeap is a byte array holding all that is needed to access a Cell, which
+ * CellBlockSerialized is a byte array holding all that is needed to access a Cell, which
  * is actually saved on another deeper byte array.
  * Per Cell we have a reference to this deeper byte array B, offset in bytes in B (integer),
  * and length in bytes in B (integer). In order to save reference to byte array we use the Chunk's
@@ -41,27 +42,27 @@ import java.util.Comparator;
  * | holding Cell data | Cell's data starts|    data in B      | another byte array |
  * ------------------------------------------------------------------------------------- ...
  */
-public class CellBlockOffHeap extends CellBlock {
+public class CellBlockSerialized extends CellBlock {
 
-  private HeapMemStoreLAB.Chunk chunks[];
+  private HeapMemStoreLAB.Chunk[] chunks;
   private final HeapMemStoreLAB memStoreLAB;
   private int numOfCellsInsideChunk;
-  private final int bytesInCell = 3*(Integer.SIZE / Byte.SIZE); // each Cell requires 3 integers
+  private static final int BYTES_IN_CELL = 3*(Integer.SIZE / Byte.SIZE); // each Cell requires 3 integers
 
-  public CellBlockOffHeap(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
-      HeapMemStoreLAB.Chunk chunks[], int min, int max, int chunkSize, boolean d) {
+  public CellBlockSerialized(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
+      HeapMemStoreLAB.Chunk[] chunks, int min, int max, int chunkSize, boolean d) {
     super(comparator,min,max, d);
     this.chunks = chunks;
     this.memStoreLAB = memStoreLAB;
-    this.numOfCellsInsideChunk = chunkSize / bytesInCell;
+    this.numOfCellsInsideChunk = chunkSize / BYTES_IN_CELL;
   }
 
   /* To be used by base class only to create a sub-CellBlock */
   @Override
   protected CellBlock createCellBlocks(Comparator<? super Cell> comparator,
       int min, int max, boolean d) {
-    return new CellBlockOffHeap(comparator, this.memStoreLAB, this.chunks, min, max,
-        this.numOfCellsInsideChunk*bytesInCell, d);
+    return new CellBlockSerialized(comparator, this.memStoreLAB, this.chunks, min, max,
+        this.numOfCellsInsideChunk* BYTES_IN_CELL, d);
   }
 
   @Override
@@ -72,7 +73,7 @@ public class CellBlockOffHeap extends CellBlock {
     i = i - chunkIndex*numOfCellsInsideChunk;
 
     // find inside chunk
-    int offsetInBytes = i*bytesInCell;
+    int offsetInBytes = i* BYTES_IN_CELL;
     int chunkId = Bytes.toInt(block,offsetInBytes);
     int offsetOfCell = Bytes.toInt(block,offsetInBytes+(Integer.SIZE / Byte.SIZE));
     int lengthOfCell = Bytes.toInt(block,offsetInBytes+2*(Integer.SIZE / Byte.SIZE));

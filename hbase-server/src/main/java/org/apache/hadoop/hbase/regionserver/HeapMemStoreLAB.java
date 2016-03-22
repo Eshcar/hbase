@@ -30,7 +30,7 @@ import org.apache.hadoop.hbase.util.ByteRange;
 import org.apache.hadoop.hbase.util.SimpleMutableByteRange;
 
 import com.google.common.base.Preconditions;
-import static org.junit.Assert.assertTrue;
+
 
 /**
  * A memstore-local allocation buffer.
@@ -110,7 +110,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     }
 
     while (true) {
-      Chunk c = getOrMakeChunk(size);
+      Chunk c = getOrMakeChunk();
 
         // Try to allocate from this chunk
       int allocOffset = c.alloc(size);
@@ -179,9 +179,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   /**
    * Get the current chunk, or, if there is no current chunk,
    * allocate a new one from the JVM.
-   * @param size
    */
-  private Chunk getOrMakeChunk(int size) {
+  private Chunk getOrMakeChunk() {
 
     while (true) {
       // Try to get the chunk
