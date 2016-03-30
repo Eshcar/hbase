@@ -23,13 +23,11 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.ByteRange;
+import org.apache.hadoop.hbase.util.ClassSize;
 
 /**
  * This is an abstraction of a segment maintained in a memstore, e.g., the active
@@ -47,10 +45,13 @@ public abstract class Segment {
   private volatile MemStoreLAB memStoreLAB;
   private final AtomicLong size;
   private final TimeRangeTracker timeRangeTracker;
+  private long constantCellMetaDataSize;
   protected volatile boolean tagsPresent;
+  protected boolean hasFlatIndex;
 
-  protected Segment(CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB, long
-      size) {
+  protected Segment(
+      CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB, long size,
+      long constantCellSize) {
     this.cellSet = cellSet;
     this.comparator = comparator;
     this.minSequenceId = Long.MAX_VALUE;
@@ -58,6 +59,8 @@ public abstract class Segment {
     this.size = new AtomicLong(size);
     this.timeRangeTracker = new TimeRangeTracker();
     this.tagsPresent = false;
+    this.hasFlatIndex = true;
+    this.constantCellMetaDataSize = constantCellSize;
   }
 
   protected Segment(Segment segment) {
@@ -68,6 +71,7 @@ public abstract class Segment {
     this.size = new AtomicLong(segment.getSize());
     this.timeRangeTracker = segment.getTimeRangeTracker();
     this.tagsPresent = segment.isTagsPresent();
+    this.constantCellMetaDataSize = segment.getConstantCellMetaDataSize();
   }
 
   /**
@@ -156,6 +160,10 @@ public abstract class Segment {
     return tagsPresent;
   }
 
+  public boolean hasFlatIndex() {
+    return hasFlatIndex;
+  }
+
   public void incScannerCount() {
     if(getMemStoreLAB() != null) {
       getMemStoreLAB().incScannerCount();
@@ -175,6 +183,17 @@ public abstract class Segment {
 
   public Segment setSize(long size) {
     this.size.set(size);
+    return this;
+  }
+
+  /**
+   * Setting the CellSet of the segment - used only for flat immutable segment for setting
+   * immutable CellSet after its creation in immutable segment constructor
+   * @return this object
+   */
+
+  public Segment setCellSet(CellSet cellSet) {
+    this.cellSet = cellSet;
     return this;
   }
 
@@ -240,22 +259,23 @@ public abstract class Segment {
 
   protected long internalAdd(Cell cell) {
     boolean succ = getCellSet().add(cell);
-    long s = AbstractMemStore.heapSizeChange(cell, succ);
-    updateMetaInfo(cell, s);
+    long s = updateMetaInfo(cell, succ, false);
     return s;
   }
 
-  protected void updateMetaInfo(Cell toAdd, long s) {
-    getTimeRangeTracker().includeTimestamp(toAdd);
+  protected long updateMetaInfo(Cell cellToAdd, boolean succ, boolean flattenning) {
+    long s = flattenning ? constantCellMetaDataSize : heapSizeChange(cellToAdd, succ);
+    getTimeRangeTracker().includeTimestamp( cellToAdd);
     size.addAndGet(s);
-    minSequenceId = Math.min(minSequenceId, toAdd.getSequenceId());
+    minSequenceId = Math.min(minSequenceId, cellToAdd.getSequenceId());
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
     // When we use ACL CP or Visibility CP which deals with Tags during
     // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
     // parse the byte[] to identify the tags length.
-    if(toAdd.getTagsLength() > 0) {
+    if( cellToAdd.getTagsLength() > 0) {
       tagsPresent = true;
     }
+    return s;
   }
 
   /**
@@ -267,7 +287,7 @@ public abstract class Segment {
     return getCellSet().tailSet(firstCell);
   }
 
-  private MemStoreLAB getMemStoreLAB() {
+  protected MemStoreLAB getMemStoreLAB() {
     return memStoreLAB;
   }
 
@@ -291,4 +311,20 @@ public abstract class Segment {
     return res;
   }
 
+  /*
+  * Calculate how the MemStore size has changed.  Includes overhead of the
+  * backing Map.
+  * @param cell
+  * @param notPresent True if the cell was NOT present in the set.
+  * @return change in size
+  */
+  protected long heapSizeChange(final Cell cell, final boolean notPresent){
+    return
+        notPresent ?
+            ClassSize.align(constantCellMetaDataSize + CellUtil.estimatedHeapSizeOf(cell)) : 0;
+  }
+
+  public long getConstantCellMetaDataSize() {
+    return this.constantCellMetaDataSize;
+  }
 }

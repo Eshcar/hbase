@@ -27,7 +27,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 
 /**
- * CellBlockSerialized is a byte array holding all that is needed to access a Cell, which
+ * CellChunkMap is a byte array holding all that is needed to access a Cell, which
  * is actually saved on another deeper byte array.
  * Per Cell we have a reference to this deeper byte array B, offset in bytes in B (integer),
  * and length in bytes in B (integer). In order to save reference to byte array we use the Chunk's
@@ -35,21 +35,22 @@ import org.apache.hadoop.hbase.util.Bytes;
  *
  * The B memory layout:
  *
- * <-----------------     first Cell     ---------------------> <-------------- second Cell
+ * <-----------------     first Cell     ---------------------> <-------------- second Cell --- ...
  * ------------------------------------------------------------------------------------- ...
  * | integer = x bytes | integer = x bytes | integer = x bytes | integer = x bytes  |
  * |  reference to B   | offset in B where | length of Cell's  | reference to may be|    ...
  * | holding Cell data | Cell's data starts|    data in B      | another byte array |
  * ------------------------------------------------------------------------------------- ...
  */
-public class CellBlockSerialized extends CellBlock {
+public class CellChunkMap extends CellFlatMap {
 
-  private HeapMemStoreLAB.Chunk[] chunks;
+  private final HeapMemStoreLAB.Chunk[] chunks;
   private final HeapMemStoreLAB memStoreLAB;
   private int numOfCellsInsideChunk;
-  private static final int BYTES_IN_CELL = 3*(Integer.SIZE / Byte.SIZE); // each Cell requires 3 integers
+  public static final int BYTES_IN_CELL = 3*(Integer.SIZE / Byte.SIZE); // each Cell requires 3 integers
 
-  public CellBlockSerialized(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
+  /* The given Cell array on given Chunk array must be ordered. */
+  public CellChunkMap(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
       HeapMemStoreLAB.Chunk[] chunks, int min, int max, int chunkSize, boolean d) {
     super(comparator,min,max, d);
     this.chunks = chunks;
@@ -57,11 +58,11 @@ public class CellBlockSerialized extends CellBlock {
     this.numOfCellsInsideChunk = chunkSize / BYTES_IN_CELL;
   }
 
-  /* To be used by base class only to create a sub-CellBlock */
+  /* To be used by base class only to create a sub-CellFlatMap */
   @Override
-  protected CellBlock createCellBlocks(Comparator<? super Cell> comparator,
-      int min, int max, boolean d) {
-    return new CellBlockSerialized(comparator, this.memStoreLAB, this.chunks, min, max,
+  protected CellFlatMap createCellFlatMap(Comparator<? super Cell> comparator, int min, int max,
+      boolean d) {
+    return new CellChunkMap(comparator, this.memStoreLAB, this.chunks, min, max,
         this.numOfCellsInsideChunk* BYTES_IN_CELL, d);
   }
 

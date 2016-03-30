@@ -29,6 +29,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
+
 /**
  * Class for determining the "size" of a class, an attempt to calculate the
  * actual bytes that an object of this class will occupy in memory
@@ -82,6 +83,12 @@ public class ClassSize {
 
   /** Overhead for ConcurrentSkipListMap Entry */
   public static final int CONCURRENT_SKIPLISTMAP_ENTRY;
+
+  /** Overhead for CellArrayMap */
+  public static final int CELL_ARRAY_MAP;
+
+  /** Overhead for Cell Array Entry */
+  public static final int CELL_ARRAY_ENTRY;
 
   /** Overhead for ReentrantReadWriteLock */
   public static final int REENTRANT_LOCK;
@@ -174,9 +181,13 @@ public class ClassSize {
     // The size changes from jdk7 to jdk8, estimate the size rather than use a conditional
     CONCURRENT_SKIPLISTMAP = (int) estimateBase(ConcurrentSkipListMap.class, false);
 
+    CELL_ARRAY_MAP = align(OBJECT);
+
     CONCURRENT_SKIPLISTMAP_ENTRY = align(
         align(OBJECT + (3 * REFERENCE)) + /* one node per entry */
         align((OBJECT + (3 * REFERENCE))/2)); /* one index per two entries */
+
+    CELL_ARRAY_ENTRY = align(2*REFERENCE + 2*Bytes.SIZEOF_INT);
 
     REENTRANT_LOCK = align(OBJECT + (3 * REFERENCE));
 

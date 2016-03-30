@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
@@ -55,12 +56,11 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   // or according to the first usage
   private Type type = Type.UNDEFINED;
 
-  private long readPoint;
   // remember the initial version of the scanners list
   List<SegmentScanner> scanners;
-  // pointer back to the relevant MemStore
-  // is needed for shouldSeek() method
-  private AbstractMemStore backwardReferenceToMemStore;
+
+  private final CellComparator comparator;
+
 
   /**
    * Constructor.
@@ -68,42 +68,38 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * After constructor only one heap is going to be initialized for entire lifespan
    * of the MemStoreScanner. A specific scanner can only be one directional!
    *
-   * @param ms        Pointer back to the MemStore
-   * @param readPoint Read point below which we can safely remove duplicate KVs
-   * @param type      The scan type COMPACT_FORWARD should be used for compaction
+   * @param comparator Cell Comparator
+   * @param scanners   List of scanners, from which the heap will be built
+   * @param type       The scan type COMPACT_FORWARD should be used for compaction
    */
-  public MemStoreScanner(AbstractMemStore ms, long readPoint, Type type) throws IOException {
-    this(ms, ms.getListOfScanners(readPoint), readPoint, type);
-  }
-
-  /* Constructor used only when the scan usage is unknown
-  and need to be defined according to the first move */
-  public MemStoreScanner(AbstractMemStore ms, long readPt) throws IOException {
-    this(ms, readPt, Type.UNDEFINED);
-  }
-
-  public MemStoreScanner(AbstractMemStore ms, List<SegmentScanner> scanners, long readPoint,
-      Type type) throws IOException {
+  public MemStoreScanner(CellComparator comparator, List<SegmentScanner> scanners, Type type)
+      throws IOException {
     super();
-    this.readPoint = readPoint;
     this.type = type;
     switch (type) {
-      case UNDEFINED:
-      case USER_SCAN_FORWARD:
-      case COMPACT_FORWARD:
-        this.forwardHeap = new KeyValueHeap(scanners, ms.getComparator());
-        break;
-      case USER_SCAN_BACKWARD:
-        this.backwardHeap = new ReversedKeyValueHeap(scanners, ms.getComparator());
-        break;
-      default:
-        throw new IllegalArgumentException("Unknown scanner type in MemStoreScanner");
+    case UNDEFINED:
+    case USER_SCAN_FORWARD:
+    case COMPACT_FORWARD:
+      this.forwardHeap = new KeyValueHeap(scanners, comparator);
+      break;
+    case USER_SCAN_BACKWARD:
+      this.backwardHeap = new ReversedKeyValueHeap(scanners, comparator);
+      break;
+    default:
+      throw new IllegalArgumentException("Unknown scanner type in MemStoreScanner");
     }
-    this.backwardReferenceToMemStore = ms;
+    this.comparator = comparator;
     this.scanners = scanners;
     if (Trace.isTracing() && Trace.currentSpan() != null) {
       Trace.currentSpan().addTimelineAnnotation("Creating MemStoreScanner");
     }
+  }
+
+  /* Constructor used only when the scan usage is unknown
+  and need to be defined according to the first move */
+  public MemStoreScanner(CellComparator comparator, List<SegmentScanner> scanners)
+      throws IOException {
+    this(comparator, scanners, Type.UNDEFINED);
   }
 
   /**
@@ -292,7 +288,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
       res |= scan.seekToPreviousRow(cell);
     }
     this.backwardHeap =
-        new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
+        new ReversedKeyValueHeap(scanners, comparator);
     return res;
   }
 
@@ -322,7 +318,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
           }
         }
         this.backwardHeap =
-            new ReversedKeyValueHeap(scanners, backwardReferenceToMemStore.getComparator());
+            new ReversedKeyValueHeap(scanners, comparator);
         type = Type.USER_SCAN_BACKWARD;
       }
     }

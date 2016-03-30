@@ -112,6 +112,32 @@ public class CompactionPipeline {
     return true;
   }
 
+  /**
+   * Replaces a single segment in the pipeline with the new flattened segment.
+   * Replacing only if there were no changes in the pipeline. This is achieved
+   * by requiring the version (from versionedList) being the same.
+   * @param versionedList tail of the pipeline that was taken for compaction and holds the version
+   * @param newSegment new compacted segment
+   * @return true iff replaced with new compacted segment
+   */
+  public boolean replace(VersionedSegmentsList versionedList,
+      ImmutableSegment oldSegment, ImmutableSegment newSegment) {
+
+    if(versionedList.getVersion() != version) {
+      return false;
+    }
+
+    synchronized (pipeline){
+      if(versionedList.getVersion() != version) {
+        return false;
+      }
+      LOG.info("Replacing one pipeline segment with flattened segment.");
+      replaceSegment(oldSegment,newSegment);
+    }
+    // do not update the global memstore size counter, because all the cells remain in place
+    return true;
+  }
+
   public boolean isEmpty() {
     return pipeline.isEmpty();
   }
@@ -149,6 +175,15 @@ public class CompactionPipeline {
     pipeline.addLast(segment);
   }
 
+  /* Replacing one representation of the segment with another. Literally removing a segment and
+  adding a new one (with same keys). The order of the segments is not kept */
+  private void replaceSegment(ImmutableSegment oldSegment, ImmutableSegment newSegment) {
+    version++;
+    // don't call oldSegment.close() because its MSLAB is transferred to the new segment
+    pipeline.remove(oldSegment);
+    pipeline.add(newSegment);
+  }
+
   private ImmutableSegment removeLast() {
     version++;
     return pipeline.removeLast();
@@ -165,7 +200,6 @@ public class CompactionPipeline {
       // empty suffix is always valid
       return true;
     }
-
     Iterator<ImmutableSegment> pipelineBackwardIterator = pipeline.descendingIterator();
     Iterator<ImmutableSegment> suffixBackwardIterator = suffix.descendingIterator();
     ImmutableSegment suffixCurrent;

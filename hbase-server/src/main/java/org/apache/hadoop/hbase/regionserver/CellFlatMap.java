@@ -31,13 +31,16 @@ import java.util.Set;
 
 
 /**
- * CellBlock stores a constant number of elements and is immutable after creation stage.
- * Due to being immutable the CellBlock can be implemented as array.
- * The actual array is on- or off-heap and is implemented in concrete class derived from CellBlock.
- * The CellBlock uses no synchronization primitives, it is assumed to be created by a
+ * CellFlatMap stores a constant number of elements and is immutable after creation stage.
+ * Due to being immutable the CellFlatMap can be implemented as array.
+ * The actual array can be on- or off-heap and is implemented in concrete class derived from CellFlatMap.
+ * The CellFlatMap uses no synchronization primitives, it is assumed to be created by a
  * single thread and then it can be read-only by multiple threads.
+ *
+ * The "flat" in the name, means that the memory layout of the Map is sequential array and thus
+ * requires less memory than ConcurrentSkipListMap.
  */
-public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
+public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   private final Comparator<? super Cell> comparator;
   private int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
@@ -45,15 +48,15 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
   private boolean descending = false;
 
   /* C-tor */
-  public CellBlock(Comparator<? super Cell> comparator, int min, int max, boolean d){
+  public CellFlatMap(Comparator<? super Cell> comparator, int min, int max, boolean d){
     this.comparator = comparator;
     this.minCellIdx = min;
     this.maxCellIdx = max;
     this.descending = d;
   }
 
-  /* Used for abstract CellBlock creation, implemented by derived class */
-  protected abstract CellBlock createCellBlocks(Comparator<? super Cell> comparator, int min,
+  /* Used for abstract CellFlatMap creation, implemented by derived class */
+  protected abstract CellFlatMap createCellFlatMap(Comparator<? super Cell> comparator, int min,
       int max, boolean descending);
 
   /* Returns the i-th cell in the cell block */
@@ -126,24 +129,24 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     int fromIndex = (getValidIndex(fromKey, !fromInclusive));
 
     if (fromIndex > toIndex) throw new IllegalArgumentException("inconsistent range");
-    return createCellBlocks(comparator, fromIndex, toIndex, descending);
+    return createCellFlatMap(comparator, fromIndex, toIndex, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
     int index = getValidIndex(toKey, inclusive);
-    return createCellBlocks(comparator, minCellIdx, index, descending);
+    return createCellFlatMap(comparator, minCellIdx, index, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
     int index = (getValidIndex(fromKey, !inclusive));
-    return createCellBlocks(comparator, index, maxCellIdx, descending);
+    return createCellFlatMap(comparator, index, maxCellIdx, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> descendingMap() {
-    return createCellBlocks(comparator, minCellIdx, maxCellIdx, true);
+    return createCellFlatMap(comparator, minCellIdx, maxCellIdx, true);
   }
 
   @Override
@@ -151,12 +154,12 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     return this.subMap(k1, true, k2, true);
   }
 
-  @Override 
+  @Override
   public ConcurrentNavigableMap<Cell, Cell> headMap(Cell k) {
     return this.headMap(k, true);
   }
 
-  @Override 
+  @Override
   public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell k) {
     return this.tailMap(k, true);
   }
@@ -251,42 +254,42 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
 
   // -------------------------------- Entry's getters --------------------------------
   // all interfaces returning Entries are unsupported because we are dealing only with the keys
-  @Override 
+  @Override
   public Entry<Cell, Cell> lowerEntry(Cell k) {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> higherEntry(Cell k) {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> ceilingEntry(Cell k) {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> floorEntry(Cell k) {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> firstEntry() {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> lastEntry() {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> pollFirstEntry() {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public Entry<Cell, Cell> pollLastEntry() {
     throw new UnsupportedOperationException();
   }
@@ -312,7 +315,7 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public boolean replace(Cell k, Cell v, Cell v1) {
     throw new UnsupportedOperationException();
   }
@@ -327,7 +330,7 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public boolean remove(Object o, Object o1) {
     throw new UnsupportedOperationException();
   }
@@ -344,7 +347,7 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     throw new UnsupportedOperationException();
   }
 
-  @Override 
+  @Override
   public NavigableSet<Cell> descendingKeySet() {
     throw new UnsupportedOperationException();
   }
@@ -392,18 +395,17 @@ public abstract class CellBlock implements ConcurrentNavigableMap<Cell,Cell> {
     }
   }
 
-  
   // -------------------------------- Collection --------------------------------
   private final class CellBlocksCollection implements Collection<Cell> {
 
     @Override
     public int size()         {
-      return CellBlock.this.size();
+      return CellFlatMap.this.size();
     }
 
     @Override
     public boolean isEmpty()  {
-      return CellBlock.this.isEmpty();
+      return CellFlatMap.this.isEmpty();
     }
 
     @Override

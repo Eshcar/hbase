@@ -193,12 +193,13 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
 
-      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize, 5); //14921
+      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize, 5); //HBASE-14921
 
       if(chunkPool != null) {
         c = chunkPool.getChunk();
       } else {
-        c = new Chunk(chunkSize, 5);
+        // HBASE-14921 555 is here till it is decided whether ChunkPool is always on
+        c = new Chunk(chunkSize, 555);
         c.init();
       }
 
@@ -217,19 +218,27 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     }
   }
 
-  /** 14921
+  /** HBASE-14921
    * Given a chunk ID return reference to the relevant chunk
    * @return a chunk
    */
-  Chunk translateIdToChunk(int id) {
+  public Chunk translateIdToChunk(int id) {
     return chunkPool.translateIdToChunk(id);
   }
 
-  /** 14921
+  /** HBASE-14921
+   * Give the ID of the Chunk from where last allocation took the bytes
+   * @return a chunk
+   */
+  public int getCurrentChunkId() {
+    return curChunk.get().getId();
+  }
+
+  /** HBASE-14921
    * Use instead of allocateBytes() when new full chunk is needed
    * @return a chunk
    */
-  Chunk allocateChunk() {
+  public Chunk allocateChunk() {
     Chunk c = chunkPool.getChunk();
     this.chunkQueue.add(c);
     return c;

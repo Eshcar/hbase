@@ -23,26 +23,26 @@ import java.util.Comparator;
 import org.apache.hadoop.hbase.Cell;
 
 /**
- * CellBlockObjectArray is a simple array of Cells allocated using JVM.
- * As all java arrays it is array of references pointing to Cell objects
+ * CellArrayMap is a simple array of Cells and can be allocated only using JVM.
+ * In contrast, CellChunkMap can be also allocated off-heap.
+ * As all java arrays CellArrayMap's array of references pointing to Cell objects.
  */
-public class CellBlockObjectArray extends CellBlock {
+public class CellArrayMap extends CellFlatMap {
 
-  Cell[] block;
+  private final Cell[] block;
 
-  /* The Cells Array is created only when CellBlockObjectArray is created, all sub-CellBlocks use
-   * boundary indexes */
-  public CellBlockObjectArray(Comparator<? super Cell> comparator, Cell[] b, int min, int max,
-      boolean d) {
+  /* The Cells Array is created only when CellArrayMap is created, all sub-CellBlocks use
+   * boundary indexes. The given Cell array must be ordered. */
+  public CellArrayMap(Comparator<? super Cell> comparator, Cell[] b, int min, int max, boolean d) {
     super(comparator,min,max,d);
     this.block = b;
   }
 
-  /* To be used by base class only to create a sub-CellBlock */
+  /* To be used by base class only to create a sub-CellFlatMap */
   @Override
-  protected CellBlock createCellBlocks(Comparator<? super Cell> comparator,
-      int min, int max, boolean d) {
-    return new CellBlockObjectArray(comparator,this.block,min,max,d);
+  protected CellFlatMap createCellFlatMap(Comparator<? super Cell> comparator, int min, int max,
+      boolean d) {
+    return new CellArrayMap(comparator,this.block,min,max,d);
   }
 
   @Override

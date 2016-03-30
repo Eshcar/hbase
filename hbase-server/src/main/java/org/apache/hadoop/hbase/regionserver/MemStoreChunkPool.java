@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.lang.management.ManagementFactory;
 //import java.util.concurrent.*;
 import java.util.concurrent.BlockingQueue;
@@ -158,9 +159,7 @@ public class MemStoreChunkPool {
     return this.reclaimedChunks.size();
   }
 
-  /*
-   * Only used in testing
-   */
+  @VisibleForTesting
   void clearChunks() {
     this.reclaimedChunks.clear();
   }

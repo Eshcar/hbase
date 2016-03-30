@@ -19,9 +19,14 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * A singleton store segment factory.
@@ -40,6 +45,7 @@ public final class SegmentFactory {
     return instance;
   }
 
+  // create skip-list-based immutable segment
   public ImmutableSegment createImmutableSegment(final Configuration conf,
       final CellComparator comparator, long size) {
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
@@ -47,19 +53,45 @@ public final class SegmentFactory {
     return createImmutableSegment(segment);
   }
 
-  public ImmutableSegment createImmutableSegment(CellComparator comparator,
-      long size) {
+  // usually used to create empty immutable segment
+  public ImmutableSegment createImmutableSegment(CellComparator comparator, long size) {
     MutableSegment segment = generateMutableSegment(null, comparator, null, size);
     return createImmutableSegment(segment);
   }
 
+  // create immutable segment from mutable
   public ImmutableSegment createImmutableSegment(MutableSegment segment) {
     return new ImmutableSegment(segment);
   }
+
+  // create mutable segment
   public MutableSegment createMutableSegment(final Configuration conf,
       CellComparator comparator, long size) {
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
     return generateMutableSegment(conf, comparator, memStoreLAB, size);
+  }
+
+  // create flat immutable segment from skip-list-based old immutable segment
+  public ImmutableSegment createImmutableSegment(int numOfCells, ImmutableSegment oldSegment,
+      MemStoreCompactorIterator iterator)
+      throws IOException {
+
+    // new Segment is using the MSLAB of the previous old Segment, because the MSLAB Chunks
+    // remain the same in the flattening process
+    return
+        new ImmutableSegment(
+            oldSegment, iterator, oldSegment.getMemStoreLAB(), numOfCells, ClassSize.CELL_ARRAY_ENTRY);
+  }
+
+  // create new flat immutable segment from compacting old immutable segment
+  public ImmutableSegment createImmutableSegment(
+      final Configuration conf, final CellComparator comparator,
+      int numOfCells, MemStoreCompactorIterator iterator, boolean array)
+      throws IOException {
+    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
+    return
+        new ImmutableSegment(
+            conf, comparator, iterator, memStoreLAB, numOfCells, ClassSize.CELL_ARRAY_ENTRY, array);
   }
 
   //****** private methods to instantiate concrete store segments **********//

@@ -51,4 +51,19 @@ public class VersionedSegmentsList {
   public long getVersion() {
     return version;
   }
+
+  public int getNumOfCells() {
+    int totalCells = 0;
+    for (ImmutableSegment s : storeSegments) {
+      totalCells += s.getCellsCount();
+    }
+    return totalCells;
+  }
+
+  public ImmutableSegment getSkipListSegment() {
+    for (ImmutableSegment s : storeSegments) {
+      if (!s.hasFlatIndex()) return s;
+    }
+    return null;
+  }
 }

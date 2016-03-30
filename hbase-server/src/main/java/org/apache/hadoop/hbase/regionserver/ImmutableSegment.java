@@ -18,7 +18,14 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ByteRange;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 /**
@@ -30,8 +37,114 @@ import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 @InterfaceAudience.Private
 public class ImmutableSegment extends Segment {
 
+  private boolean isFlat; // whether it is based on CellFlatMap or ConcurrentSkipListMap
+
   protected ImmutableSegment(Segment segment) {
     super(segment);
+    isFlat = false;
+  }
+
+  // flattening
+  protected ImmutableSegment(ImmutableSegment oldSegment, MemStoreCompactorIterator iterator,
+      MemStoreLAB memStoreLAB, int numOfCells, long constantCellSizeOverhead) {
+
+    super(null,oldSegment.getComparator(),memStoreLAB,
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM, constantCellSizeOverhead);
+
+    // build the CellSet
+    CellSet cs = this.createArrayBasedCellSet(numOfCells, iterator, false);
+
+    // update the CellSet of the new Segment
+    this.setCellSet(cs);
+    isFlat = true;
+  }
+
+  // compaction to CellArrayMap
+  protected ImmutableSegment(
+      final Configuration conf, CellComparator comparator, MemStoreCompactorIterator iterator,
+      MemStoreLAB memStoreLAB, int numOfCells, long constantCellSizeOverhead, boolean array) {
+
+    super(null, comparator, memStoreLAB,
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM, constantCellSizeOverhead);
+
+//    org.junit.Assert.assertTrue("\n\n<<< Immutable Segment Constructor BEFORE compaction\n", false);
+
+    // build the CellSet
+    CellSet cs = null;
+    if (array) {
+      cs = this.createArrayBasedCellSet(numOfCells, iterator, true);
+    } else {
+      cs = this.createChunkBasedCellSet(numOfCells, iterator, conf);
+    }
+
+    // update the CellSet of the new Segment
+    this.setCellSet(cs);
+    isFlat = true;
+  }
+
+  private CellSet createArrayBasedCellSet(int numOfCells, MemStoreCompactorIterator iterator,
+      boolean allocateFromMSLAB) {
+    // build the Cell Array
+    Cell[] cells = new Cell[numOfCells];
+    int i = 0;
+    while (iterator.hasNext()) {
+      Cell c = iterator.next();
+      if (allocateFromMSLAB) {
+        // The scanner behind the iterator is doing all the elimination logic
+        // now we just copy it to the new segment (also MSLAB copy)
+        KeyValue kv = KeyValueUtil.ensureKeyValue(c);
+        Cell newKV = maybeCloneWithAllocator(kv);
+        cells[i++] = newKV;
+        // flattening = !allocateFromMSLAB (false), counting both Heap and MetaData size
+        updateMetaInfo(c,true,!allocateFromMSLAB);
+      } else {
+        cells[i++] = c;
+        // flattening = !allocateFromMSLAB (true), counting only MetaData size
+        updateMetaInfo(c,true,!allocateFromMSLAB);
+      }
+
+    }
+    // build the immutable CellSet
+    CellArrayMap
+        cam = new CellArrayMap(getComparator(),cells,0,numOfCells,false);
+    return new CellSet(cam);
+  }
+
+  private CellSet createChunkBasedCellSet(
+      int numOfCells, MemStoreCompactorIterator iterator, final Configuration conf) {
+
+    int chunkSize = conf.getInt(HeapMemStoreLAB.CHUNK_SIZE_KEY, HeapMemStoreLAB.CHUNK_SIZE_DEFAULT);
+    int numOfCellsInsideChunk = chunkSize / CellChunkMap.BYTES_IN_CELL;
+    int numberOfChunks = chunkSize/numOfCellsInsideChunk;
+    HeapMemStoreLAB ms = (HeapMemStoreLAB)getMemStoreLAB();
+
+    // all Chunks must be allocated from current MSLAB
+    HeapMemStoreLAB.Chunk[] chunks = new HeapMemStoreLAB.Chunk[numberOfChunks];
+    int currentChunkIdx = 0;
+    chunks[currentChunkIdx] = ms.allocateChunk();
+    int offsetInCurentChunk = 0;
+
+    while (iterator.hasNext()) {
+      Cell c = iterator.next();
+
+      if (offsetInCurentChunk + CellChunkMap.BYTES_IN_CELL > chunkSize) {
+        // we do not consider cells bigger than chunks
+        // continue to the next chunk
+        currentChunkIdx++;
+        chunks[currentChunkIdx] = ms.allocateChunk();
+        offsetInCurentChunk = 0;
+      }
+
+      // The scanner behind the iterator is doing all the elimination logic
+      // now we just copy it to the new segment (also MSLAB copy)
+      KeyValue kv = KeyValueUtil.ensureKeyValue(c);
+      offsetInCurentChunk =
+          cloneAndReference(kv, chunks[currentChunkIdx].getData(), offsetInCurentChunk);
+    }
+
+    CellChunkMap ccm = new CellChunkMap(getComparator(),(HeapMemStoreLAB)getMemStoreLAB(),
+        chunks,0,numOfCells,chunkSize,false);
+    return new CellSet(ccm);
   }
 
   /**
@@ -43,4 +156,30 @@ public class ImmutableSegment extends Segment {
     return new CollectionBackedScanner(getCellSet(), getComparator());
   }
 
+  public boolean isFlat() {
+    return isFlat;
+  }
+
+  /**
+   * If the segment has a memory allocator the cell is being cloned to this space, and returned;
+   * otherwise the given cell is returned
+   * @return either the given cell or its clone
+   */
+  private int cloneAndReference(Cell cell, byte[] referencesByteArray, int offsetForReference) {
+    HeapMemStoreLAB ms = (HeapMemStoreLAB)getMemStoreLAB();
+    int len = KeyValueUtil.length(cell);
+    int offset = offsetForReference;
+    // we assume Cell length is not bigger than Chunk
+
+    // allocate
+    ByteRange alloc = ms.allocateBytes(len);
+    int chunkId = ms.getCurrentChunkId();
+    KeyValueUtil.appendToByteArray(cell, alloc.getBytes(), alloc.getOffset());
+
+    // write the reference
+    offset = Bytes.putInt(referencesByteArray, offset, chunkId);           // write chunk id
+    offset = Bytes.putInt(referencesByteArray, offset, alloc.getOffset()); // offset
+    offset = Bytes.putInt(referencesByteArray, offset, len);               // length
+    return offset;
+  }
 }
