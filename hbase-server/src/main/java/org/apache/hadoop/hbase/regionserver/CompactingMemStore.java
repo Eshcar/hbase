@@ -58,7 +58,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CELL_ARRAY_MAP);
-  public final static double COPY_COMPACTION_THRESHOLD_FACTOR = 0.9;
+  public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
   public final static double COMPACTION_TRIGGER_REMAIN_FACTOR = 1;
   public final static boolean COMPACTION_PRE_CHECK = false;
 
@@ -301,7 +301,7 @@ public class CompactingMemStore extends AbstractMemStore {
         inMemoryFlushInProgress.set(true);
         // Speculative compaction execution, may be interrupted if flush is forced while
         // compaction is in progress
-        compactor.startCompact(0);
+        compactor.startCompact();
       }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
@@ -324,7 +324,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > COPY_COMPACTION_THRESHOLD_FACTOR *flushSizeLowerBound) {
+    if(getActive().getSize() > IN_MEMORY_FLUSH_THRESHOLD_FACTOR *flushSizeLowerBound) {
       // size above flush threshold
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
@@ -415,7 +415,7 @@ public class CompactingMemStore extends AbstractMemStore {
      *
      * is already an ongoing compaction (or pipeline is empty).
      */
-    public boolean startCompact(int i) throws IOException {
+    public boolean startCompact() throws IOException {
       if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
 
       // get the list of segments from the pipeline, the list is marked with specific version
@@ -634,7 +634,7 @@ public class CompactingMemStore extends AbstractMemStore {
   // debug method, also for testing
   public void debug() {
     String msg = "active size="+getActive().getSize();
-    msg += " threshold="+ COPY_COMPACTION_THRESHOLD_FACTOR *flushSizeLowerBound;
+    msg += " threshold="+ IN_MEMORY_FLUSH_THRESHOLD_FACTOR *flushSizeLowerBound;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
     msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
     LOG.debug(msg);
