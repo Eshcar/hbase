@@ -47,7 +47,6 @@ public abstract class Segment {
   private final TimeRangeTracker timeRangeTracker;
   private long constantCellMetaDataSize;
   protected volatile boolean tagsPresent;
-  protected boolean hasFlatIndex;
 
   protected Segment(
       CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB, long size,
@@ -59,7 +58,6 @@ public abstract class Segment {
     this.size = new AtomicLong(size);
     this.timeRangeTracker = new TimeRangeTracker();
     this.tagsPresent = false;
-    this.hasFlatIndex = true;
     this.constantCellMetaDataSize = constantCellSize;
   }
 
@@ -160,10 +158,6 @@ public abstract class Segment {
     return tagsPresent;
   }
 
-  public boolean hasFlatIndex() {
-    return hasFlatIndex;
-  }
-
   public void incScannerCount() {
     if(getMemStoreLAB() != null) {
       getMemStoreLAB().incScannerCount();
@@ -192,7 +186,7 @@ public abstract class Segment {
    * @return this object
    */
 
-  public Segment setCellSet(CellSet cellSet) {
+  protected Segment setCellSet(CellSet cellSet) {
     this.cellSet = cellSet;
     return this;
   }

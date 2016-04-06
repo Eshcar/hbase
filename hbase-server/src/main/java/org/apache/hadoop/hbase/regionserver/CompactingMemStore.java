@@ -58,9 +58,9 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CELL_ARRAY_MAP);
-  public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
+  public final static double COPY_COMPACTION_THRESHOLD_FACTOR = 0.9;
   public final static double COMPACTION_TRIGGER_REMAIN_FACTOR = 1;
-  public final static boolean CHECK_FOR_COMPACTION = false;
+  public final static boolean COMPACTION_PRE_CHECK = false;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
@@ -301,7 +301,7 @@ public class CompactingMemStore extends AbstractMemStore {
         inMemoryFlushInProgress.set(true);
         // Speculative compaction execution, may be interrupted if flush is forced while
         // compaction is in progress
-        compactor.startCompact();
+        compactor.startCompact(0);
       }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
@@ -324,7 +324,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound) {
+    if(getActive().getSize() > COPY_COMPACTION_THRESHOLD_FACTOR *flushSizeLowerBound) {
       // size above flush threshold
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
@@ -354,6 +354,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   private void pushTailToSnapshot() {
     ImmutableSegment tail = pipeline.pullTail();
+
     if (!tail.isEmpty()) {
       setSnapshot(tail);
       long size = getSegmentSize(tail);
@@ -397,9 +398,6 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   private class MemStoreCompactor {
 
-    // list of Scanners of segments in the pipeline, when compaction starts
-    List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
-
     // a static version of the segment list from the pipeline
     private VersionedSegmentsList versionedList;
 
@@ -417,25 +415,16 @@ public class CompactingMemStore extends AbstractMemStore {
      *
      * is already an ongoing compaction (or pipeline is empty).
      */
-    public boolean startCompact() throws IOException {
-
-      //org.junit.Assert.assertTrue("\n\n<<< Starting compaction\n", false);
+    public boolean startCompact(int i) throws IOException {
       if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
 
       // get the list of segments from the pipeline, the list is marked with specific version
       versionedList = pipeline.getVersionedList();
-      //org.junit.Assert.assertTrue("\n\n<<< Starting compaction, got versioned list\n", false);
-
-      // create the list of scanners with maximally possible read point, meaning that
-      // all KVs are going to be returned by the pipeline traversing
-      for (Segment segment : versionedList.getStoreSegments()) {
-        scanners.add(segment.getSegmentScanner(Long.MAX_VALUE));
-      }
 
       LOG.info(
           "Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
-      //org.junit.Assert.assertTrue("\n\n<<< Starting actual compaction\n", false);
-      doCompact();
+
+      doCompact(i);
       return true;
     }
 
@@ -463,54 +452,43 @@ public class CompactingMemStore extends AbstractMemStore {
     * The solo (per compactor) thread only reads the compaction pipeline.
     * There is at most one thread per memstore instance.
     */
-    private void doCompact() {
+    private void doCompact(int y) {
       int cellsAfterComp = versionedList.getNumOfCells();
-      ImmutableSegment result = null;
-
-      //org.junit.Assert.assertTrue("\n\n<<< Starting doCompact() 1\n", false);
-
       try {        // the compaction processing
-
-        if (CHECK_FOR_COMPACTION) {
-          //org.junit.Assert.assertTrue("\n\n<<< Starting doCompact() 2\n", false);
-          // Phase I: estimate the compaction expedience - CHECK COMPACTION
+        // Phase I: estimate the compaction expedience - CHECK COMPACTION
+        if (COMPACTION_PRE_CHECK) {
           cellsAfterComp = countCellsForCompaction();
-          //        org.junit.Assert.assertTrue("\n\n<<< In compaction, the number of cells after "
-          //            + "compaction should be: " + cellsAfterComp + " \n", false);
 
           if (!isInterrupted.get() && (cellsAfterComp
               > COMPACTION_TRIGGER_REMAIN_FACTOR * versionedList.getNumOfCells())) {
             // too much cells "survive" the possible compaction we do not want to compact!
             LOG.debug("Stopping the unworthy MemStore in-memory compaction for store "
                 + getFamilyName());
-            // Looking for Segment in pipeline snapshot with SkipList index, to make it flat
+            // Looking for Segment in pipeline with SkipList index, to make it flat
             ImmutableSegment segment = versionedList.getSkipListSegment();
             if (segment == null) {
               Thread.currentThread().interrupt();
               return;
             }
-            // We are going to flatten the given segment with SkipList index
+            // Flatten the given segment with SkipList index and replace it in the pipeline
             flattenSegment(segment, cellsAfterComp);
             return;
           }
         }
-//        org.junit.Assert.assertTrue("\n\n<<< In compaction, decided to compact! "
-//            + "The number of cells after " + "compaction should be: " + cellsAfterComp + " \n", false);
-
+        ImmutableSegment result = null;
         // Phase II: create the compacted ImmutableSegment - START COMPACTION
         if (!isInterrupted.get()) {
           switch (type) {
-            case COMPACT_TO_SKIPLIST_MAP: result = compactToNotFlatSegment();
-            case COMPACT_TO_ARRAY_MAP: result = compactToFlatSegment(cellsAfterComp, true);
-            case COMPACT_TO_CHUNK_MAP: result = compactToFlatSegment(cellsAfterComp, false);
-            default: assert false;  // sanity check
+            case COMPACT_TO_SKIPLIST_MAP: result = compactToNotFlatSegment(cellsAfterComp);
+                                          break;
+            case COMPACT_TO_ARRAY_MAP:    result = compactToFlatSegment(cellsAfterComp, true);
+                                          break;
+            case COMPACT_TO_CHUNK_MAP:    result = compactToFlatSegment(cellsAfterComp, false);
+                                          break;
+            default: // sanity check
+              org.junit.Assert.assertTrue("\n\n<<< Wrong compacting MemStore type", false);
           }
         }
-
-//        org.junit.Assert.assertTrue("\n\n<<< After compaction! "
-//            + "The number of cells after " + "compaction should be: " + cellsAfterComp
-//            + " \n", false);
-
         // Phase III: swap the old compaction pipeline - END COMPACTION
         if (!isInterrupted.get()) {
           pipeline.swap(versionedList, result);
@@ -518,11 +496,9 @@ public class CompactingMemStore extends AbstractMemStore {
           updateLowestUnflushedSequenceIdInWal(true); // only if greater
         }
       } catch (Exception e) {
-        org.junit.Assert.assertTrue("\n\n<<< GOT EXCEPTION IN COMPACTION!!! " + e + "\n", false);
         LOG.debug("Interrupting the MemStore in-memory compaction for store " + getFamilyName());
         Thread.currentThread().interrupt();
       } finally {
-        //org.junit.Assert.assertTrue("\n\n<<< BEFORE RELEASE RESOURCE!!! " + "\n", false);
         releaseResources();
         inMemoryFlushInProgress.set(false);
       }
@@ -538,7 +514,7 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.debug("Flattening Segment  " + segment);
       // Update the pipeline scanner (list of scanners) to scan only Skip List based Segment
       List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
-      scanners.add(segment.getSegmentScanner(Long.MAX_VALUE));
+      scanners.add(segment.getSegmentScanner(store.getSmallestReadPoint()));
       ImmutableSegment newSegment = createFlatFromSegmentWithSkipList(numOfCells, segment);
       pipeline.replace(versionedList, segment, newSegment);
 
@@ -546,7 +522,7 @@ public class CompactingMemStore extends AbstractMemStore {
     }
 
     /**
-     * COMPACT TO ARRAY MAP
+     * COMPACT TO ARRAY MAP OR TO CHUNK MAP
      * Updates the given single Segment using the internal store scanner,
      * who in turn uses ScanQueryMatcher
      */
@@ -555,9 +531,8 @@ public class CompactingMemStore extends AbstractMemStore {
 
       MemStoreCompactorIterator iterator =
           new MemStoreCompactorIterator(
-              2, versionedList.getStoreSegments(), getComparator(), compactionKVMax, store);
+              numOfCells, versionedList.getStoreSegments(), getComparator(), compactionKVMax, store);
 
-//      org.junit.Assert.assertTrue("\n\n<<< After creating the scanner in compaction\n", false);
       ImmutableSegment result = SegmentFactory.instance()
           .createImmutableSegment(getConfiguration(), getComparator(), numOfCells, iterator, array);
 
@@ -568,17 +543,15 @@ public class CompactingMemStore extends AbstractMemStore {
     /**
      * COMPACT TO SKIPLIST MAP
      */
-    private ImmutableSegment compactToNotFlatSegment() throws IOException {
+    private ImmutableSegment compactToNotFlatSegment(int cells) throws IOException {
       ImmutableSegment result = SegmentFactory.instance()  // create the scanner
           .createImmutableSegment(getConfiguration(), getComparator(),
               CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
 
-      //org.junit.Assert.assertTrue("\n\n<<< Starting counting cells for comaction 1\n", false);
       MemStoreCompactorIterator iterator =
           new MemStoreCompactorIterator(
-              3,versionedList.getStoreSegments(),getComparator(),compactionKVMax, store);
+              cells,versionedList.getStoreSegments(),getComparator(),compactionKVMax, store);
 
-      //org.junit.Assert.assertTrue("\n\n<<< Starting counting cells for comaction 2\n", false);
       while (iterator.hasNext()) {
         Cell c = iterator.next();
         // The scanner is doing all the elimination logic
@@ -588,8 +561,6 @@ public class CompactingMemStore extends AbstractMemStore {
         result.internalAdd(newKV);
       }
       iterator.remove();
-      //      org.junit.Assert.assertTrue("\n\n<<< Finished counting "
-      //          + cnt + " cells for comaction\n", false);
       return result;
     }
 
@@ -615,19 +586,14 @@ public class CompactingMemStore extends AbstractMemStore {
 
     private int countCellsForCompaction() throws IOException {
 
-      //org.junit.Assert.assertTrue("\n\n<<< Starting counting cells for comaction 1\n", false);
       MemStoreCompactorIterator iterator =
           new MemStoreCompactorIterator(
               3,versionedList.getStoreSegments(),getComparator(),compactionKVMax, store);
       int cnt = 0;
-
-      //org.junit.Assert.assertTrue("\n\n<<< Starting counting cells for comaction 2\n", false);
       while (iterator.next() != null) {
         cnt++;
       }
       iterator.remove();
-//      org.junit.Assert.assertTrue("\n\n<<< Finished counting "
-//          + cnt + " cells for comaction\n", false);
       return cnt;
     }
   } // end of the MemStoreCompactor Class
@@ -665,10 +631,10 @@ public class CompactingMemStore extends AbstractMemStore {
     return lowest;
   }
 
-  // debug method
-  private void debug() {
+  // debug method, also for testing
+  public void debug() {
     String msg = "active size="+getActive().getSize();
-    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound;
+    msg += " threshold="+ COPY_COMPACTION_THRESHOLD_FACTOR *flushSizeLowerBound;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
     msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
     LOG.debug(msg);

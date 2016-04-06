@@ -27,13 +27,14 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.experimental.categories.Category;
 
 import java.util.Iterator;
+import java.util.NavigableMap;
 import java.util.SortedSet;
 import static org.junit.Assert.assertTrue;
 
 @Category({RegionServerTests.class, SmallTests.class})
-public class TestCellBlocksSet extends TestCase {
+public class TestCellFlatSet extends TestCase {
 
-  private static final int NUM_OF_CELLS = 3;
+  private static final int NUM_OF_CELLS = 4;
 
   private Cell cells[];
   private CellArrayMap cbOnHeap;
@@ -43,14 +44,15 @@ public class TestCellBlocksSet extends TestCase {
   private HeapMemStoreLAB mslab;
 
 
-
   protected void setUp() throws Exception {
     super.setUp();
 
     // create array of Cells to bass to the CellFlatMap under CellSet
-    final byte[] one = Bytes.toBytes(1);
-    final byte[] two = Bytes.toBytes(2);
-    final byte[] three = Bytes.toBytes(3);
+    final byte[] one = Bytes.toBytes(15);
+    final byte[] two = Bytes.toBytes(25);
+    final byte[] three = Bytes.toBytes(35);
+    final byte[] four = Bytes.toBytes(45);
+
     final byte[] f = Bytes.toBytes("f");
     final byte[] q = Bytes.toBytes("q");
     final byte[] v = Bytes.toBytes(4);
@@ -58,8 +60,9 @@ public class TestCellBlocksSet extends TestCase {
     final KeyValue kv1 = new KeyValue(one, f, q, 10, v);
     final KeyValue kv2 = new KeyValue(two, f, q, 20, v);
     final KeyValue kv3 = new KeyValue(three, f, q, 30, v);
+    final KeyValue kv4 = new KeyValue(four, f, q, 40, v);
 
-    cells = new Cell[] {kv1,kv2,kv3};
+    cells = new Cell[] {kv1,kv2,kv3,kv4};
     cbOnHeap = new CellArrayMap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
 
     conf.setBoolean(SegmentFactory.USEMSLAB_KEY, true);
@@ -67,7 +70,7 @@ public class TestCellBlocksSet extends TestCase {
     MemStoreChunkPool.chunkPoolDisabled = false;
     mslab = new HeapMemStoreLAB(conf);
 
-    HeapMemStoreLAB.Chunk[] c = shallowCellsToBuffer(kv1, kv2, kv3);
+    HeapMemStoreLAB.Chunk[] c = shallowCellsToBuffer(kv1, kv2, kv3, kv4);
     int chunkSize = conf.getInt(HeapMemStoreLAB.CHUNK_SIZE_KEY, HeapMemStoreLAB.CHUNK_SIZE_DEFAULT);
     cbOffHeap = new CellChunkMap(CellComparator.COMPARATOR, mslab,
         c, 0, NUM_OF_CELLS, chunkSize, false);
@@ -89,9 +92,16 @@ public class TestCellBlocksSet extends TestCase {
 
   /* Generic basic test for immutable CellSet */
   private void testCellBlocks(CellSet cs) throws Exception {
-    assertEquals(NUM_OF_CELLS, cs.size());    // check size
+    final byte[] oneAndHalf = Bytes.toBytes(20);
+    final byte[] f = Bytes.toBytes("f");
+    final byte[] q = Bytes.toBytes("q");
+    final byte[] v = Bytes.toBytes(4);
+    final KeyValue outerCell = new KeyValue(oneAndHalf, f, q, 10, v);
 
-    assertTrue(cs.contains(cells[0]));        // check existance of the first
+    assertEquals(NUM_OF_CELLS, cs.size());          // check size
+    assertFalse(cs.contains(outerCell));            // check outer cell
+
+    assertTrue(cs.contains(cells[0]));              // check existence of the first
     Cell first = cs.first();
     assertTrue(cells[0].equals(first));
 
@@ -99,15 +109,18 @@ public class TestCellBlocksSet extends TestCase {
     Cell last = cs.last();
     assertTrue(cells[NUM_OF_CELLS - 1].equals(last));
 
-    SortedSet<Cell> tail = cs.tailSet(cells[1]);  // check tail abd head sizes
-    assertEquals(2, tail.size());
+    SortedSet<Cell> tail = cs.tailSet(cells[1]);    // check tail abd head sizes
+    assertEquals(NUM_OF_CELLS - 1, tail.size());
     SortedSet<Cell> head = cs.headSet(cells[1]);
     assertEquals(1, head.size());
+
+    SortedSet<Cell> tailOuter = cs.tailSet(outerCell);  // check tail starting from outer cell
+    assertEquals(NUM_OF_CELLS - 1, tailOuter.size());
 
     Cell tailFirst = tail.first();
     assertTrue(cells[1].equals(tailFirst));
     Cell tailLast = tail.last();
-    assertTrue(cells[2].equals(tailLast));
+    assertTrue(cells[NUM_OF_CELLS - 1].equals(tailLast));
 
     Cell headFirst = head.first();
     assertTrue(cells[0].equals(headFirst));
@@ -142,7 +155,7 @@ public class TestCellBlocksSet extends TestCase {
   }
 
   /* Create byte array holding shallow Cells referencing to the deep Cells data */
-  private HeapMemStoreLAB.Chunk[] shallowCellsToBuffer(Cell kv1, Cell kv2, Cell kv3) {
+  private HeapMemStoreLAB.Chunk[] shallowCellsToBuffer(Cell kv1, Cell kv2, Cell kv3, Cell kv4) {
     HeapMemStoreLAB.Chunk chunkD = mslab.allocateChunk();
     HeapMemStoreLAB.Chunk chunkS = mslab.allocateChunk();
     HeapMemStoreLAB.Chunk result[] = {chunkS};
@@ -168,6 +181,12 @@ public class TestCellBlocksSet extends TestCase {
     pos = Bytes.putInt(shallowBuffer, pos, chunkD.getId());           // deep chunk index
     pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
     pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv3)); // length
+    offset += KeyValueUtil.length(kv3);
+
+    KeyValueUtil.appendToByteArray(kv4, deepBuffer, offset);          // write deep cell data
+    pos = Bytes.putInt(shallowBuffer, pos, chunkD.getId());           // deep chunk index
+    pos = Bytes.putInt(shallowBuffer, pos, offset);                   // offset
+    pos = Bytes.putInt(shallowBuffer, pos, KeyValueUtil.length(kv4)); // length
 
     return result;
   }

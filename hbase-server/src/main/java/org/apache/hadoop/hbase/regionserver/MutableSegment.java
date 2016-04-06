@@ -49,7 +49,7 @@ public class MutableSegment extends Segment {
   public long rollback(Cell cell) {
     Cell found = getCellSet().get(cell);
     if (found != null && found.getSequenceId() == cell.getSequenceId()) {
-      long sz = AbstractMemStore.heapSizeChange(cell, true, false);
+      long sz = heapSizeChange(cell, true);
       getCellSet().remove(cell);
       incSize(-sz);
       return sz;

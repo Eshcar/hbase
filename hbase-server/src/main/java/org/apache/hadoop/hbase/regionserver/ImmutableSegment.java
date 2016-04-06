@@ -39,53 +39,56 @@ public class ImmutableSegment extends Segment {
 
   private boolean isFlat; // whether it is based on CellFlatMap or ConcurrentSkipListMap
 
+  /**
+   * Builds a special scanner for the MemStoreSnapshot object that is different than the
+   * general segment scanner.
+   * @return a special scanner for the MemStoreSnapshot object
+   */
+  public KeyValueScanner getKeyValueScanner() {
+    return new CollectionBackedScanner(getCellSet(), getComparator());
+  }
+
+  public boolean isFlat() {
+    return isFlat;
+  }
+
   protected ImmutableSegment(Segment segment) {
     super(segment);
     isFlat = false;
   }
 
-  // flattening
+  // C-tor by flattening other (old) segment
   protected ImmutableSegment(ImmutableSegment oldSegment, MemStoreCompactorIterator iterator,
       MemStoreLAB memStoreLAB, int numOfCells, long constantCellSizeOverhead) {
 
     super(null,oldSegment.getComparator(),memStoreLAB,
         CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM, constantCellSizeOverhead);
-
-    // build the CellSet
-    CellSet cs = this.createArrayBasedCellSet(numOfCells, iterator, false);
-
-    // update the CellSet of the new Segment
-    this.setCellSet(cs);
+    CellSet cs = this.createArrayBasedCellSet(numOfCells, iterator, false); // build the CellSet
+    this.setCellSet(cs);      // update the CellSet of the new Segment
     isFlat = true;
   }
 
-  // compaction to CellArrayMap
+  // C-tor by compaction to CellArrayMap or CellChunkMap
   protected ImmutableSegment(
       final Configuration conf, CellComparator comparator, MemStoreCompactorIterator iterator,
       MemStoreLAB memStoreLAB, int numOfCells, long constantCellSizeOverhead, boolean array) {
 
     super(null, comparator, memStoreLAB,
         CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM, constantCellSizeOverhead);
-
-//    org.junit.Assert.assertTrue("\n\n<<< Immutable Segment Constructor BEFORE compaction\n", false);
-
-    // build the CellSet
-    CellSet cs = null;
+    CellSet cs = null; // build the CellSet Cell array or Byte array based
     if (array) {
       cs = this.createArrayBasedCellSet(numOfCells, iterator, true);
     } else {
       cs = this.createChunkBasedCellSet(numOfCells, iterator, conf);
     }
-
-    // update the CellSet of the new Segment
-    this.setCellSet(cs);
+    this.setCellSet(cs);  // update the CellSet of the new Segment
     isFlat = true;
   }
 
-  private CellSet createArrayBasedCellSet(int numOfCells, MemStoreCompactorIterator iterator,
-      boolean allocateFromMSLAB) {
-    // build the Cell Array
-    Cell[] cells = new Cell[numOfCells];
+  private CellSet createArrayBasedCellSet(
+      int numOfCells, MemStoreCompactorIterator iterator, boolean allocateFromMSLAB) {
+
+    Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     int i = 0;
     while (iterator.hasNext()) {
       Cell c = iterator.next();
@@ -95,18 +98,17 @@ public class ImmutableSegment extends Segment {
         KeyValue kv = KeyValueUtil.ensureKeyValue(c);
         Cell newKV = maybeCloneWithAllocator(kv);
         cells[i++] = newKV;
-        // flattening = !allocateFromMSLAB (false), counting both Heap and MetaData size
+        // flattening = false, compaction case, counting both Heap and MetaData size
         updateMetaInfo(c,true,!allocateFromMSLAB);
       } else {
         cells[i++] = c;
-        // flattening = !allocateFromMSLAB (true), counting only MetaData size
+        // flattening = true, flattening case, counting only MetaData size
         updateMetaInfo(c,true,!allocateFromMSLAB);
       }
 
     }
     // build the immutable CellSet
-    CellArrayMap
-        cam = new CellArrayMap(getComparator(),cells,0,numOfCells,false);
+    CellArrayMap cam = new CellArrayMap(getComparator(),cells,0,i,false);
     return new CellSet(cam);
   }
 
@@ -145,19 +147,6 @@ public class ImmutableSegment extends Segment {
     CellChunkMap ccm = new CellChunkMap(getComparator(),(HeapMemStoreLAB)getMemStoreLAB(),
         chunks,0,numOfCells,chunkSize,false);
     return new CellSet(ccm);
-  }
-
-  /**
-   * Builds a special scanner for the MemStoreSnapshot object that is different than the
-   * general segment scanner.
-   * @return a special scanner for the MemStoreSnapshot object
-   */
-  public KeyValueScanner getKeyValueScanner() {
-    return new CollectionBackedScanner(getCellSet(), getComparator());
-  }
-
-  public boolean isFlat() {
-    return isFlat;
   }
 
   /**

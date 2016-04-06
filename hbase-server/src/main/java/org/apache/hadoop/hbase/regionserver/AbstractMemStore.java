@@ -206,7 +206,8 @@ public abstract class AbstractMemStore implements MemStore {
    */
   @Override
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(this, readPt));
+    return Collections.<KeyValueScanner> singletonList(
+        new MemStoreScanner(getComparator(), getListOfScanners(readPt)));
   }
 
   @Override

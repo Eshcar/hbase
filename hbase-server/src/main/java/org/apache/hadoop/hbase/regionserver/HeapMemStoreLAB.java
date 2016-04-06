@@ -192,13 +192,10 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // No current chunk, so we want to allocate one. We race
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
-
-      //c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize, 5); //HBASE-14921
-
       if(chunkPool != null) {
         c = chunkPool.getChunk();
       } else {
-        // HBASE-14921 555 is here till it is decided whether ChunkPool is always on
+        // HBASE-14921: 555 is here till it is decided whether ChunkPool is always on
         c = new Chunk(chunkSize, 555);
         c.init();
       }
@@ -207,7 +204,6 @@ public class HeapMemStoreLAB implements MemStoreLAB {
         // we won race - now we need to actually do the expensive
         // allocation step
 
-        //c.init(); //14921
         this.chunkQueue.add(c);
         return c;
       } else if (chunkPool != null) {
@@ -303,8 +299,6 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // We should always succeed the above CAS since only one thread
       // calls init()!
       Preconditions.checkState(initted, "Multiple threads tried to init same chunk");
-
-      //org.junit.Assert.assertTrue("\n\n inside chunk initialization 3", false);
     }
 
     /**

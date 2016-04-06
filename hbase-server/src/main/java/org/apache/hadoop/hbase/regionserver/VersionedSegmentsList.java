@@ -62,7 +62,7 @@ public class VersionedSegmentsList {
 
   public ImmutableSegment getSkipListSegment() {
     for (ImmutableSegment s : storeSegments) {
-      if (!s.hasFlatIndex()) return s;
+      if (!s.isFlat()) return s;
     }
     return null;
   }

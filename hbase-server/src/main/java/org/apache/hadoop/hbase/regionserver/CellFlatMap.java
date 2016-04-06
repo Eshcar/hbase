@@ -67,7 +67,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
    * Positive returned numbers mean the index.
    * Negative returned numbers means the key not found.
    * The absolute value of the output is the
-   * possible insert index for the searched key: (-1 * insertion point) - 1
+   * possible insert index for the searched key: (-1 * insertion point)
    * @param needle The key to look for in all of the entries
    * @return Same return value as Arrays.binarySearch.
    */
@@ -77,13 +77,10 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
     while (begin <= end) {
       int mid = begin + ((end - begin) / 2);
-
       Cell midCell = getCellFromIndex(mid);
-
       int compareRes = comparator.compare(midCell, needle);
 
-      // 0 means equals. We found the key.
-      if (compareRes == 0) return mid;
+      if (compareRes == 0) return mid;  // 0 means equals. We found the key
       else if (compareRes < 0) {
         // midCell is less than needle so we need to look at farther up
         begin = mid + 1;
@@ -93,14 +90,16 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
       }
     }
 
-    return (-1 * begin) - 1;
+    return (-1 * begin);
   }
 
+  /* Get the index of the key taking into consideration whether
+  ** the key should be inclusive or exclusive */
   private int getValidIndex(Cell key, boolean inclusive) {
     int index = find(key);
-    if (inclusive && index >= 0) index++;
-    else if (index < 0) index = -(index + 1) - 1;
-    return index;
+    if (inclusive && index >= 0)
+      index = (descending) ? index-1 : index+1;
+    return Math.abs(index);
   }
 
   @Override

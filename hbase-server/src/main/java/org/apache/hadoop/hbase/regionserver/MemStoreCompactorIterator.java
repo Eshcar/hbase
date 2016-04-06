@@ -37,13 +37,12 @@ import java.util.*;
 public class MemStoreCompactorIterator implements Iterator<Cell> {
 
   private List<Cell> kvs = new ArrayList<Cell>();
-  private int c = 0;
+
   // scanner for full or partial pipeline (heap of segment scanners)
   private KeyValueScanner scanner;
+
   // scanner on top of pipeline scanner that uses ScanQueryMatcher
   private StoreScanner compactingScanner;
-  // get the limit to the size of the groups to be returned by compactingScanner
-  private final int compactionKVMax;
 
   private final ScannerContext scannerContext;
 
@@ -53,10 +52,8 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   // C-tor
   public MemStoreCompactorIterator(int initiator, LinkedList<ImmutableSegment> segments,
       CellComparator comparator, int compactionKVMax, HStore store) throws IOException {
-    this.compactionKVMax = compactionKVMax;
-    this.scannerContext =
-        ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
-    //org.junit.Assert.assertTrue("\n\n<<< Initiating compactor iterator\n", false);
+
+    this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
 
     // list of Scanners of segments in the pipeline, when compaction starts
     List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
@@ -64,45 +61,43 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     // create the list of scanners with maximally possible read point, meaning that
     // all KVs are going to be returned by the pipeline traversing
     for (Segment segment : segments) {
-      scanners.add(segment.getSegmentScanner(Long.MAX_VALUE));
+      scanners.add(segment.getSegmentScanner(store.getSmallestReadPoint()));
     }
 
-    scanner =
-        new MemStoreScanner(comparator, scanners, MemStoreScanner.Type.COMPACT_FORWARD);
+    scanner = new MemStoreScanner(comparator, scanners, MemStoreScanner.Type.COMPACT_FORWARD);
 
     // reinitialize the compacting scanner for each instance of iterator
     compactingScanner = createScanner(store, scanner, initiator);
 
     hasMore = compactingScanner.next(kvs, scannerContext);
+
     if (!kvs.isEmpty()) {
       kvsIterator = kvs.iterator();
     }
 
-//    if (initiator == 2)
-//      org.junit.Assert.assertTrue("\n\n<<< Iterator constructing. "
-//          + "Store: " + store + ", Scanner: " + scanner + ", hasMore: " + hasMore + "\n", false);
   }
 
   @Override
   public boolean hasNext() {
     if (!kvsIterator.hasNext()) {
-      if (!refillKVS())  return false;
+      if (!refillKVS()) {
+        return false;
+      }
     }
     return hasMore;
   }
 
+
+
   @Override
   public Cell next()  {
-    c++;
-    //if (c>1) org.junit.Assert.assertTrue("\n\n<<< " + c + " iterations of iterator\n",false);
     if (!kvsIterator.hasNext()) {
-      //          org.junit.Assert.assertTrue("\n\n<<< Got to empty kvs for the first time with " + c
-      //              + " iterations\n", false);
       if (!refillKVS())  return null;
     }
-
     return (!hasMore) ? null : kvsIterator.next();
   }
+
+
 
   @Override
   public void remove() {
@@ -111,6 +106,8 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     scanner.close();
     scanner = null;
   }
+
+
 
   /**
    * Creates the scanner for compacting the pipeline.
@@ -122,10 +119,6 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
 
     Scan scan = new Scan();
     scan.setMaxVersions();  //Get all available versions
-
-//    if (init == 2)
-//      org.junit.Assert.assertTrue("\n\n<<< Before creating the internal scanner " + "\n", false);
-
     StoreScanner internalScanner =
         new StoreScanner(store, store.getScanInfo(), scan, Collections.singletonList(scanner),
             ScanType.COMPACT_RETAIN_DELETES, store.getSmallestReadPoint(),
@@ -134,19 +127,17 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     return internalScanner;
   }
 
+
+
   private boolean refillKVS() {
     kvs.clear();    // clear previous KVS, first initiated in the constructor
-
     if (!hasMore) { // if there is nothing expected next in compactingScanner
-      org.junit.Assert.assertTrue("\n\n<<< Got to empty kvs for the first time with " + c
-          + " iterations and no more\n", false);
       return false;
     }
 
     try {           // try to get next KVS
       hasMore = compactingScanner.next(kvs, scannerContext);
     } catch (IOException ie) {
-      org.junit.Assert.assertTrue("\n\n<<< GOT EXCEPTION IN ITERATOR !!!\n",false);
       throw new IllegalStateException(ie);
     }
 
@@ -154,10 +145,10 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
       kvsIterator = kvs.iterator();
       return true;
     } else {
-      //            org.junit.Assert.assertTrue("\n\n<<< Got to empty kvs for the first time with " + c
-      //                + " iterations and empty set\n", false);
       return false;
     }
   }
+
+
 }
 

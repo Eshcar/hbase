@@ -94,6 +94,7 @@ public class MemStoreChunkPool {
 
     for (int i = 0; i < initialCount; i++) {
       Chunk chunk = allocateChunk();
+      reclaimedChunks.add(chunk);
     }
 
     final String n = Thread.currentThread().getName();
