@@ -424,7 +424,7 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.info(
           "Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
 
-      doCompact(i);
+      doCompact();
       return true;
     }
 
@@ -452,7 +452,7 @@ public class CompactingMemStore extends AbstractMemStore {
     * The solo (per compactor) thread only reads the compaction pipeline.
     * There is at most one thread per memstore instance.
     */
-    private void doCompact(int y) {
+    private void doCompact() {
       int cellsAfterComp = versionedList.getNumOfCells();
       try {        // the compaction processing
         // Phase I: estimate the compaction expedience - CHECK COMPACTION
