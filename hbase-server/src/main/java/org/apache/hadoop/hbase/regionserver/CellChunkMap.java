@@ -33,7 +33,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  * and length in bytes in B (integer). In order to save reference to byte array we use the Chunk's
  * indexes given by MSLAB (also integer).
  *
- * The B memory layout:
+ * The CellChunkMap memory layout relevant to a deeper byte array B:
  *
  * <-----------------     first Cell     ---------------------> <-------------- second Cell --- ...
  * ------------------------------------------------------------------------------------- ...
@@ -43,11 +43,22 @@ import org.apache.hadoop.hbase.util.Bytes;
  * ------------------------------------------------------------------------------------- ...
  */
 public class CellChunkMap extends CellFlatMap {
-
+  // TODO: once Chunk class is out of HeapMemStoreLAB class we are going to use MemStoreLAB and
+  // not HeapMemStoreLAB
   private final HeapMemStoreLAB.Chunk[] chunks;
   private final HeapMemStoreLAB memStoreLAB;
-  private int numOfCellsInsideChunk;
+  private final int numOfCellsInsideChunk;
   public static final int BYTES_IN_CELL = 3*(Integer.SIZE / Byte.SIZE); // each Cell requires 3 integers
+
+  /* C-tor for increasing map starting from index zero          */
+  /* The given Cell array on given Chunk array must be ordered. */
+  public CellChunkMap(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
+      HeapMemStoreLAB.Chunk[] chunks, int max, int chunkSize) {
+    super(comparator,0,max,false);
+    this.chunks = chunks;
+    this.memStoreLAB = memStoreLAB;
+    this.numOfCellsInsideChunk = chunkSize / BYTES_IN_CELL;
+  }
 
   /* The given Cell array on given Chunk array must be ordered. */
   public CellChunkMap(Comparator<? super Cell> comparator, HeapMemStoreLAB memStoreLAB,
@@ -67,7 +78,7 @@ public class CellChunkMap extends CellFlatMap {
   }
 
   @Override
-  protected Cell getCellFromIndex(int i) {
+  protected Cell getCell(int i) {
     // find correct chunk
     int chunkIndex = (i / numOfCellsInsideChunk);
     byte[] block = chunks[chunkIndex].getData();

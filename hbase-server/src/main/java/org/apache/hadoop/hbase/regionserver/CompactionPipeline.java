@@ -98,7 +98,7 @@ public class CompactionPipeline {
           +"Just before the swap the number of segments in pipeline is:"
           +versionedList.getStoreSegments().size()
           +", and the number of cells in new segment is:"+segment.getCellsCount());
-      swapSuffix(suffix,segment);
+      swapSuffix(suffix, segment);
     }
     if(region != null) {
       // update the global memstore size counter
@@ -113,29 +113,35 @@ public class CompactionPipeline {
   }
 
   /**
-   * Replaces a single segment in the pipeline with the new flattened segment.
-   * Replacing only if there were no changes in the pipeline. This is achieved
-   * by requiring the version (from versionedList) being the same.
-   * @param versionedList tail of the pipeline that was taken for compaction and holds the version
-   * @param newSegment new compacted segment
-   * @return true iff replaced with new compacted segment
+   * If the caller holds the current version, go over the the pipeline and try to flatten each
+   * segment. Flattening is replacing the ConcurrentSkipListMap based CellSet to CellArrayMAp based.
+   * Flattening of the segment that initially is not based on ConcurrentSkipListMap has no effect.
+   * Return after one segment was successfully flatten.
+   *
+   * @return true iff a segment was successfully flattened
    */
-  public boolean replace(VersionedSegmentsList versionedList,
-      ImmutableSegment oldSegment, ImmutableSegment newSegment) {
+  public boolean flattenOneSegment(long requesterVersion) {
 
-    if(versionedList.getVersion() != version) {
+    if(requesterVersion != version) {
       return false;
     }
 
     synchronized (pipeline){
-      if(versionedList.getVersion() != version) {
+      if(requesterVersion != version) {
         return false;
       }
-      LOG.info("Replacing one pipeline segment with flattened segment.");
-      replaceSegment(oldSegment,newSegment);
+
+      for (ImmutableSegment s : pipeline) {
+        if (s.flatten()) {
+          LOG.info("Compaction pipeline segment " + s + " was flattened.");
+          return true;
+        }
+      }
+
     }
-    // do not update the global memstore size counter, because all the cells remain in place
-    return true;
+    // do not update the global memstore size counter and do not increase the version,
+    // because all the cells remain in place
+    return false;
   }
 
   public boolean isEmpty() {
@@ -173,15 +179,6 @@ public class CompactionPipeline {
     }
     pipeline.removeAll(suffix);
     pipeline.addLast(segment);
-  }
-
-  /* Replacing one representation of the segment with another. Literally removing a segment and
-  adding a new one (with same keys). The order of the segments is not kept */
-  private void replaceSegment(ImmutableSegment oldSegment, ImmutableSegment newSegment) {
-    version++;
-    // don't call oldSegment.close() because its MSLAB is transferred to the new segment
-    pipeline.remove(oldSegment);
-    pipeline.add(newSegment);
   }
 
   private ImmutableSegment removeLast() {

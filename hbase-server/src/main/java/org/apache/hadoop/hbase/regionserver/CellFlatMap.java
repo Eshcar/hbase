@@ -60,7 +60,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
       int max, boolean descending);
 
   /* Returns the i-th cell in the cell block */
-  protected abstract Cell getCellFromIndex(int i);
+  protected abstract Cell getCell(int i);
 
   /**
    * Binary search for a given key in between given boundaries of the array.
@@ -77,11 +77,12 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
     while (begin <= end) {
       int mid = begin + ((end - begin) / 2);
-      Cell midCell = getCellFromIndex(mid);
+      Cell midCell = getCell(mid);
       int compareRes = comparator.compare(midCell, needle);
 
-      if (compareRes == 0) return mid;  // 0 means equals. We found the key
-      else if (compareRes < 0) {
+      if (compareRes == 0) {
+        return mid;  // 0 means equals. We found the key
+      } else if (compareRes < 0) {
         // midCell is less than needle so we need to look at farther up
         begin = mid + 1;
       } else {
@@ -97,8 +98,9 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
   ** the key should be inclusive or exclusive */
   private int getValidIndex(Cell key, boolean inclusive) {
     int index = find(key);
-    if (inclusive && index >= 0)
-      index = (descending) ? index-1 : index+1;
+    if (inclusive && index >= 0) {
+      index = (descending) ? index - 1 : index + 1;
+    }
     return Math.abs(index);
   }
 
@@ -114,7 +116,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   @Override
   public boolean isEmpty() {
-    return (maxCellIdx==minCellIdx);
+    return (size()==0);
   }
 
 
@@ -127,7 +129,9 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
     int toIndex = getValidIndex(toKey, toInclusive);
     int fromIndex = (getValidIndex(fromKey, !fromInclusive));
 
-    if (fromIndex > toIndex) throw new IllegalArgumentException("inconsistent range");
+    if (fromIndex > toIndex) {
+      throw new IllegalArgumentException("inconsistent range");
+    }
     return createCellFlatMap(comparator, fromIndex, toIndex, descending);
   }
 
@@ -167,68 +171,59 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
   // -------------------------------- Key's getters --------------------------------
   @Override
   public Cell firstKey() {
-    if (isEmpty()) return null;
-    if (descending) getCellFromIndex(maxCellIdx-1);
-    return getCellFromIndex(minCellIdx);
+    if (isEmpty()) {
+      return null;
+    }
+    return descending ? getCell(maxCellIdx - 1) : getCell(minCellIdx);
   }
 
   @Override
   public Cell lastKey() {
-    if (isEmpty()) return null;
-    if (descending) return getCellFromIndex(minCellIdx);
-    return getCellFromIndex(maxCellIdx-1);
+    if (isEmpty()) {
+      return null;
+    }
+    return descending ? getCell(minCellIdx) : getCell(maxCellIdx - 1);
   }
 
   @Override
   public Cell lowerKey(Cell k) {
-    if (isEmpty()) return null;
-    int index = find(k);
-    if (descending) {
-      if (index >= 0) index++; // There's a key exactly equal.
-      else index = -(index + 1);
-    } else {
-      if (index >= 0) index--; // There's a key exactly equal.
-      else index = -(index + 1) - 1;
+    if (isEmpty()) {
+      return null;
     }
-    return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
+    int index = find(k);
+    // If index>=0 there's a key exactly equal
+    index = (index>=0) ? index-1 : -(index);
+    return (index < minCellIdx || index >= maxCellIdx) ? null : getCell(index);
   }
 
   @Override
   public Cell floorKey(Cell k) {
-    if (isEmpty()) return null;
-    int index = find(k);
-    if (descending) {
-      if (index < 0)  index = -(index + 1);
-    } else {
-      if (index < 0) index = -(index + 1) - 1;
+    if (isEmpty()) {
+      return null;
     }
-    return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
+    int index = find(k);
+    index = (index>=0) ? index : -(index);
+    return (index < minCellIdx || index >= maxCellIdx) ? null : getCell(index);
   }
 
   @Override
   public Cell ceilingKey(Cell k) {
-    if (isEmpty()) return null;
-    int index = find(k);
-    if (descending) {
-      if (index < 0) index = -(index + 1) - 1;
-    } else {
-      if (index < 0) index = -(index + 1);
+    if (isEmpty()) {
+      return null;
     }
-    return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
+    int index = find(k);
+    index = (index>=0) ? index : -(index)+1;
+    return (index < minCellIdx || index >= maxCellIdx) ? null : getCell(index);
   }
 
   @Override
   public Cell higherKey(Cell k) {
-    if (isEmpty()) return null;
-    int index = find(k);
-    if (descending) {
-      if (index >= 0) index--; // There's a key exactly equal.
-      else index = -(index + 1) - 1;
-    } else {
-      if (index >= 0) index++; // There's a key exactly equal.
-      else index = -(index + 1);
+    if (isEmpty()) {
+      return null;
     }
-    return (index < minCellIdx || index >= maxCellIdx) ? null : getCellFromIndex(index);
+    int index = find(k);
+    index = (index>=0) ? index+1 : -(index)+1;
+    return (index < minCellIdx || index >= maxCellIdx) ? null : getCell(index);
   }
 
   @Override
@@ -245,10 +240,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
   @Override
   public Cell get(Object o) {
     int index = find((Cell) o);
-    if (index >= 0) {
-      return getCellFromIndex(index);
-    }
-    return null;
+    return (index >= 0) ? getCell(index) : null;
   }
 
   // -------------------------------- Entry's getters --------------------------------
@@ -358,7 +350,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   @Override
   public Collection<Cell> values() {
-    return new CellBlocksCollection();
+    return new CellFlatMapCollection();
   }
 
   @Override
@@ -368,10 +360,10 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
 
   // -------------------------------- Iterator K --------------------------------
-  private final class CellBlocksIterator implements Iterator<Cell> {
+  private final class CellFlatMapIterator implements Iterator<Cell> {
     int index;
 
-    private CellBlocksIterator() {
+    private CellFlatMapIterator() {
       index = descending ? maxCellIdx-1 : minCellIdx;
     }
 
@@ -382,9 +374,12 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
     @Override
     public Cell next() {
-      Cell result = getCellFromIndex(index);
-      if (descending) index--;
-      else index++;
+      Cell result = getCell(index);
+      if (descending) {
+        index--;
+      } else {
+        index++;
+      }
       return result;
     }
 
@@ -395,7 +390,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   // -------------------------------- Collection --------------------------------
-  private final class CellBlocksCollection implements Collection<Cell> {
+  private final class CellFlatMapCollection implements Collection<Cell> {
 
     @Override
     public int size()         {
@@ -419,7 +414,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
     @Override
     public Iterator<Cell> iterator() {
-      return new CellBlocksIterator();
+      return new CellFlatMapIterator();
     }
 
     @Override

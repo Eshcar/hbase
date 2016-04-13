@@ -38,8 +38,7 @@ public class VersionedSegmentsList {
   private final LinkedList<ImmutableSegment> storeSegments;
   private final long version;
 
-  public VersionedSegmentsList(
-          LinkedList<ImmutableSegment> storeSegments, long version) {
+  public VersionedSegmentsList(LinkedList<ImmutableSegment> storeSegments, long version) {
     this.storeSegments = storeSegments;
     this.version = version;
   }
@@ -60,10 +59,4 @@ public class VersionedSegmentsList {
     return totalCells;
   }
 
-  public ImmutableSegment getSkipListSegment() {
-    for (ImmutableSegment s : storeSegments) {
-      if (!s.isFlat()) return s;
-    }
-    return null;
-  }
 }

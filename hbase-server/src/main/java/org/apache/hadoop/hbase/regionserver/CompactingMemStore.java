@@ -19,7 +19,9 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
@@ -32,8 +34,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.executor.EventHandler;
 import org.apache.hadoop.hbase.executor.EventType;
 import org.apache.hadoop.hbase.executor.ExecutorService;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -54,13 +54,16 @@ import org.apache.hadoop.hbase.wal.WAL;
 public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
-          ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+          ClassSize.CELL_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
   public final static long DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
-          ClassSize.CELL_SKIPLIST_SET + ClassSize.CELL_ARRAY_MAP);
+          ClassSize.CELL_SET + ClassSize.CELL_ARRAY_MAP);
   public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
   public final static double COMPACTION_TRIGGER_REMAIN_FACTOR = 1;
   public final static boolean COMPACTION_PRE_CHECK = false;
+
+  static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
+  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 1;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
@@ -79,7 +82,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public enum Type {
     COMPACT_TO_SKIPLIST_MAP,
     COMPACT_TO_ARRAY_MAP,
-    COMPACT_TO_CHUNK_MAP
+    COMPACT_TO_CHUNK_MAP;
   }
 
   private Type type = Type.COMPACT_TO_SKIPLIST_MAP;
@@ -92,17 +95,22 @@ public class CompactingMemStore extends AbstractMemStore {
     this.pipeline = new CompactionPipeline(getRegionServices());
     this.compactor = new MemStoreCompactor();
     initFlushSizeLowerBound(conf);
+    int t = conf.getInt(COMPACTING_MEMSTORE_TYPE_KEY, COMPACTING_MEMSTORE_TYPE_DEFAULT);
+    switch (t) {
+    case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
+      break;
+    case 2: type = Type.COMPACT_TO_ARRAY_MAP;
+      break;
+    case 3: type = Type.COMPACT_TO_CHUNK_MAP;
+      break;
+    }
   }
 
+  // C-tor for testing
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store, RegionServicesForStores regionServices, Type type) throws IOException {
-    super(conf, c);
-    this.store = store;
-    this.regionServices = regionServices;
-    this.pipeline = new CompactionPipeline(getRegionServices());
-    this.compactor = new MemStoreCompactor();
+    this(conf,c,store,regionServices);
     this.type = type;
-    initFlushSizeLowerBound(conf);
   }
 
   private void initFlushSizeLowerBound(Configuration conf) {
@@ -398,32 +406,26 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   private class MemStoreCompactor {
 
-    // a static version of the segment list from the pipeline
+    // a snapshot of the compaction pipeline segment list
     private VersionedSegmentsList versionedList;
-
     // a flag raised when compaction is requested to stop
     private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
-
-    // the limit to the size of the groups to be later returned by compactingScanner
+    // the limit to the size of the groups to be later provided to MemStoreCompactorIterator
     private final int compactionKVMax = getConfiguration().getInt(
-        HConstants.COMPACTION_KV_MAX,
-        HConstants.COMPACTION_KV_MAX_DEFAULT);
+        HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
 
     /** ----------------------------------------------------------------------
      * The request to dispatch the compaction asynchronous task.
      * The method returns true if compaction was successfully dispatched, or false if there
-     *
      * is already an ongoing compaction (or pipeline is empty).
      */
     public boolean startCompact() throws IOException {
       if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
-
-      // get the list of segments from the pipeline, the list is marked with specific version
+      // get a snapshot of the list of the segments from the pipeline,
+      // this local copy of the list is marked with specific version
       versionedList = pipeline.getVersionedList();
-
       LOG.info(
           "Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
-
       doCompact();
       return true;
     }
@@ -454,8 +456,8 @@ public class CompactingMemStore extends AbstractMemStore {
     */
     private void doCompact() {
       int cellsAfterComp = versionedList.getNumOfCells();
-      try {        // the compaction processing
-        // Phase I: estimate the compaction expedience - CHECK COMPACTION
+      try {
+        // Phase I (optional): estimate the compaction expedience - CHECK COMPACTION
         if (COMPACTION_PRE_CHECK) {
           cellsAfterComp = countCellsForCompaction();
 
@@ -464,30 +466,15 @@ public class CompactingMemStore extends AbstractMemStore {
             // too much cells "survive" the possible compaction we do not want to compact!
             LOG.debug("Stopping the unworthy MemStore in-memory compaction for store "
                 + getFamilyName());
-            // Looking for Segment in pipeline with SkipList index, to make it flat
-            ImmutableSegment segment = versionedList.getSkipListSegment();
-            if (segment == null) {
-              Thread.currentThread().interrupt();
-              return;
-            }
-            // Flatten the given segment with SkipList index and replace it in the pipeline
-            flattenSegment(segment, cellsAfterComp);
+            // Looking for Segment in the pipeline with SkipList index, to make it flat
+            pipeline.flattenOneSegment(versionedList.getVersion());
             return;
           }
         }
+        // Phase II: create the new compacted ImmutableSegment - START COMPACTION
         ImmutableSegment result = null;
-        // Phase II: create the compacted ImmutableSegment - START COMPACTION
         if (!isInterrupted.get()) {
-          switch (type) {
-            case COMPACT_TO_SKIPLIST_MAP: result = compactToNotFlatSegment(cellsAfterComp);
-                                          break;
-            case COMPACT_TO_ARRAY_MAP:    result = compactToFlatSegment(cellsAfterComp, true);
-                                          break;
-            case COMPACT_TO_CHUNK_MAP:    result = compactToFlatSegment(cellsAfterComp, false);
-                                          break;
-            default: // sanity check
-              org.junit.Assert.assertTrue("\n\n<<< Wrong compacting MemStore type", false);
-          }
+          result = compact(cellsAfterComp);
         }
         // Phase III: swap the old compaction pipeline - END COMPACTION
         if (!isInterrupted.get()) {
@@ -502,98 +489,62 @@ public class CompactingMemStore extends AbstractMemStore {
         releaseResources();
         inMemoryFlushInProgress.set(false);
       }
-
     }
 
-    /**
-     * Creates a new Segment with CellFlatMap from the given single old
-     * Segment based on ConcurrentSkipListMap
+    /**----------------------------------------------------------------------
+     * The compaction is the creation of the relevant ImmutableSegment based on
+     * the Compactor Itertor
      */
-    private void flattenSegment(ImmutableSegment segment, int numOfCells) throws IOException {
-
-      LOG.debug("Flattening Segment  " + segment);
-      // Update the pipeline scanner (list of scanners) to scan only Skip List based Segment
-      List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
-      scanners.add(segment.getSegmentScanner(store.getSmallestReadPoint()));
-      ImmutableSegment newSegment = createFlatFromSegmentWithSkipList(numOfCells, segment);
-      pipeline.replace(versionedList, segment, newSegment);
-
-      return;
-    }
-
-    /**
-     * COMPACT TO ARRAY MAP OR TO CHUNK MAP
-     * Updates the given single Segment using the internal store scanner,
-     * who in turn uses ScanQueryMatcher
-     */
-    private ImmutableSegment compactToFlatSegment(int numOfCells, boolean array)
+    private ImmutableSegment compact(int numOfCells)
         throws IOException {
 
+      ImmutableSegment result = null;
       MemStoreCompactorIterator iterator =
-          new MemStoreCompactorIterator(
-              numOfCells, versionedList.getStoreSegments(), getComparator(), compactionKVMax, store);
-
-      ImmutableSegment result = SegmentFactory.instance()
-          .createImmutableSegment(getConfiguration(), getComparator(), numOfCells, iterator, array);
-
-      iterator.remove();
-      return result;
-    }
-
-    /**
-     * COMPACT TO SKIPLIST MAP
-     */
-    private ImmutableSegment compactToNotFlatSegment(int cells) throws IOException {
-      ImmutableSegment result = SegmentFactory.instance()  // create the scanner
-          .createImmutableSegment(getConfiguration(), getComparator(),
-              CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
-
-      MemStoreCompactorIterator iterator =
-          new MemStoreCompactorIterator(
-              cells,versionedList.getStoreSegments(),getComparator(),compactionKVMax, store);
-
-      while (iterator.hasNext()) {
-        Cell c = iterator.next();
-        // The scanner is doing all the elimination logic
-        // now we just copy it to the new segment
-        KeyValue kv = KeyValueUtil.ensureKeyValue(c);
-        Cell newKV = result.maybeCloneWithAllocator(kv);
-        result.internalAdd(newKV);
+          new MemStoreCompactorIterator(versionedList.getStoreSegments(), getComparator(),
+              compactionKVMax, store);
+      try {
+        switch (type) {
+        case COMPACT_TO_SKIPLIST_MAP:
+          result = SegmentFactory.instance()
+              .createImmutableSegment(getConfiguration(), getComparator(), iterator);
+          break;
+        case COMPACT_TO_ARRAY_MAP:
+          result = SegmentFactory.instance()
+              .createImmutableSegment(
+                  getConfiguration(), getComparator(), iterator, numOfCells, true);
+          break;
+        case COMPACT_TO_CHUNK_MAP:
+          result = SegmentFactory.instance()
+              .createImmutableSegment(
+                  getConfiguration(), getComparator(), iterator, numOfCells, false);
+          break;
+        default: throw new RuntimeException("Unknown type " + type); // sanity check
+        }
+      } finally {
+        iterator.close();
       }
-      iterator.remove();
+
       return result;
     }
 
-    /**
-     * FLATTENING
-     * Create CellSet for flat representation
-     * The MSLAB Chunks with the real data remain the same
+    /**----------------------------------------------------------------------
+     * COUNT CELLS TO ESTIMATE THE EFFICIENCY OF THE FUTURE COMPACTION
      */
-    private ImmutableSegment createFlatFromSegmentWithSkipList(int numOfCells,
-        ImmutableSegment segment) throws IOException {
-
-      LinkedList<ImmutableSegment> segmentList = new LinkedList<ImmutableSegment>();
-      segmentList.add(segment);
-
-      MemStoreCompactorIterator iterator =
-          new MemStoreCompactorIterator(4,segmentList,getComparator(),compactionKVMax, store);
-
-      ImmutableSegment result = SegmentFactory.instance()
-          .createImmutableSegment(numOfCells, segment, iterator);
-      iterator.remove();
-      return result;
-    }
-
     private int countCellsForCompaction() throws IOException {
 
-      MemStoreCompactorIterator iterator =
-          new MemStoreCompactorIterator(
-              3,versionedList.getStoreSegments(),getComparator(),compactionKVMax, store);
       int cnt = 0;
-      while (iterator.next() != null) {
-        cnt++;
+      MemStoreCompactorIterator iterator =
+          new MemStoreCompactorIterator(versionedList.getStoreSegments(),getComparator(),
+              compactionKVMax, store);
+
+      try {
+        while (iterator.next() != null) {
+          cnt++;
+        }
+      } finally {
+        iterator.close();
       }
-      iterator.remove();
+
       return cnt;
     }
   } // end of the MemStoreCompactor Class

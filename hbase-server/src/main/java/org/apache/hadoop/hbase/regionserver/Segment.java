@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import java.util.Iterator;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.*;
@@ -39,19 +40,19 @@ import org.apache.hadoop.hbase.util.ClassSize;
 @InterfaceAudience.Private
 public abstract class Segment {
 
-  private volatile CellSet cellSet;
+  private AtomicReference<CellSet> cellSet= new AtomicReference<CellSet>();
   private final CellComparator comparator;
   private long minSequenceId;
   private volatile MemStoreLAB memStoreLAB;
   private final AtomicLong size;
   private final TimeRangeTracker timeRangeTracker;
-  private long constantCellMetaDataSize;
+  protected long constantCellMetaDataSize;
   protected volatile boolean tagsPresent;
 
   protected Segment(
       CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB, long size,
       long constantCellSize) {
-    this.cellSet = cellSet;
+    this.cellSet.set(cellSet);
     this.comparator = comparator;
     this.minSequenceId = Long.MAX_VALUE;
     this.memStoreLAB = memStoreLAB;
@@ -62,7 +63,7 @@ public abstract class Segment {
   }
 
   protected Segment(Segment segment) {
-    this.cellSet = segment.getCellSet();
+    this.cellSet.set(segment.getCellSet());
     this.comparator = segment.getComparator();
     this.minSequenceId = segment.getMinSequenceId();
     this.memStoreLAB = segment.getMemStoreLAB();
@@ -186,8 +187,8 @@ public abstract class Segment {
    * @return this object
    */
 
-  protected Segment setCellSet(CellSet cellSet) {
-    this.cellSet = cellSet;
+  protected Segment setCellSet(CellSet cellSetOld, CellSet cellSetNew) {
+    this.cellSet.compareAndSet(cellSetOld,cellSetNew);
     return this;
   }
 
@@ -240,7 +241,7 @@ public abstract class Segment {
    * @return a set of all cells in the segment
    */
   protected CellSet getCellSet() {
-    return cellSet;
+    return cellSet.get();
   }
 
   /**
@@ -253,12 +254,12 @@ public abstract class Segment {
 
   protected long internalAdd(Cell cell) {
     boolean succ = getCellSet().add(cell);
-    long s = updateMetaInfo(cell, succ, false);
+    long s = updateMetaInfo(cell, succ);
     return s;
   }
 
-  protected long updateMetaInfo(Cell cellToAdd, boolean succ, boolean flattenning) {
-    long s = flattenning ? constantCellMetaDataSize : heapSizeChange(cellToAdd, succ);
+  protected long updateMetaInfo(Cell cellToAdd, boolean succ) {
+    long s = heapSizeChange(cellToAdd, succ);
     getTimeRangeTracker().includeTimestamp( cellToAdd);
     size.addAndGet(s);
     minSequenceId = Math.min(minSequenceId, cellToAdd.getSequenceId());

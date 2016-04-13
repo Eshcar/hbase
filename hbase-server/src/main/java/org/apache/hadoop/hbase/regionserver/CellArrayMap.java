@@ -46,7 +46,7 @@ public class CellArrayMap extends CellFlatMap {
   }
 
   @Override
-  protected Cell getCellFromIndex(int i) {
+  protected Cell getCell(int i) {
     return block[i];
   }
 }

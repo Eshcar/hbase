@@ -39,6 +39,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   private List<Cell> kvs = new ArrayList<Cell>();
 
   // scanner for full or partial pipeline (heap of segment scanners)
+  // we need to keep those scanners in order to close them at the end
   private KeyValueScanner scanner;
 
   // scanner on top of pipeline scanner that uses ScanQueryMatcher
@@ -50,7 +51,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   private Iterator<Cell> kvsIterator;
 
   // C-tor
-  public MemStoreCompactorIterator(int initiator, LinkedList<ImmutableSegment> segments,
+  public MemStoreCompactorIterator(LinkedList<ImmutableSegment> segments,
       CellComparator comparator, int compactionKVMax, HStore store) throws IOException {
 
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
@@ -67,7 +68,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     scanner = new MemStoreScanner(comparator, scanners, MemStoreScanner.Type.COMPACT_FORWARD);
 
     // reinitialize the compacting scanner for each instance of iterator
-    compactingScanner = createScanner(store, scanner, initiator);
+    compactingScanner = createScanner(store, scanner);
 
     hasMore = compactingScanner.next(kvs, scannerContext);
 
@@ -80,6 +81,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   @Override
   public boolean hasNext() {
     if (!kvsIterator.hasNext()) {
+      // refillKVS() method should be invoked only if !kvsIterator.hasNext()
       if (!refillKVS()) {
         return false;
       }
@@ -87,34 +89,33 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     return hasMore;
   }
 
-
-
   @Override
   public Cell next()  {
     if (!kvsIterator.hasNext()) {
+      // refillKVS() method should be invoked only if !kvsIterator.hasNext()
       if (!refillKVS())  return null;
     }
     return (!hasMore) ? null : kvsIterator.next();
   }
 
-
-
-  @Override
-  public void remove() {
+  public void close() {
     compactingScanner.close();
     compactingScanner = null;
     scanner.close();
     scanner = null;
   }
 
-
+  @Override
+  public void remove() {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Creates the scanner for compacting the pipeline.
    *
    * @return the scanner
    */
-  private StoreScanner createScanner(Store store, KeyValueScanner scanner, int init)
+  private StoreScanner createScanner(Store store, KeyValueScanner scanner)
       throws IOException {
 
     Scan scan = new Scan();
@@ -144,9 +145,8 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     if (!kvs.isEmpty() ) {  // is the new KVS empty ?
       kvsIterator = kvs.iterator();
       return true;
-    } else {
-      return false;
     }
+    return false;
   }
 
 

@@ -83,7 +83,8 @@ public class MemStoreChunkPool {
   private AtomicLong reusedChunkCount = new AtomicLong();
   private AtomicInteger chunkIDs = new AtomicInteger(1);  // 14921
 
-  // 14921: IDs Mapping of all chunks (key 0 is forbidden)
+  // The mapping between each chunk allocated by MemStoreChunkPool and
+  // an integer representing the chunk's ID (ID 0 is forbidden)
   private final ConcurrentMap<Integer, Chunk> chunksMap = new ConcurrentHashMap<Integer, Chunk>();
 
   MemStoreChunkPool(Configuration conf, int chunkSize, int maxCount,

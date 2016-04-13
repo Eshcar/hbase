@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.util.ByteRange;
+import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.SimpleMutableByteRange;
 
 import com.google.common.base.Preconditions;
@@ -102,6 +103,11 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   @Override
   public ByteRange allocateBytes(int size) {
     Preconditions.checkArgument(size >= 0, "negative size");
+    return allocateBytesWithID(size).getFirst();
+  }
+
+  public Pair<SimpleMutableByteRange, Integer> allocateBytesWithID(int size) {
+    Preconditions.checkArgument(size >= 0, "negative size");
 
     // Callers should satisfy large allocations directly from JVM since they
     // don't cause fragmentation as badly.
@@ -112,12 +118,12 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     while (true) {
       Chunk c = getOrMakeChunk();
 
-        // Try to allocate from this chunk
+      // Try to allocate from this chunk
       int allocOffset = c.alloc(size);
       if (allocOffset != -1) {
         // We succeeded - this is the common case - small alloc
         // from a big buffer
-        return new SimpleMutableByteRange(c.data, allocOffset, size);
+        return new Pair<>(new SimpleMutableByteRange(c.data, allocOffset, size),c.getId());
       }
 
       // not enough space!
