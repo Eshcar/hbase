@@ -118,7 +118,7 @@ public class MemStoreChunkPool {
       createdChunkCount.incrementAndGet();
     } else {
       chunk.reset();
-      chunk.init(); // 14921
+      chunk.init();
       reusedChunkCount.incrementAndGet();
     }
     return chunk;
@@ -177,7 +177,7 @@ public class MemStoreChunkPool {
    * Allocate and register Chunk
    */
   private Chunk allocateChunk() {
-    int newId = chunkIDs.getAndAdd(1); // the number of the new chunk
+    int newId = chunkIDs.getAndAdd(1); // the id of the new chunk
     Chunk chunk = new Chunk(chunkSize,newId);
     chunksMap.put(newId, chunk);
     chunk.init();

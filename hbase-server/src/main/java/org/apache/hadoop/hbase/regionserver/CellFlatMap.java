@@ -56,7 +56,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   /* Used for abstract CellFlatMap creation, implemented by derived class */
-  protected abstract CellFlatMap createCellFlatMap(Comparator<? super Cell> comparator, int min,
+  protected abstract CellFlatMap createSubCellFlatMap(Comparator<? super Cell> comparator, int min,
       int max, boolean descending);
 
   /* Returns the i-th cell in the cell block */
@@ -132,24 +132,24 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
     if (fromIndex > toIndex) {
       throw new IllegalArgumentException("inconsistent range");
     }
-    return createCellFlatMap(comparator, fromIndex, toIndex, descending);
+    return createSubCellFlatMap(comparator, fromIndex, toIndex, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
     int index = getValidIndex(toKey, inclusive);
-    return createCellFlatMap(comparator, minCellIdx, index, descending);
+    return createSubCellFlatMap(comparator, minCellIdx, index, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
     int index = (getValidIndex(fromKey, !inclusive));
-    return createCellFlatMap(comparator, index, maxCellIdx, descending);
+    return createSubCellFlatMap(comparator, index, maxCellIdx, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> descendingMap() {
-    return createCellFlatMap(comparator, minCellIdx, maxCellIdx, true);
+    return createSubCellFlatMap(comparator, minCellIdx, maxCellIdx, true);
   }
 
   @Override

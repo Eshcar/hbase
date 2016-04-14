@@ -112,7 +112,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     // Callers should satisfy large allocations directly from JVM since they
     // don't cause fragmentation as badly.
     if (size > maxAlloc) {
-      return null;
+      return new Pair<>(null,0);
     }
 
     while (true) {
@@ -220,7 +220,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     }
   }
 
-  /** HBASE-14921
+  /**
    * Given a chunk ID return reference to the relevant chunk
    * @return a chunk
    */
@@ -228,7 +228,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return chunkPool.translateIdToChunk(id);
   }
 
-  /** HBASE-14921
+  /**
    * Give the ID of the Chunk from where last allocation took the bytes
    * @return a chunk
    */
@@ -236,7 +236,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return curChunk.get().getId();
   }
 
-  /** HBASE-14921
+  /**
    * Use instead of allocateBytes() when new full chunk is needed
    * @return a chunk
    */
@@ -267,7 +267,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     /** Size of chunk in bytes */
     private final int size;
 
-    /* 14921: A unique identifier of a chunk inside MemStoreChunkPool */
+    /* A unique identifier of a chunk inside MemStoreChunkPool */
     private final int id;
 
     /* Chunk's index serves as replacement for pointer */
@@ -360,10 +360,10 @@ public class HeapMemStoreLAB implements MemStoreLAB {
 
     public int getId() {
       return id;
-    }   // 14921
+    }
 
     public byte[] getData() {
       return data;
-    } // 14921
+    }
   }
 }

@@ -332,7 +332,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > IN_MEMORY_FLUSH_THRESHOLD_FACTOR *flushSizeLowerBound) {
+    if(getActive().getSize() > IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound) {
       // size above flush threshold
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
@@ -397,7 +397,9 @@ public class CompactingMemStore extends AbstractMemStore {
 
   /** ----------------------------------------------------------------------
    * The ongoing MemStore Compaction manager, dispatches a solo running compaction and interrupts
-   * the compaction if requested. Prior to compaction the MemStoreCompactor evaluates
+   * the compaction if requested. The compaction is interrupted and stopped by CompactingMemStore,
+   * for example when another compaction needs to be started.
+   * Prior to compaction the MemStoreCompactor evaluates
    * the compacting ratio and aborts the compaction if it is not worthy.
    * The MemStoreScanner is used to traverse the compaction pipeline. The MemStoreScanner
    * is included in internal store scanner, where all compaction logic is implemented.
@@ -457,17 +459,17 @@ public class CompactingMemStore extends AbstractMemStore {
     private void doCompact() {
       int cellsAfterComp = versionedList.getNumOfCells();
       try {
-        // Phase I (optional): estimate the compaction expedience - CHECK COMPACTION
+        // Phase I (optional): estimate the compaction expedience - EVALUATE COMPACTION
         if (COMPACTION_PRE_CHECK) {
           cellsAfterComp = countCellsForCompaction();
 
           if (!isInterrupted.get() && (cellsAfterComp
               > COMPACTION_TRIGGER_REMAIN_FACTOR * versionedList.getNumOfCells())) {
             // too much cells "survive" the possible compaction we do not want to compact!
-            LOG.debug("Stopping the unworthy MemStore in-memory compaction for store "
-                + getFamilyName());
+            LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
+                + " for store " + getFamilyName());
             // Looking for Segment in the pipeline with SkipList index, to make it flat
-            pipeline.flattenOneSegment(versionedList.getVersion());
+            pipeline.flattenYoungestSegment(versionedList.getVersion());
             return;
           }
         }
@@ -511,12 +513,14 @@ public class CompactingMemStore extends AbstractMemStore {
         case COMPACT_TO_ARRAY_MAP:
           result = SegmentFactory.instance()
               .createImmutableSegment(
-                  getConfiguration(), getComparator(), iterator, numOfCells, true);
+                  getConfiguration(), getComparator(), iterator, numOfCells,
+                  ImmutableSegment.Type.ARRAY_MAP_BASED);
           break;
         case COMPACT_TO_CHUNK_MAP:
           result = SegmentFactory.instance()
               .createImmutableSegment(
-                  getConfiguration(), getComparator(), iterator, numOfCells, false);
+                  getConfiguration(), getComparator(), iterator, numOfCells,
+                  ImmutableSegment.Type.CHUNK_MAP_BASED);
           break;
         default: throw new RuntimeException("Unknown type " + type); // sanity check
         }

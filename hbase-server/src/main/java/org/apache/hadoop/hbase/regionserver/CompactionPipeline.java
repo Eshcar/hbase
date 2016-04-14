@@ -120,14 +120,16 @@ public class CompactionPipeline {
    *
    * @return true iff a segment was successfully flattened
    */
-  public boolean flattenOneSegment(long requesterVersion) {
+  public boolean flattenYoungestSegment(long requesterVersion) {
 
     if(requesterVersion != version) {
+      LOG.info("Segment flattening failed, because versions do not match");
       return false;
     }
 
     synchronized (pipeline){
       if(requesterVersion != version) {
+        LOG.info("Segment flattening failed, because versions do not match");
         return false;
       }
 

@@ -43,17 +43,31 @@ import java.io.IOException;
 @InterfaceAudience.Private
 public class ImmutableSegment extends Segment {
 
-  private boolean isFlat;   // whether it is based on CellFlatMap or ConcurrentSkipListMap
+  /**
+   * Types of ImmutableSegment
+   */
+  public enum Type {
+    SKIPLIST_MAP_BASED,
+    ARRAY_MAP_BASED,
+    CHUNK_MAP_BASED
+  }
+
+  private Type type = Type.SKIPLIST_MAP_BASED;
+
+  // whether it is based on CellFlatMap or ConcurrentSkipListMap
+  private boolean isFlat(){
+    return (type == Type.ARRAY_MAP_BASED) || (type == Type.CHUNK_MAP_BASED);
+  }
 
   /////////////////////  CONSTRUCTORS  /////////////////////
   /**------------------------------------------------------------------------
-   * C-tor to be used when new ImmutableSegment is being built from a Mutable one.
+   * Copy C-tor to be used when new ImmutableSegment is being built from a Mutable one.
    * This C-tor should be used when active MutableSegment is pushed into the compaction
    * pipeline and becomes an ImmutableSegment.
    */
   protected ImmutableSegment(Segment segment) {
     super(segment);
-    isFlat = false;
+    type = Type.SKIPLIST_MAP_BASED;
   }
 
   /**------------------------------------------------------------------------
@@ -65,19 +79,21 @@ public class ImmutableSegment extends Segment {
    */
   protected ImmutableSegment(
       final Configuration conf, CellComparator comparator, MemStoreCompactorIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, boolean array) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type) {
 
     super(null, comparator, memStoreLAB,
         CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM,
-        array ? ClassSize.CELL_ARRAY_MAP_ENTRY : ClassSize.CELL_CHUNK_MAP_ENTRY);
+        (type == Type.ARRAY_MAP_BASED) ?
+            ClassSize.CELL_ARRAY_MAP_ENTRY : ClassSize.CELL_CHUNK_MAP_ENTRY);
+
     CellSet cs = null; // build the CellSet Cell array or Byte array based
-    if (array) {
+    if (type == Type.ARRAY_MAP_BASED) {
       cs = createCellArrayMapSet(numOfCells, iterator);
     } else {
       cs = createCellChunkMapSet(numOfCells, iterator, conf);
     }
     this.setCellSet(null, cs);  // update the CellSet of the new Segment
-    isFlat = true;
+    this.type = type;
   }
 
   /**------------------------------------------------------------------------
@@ -88,8 +104,8 @@ public class ImmutableSegment extends Segment {
   protected ImmutableSegment(
       CellComparator comparator, MemStoreCompactorIterator iterator, MemStoreLAB memStoreLAB) {
 
-    super(null, comparator, memStoreLAB, CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM,
-        ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
+    super(new CellSet(comparator), comparator, memStoreLAB,
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM, ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
 
     while (iterator.hasNext()) {
       Cell c = iterator.next();
@@ -99,7 +115,7 @@ public class ImmutableSegment extends Segment {
       Cell newKV = maybeCloneWithAllocator(kv);
       internalAdd(newKV);
     }
-    isFlat = false;
+    type = Type.SKIPLIST_MAP_BASED;
   }
 
   /////////////////////  PUBLIC METHODS  /////////////////////
@@ -126,7 +142,7 @@ public class ImmutableSegment extends Segment {
    * before the flattening and then replaced using CAS instruction.
    */
   public boolean flatten() {
-    if (isFlat) return false;
+    if (isFlat()) return false;
     CellSet oldCellSet = getCellSet();
     int numOfCells = getCellsCount();
 

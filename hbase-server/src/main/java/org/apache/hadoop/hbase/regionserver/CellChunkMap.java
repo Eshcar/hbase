@@ -71,7 +71,7 @@ public class CellChunkMap extends CellFlatMap {
 
   /* To be used by base class only to create a sub-CellFlatMap */
   @Override
-  protected CellFlatMap createCellFlatMap(Comparator<? super Cell> comparator, int min, int max,
+  protected CellFlatMap createSubCellFlatMap(Comparator<? super Cell> comparator, int min, int max,
       boolean d) {
     return new CellChunkMap(comparator, this.memStoreLAB, this.chunks, min, max,
         this.numOfCellsInsideChunk* BYTES_IN_CELL, d);

@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -71,12 +72,14 @@ public final class SegmentFactory {
 
   // create new flat immutable segment from compacting old immutable segment
   public ImmutableSegment createImmutableSegment(final Configuration conf, final CellComparator comparator,
-      MemStoreCompactorIterator iterator, int numOfCells, boolean array)
+      MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType)
       throws IOException {
+    Preconditions.checkArgument(
+        segmentType != ImmutableSegment.Type.SKIPLIST_MAP_BASED, "wrong immutable segment type");
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
     return
         new ImmutableSegment(
-            conf, comparator, iterator, memStoreLAB, numOfCells, array);
+            conf, comparator, iterator, memStoreLAB, numOfCells, segmentType);
   }
 
   //****** private methods to instantiate concrete store segments **********//
