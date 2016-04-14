@@ -21,15 +21,14 @@ package org.apache.hadoop.hbase.regionserver;
 import java.util.Iterator;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.ByteRange;
+import org.apache.hadoop.hbase.util.ClassSize;
 
 /**
  * This is an abstraction of a segment maintained in a memstore, e.g., the active
@@ -41,33 +40,37 @@ import org.apache.hadoop.hbase.util.ByteRange;
 @InterfaceAudience.Private
 public abstract class Segment {
 
-  private volatile CellSet cellSet;
+  private AtomicReference<CellSet> cellSet= new AtomicReference<CellSet>();
   private final CellComparator comparator;
   private long minSequenceId;
   private volatile MemStoreLAB memStoreLAB;
   private final AtomicLong size;
   private final TimeRangeTracker timeRangeTracker;
+  protected long constantCellMetaDataSize;
   protected volatile boolean tagsPresent;
 
-  protected Segment(CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB, long
-      size) {
-    this.cellSet = cellSet;
+  protected Segment(
+      CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB, long size,
+      long constantCellSize) {
+    this.cellSet.set(cellSet);
     this.comparator = comparator;
     this.minSequenceId = Long.MAX_VALUE;
     this.memStoreLAB = memStoreLAB;
     this.size = new AtomicLong(size);
     this.timeRangeTracker = new TimeRangeTracker();
     this.tagsPresent = false;
+    this.constantCellMetaDataSize = constantCellSize;
   }
 
   protected Segment(Segment segment) {
-    this.cellSet = segment.getCellSet();
+    this.cellSet.set(segment.getCellSet());
     this.comparator = segment.getComparator();
     this.minSequenceId = segment.getMinSequenceId();
     this.memStoreLAB = segment.getMemStoreLAB();
     this.size = new AtomicLong(segment.getSize());
     this.timeRangeTracker = segment.getTimeRangeTracker();
     this.tagsPresent = segment.isTagsPresent();
+    this.constantCellMetaDataSize = segment.getConstantCellMetaDataSize();
   }
 
   /**
@@ -179,6 +182,17 @@ public abstract class Segment {
   }
 
   /**
+   * Setting the CellSet of the segment - used only for flat immutable segment for setting
+   * immutable CellSet after its creation in immutable segment constructor
+   * @return this object
+   */
+
+  protected Segment setCellSet(CellSet cellSetOld, CellSet cellSetNew) {
+    this.cellSet.compareAndSet(cellSetOld,cellSetNew);
+    return this;
+  }
+
+  /**
    * Returns the heap size of the segment
    * @return the heap size of the segment
    */
@@ -227,7 +241,7 @@ public abstract class Segment {
    * @return a set of all cells in the segment
    */
   protected CellSet getCellSet() {
-    return cellSet;
+    return cellSet.get();
   }
 
   /**
@@ -240,22 +254,23 @@ public abstract class Segment {
 
   protected long internalAdd(Cell cell) {
     boolean succ = getCellSet().add(cell);
-    long s = AbstractMemStore.heapSizeChange(cell, succ);
-    updateMetaInfo(cell, s);
+    long s = updateMetaInfo(cell, succ);
     return s;
   }
 
-  protected void updateMetaInfo(Cell toAdd, long s) {
-    getTimeRangeTracker().includeTimestamp(toAdd);
+  protected long updateMetaInfo(Cell cellToAdd, boolean succ) {
+    long s = heapSizeChange(cellToAdd, succ);
+    getTimeRangeTracker().includeTimestamp( cellToAdd);
     size.addAndGet(s);
-    minSequenceId = Math.min(minSequenceId, toAdd.getSequenceId());
+    minSequenceId = Math.min(minSequenceId, cellToAdd.getSequenceId());
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
     // When we use ACL CP or Visibility CP which deals with Tags during
     // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
     // parse the byte[] to identify the tags length.
-    if(toAdd.getTagsLength() > 0) {
+    if( cellToAdd.getTagsLength() > 0) {
       tagsPresent = true;
     }
+    return s;
   }
 
   /**
@@ -267,7 +282,7 @@ public abstract class Segment {
     return getCellSet().tailSet(firstCell);
   }
 
-  private MemStoreLAB getMemStoreLAB() {
+  protected MemStoreLAB getMemStoreLAB() {
     return memStoreLAB;
   }
 
@@ -291,4 +306,20 @@ public abstract class Segment {
     return res;
   }
 
+  /*
+  * Calculate how the MemStore size has changed.  Includes overhead of the
+  * backing Map.
+  * @param cell
+  * @param notPresent True if the cell was NOT present in the set.
+  * @return change in size
+  */
+  protected long heapSizeChange(final Cell cell, final boolean notPresent){
+    return
+        notPresent ?
+            ClassSize.align(constantCellMetaDataSize + CellUtil.estimatedHeapSizeOf(cell)) : 0;
+  }
+
+  public long getConstantCellMetaDataSize() {
+    return this.constantCellMetaDataSize;
+  }
 }

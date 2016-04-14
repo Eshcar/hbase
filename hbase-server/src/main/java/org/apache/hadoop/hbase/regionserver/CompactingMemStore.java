@@ -19,8 +19,6 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -32,10 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.executor.EventHandler;
 import org.apache.hadoop.hbase.executor.EventType;
 import org.apache.hadoop.hbase.executor.ExecutorService;
@@ -59,8 +54,16 @@ import org.apache.hadoop.hbase.wal.WAL;
 public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
-          ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+          ClassSize.CELL_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM = ClassSize.align(
+      ClassSize.TIMERANGE_TRACKER +
+          ClassSize.CELL_SET + ClassSize.CELL_ARRAY_MAP);
   public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
+  public final static double COMPACTION_TRIGGER_REMAIN_FACTOR = 1;
+  public final static boolean COMPACTION_PRE_CHECK = false;
+
+  static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
+  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 1;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
@@ -73,6 +76,17 @@ public class CompactingMemStore extends AbstractMemStore {
   // A flag for tests only
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
 
+  /**
+   * Types of CompactingMemStore
+   */
+  public enum Type {
+    COMPACT_TO_SKIPLIST_MAP,
+    COMPACT_TO_ARRAY_MAP,
+    COMPACT_TO_CHUNK_MAP;
+  }
+
+  private Type type = Type.COMPACT_TO_SKIPLIST_MAP;
+
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store, RegionServicesForStores regionServices) throws IOException {
     super(conf, c);
@@ -81,6 +95,22 @@ public class CompactingMemStore extends AbstractMemStore {
     this.pipeline = new CompactionPipeline(getRegionServices());
     this.compactor = new MemStoreCompactor();
     initFlushSizeLowerBound(conf);
+    int t = conf.getInt(COMPACTING_MEMSTORE_TYPE_KEY, COMPACTING_MEMSTORE_TYPE_DEFAULT);
+    switch (t) {
+    case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
+      break;
+    case 2: type = Type.COMPACT_TO_ARRAY_MAP;
+      break;
+    case 3: type = Type.COMPACT_TO_CHUNK_MAP;
+      break;
+    }
+  }
+
+  // C-tor for testing
+  public CompactingMemStore(Configuration conf, CellComparator c,
+      HStore store, RegionServicesForStores regionServices, Type type) throws IOException {
+    this(conf,c,store,regionServices);
+    this.type = type;
   }
 
   private void initFlushSizeLowerBound(Configuration conf) {
@@ -332,6 +362,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   private void pushTailToSnapshot() {
     ImmutableSegment tail = pipeline.pullTail();
+
     if (!tail.isEmpty()) {
       setSnapshot(tail);
       long size = getSegmentSize(tail);
@@ -364,9 +395,12 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
-  /**
-   * The ongoing MemStore Compaction manager, dispatches a solo running compaction
-   * and interrupts the compaction if requested.
+  /** ----------------------------------------------------------------------
+   * The ongoing MemStore Compaction manager, dispatches a solo running compaction and interrupts
+   * the compaction if requested. The compaction is interrupted and stopped by CompactingMemStore,
+   * for example when another compaction needs to be started.
+   * Prior to compaction the MemStoreCompactor evaluates
+   * the compacting ratio and aborts the compaction if it is not worthy.
    * The MemStoreScanner is used to traverse the compaction pipeline. The MemStoreScanner
    * is included in internal store scanner, where all compaction logic is implemented.
    * Threads safety: It is assumed that the compaction pipeline is immutable,
@@ -374,47 +408,26 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   private class MemStoreCompactor {
 
-    private MemStoreScanner scanner;            // scanner for pipeline only
-    // scanner on top of MemStoreScanner that uses ScanQueryMatcher
-    private StoreScanner compactingScanner;
-
-    // smallest read point for any ongoing MemStore scan
-    private long smallestReadPoint;
-
-    // a static version of the segment list from the pipeline
+    // a snapshot of the compaction pipeline segment list
     private VersionedSegmentsList versionedList;
+    // a flag raised when compaction is requested to stop
     private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
+    // the limit to the size of the groups to be later provided to MemStoreCompactorIterator
+    private final int compactionKVMax = getConfiguration().getInt(
+        HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
 
-    /**
-     * ----------------------------------------------------------------------
+    /** ----------------------------------------------------------------------
      * The request to dispatch the compaction asynchronous task.
      * The method returns true if compaction was successfully dispatched, or false if there
-     *
      * is already an ongoing compaction (or pipeline is empty).
      */
     public boolean startCompact() throws IOException {
       if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
-
-      List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
-      // get the list of segments from the pipeline
+      // get a snapshot of the list of the segments from the pipeline,
+      // this local copy of the list is marked with specific version
       versionedList = pipeline.getVersionedList();
-      // the list is marked with specific version
-
-      // create the list of scanners with maximally possible read point, meaning that
-      // all KVs are going to be returned by the pipeline traversing
-      for (Segment segment : versionedList.getStoreSegments()) {
-        scanners.add(segment.getSegmentScanner(Long.MAX_VALUE));
-      }
-      scanner =
-          new MemStoreScanner(CompactingMemStore.this, scanners, Long.MAX_VALUE,
-              MemStoreScanner.Type.COMPACT_FORWARD);
-
-      smallestReadPoint = store.getSmallestReadPoint();
-      compactingScanner = createScanner(store);
-
-      LOG.info("Starting the MemStore in-memory compaction for store " +
-          store.getColumnFamilyName());
-
+      LOG.info(
+          "Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
       doCompact();
       return true;
     }
@@ -435,10 +448,6 @@ public class CompactingMemStore extends AbstractMemStore {
     */
     private void releaseResources() {
       isInterrupted.set(false);
-      scanner.close();
-      scanner = null;
-      compactingScanner.close();
-      compactingScanner = null;
       versionedList = null;
     }
 
@@ -448,17 +457,28 @@ public class CompactingMemStore extends AbstractMemStore {
     * There is at most one thread per memstore instance.
     */
     private void doCompact() {
-
-      ImmutableSegment result = SegmentFactory.instance()  // create the scanner
-          .createImmutableSegment(getConfiguration(), getComparator(),
-              CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
-
-      // the compaction processing
+      int cellsAfterComp = versionedList.getNumOfCells();
       try {
-        // Phase I: create the compacted MutableCellSetSegment
-        compactSegments(result);
+        // Phase I (optional): estimate the compaction expedience - EVALUATE COMPACTION
+        if (COMPACTION_PRE_CHECK) {
+          cellsAfterComp = countCellsForCompaction();
 
-        // Phase II: swap the old compaction pipeline
+          if (!isInterrupted.get() && (cellsAfterComp
+              > COMPACTION_TRIGGER_REMAIN_FACTOR * versionedList.getNumOfCells())) {
+            // too much cells "survive" the possible compaction we do not want to compact!
+            LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
+                + " for store " + getFamilyName());
+            // Looking for Segment in the pipeline with SkipList index, to make it flat
+            pipeline.flattenYoungestSegment(versionedList.getVersion());
+            return;
+          }
+        }
+        // Phase II: create the new compacted ImmutableSegment - START COMPACTION
+        ImmutableSegment result = null;
+        if (!isInterrupted.get()) {
+          result = compact(cellsAfterComp);
+        }
+        // Phase III: swap the old compaction pipeline - END COMPACTION
         if (!isInterrupted.get()) {
           pipeline.swap(versionedList, result);
           // update the wal so it can be truncated and not get too long
@@ -467,64 +487,71 @@ public class CompactingMemStore extends AbstractMemStore {
       } catch (Exception e) {
         LOG.debug("Interrupting the MemStore in-memory compaction for store " + getFamilyName());
         Thread.currentThread().interrupt();
-        return;
       } finally {
         releaseResources();
         inMemoryFlushInProgress.set(false);
       }
-
     }
 
-    /**
-     * Creates the scanner for compacting the pipeline.
-     *
-     * @return the scanner
+    /**----------------------------------------------------------------------
+     * The compaction is the creation of the relevant ImmutableSegment based on
+     * the Compactor Itertor
      */
-    private StoreScanner createScanner(Store store) throws IOException {
+    private ImmutableSegment compact(int numOfCells)
+        throws IOException {
 
-      Scan scan = new Scan();
-      scan.setMaxVersions();  //Get all available versions
-
-      StoreScanner internalScanner =
-          new StoreScanner(store, store.getScanInfo(), scan, Collections.singletonList(scanner),
-              ScanType.COMPACT_RETAIN_DELETES, smallestReadPoint, HConstants.OLDEST_TIMESTAMP);
-
-      return internalScanner;
-    }
-
-    /**
-     * Updates the given single Segment using the internal store scanner,
-     * who in turn uses ScanQueryMatcher
-     */
-    private void compactSegments(Segment result) throws IOException {
-
-      List<Cell> kvs = new ArrayList<Cell>();
-      // get the limit to the size of the groups to be returned by compactingScanner
-      int compactionKVMax = getConfiguration().getInt(
-          HConstants.COMPACTION_KV_MAX,
-          HConstants.COMPACTION_KV_MAX_DEFAULT);
-
-      ScannerContext scannerContext =
-          ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
-
-      boolean hasMore;
-      do {
-        hasMore = compactingScanner.next(kvs, scannerContext);
-        if (!kvs.isEmpty()) {
-          for (Cell c : kvs) {
-            // The scanner is doing all the elimination logic
-            // now we just copy it to the new segment
-            KeyValue kv = KeyValueUtil.ensureKeyValue(c);
-            Cell newKV = result.maybeCloneWithAllocator(kv);
-            result.internalAdd(newKV);
-
-          }
-          kvs.clear();
+      ImmutableSegment result = null;
+      MemStoreCompactorIterator iterator =
+          new MemStoreCompactorIterator(versionedList.getStoreSegments(), getComparator(),
+              compactionKVMax, store);
+      try {
+        switch (type) {
+        case COMPACT_TO_SKIPLIST_MAP:
+          result = SegmentFactory.instance()
+              .createImmutableSegment(getConfiguration(), getComparator(), iterator);
+          break;
+        case COMPACT_TO_ARRAY_MAP:
+          result = SegmentFactory.instance()
+              .createImmutableSegment(
+                  getConfiguration(), getComparator(), iterator, numOfCells,
+                  ImmutableSegment.Type.ARRAY_MAP_BASED);
+          break;
+        case COMPACT_TO_CHUNK_MAP:
+          result = SegmentFactory.instance()
+              .createImmutableSegment(
+                  getConfiguration(), getComparator(), iterator, numOfCells,
+                  ImmutableSegment.Type.CHUNK_MAP_BASED);
+          break;
+        default: throw new RuntimeException("Unknown type " + type); // sanity check
         }
-      } while (hasMore && (!isInterrupted.get()));
+      } finally {
+        iterator.close();
+      }
+
+      return result;
     }
 
-  }
+    /**----------------------------------------------------------------------
+     * COUNT CELLS TO ESTIMATE THE EFFICIENCY OF THE FUTURE COMPACTION
+     */
+    private int countCellsForCompaction() throws IOException {
+
+      int cnt = 0;
+      MemStoreCompactorIterator iterator =
+          new MemStoreCompactorIterator(versionedList.getStoreSegments(),getComparator(),
+              compactionKVMax, store);
+
+      try {
+        while (iterator.next() != null) {
+          cnt++;
+        }
+      } finally {
+        iterator.close();
+      }
+
+      return cnt;
+    }
+  } // end of the MemStoreCompactor Class
 
   //----------------------------------------------------------------------
   //methods for tests
@@ -559,10 +586,10 @@ public class CompactingMemStore extends AbstractMemStore {
     return lowest;
   }
 
-  // debug method
-  private void debug() {
+  // debug method, also for testing
+  public void debug() {
     String msg = "active size="+getActive().getSize();
-    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound;
+    msg += " threshold="+ IN_MEMORY_FLUSH_THRESHOLD_FACTOR *flushSizeLowerBound;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
     msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
     LOG.debug(msg);

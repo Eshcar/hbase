@@ -18,13 +18,18 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.lang.management.ManagementFactory;
+//import java.util.concurrent.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -76,17 +81,23 @@ public class MemStoreChunkPool {
   private static final int statThreadPeriod = 60 * 5;
   private AtomicLong createdChunkCount = new AtomicLong();
   private AtomicLong reusedChunkCount = new AtomicLong();
+  private AtomicInteger chunkIDs = new AtomicInteger(1);  // 14921
+
+  // The mapping between each chunk allocated by MemStoreChunkPool and
+  // an integer representing the chunk's ID (ID 0 is forbidden)
+  private final ConcurrentMap<Integer, Chunk> chunksMap = new ConcurrentHashMap<Integer, Chunk>();
 
   MemStoreChunkPool(Configuration conf, int chunkSize, int maxCount,
       int initialCount) {
     this.maxCount = maxCount;
     this.chunkSize = chunkSize;
     this.reclaimedChunks = new LinkedBlockingQueue<Chunk>();
+
     for (int i = 0; i < initialCount; i++) {
-      Chunk chunk = new Chunk(chunkSize);
-      chunk.init();
+      Chunk chunk = allocateChunk();
       reclaimedChunks.add(chunk);
     }
+
     final String n = Thread.currentThread().getName();
     scheduleThreadPool = Executors.newScheduledThreadPool(1,
         new ThreadFactoryBuilder().setNameFormat(n+"-MemStoreChunkPool Statistics")
@@ -103,10 +114,11 @@ public class MemStoreChunkPool {
   Chunk getChunk() {
     Chunk chunk = reclaimedChunks.poll();
     if (chunk == null) {
-      chunk = new Chunk(chunkSize);
+      chunk = allocateChunk();
       createdChunkCount.incrementAndGet();
     } else {
       chunk.reset();
+      chunk.init();
       reusedChunkCount.incrementAndGet();
     }
     return chunk;
@@ -126,6 +138,14 @@ public class MemStoreChunkPool {
   }
 
   /**
+   * Given a chunk ID return reference to the relevant chunk
+   * @return a chunk
+   */
+  Chunk translateIdToChunk(int id) {
+    return chunksMap.get(id);
+  }
+
+  /**
    * Add the chunk to the pool, if the pool has achieved the max size, it will
    * skip it
    * @param chunk
@@ -141,11 +161,27 @@ public class MemStoreChunkPool {
     return this.reclaimedChunks.size();
   }
 
+  @VisibleForTesting
+  void clearChunks() {
+    this.reclaimedChunks.clear();
+  }
+
   /*
    * Only used in testing
    */
-  void clearChunks() {
-    this.reclaimedChunks.clear();
+  ConcurrentMap<Integer, Chunk> getChunksMap() {
+    return this.chunksMap;
+  }
+
+  /*
+   * Allocate and register Chunk
+   */
+  private Chunk allocateChunk() {
+    int newId = chunkIDs.getAndAdd(1); // the id of the new chunk
+    Chunk chunk = new Chunk(chunkSize,newId);
+    chunksMap.put(newId, chunk);
+    chunk.init();
+    return chunk;
   }
 
   private static class StatisticsThread extends Thread {
