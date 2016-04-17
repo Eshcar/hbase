@@ -339,7 +339,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
     setMinVersions(DEFAULT_MIN_VERSIONS);
     setKeepDeletedCells(DEFAULT_KEEP_DELETED);
     setInMemory(DEFAULT_IN_MEMORY);
-    setCompacted(DEFAULT_IN_MEMORY_COMPACTION);
+    setInMemoryCompaction(DEFAULT_IN_MEMORY_COMPACTION);
     setBlockCacheEnabled(DEFAULT_BLOCKCACHE);
     setTimeToLive(DEFAULT_TTL);
     setCompressionType(Compression.Algorithm.valueOf(DEFAULT_COMPRESSION.toUpperCase()));
@@ -699,7 +699,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
 
   /**
    * @return True if we prefer to keep the in-memory data compacted
-   *          for this column family in the HRegionServer cache
+   *          for this column family
    */
   public boolean isInMemoryCompaction() {
     String value = getValue(IN_MEMORY_COMPACTION);
@@ -710,20 +710,12 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   }
 
   /**
-   * @param compacted True if we prefer to keep the in-memory data compacted
-   *                  for this column family in the HRegionServer cache
+   * @param inMemoryCompaction True if we prefer to keep the in-memory data compacted
+   *                  for this column family
    * @return this (for chained invocation)
    */
-  public HColumnDescriptor setCompacted(boolean compacted) {
-    return setValue(IN_MEMORY_COMPACTION, Boolean.toString(compacted));
-  }
-
-  /**
-   * @return the memstore class name if was set by the user.
-   */
-  public String getMemStoreClassName() {
-    if(isInMemoryCompaction()) return "org.apache.hadoop.hbase.regionserver.CompactingMemStore";
-    return "org.apache.hadoop.hbase.regionserver.DefaultMemStore";
+  public HColumnDescriptor setInMemoryCompaction(boolean inMemoryCompaction) {
+    return setValue(IN_MEMORY_COMPACTION, Boolean.toString(inMemoryCompaction));
   }
 
   /**
