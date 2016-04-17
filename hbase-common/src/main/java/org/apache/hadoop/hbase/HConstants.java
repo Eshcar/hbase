@@ -28,8 +28,8 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
-import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
 import org.apache.hadoop.hbase.util.Bytes;
+import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
 
 /**
  * HConstants holds a bunch of HBase-related constants

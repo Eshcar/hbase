@@ -523,7 +523,6 @@ public class CompactingMemStore extends AbstractMemStore {
         }
       } while (hasMore && (!isInterrupted.get()));
     }
-
   }
 
   //----------------------------------------------------------------------

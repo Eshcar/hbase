@@ -23,6 +23,7 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.KeyValue;
@@ -41,6 +42,7 @@ import org.apache.hadoop.hbase.util.ByteRange;
 @InterfaceAudience.Private
 public abstract class Segment {
 
+  private static final Log LOG = LogFactory.getLog(Segment.class);
   private volatile CellSet cellSet;
   private final CellComparator comparator;
   private long minSequenceId;
@@ -278,6 +280,24 @@ public abstract class Segment {
   void dump(Log log) {
     for (Cell cell: getCellSet()) {
       log.debug(cell);
+    }
+  }
+
+  void assertMinSequenceId(Log log) {
+    for (Cell cell: getCellSet()) {
+      if (cell.getSequenceId() == getMinSequenceId()) {
+        log.info("ESHCAR: cell with minimal sequence id is "+cell.toString()+", seqid="
+            + cell.getSequenceId());
+        return;
+      }
+    }
+    log.error("ESHCAR: no cell with minimal sequence id "+getMinSequenceId());
+  }
+
+  void assertCellType(Cell cell, Log log) {
+    if(KeyValue.Type.codeToType(cell.getTypeByte()) != KeyValue.Type.Put
+        && KeyValue.Type.codeToType(cell.getTypeByte()) != KeyValue.Type.Delete) {
+      log.info("Eshcar: cell="+cell.toString());
     }
   }
 
