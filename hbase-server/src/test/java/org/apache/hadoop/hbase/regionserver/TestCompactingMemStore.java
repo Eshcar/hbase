@@ -18,17 +18,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -39,11 +33,9 @@ import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeepDeletedCells;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueTestUtil;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
@@ -51,8 +43,13 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdge;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Threads;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * compacted memstore test case
@@ -74,12 +71,12 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
         Integer.toString(i2));
   }
 
-  @Override
+  @After
   public void tearDown() throws Exception {
     chunkPool.clearChunks();
   }
 
-  @Override
+  @Before
   public void setUp() throws Exception {
     super.internalSetUp();
     Configuration conf = new Configuration();
@@ -104,6 +101,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
    * @throws IOException
    * @throws CloneNotSupportedException
    */
+  @Test
   public void testScanAcrossSnapshot2() throws IOException, CloneNotSupportedException {
     // we are going to the scanning across snapshot with two kvs
     // kv1 should always be returned before kv2
@@ -141,6 +139,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
    * Test memstore snapshots
    * @throws IOException
    */
+  @Test
   public void testSnapshotting() throws IOException {
     final int snapshotCount = 5;
     // Add some rows, run a snapshot. Do it a few times.
@@ -159,6 +158,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   /** Test getNextRow from memstore
    * @throws InterruptedException
    */
+  @Test
   public void testGetNextRow() throws Exception {
     addRows(this.memstore);
     // Add more versions to make it a little more interesting.
@@ -205,6 +205,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     }
   }
 
+  @Test
   public void testGet_memstoreAndSnapShot() throws IOException {
     byte[] row = Bytes.toBytes("testrow");
     byte[] fam = Bytes.toBytes("testfamily");
@@ -250,6 +251,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
    * This causes OOME pretty quickly if we use MSLAB for upsert
    * since each 2M chunk is held onto by a single reference.
    */
+  @Test
   public void testUpsertMSLAB() throws Exception {
 
     int ROW_SIZE = 2048;
@@ -287,6 +289,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
    *
    * @throws Exception
    */
+  @Test
   public void testUpsertMemstoreSize() throws Exception {
     long oldSize = memstore.size();
 
@@ -324,6 +327,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
    * various edit operations in memstore.
    * @throws Exception
    */
+  @Test
   public void testUpdateToTimeOfOldestEdit() throws Exception {
     try {
       EnvironmentEdgeForMemstoreTest edge = new EnvironmentEdgeForMemstoreTest();
@@ -570,6 +574,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   //////////////////////////////////////////////////////////////////////////////
   // Compaction tests
   //////////////////////////////////////////////////////////////////////////////
+  @Test
   public void testCompaction1Bucket() throws IOException {
 
     String[] keys1 = { "A", "A", "B", "C" }; //A1, A2, B3, C4
@@ -596,6 +601,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.clearSnapshot(snapshot.getId());
   }
 
+  @Test
   public void testCompaction2Buckets() throws IOException {
 
     String[] keys1 = { "A", "A", "B", "C" };
@@ -633,6 +639,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.clearSnapshot(snapshot.getId());
   }
 
+  @Test
   public void testCompaction3Buckets() throws IOException {
 
     String[] keys1 = { "A", "A", "B", "C" };
