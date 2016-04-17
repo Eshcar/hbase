@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -102,7 +103,7 @@ public class CompactionPipeline {
     }
     if(region != null) {
       // update the global memstore size counter
-      long suffixSize = CompactingMemStore.getSegmentListSize(suffix);
+      long suffixSize = CompactingMemStore.getSegmentsSize(suffix);
       long newSize = CompactingMemStore.getSegmentSize(segment);
       long delta = suffixSize - newSize;
       long globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-delta);
@@ -116,9 +117,9 @@ public class CompactionPipeline {
     return pipeline.isEmpty();
   }
 
-  public LinkedList<Segment> getStoreSegmentList() {
+  public List<Segment> getSegments() {
     synchronized (pipeline){
-      LinkedList<Segment> res = new LinkedList<Segment>(pipeline);
+      List<Segment> res = new LinkedList<Segment>(pipeline);
       return res;
     }
   }

@@ -163,14 +163,6 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
-   * An override on snapshot so the no arg version of the method implies zero seq num,
-   * like for cases without wal
-   */
-  public MemStoreSnapshot snapshot() {
-    return snapshot(0);
-  }
-
-  /**
    * The passed snapshot was successfully persisted; it can be let go.
    * @param id Id of the snapshot to clean out.
    * @see MemStore#snapshot(long)
@@ -236,7 +228,7 @@ public abstract class AbstractMemStore implements MemStore {
     StringBuffer buf = new StringBuffer();
     int i = 1;
     try {
-      for (Segment segment : getListOfSegments()) {
+      for (Segment segment : getSegments()) {
         buf.append("Segment (" + i + ") " + segment.toString() + "; ");
         i++;
       }
@@ -477,7 +469,7 @@ public abstract class AbstractMemStore implements MemStore {
    * Returns an ordered list of segments from most recent to oldest in memstore
    * @return an ordered list of segments from most recent to oldest in memstore
    */
-  protected abstract List<Segment> getListOfSegments() throws IOException;
+  protected abstract List<Segment> getSegments() throws IOException;
 
   public long getActiveSize() {
     return getActive().getSize();

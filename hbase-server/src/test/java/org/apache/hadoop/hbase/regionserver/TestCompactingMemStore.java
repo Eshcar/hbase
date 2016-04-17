@@ -120,7 +120,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 2: both kvs in snapshot
-    this.memstore.snapshot(0);
+    this.memstore.snapshot();
     verifyScanAcrossSnapshot2(kv1, kv2);
 
     // use case 3: first in snapshot second in kvset
@@ -130,7 +130,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // As compaction is starting in the background the repetition
     // of the k1 might be removed BUT the scanners created earlier
     // should look on the OLD MutableCellSetSegment, so this should be OK...
-    this.memstore.snapshot(0);
+    this.memstore.snapshot();
     this.memstore.add(kv2.clone());
     verifyScanAcrossSnapshot2(kv1,kv2);
   }
@@ -368,8 +368,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     long oldHistorySize = hmc.getSnapshot().getSize();
     long prevTimeStamp = hmc.timeOfOldestEdit();
 
-    hmc.snapshot(0);
-    MemStoreSnapshot snapshot = hmc.snapshot(0);
+    hmc.snapshot();
+    MemStoreSnapshot snapshot = hmc.snapshot();
     if (useForce) {
       // Make some assertions about what just happened.
       assertTrue("History size has not increased", oldHistorySize < snapshot.getSize());
@@ -414,7 +414,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    MemStoreSnapshot snapshot = memstore.snapshot(0);
+    MemStoreSnapshot snapshot = memstore.snapshot();
     assertEquals(3, memstore.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -449,7 +449,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.add(new KeyValue(row, fam, qf3, val));
 
     // Creating a snapshot
-    MemStoreSnapshot snapshot = memstore.snapshot(0);
+    MemStoreSnapshot snapshot = memstore.snapshot();
     assertEquals(3, memstore.getSnapshot().getCellsCount());
 
     // Adding value to "new" memstore
@@ -477,7 +477,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
 
     // Creating another snapshot
 
-    snapshot = memstore.snapshot(0);
+    snapshot = memstore.snapshot();
     // Adding more value
     memstore.add(new KeyValue(row, fam, qf6, val));
     memstore.add(new KeyValue(row, fam, qf7, val));
@@ -552,10 +552,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
 
     // Creating another snapshot
 
-    MemStoreSnapshot snapshot = memstore.snapshot(0);
+    MemStoreSnapshot snapshot = memstore.snapshot();
     memstore.clearSnapshot(snapshot.getId());
 
-    snapshot = memstore.snapshot(0);
+    snapshot = memstore.snapshot();
     // Adding more value
     memstore.add(new KeyValue(row, fam, qf2, 4, val));
     memstore.add(new KeyValue(row, fam, qf3, 4, val));

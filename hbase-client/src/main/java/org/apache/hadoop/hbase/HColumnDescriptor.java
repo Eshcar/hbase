@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.Collections;
@@ -64,6 +65,8 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   // Version 10 -- change metadata to standard type.
   // Version 11 -- add column family level configuration.
   private static final byte COLUMN_DESCRIPTOR_VERSION = (byte) 11;
+
+  private static final String IN_MEMORY_COMPACTION = "IN_MEMORY_COMPACTION";
 
   // These constants are used as FileInfo keys
   public static final String COMPRESSION = "COMPRESSION";
@@ -262,7 +265,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
       DEFAULT_VALUES.put(TTL, String.valueOf(DEFAULT_TTL));
       DEFAULT_VALUES.put(BLOCKSIZE, String.valueOf(DEFAULT_BLOCKSIZE));
       DEFAULT_VALUES.put(HConstants.IN_MEMORY, String.valueOf(DEFAULT_IN_MEMORY));
-      DEFAULT_VALUES.put(HConstants.IN_MEMORY_COMPACTION, String.valueOf(
+      DEFAULT_VALUES.put(IN_MEMORY_COMPACTION, String.valueOf(
           DEFAULT_IN_MEMORY_COMPACTION));
       DEFAULT_VALUES.put(BLOCKCACHE, String.valueOf(DEFAULT_BLOCKCACHE));
       DEFAULT_VALUES.put(KEEP_DELETED_CELLS, String.valueOf(DEFAULT_KEEP_DELETED));
@@ -699,7 +702,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    *          for this column family in the HRegionServer cache
    */
   public boolean isInMemoryCompaction() {
-    String value = getValue(HConstants.IN_MEMORY_COMPACTION);
+    String value = getValue(IN_MEMORY_COMPACTION);
     if (value != null) {
       return Boolean.parseBoolean(value);
     }
@@ -712,7 +715,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @return this (for chained invocation)
    */
   public HColumnDescriptor setCompacted(boolean compacted) {
-    return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(compacted));
+    return setValue(IN_MEMORY_COMPACTION, Boolean.toString(compacted));
   }
 
   /**
@@ -727,12 +730,13 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @param className the name of the class to be used as a memstore
    * @return this (for chained invocation)
    */
+  @VisibleForTesting
   public HColumnDescriptor setMemStoreClass(String className) {
 
     if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactingMemStore")) {
-      return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(true));
+      return setValue(IN_MEMORY_COMPACTION, Boolean.toString(true));
     }
-    else return setValue(HConstants.IN_MEMORY_COMPACTION, Boolean.toString(false));
+    else return setValue(IN_MEMORY_COMPACTION, Boolean.toString(false));
   }
 
   public KeepDeletedCells getKeepDeletedCells() {

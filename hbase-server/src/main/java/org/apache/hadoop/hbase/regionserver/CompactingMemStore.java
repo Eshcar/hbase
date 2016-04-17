@@ -108,13 +108,18 @@ public class CompactingMemStore extends AbstractMemStore {
             + ". " + nfe + ", use global config(" + flushSizeLowerBound + ") instead");
       }
     }
+    // finally multiply by a factor
+    flushSizeLowerBound *= IN_MEMORY_FLUSH_THRESHOLD_FACTOR;
+    LOG.info("Setting in-memory flush size threshold for table "
+        + getRegionServices().getTableDesc().getTableName()
+        + "to " + flushSizeLowerBound);
   }
 
   public static long getSegmentSize(Segment segment) {
     return segment.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
   }
 
-  public static long getSegmentListSize(LinkedList<? extends Segment> list) {
+  public static long getSegmentsSize(List<? extends Segment> list) {
     long res = 0;
     for (Segment segment : list) {
       res += getSegmentSize(segment);
@@ -130,7 +135,7 @@ public class CompactingMemStore extends AbstractMemStore {
   @Override
   public long size() {
     long res = 0;
-    for (Segment item : getListOfSegments()) {
+    for (Segment item : getSegments()) {
       res += item.getSize();
     }
     return res;
@@ -154,12 +159,10 @@ public class CompactingMemStore extends AbstractMemStore {
    * and create a snapshot of the tail of current compaction pipeline
    * Snapshot must be cleared by call to {@link #clearSnapshot}.
    * {@link #clearSnapshot(long)}.
-   * @param flushOpSeqId the sequence id that is attached to the flush operation in the wal
-   *
    * @return {@link MemStoreSnapshot}
    */
   @Override
-  public MemStoreSnapshot snapshot(long flushOpSeqId) {
+  public MemStoreSnapshot snapshot() {
     MutableSegment active = getActive();
     // If snapshot currently has entries, then flusher failed or didn't call
     // cleanup.  Log a warning.
@@ -204,9 +207,9 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @Override
-  public LinkedList<Segment> getListOfSegments() {
-    LinkedList<Segment> pipelineList = pipeline.getStoreSegmentList();
-    LinkedList<Segment> list = new LinkedList<Segment>();
+  public List<Segment> getSegments() {
+    List<Segment> pipelineList = pipeline.getSegments();
+    List<Segment> list = new LinkedList<Segment>();
     list.add(getActive());
     list.addAll(pipelineList);
     list.add(getSnapshot());
@@ -215,7 +218,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   @Override
   protected List<SegmentScanner> getListOfScanners(long readPt) throws IOException {
-    LinkedList<Segment> pipelineList = pipeline.getStoreSegmentList();
+    List<Segment> pipelineList = pipeline.getSegments();
     LinkedList<SegmentScanner> list = new LinkedList<SegmentScanner>();
     list.add(getActive().getSegmentScanner(readPt));
     for (Segment item : pipelineList) {
@@ -302,7 +305,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound) {
+    if(getActive().getSize() > flushSizeLowerBound) {
       // size above flush threshold
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
@@ -514,8 +517,7 @@ public class CompactingMemStore extends AbstractMemStore {
           for (Cell c : kvs) {
             // The scanner is doing all the elimination logic
             // now we just copy it to the new segment
-            KeyValue kv = KeyValueUtil.ensureKeyValue(c);
-            Cell newKV = result.maybeCloneWithAllocator(kv);
+            Cell newKV = result.maybeCloneWithAllocator(c);
             result.internalAdd(newKV);
 
           }
@@ -547,7 +549,7 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   Cell getNextRow(final Cell cell) {
     Cell lowest = null;
-    LinkedList<Segment> segments = getListOfSegments();
+    List<Segment> segments = getSegments();
     for (Segment segment : segments) {
       if (lowest == null) {
         lowest = getNextRow(cell, segment.getCellSet());

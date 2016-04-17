@@ -2150,7 +2150,7 @@ public class HStore implements Store {
     @Override
     public void prepare() {
       // passing the current sequence number of the wal - to allow bookkeeping in the memstore
-      this.snapshot = memstore.snapshot(cacheFlushSeqNum);
+      this.snapshot = memstore.snapshot();
       this.cacheFlushCount = snapshot.getCellsCount();
       this.cacheFlushSize = snapshot.getSize();
       committedFiles = new ArrayList<Path>(1);
