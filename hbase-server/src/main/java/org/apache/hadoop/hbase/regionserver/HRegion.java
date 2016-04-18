@@ -19,6 +19,19 @@ package org.apache.hadoop.hbase.regionserver;
 
 import static org.apache.hadoop.hbase.HConstants.REPLICATION_SCOPE_LOCAL;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.Message;
+import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
+import com.google.protobuf.TextFormat;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -183,19 +196,6 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.htrace.Trace;
 import org.apache.htrace.TraceScope;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Descriptors;
-import com.google.protobuf.Message;
-import com.google.protobuf.RpcCallback;
-import com.google.protobuf.RpcController;
-import com.google.protobuf.Service;
-import com.google.protobuf.TextFormat;
 
 @SuppressWarnings("deprecation")
 @InterfaceAudience.Private
@@ -924,11 +924,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         });
       }
       boolean allStoresOpened = false;
+      boolean hasSloppyStores = false;
       try {
         for (int i = 0; i < htableDescriptor.getFamilies().size(); i++) {
           Future<HStore> future = completionService.take();
           HStore store = future.get();
           this.stores.put(store.getFamily().getName(), store);
+          MemStore memStore = store.getMemStore();
+          if(memStore != null && memStore.isSloppy()) {
+            hasSloppyStores = true;
+          }
 
           long storeMaxSequenceId = store.getMaxSequenceId();
           maxSeqIdInStores.put(store.getColumnFamilyName().getBytes(),
@@ -942,6 +947,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           }
         }
         allStoresOpened = true;
+        if(hasSloppyStores) {
+          htableDescriptor.setFlushPolicyClassName(FlushNonSloppyStoresFirstPolicy.class
+              .getName());
+        }
       } catch (InterruptedException e) {
         throw (InterruptedIOException)new InterruptedIOException().initCause(e);
       } catch (ExecutionException e) {

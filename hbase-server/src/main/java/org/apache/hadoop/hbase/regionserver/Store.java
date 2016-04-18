@@ -528,4 +528,5 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    */
   void finalizeFlush();
 
+  MemStore getMemStore();
 }

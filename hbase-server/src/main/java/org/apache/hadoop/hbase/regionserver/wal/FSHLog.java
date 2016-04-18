@@ -19,6 +19,14 @@ package org.apache.hadoop.hbase.regionserver.wal;
 
 import static org.apache.hadoop.hbase.wal.DefaultWALProvider.WAL_FILE_NAME_DELIMITER;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.lmax.disruptor.BlockingWaitStrategy;
+import com.lmax.disruptor.EventHandler;
+import com.lmax.disruptor.ExceptionHandler;
+import com.lmax.disruptor.LifecycleAware;
+import com.lmax.disruptor.TimeoutException;
+import com.lmax.disruptor.dsl.Disruptor;
+import com.lmax.disruptor.dsl.ProducerType;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -86,15 +94,6 @@ import org.apache.htrace.NullScope;
 import org.apache.htrace.Span;
 import org.apache.htrace.Trace;
 import org.apache.htrace.TraceScope;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.lmax.disruptor.BlockingWaitStrategy;
-import com.lmax.disruptor.EventHandler;
-import com.lmax.disruptor.ExceptionHandler;
-import com.lmax.disruptor.LifecycleAware;
-import com.lmax.disruptor.TimeoutException;
-import com.lmax.disruptor.dsl.Disruptor;
-import com.lmax.disruptor.dsl.ProducerType;
 
 /**
  * Implementation of {@link WAL} to go against {@link FileSystem}; i.e. keep WALs in HDFS.
@@ -1105,6 +1104,20 @@ public class FSHLog implements WAL {
       this.disruptor.getRingBuffer().publish(sequence);
     }
     return sequence;
+  }
+
+  /**
+   * updates the seuence number of a specific store.
+   * depending on the flag: replaces current seq number if the given seq id is bigger,
+   * or even if it is lower than existing one
+   *  @param encodedRegionName
+   * @param familyName
+   * @param sequenceid
+   * @param onlyIfGreater
+   */
+  @Override public void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
+      boolean onlyIfGreater) {
+    sequenceIdAccounting.updateStore(encodedRegionName,familyName,sequenceid,onlyIfGreater);
   }
 
   /**

@@ -23,6 +23,7 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.KeyValue;
@@ -41,8 +42,10 @@ import org.apache.hadoop.hbase.util.ByteRange;
 @InterfaceAudience.Private
 public abstract class Segment {
 
+  private static final Log LOG = LogFactory.getLog(Segment.class);
   private volatile CellSet cellSet;
   private final CellComparator comparator;
+  private long minSequenceId;
   private volatile MemStoreLAB memStoreLAB;
   private final AtomicLong size;
   private final TimeRangeTracker timeRangeTracker;
@@ -52,6 +55,7 @@ public abstract class Segment {
       size) {
     this.cellSet = cellSet;
     this.comparator = comparator;
+    this.minSequenceId = Long.MAX_VALUE;
     this.memStoreLAB = memStoreLAB;
     this.size = new AtomicLong(size);
     this.timeRangeTracker = new TimeRangeTracker();
@@ -61,6 +65,7 @@ public abstract class Segment {
   protected Segment(Segment segment) {
     this.cellSet = segment.getCellSet();
     this.comparator = segment.getComparator();
+    this.minSequenceId = segment.getMinSequenceId();
     this.memStoreLAB = segment.getMemStoreLAB();
     this.size = new AtomicLong(segment.getSize());
     this.timeRangeTracker = segment.getTimeRangeTracker();
@@ -190,6 +195,10 @@ public abstract class Segment {
     size.addAndGet(delta);
   }
 
+  public long getMinSequenceId() {
+    return minSequenceId;
+  }
+
   public TimeRangeTracker getTimeRangeTracker() {
     return timeRangeTracker;
   }
@@ -241,6 +250,7 @@ public abstract class Segment {
   protected void updateMetaInfo(Cell toAdd, long s) {
     getTimeRangeTracker().includeTimestamp(toAdd);
     size.addAndGet(s);
+    minSequenceId = Math.min(minSequenceId, toAdd.getSequenceId());
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
     // When we use ACL CP or Visibility CP which deals with Tags during
     // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
@@ -270,6 +280,24 @@ public abstract class Segment {
   void dump(Log log) {
     for (Cell cell: getCellSet()) {
       log.debug(cell);
+    }
+  }
+
+  void assertMinSequenceId(Log log) {
+    for (Cell cell: getCellSet()) {
+      if (cell.getSequenceId() == getMinSequenceId()) {
+        log.info("ESHCAR: cell with minimal sequence id is "+cell.toString()+", seqid="
+            + cell.getSequenceId());
+        return;
+      }
+    }
+    log.error("ESHCAR: no cell with minimal sequence id "+getMinSequenceId());
+  }
+
+  void assertCellType(Cell cell, Log log) {
+    if(KeyValue.Type.codeToType(cell.getTypeByte()) != KeyValue.Type.Put
+        && KeyValue.Type.codeToType(cell.getTypeByte()) != KeyValue.Type.Delete) {
+      log.info("Eshcar: cell="+cell.toString());
     }
   }
 
