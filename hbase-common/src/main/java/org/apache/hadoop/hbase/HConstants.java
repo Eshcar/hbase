@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hbase;
 
-import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -31,6 +29,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.util.Bytes;
+import static org.apache.hadoop.hbase.io.hfile.BlockType.MAGIC_LENGTH;
 
 /**
  * HConstants holds a bunch of HBase-related constants
