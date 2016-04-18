@@ -465,20 +465,6 @@ public class FSHLog extends AbstractFSWAL<Writer> {
   }
 
   /**
-   * updates the sequence number of a specific store.
-   * depending on the flag: replaces current seq number if the given seq id is bigger,
-   * or even if it is lower than existing one
-   *  @param encodedRegionName
-   * @param familyName
-   * @param sequenceid
-   * @param onlyIfGreater
-   */
-  @Override public void updateStore(byte[] encodedRegionName, byte[] familyName, Long sequenceid,
-      boolean onlyIfGreater) {
-    sequenceIdAccounting.updateStore(encodedRegionName,familyName,sequenceid,onlyIfGreater);
-  }
-
-  /**
    * Thread to runs the hdfs sync call. This call takes a while to complete. This is the longest
    * pole adding edits to the WAL and this must complete to be sure all edits persisted. We run
    * multiple threads sync'ng rather than one that just syncs in series so we have better latencies;
