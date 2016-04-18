@@ -162,7 +162,7 @@ public class DefaultMemStore extends AbstractMemStore {
   public void finalizeFlush() {
   }
 
-  @Override public boolean isCompactingMemStore() {
+  @Override public boolean isSloppy() {
     return false;
   }
 

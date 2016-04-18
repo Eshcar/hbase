@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,8 +33,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.executor.EventHandler;
@@ -60,17 +59,20 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+  // The in-memory flush threshold is set to be more-or-less the same as the lower bound defined
+  // for collecting large stores in the flush-large-stores-policy.
+  // This factor defines "more-or-less".
   public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
-  private HStore store;
+  private Store store;
   private RegionServicesForStores regionServices;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   // the threshold on active size for in-memory flush
   private long flushSizeLowerBound;
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
-  // A flag for tests only
+  @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
@@ -84,34 +86,17 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private void initFlushSizeLowerBound(Configuration conf) {
-    String flushedSizeLowerBoundString =
-        getRegionServices().getTableDesc().getValue(FlushLargeStoresPolicy
-            .HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND);
-    if (flushedSizeLowerBoundString == null) {
-      flushSizeLowerBound =
-          conf.getLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
-              FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
-      if (LOG.isDebugEnabled()) {
-        LOG.debug(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND
-            + " is not specified, use global config(" + flushSizeLowerBound + ") instead");
-      }
-    } else {
-      try {
-        flushSizeLowerBound = Long.parseLong(flushedSizeLowerBoundString);
-      } catch (NumberFormatException nfe) {
-        flushSizeLowerBound =
-            conf.getLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
-                FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
-        LOG.warn("Number format exception when parsing "
-            + FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND + " for table "
-            + getRegionServices().getTableDesc().getTableName() + ":" + flushedSizeLowerBoundString
-            + ". " + nfe + ", use global config(" + flushSizeLowerBound + ") instead");
-      }
+    flushSizeLowerBound =
+        conf.getLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
+            FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND
+          + " is not specified, use global config(" + flushSizeLowerBound + ") instead");
     }
-    // finally multiply by a factor
+    // multiply by a factor
     flushSizeLowerBound *= IN_MEMORY_FLUSH_THRESHOLD_FACTOR;
     LOG.info("Setting in-memory flush size threshold for table "
-        + getRegionServices().getTableDesc().getTableName()
+        + getRegionServices().getRegionInfo().getTable()
         + "to " + flushSizeLowerBound);
   }
 
@@ -150,7 +135,7 @@ public class CompactingMemStore extends AbstractMemStore {
     updateLowestUnflushedSequenceIdInWal(false);
   }
 
-  @Override public boolean isCompactingMemStore() {
+  @Override public boolean isSloppy() {
     return true;
   }
 
@@ -172,7 +157,7 @@ public class CompactingMemStore extends AbstractMemStore {
     } else {
       LOG.info("FLUSHING TO DISK: region "+ getRegionServices().getRegionInfo()
           .getRegionNameAsString() + "store: "+ getFamilyName());
-      stopCompact();
+      stopCompaction();
       pushActiveToPipeline(active);
       snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
@@ -255,6 +240,7 @@ public class CompactingMemStore extends AbstractMemStore {
         LOG.info("Dispatching the MemStore in-memory flush for store "
             + store.getColumnFamilyName());
         pool.submit(worker);
+        // guard against queuing same old compactions over and over again
         inMemoryFlushInProgress.set(true);
       }
     }
@@ -282,7 +268,7 @@ public class CompactingMemStore extends AbstractMemStore {
         inMemoryFlushInProgress.set(true);
         // Speculative compaction execution, may be interrupted if flush is forced while
         // compaction is in progress
-        compactor.startCompact();
+        compactor.startCompaction();
       }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
@@ -317,7 +303,7 @@ public class CompactingMemStore extends AbstractMemStore {
    * The compaction may still happen if the request was sent too late
    * Non-blocking request
    */
-  private void stopCompact() {
+  private void stopCompaction() {
     if (inMemoryFlushInProgress.get()) {
       compactor.stopCompact();
       inMemoryFlushInProgress.set(false);
@@ -348,10 +334,10 @@ public class CompactingMemStore extends AbstractMemStore {
 
 
 
-  /*----------------------------------------------------------------------
+  /**
   * The in-memory-flusher thread performs the flush asynchronously.
   * There is at most one thread per memstore instance.
-  * It takes the updatesLock exclusively, pushes active into the pipeline,
+  * It takes the updatesLock exclusively, pushes active into the pipeline, releases updatesLock
   * and compacts the pipeline.
   */
   private class InMemoryFlushWorker extends EventHandler {
@@ -389,13 +375,12 @@ public class CompactingMemStore extends AbstractMemStore {
     private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
     /**
-     * ----------------------------------------------------------------------
      * The request to dispatch the compaction asynchronous task.
      * The method returns true if compaction was successfully dispatched, or false if there
      *
      * is already an ongoing compaction (or pipeline is empty).
      */
-    public boolean startCompact() throws IOException {
+    public boolean startCompaction() throws IOException {
       if (pipeline.isEmpty()) return false;             // no compaction on empty pipeline
 
       List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
@@ -418,11 +403,11 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.info("Starting the MemStore in-memory compaction for store " +
           store.getColumnFamilyName());
 
-      doCompact();
+      doCompaction();
       return true;
     }
 
-    /*----------------------------------------------------------------------
+    /**
     * The request to cancel the compaction asynchronous task
     * The compaction may still happen if the request was sent too late
     * Non-blocking request
@@ -432,7 +417,7 @@ public class CompactingMemStore extends AbstractMemStore {
     }
 
 
-    /*----------------------------------------------------------------------
+    /**
     * Close the scanners and clear the pointers in order to allow good
     * garbage collection
     */
@@ -445,12 +430,12 @@ public class CompactingMemStore extends AbstractMemStore {
       versionedList = null;
     }
 
-    /*----------------------------------------------------------------------
+    /**
     * The worker thread performs the compaction asynchronously.
     * The solo (per compactor) thread only reads the compaction pipeline.
     * There is at most one thread per memstore instance.
     */
-    private void doCompact() {
+    private void doCompaction() {
 
       ImmutableSegment result = SegmentFactory.instance()  // create the scanner
           .createImmutableSegment(getConfiguration(), getComparator(),

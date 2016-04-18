@@ -143,5 +143,6 @@ public interface MemStore extends HeapSize {
    */
   void finalizeFlush();
 
-  boolean isCompactingMemStore();
+  /* Return true if the memstore may need some extra memory space*/
+  boolean isSloppy();
 }

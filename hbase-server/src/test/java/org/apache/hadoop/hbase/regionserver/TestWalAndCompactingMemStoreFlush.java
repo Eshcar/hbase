@@ -149,7 +149,7 @@ public class TestWalAndCompactingMemStoreFlush {
     // Set up the configuration
     Configuration conf = HBaseConfiguration.create();
     conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 200 * 1024);
-    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushNonCompactingStoresFirstPolicy.class.getName());
+    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushNonSloppyStoresFirstPolicy.class.getName());
     conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 100 * 1024);
 
     // Intialize the region
@@ -191,11 +191,11 @@ public class TestWalAndCompactingMemStoreFlush {
     String s = "\n\n----------------------------------\n"
         + "Upon initial insert and before any flush, size of CF1 is:"
         + cf1MemstoreSizePhaseI + ", is CF1 compacted memstore?:"
-        + region.getStore(FAMILY1).getMemStore().isCompactingMemStore() + ". Size of CF2 is:"
+        + region.getStore(FAMILY1).getMemStore().isSloppy() + ". Size of CF2 is:"
         + cf2MemstoreSizePhaseI + ", is CF2 compacted memstore?:"
-        + region.getStore(FAMILY2).getMemStore().isCompactingMemStore() + ". Size of CF3 is:"
+        + region.getStore(FAMILY2).getMemStore().isSloppy() + ". Size of CF3 is:"
         + cf3MemstoreSizePhaseI + ", is CF3 compacted memstore?:"
-        + region.getStore(FAMILY3).getMemStore().isCompactingMemStore() + "\n";
+        + region.getStore(FAMILY3).getMemStore().isSloppy() + "\n";
 
     // The overall smallest LSN in the region's memstores should be the same as
     // the LSN of the smallest edit in CF1
@@ -392,7 +392,7 @@ public class TestWalAndCompactingMemStoreFlush {
     // Set up the configuration
     Configuration conf = HBaseConfiguration.create();
     conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 200 * 1024);
-    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushNonCompactingStoresFirstPolicy.class
+    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushNonSloppyStoresFirstPolicy.class
         .getName());
     conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 100 * 1024);
 

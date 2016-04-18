@@ -19,7 +19,6 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.wal.WAL;
@@ -51,10 +50,6 @@ public class RegionServicesForStores {
 
   public long addAndGetGlobalMemstoreSize(long size) {
     return region.addAndGetGlobalMemstoreSize(size);
-  }
-
-  public HTableDescriptor getTableDesc() {
-    return region.getTableDesc();
   }
 
   public HRegionInfo getRegionInfo() {

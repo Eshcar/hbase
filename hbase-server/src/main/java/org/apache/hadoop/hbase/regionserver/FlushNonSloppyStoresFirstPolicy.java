@@ -21,28 +21,28 @@ import java.util.Collection;
 import java.util.HashSet;
 
 /**
- * A {@link FlushPolicy} that only flushes store larger a given threshold. If no store is large
+ * A {@link FlushPolicy} that only flushes store larger than a given threshold. If no store is large
  * enough, then all stores will be flushed.
- * Gives priority to selecting stores with non-compacting memstores first, and only if no other
- * option, selects compacting memstores.
+ * Gives priority to selecting regular stores first, and only if no other
+ * option, selects sloppy stores which normaly require more memory.
  */
-public class FlushNonCompactingStoresFirstPolicy extends FlushLargeStoresPolicy {
+public class FlushNonSloppyStoresFirstPolicy extends FlushLargeStoresPolicy {
 
-  private Collection<Store> nonCompactingStores = new HashSet<>();
-  private Collection<Store> compactingStores = new HashSet<>();
+  private Collection<Store> regularStores = new HashSet<>();
+  private Collection<Store> sloppyStores = new HashSet<>();
 
   /**
    * @return the stores need to be flushed.
    */
   @Override public Collection<Store> selectStoresToFlush() {
     Collection<Store> specificStoresToFlush = new HashSet<Store>();
-    for(Store store : nonCompactingStores) {
+    for(Store store : regularStores) {
       if(shouldFlush(store) || region.shouldFlushStore(store)) {
         specificStoresToFlush.add(store);
       }
     }
     if(!specificStoresToFlush.isEmpty()) return specificStoresToFlush;
-    for(Store store : compactingStores) {
+    for(Store store : sloppyStores) {
       if(shouldFlush(store)) {
         specificStoresToFlush.add(store);
       }
@@ -56,10 +56,10 @@ public class FlushNonCompactingStoresFirstPolicy extends FlushLargeStoresPolicy 
     super.configureForRegion(region);
     this.flushSizeLowerBound = getFlushSizeLowerBound(region);
     for(Store store : region.stores.values()) {
-      if(store.getMemStore().isCompactingMemStore()) {
-        compactingStores.add(store);
+      if(store.getMemStore().isSloppy()) {
+        sloppyStores.add(store);
       } else {
-        nonCompactingStores.add(store);
+        regularStores.add(store);
       }
     }
   }

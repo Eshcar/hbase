@@ -210,7 +210,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * defining a durability or using USE_DEFAULT will default to this value.
    */
   private static final Durability DEFAULT_DURABILITY = Durability.SYNC_WAL;
-  private static final double FLUSH_SIZE_WEIGHT = 0.5;
 
   final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -918,15 +917,15 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         });
       }
       boolean allStoresOpened = false;
-      boolean hasCompactingStore = false;
+      boolean hasSloppyStores = false;
       try {
         for (int i = 0; i < htableDescriptor.getFamilies().size(); i++) {
           Future<HStore> future = completionService.take();
           HStore store = future.get();
           this.stores.put(store.getFamily().getName(), store);
           MemStore memStore = store.getMemStore();
-          if(memStore != null && memStore.isCompactingMemStore()) {
-            hasCompactingStore = true;
+          if(memStore != null && memStore.isSloppy()) {
+            hasSloppyStores = true;
           }
 
           long storeMaxSequenceId = store.getMaxSequenceId();
@@ -941,13 +940,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           }
         }
         allStoresOpened = true;
-        if(hasCompactingStore) {
-          double alpha = FLUSH_SIZE_WEIGHT;
-          this.memstoreFlushSize =
-              (long)(alpha*memstoreFlushSize + (1-alpha)*blockingMemStoreSize);
-          LOG.info("Increasing memstore flush size to "+memstoreFlushSize +" for the region="
-              + this);
-          htableDescriptor.setFlushPolicyClassName(FlushNonCompactingStoresFirstPolicy.class
+        if(hasSloppyStores) {
+          htableDescriptor.setFlushPolicyClassName(FlushNonSloppyStoresFirstPolicy.class
               .getName());
         }
       } catch (InterruptedException e) {
