@@ -18,9 +18,14 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.util.StealJobQueue;
 import org.apache.hadoop.hbase.wal.WAL;
 
 /**
@@ -34,6 +39,20 @@ import org.apache.hadoop.hbase.wal.WAL;
 @InterfaceStability.Evolving
 public class RegionServicesForStores {
 
+  private static final int POOL_SIZE = 10;
+  private static final ThreadPoolExecutor INMEMORY_COMPACTION_POOL =
+      new ThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 60, TimeUnit.SECONDS,
+          new StealJobQueue<Runnable>().getStealFromQueue(),
+          new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+              Thread t = new Thread(r);
+              t.setName(Thread.currentThread().getName()
+                  + "-inmemoryCompactions-"
+                  + System.currentTimeMillis());
+              return t;
+            }
+          });
   private final HRegion region;
 
   public RegionServicesForStores(HRegion region) {
@@ -60,9 +79,7 @@ public class RegionServicesForStores {
     return region.getWAL();
   }
 
-  public RegionServerServices getRegionServerServices() {
-    return region.getRegionServerServices();
-  }
+  public ThreadPoolExecutor getInmemoryCompactionPool() { return INMEMORY_COMPACTION_POOL; }
 
   // methods for tests
   long getGlobalMemstoreTotalSize() {

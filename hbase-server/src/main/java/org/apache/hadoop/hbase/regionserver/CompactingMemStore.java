@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
@@ -31,9 +32,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.executor.EventHandler;
-import org.apache.hadoop.hbase.executor.EventType;
-import org.apache.hadoop.hbase.executor.ExecutorService;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -258,15 +256,11 @@ public class CompactingMemStore extends AbstractMemStore {
       * on the same thread, because for flush-in-memory we require updatesLock
       * in exclusive mode while this method (checkActiveSize) is invoked holding updatesLock
       * in the shared mode. */
-      ExecutorService pool = getPool();
-      if(pool != null) { // the pool can be null in some tests scenarios
-        InMemoryFlushWorker worker = new InMemoryFlushWorker();
-        LOG.info("Dispatching the MemStore in-memory flush for store "
-            + store.getColumnFamilyName());
-        pool.submit(worker);
-        // guard against queuing same old compactions over and over again
-        inMemoryFlushInProgress.set(true);
-      }
+      InMemoryFlushRunnable runnable = new InMemoryFlushRunnable();
+      LOG.info("Dispatching the MemStore in-memory flush for store " + store.getColumnFamilyName());
+      getPool().execute(runnable);
+      // guard against queuing same old compactions over and over again
+      inMemoryFlushInProgress.set(true);
     }
   }
 
@@ -306,9 +300,8 @@ public class CompactingMemStore extends AbstractMemStore {
     return store.getFamily().getName();
   }
 
-  private ExecutorService getPool() {
-    RegionServerServices rs = getRegionServices().getRegionServerServices();
-    return (rs != null) ? rs.getExecutorService() : null;
+  private ThreadPoolExecutor getPool() {
+    return getRegionServices().getInmemoryCompactionPool();
   }
 
   private boolean shouldFlushInMemory() {
@@ -359,16 +352,16 @@ public class CompactingMemStore extends AbstractMemStore {
   * It takes the updatesLock exclusively, pushes active into the pipeline, releases updatesLock
   * and compacts the pipeline.
   */
-  private class InMemoryFlushWorker extends EventHandler {
+  private class InMemoryFlushRunnable implements Runnable {
 
-    public InMemoryFlushWorker () {
-      super(getRegionServices().getRegionServerServices(),
-          EventType.RS_IN_MEMORY_FLUSH_AND_COMPACTION);
-    }
-
-    @Override
-    public void process() throws IOException {
-      flushInMemory();
+    @Override public void run() {
+      try {
+        flushInMemory();
+      } catch (IOException e) {
+        LOG.warn("Unable to run memstore compaction. region "
+            + getRegionServices().getRegionInfo().getRegionNameAsString()
+            + "store: "+ getFamilyName(), e);
+      }
     }
   }
 
