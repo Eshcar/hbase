@@ -148,9 +148,10 @@ public class TestWalAndCompactingMemStoreFlush {
 
     // Set up the configuration
     Configuration conf = HBaseConfiguration.create();
-    conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 200 * 1024);
+    conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 600 * 1024);
     conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushNonSloppyStoresFirstPolicy.class.getName());
-    conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 100 * 1024);
+    conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 300 *
+        1024);
 
     // Intialize the region
     Region region = initHRegion("testSelectiveFlushWhenEnabled", conf);
@@ -168,7 +169,7 @@ public class TestWalAndCompactingMemStoreFlush {
     }
 
     // Now add more puts for CF2, so that we only flush CF2 to disk
-    for (int i = 100; i < 1200; i++) {
+    for (int i = 100; i < 2000; i++) {
       region.put(createPut(2, i));
     }
 
@@ -210,8 +211,14 @@ public class TestWalAndCompactingMemStoreFlush {
 
     // The total memstore size should be the same as the sum of the sizes of
     // memstores of CF1, CF2 and CF3.
-    assertEquals(totalMemstoreSize + 3 * DefaultMemStore.DEEP_OVERHEAD, cf1MemstoreSizePhaseI
-        + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
+    String msg = "totalMemstoreSize="+totalMemstoreSize +
+        " DefaultMemStore.DEEP_OVERHEAD="+DefaultMemStore.DEEP_OVERHEAD +
+        " DEEP_OVERHEAD_PER_PIPELINE_ITEM="+CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM +
+        " cf1MemstoreSizePhaseI="+cf1MemstoreSizePhaseI +
+        " cf2MemstoreSizePhaseI="+cf2MemstoreSizePhaseI +
+        " cf3MemstoreSizePhaseI="+cf3MemstoreSizePhaseI ;
+    assertEquals(msg,totalMemstoreSize + 3 * DefaultMemStore.DEEP_OVERHEAD,
+        cf1MemstoreSizePhaseI + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     // Flush!!!!!!!!!!!!!!!!!!!!!!
     // We have big compacting memstore CF1 and two small memstores:
@@ -257,8 +264,10 @@ public class TestWalAndCompactingMemStoreFlush {
     // CF2 should become empty
     assertEquals(DefaultMemStore.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
 
-    // verify that CF3 was flushed to memory and was compacted (this is aproximation check)
-    assertTrue(cf3MemstoreSizePhaseI/2+DefaultMemStore.DEEP_OVERHEAD > cf3MemstoreSizePhaseII);
+    // verify that CF3 was flushed to memory and was compacted (this is approximation check)
+    assertTrue(cf3MemstoreSizePhaseI/2+DefaultMemStore.DEEP_OVERHEAD +
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM >
+        cf3MemstoreSizePhaseII);
     assertTrue(cf3MemstoreSizePhaseI/2 < cf3MemstoreSizePhaseII);
 
 
@@ -268,7 +277,7 @@ public class TestWalAndCompactingMemStoreFlush {
 
     // Now add more puts for CF1, so that we also flush CF1 to disk instead of
     // memory in next flush
-    for (int i = 1200; i < 3600; i++) {
+    for (int i = 1200; i < 2000; i++) {
       region.put(createPut(1, i));
     }
 
@@ -286,7 +295,7 @@ public class TestWalAndCompactingMemStoreFlush {
 
 
     // Flush!!!!!!!!!!!!!!!!!!!!!!
-    // Flush again, CF1 is flushed to memory and its pipeline element is flushed to disk
+    // Flush again, CF1 is flushed to disk
     // CF2 is flushed to disk, because it is not in-memory compacted memstore
     // CF3 is flushed empty to memory (actually nothing happens to CF3)
     region.flush(false);
@@ -313,7 +322,7 @@ public class TestWalAndCompactingMemStoreFlush {
         + "\n";
 
     // CF1's pipeline component (inserted before first flush) should be flushed to disk
-    // and previous active set flushed to the memory. CF2 should be flushed to disk
+    // CF2 should be flushed to disk
     assertEquals(cf1MemstoreSizePhaseIII - cf1MemstoreSizePhaseI + DefaultMemStore.DEEP_OVERHEAD,
         cf1MemstoreSizePhaseIV);
     assertEquals(DefaultMemStore.DEEP_OVERHEAD, cf2MemstoreSizePhaseIV);
@@ -324,9 +333,8 @@ public class TestWalAndCompactingMemStoreFlush {
     // the smallest LSN of CF3 shouldn't change
     assertEquals(smallestSeqCF3PhaseII, smallestSeqCF3PhaseIV);
 
-    // CF1 or CF3 should be bottleneck for WAL
-     assertEquals(s, smallestSeqInRegionCurrentMemstorePhaseIV,
-      ((smallestSeqCF1PhaseIV<smallestSeqCF3PhaseIV)?smallestSeqCF1PhaseIV:smallestSeqCF3PhaseIV));
+    // CF3 should be bottleneck for WAL
+     assertEquals(s, smallestSeqInRegionCurrentMemstorePhaseIV, smallestSeqCF3PhaseIV);
 
     // Flush!!!!!!!!!!!!!!!!!!!!!!
     // Clearing the existing memstores, CF2 all flushed to disk. The single
@@ -391,10 +399,11 @@ public class TestWalAndCompactingMemStoreFlush {
   public void testSelectiveFlushWhenEnabledAndWALinCompaction() throws IOException {
     // Set up the configuration
     Configuration conf = HBaseConfiguration.create();
-    conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 200 * 1024);
+    conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 600 * 1024);
     conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY, FlushNonSloppyStoresFirstPolicy.class
         .getName());
-    conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 100 * 1024);
+    conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 300 *
+        1024);
 
     // Intialize the HRegion
     HRegion region = initHRegion("testSelectiveFlushWhenNotEnabled", conf);
@@ -409,7 +418,7 @@ public class TestWalAndCompactingMemStoreFlush {
       }
     }
     // Now add more puts for CF2, so that we only flush CF2 to disk
-    for (int i = 100; i < 1200; i++) {
+    for (int i = 100; i < 2000; i++) {
       region.put(createPut(2, i));
     }
 
@@ -427,7 +436,13 @@ public class TestWalAndCompactingMemStoreFlush {
 
     // The total memstore size should be the same as the sum of the sizes of
     // memstores of CF1, CF2 and CF3.
-    assertEquals(totalMemstoreSize + 3 * DefaultMemStore.DEEP_OVERHEAD,
+    String msg = "totalMemstoreSize="+totalMemstoreSize +
+        " DefaultMemStore.DEEP_OVERHEAD="+DefaultMemStore.DEEP_OVERHEAD +
+        " DEEP_OVERHEAD_PER_PIPELINE_ITEM="+CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM +
+        " cf1MemstoreSizePhaseI="+cf1MemstoreSizePhaseI +
+        " cf2MemstoreSizePhaseI="+cf2MemstoreSizePhaseI +
+        " cf3MemstoreSizePhaseI="+cf3MemstoreSizePhaseI ;
+    assertEquals(msg, totalMemstoreSize + 3 * DefaultMemStore.DEEP_OVERHEAD,
         cf1MemstoreSizePhaseI + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     // Flush!
@@ -471,7 +486,7 @@ public class TestWalAndCompactingMemStoreFlush {
       }
     }
     // Now add more puts for CF2, so that we only flush CF2 to disk
-    for (int i = 100; i < 1200; i++) {
+    for (int i = 100; i < 2000; i++) {
       region.put(createPut(2, i));
     }
 

@@ -64,7 +64,7 @@ public abstract class AbstractMemStore implements MemStore {
           (2 * Bytes.SIZEOF_LONG));
 
   public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
-      2 * (ClassSize.ATOMIC_LONG + ClassSize.TIMERANGE_TRACKER +
+      (ClassSize.ATOMIC_LONG + ClassSize.TIMERANGE_TRACKER +
       ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP));
 
 
@@ -164,7 +164,7 @@ public abstract class AbstractMemStore implements MemStore {
   /**
    * The passed snapshot was successfully persisted; it can be let go.
    * @param id Id of the snapshot to clean out.
-   * @see MemStore#snapshot(long)
+   * @g MemStore#snapshot()
    */
   @Override
   public void clearSnapshot(long id) throws UnexpectedStateException {
