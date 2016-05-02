@@ -53,10 +53,9 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER + ClassSize.TIMERANGE +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
-  // The in-memory flush threshold is set to be more-or-less the same as the lower bound defined
-  // for collecting large stores in the flush-large-stores-policy.
-  // This factor defines "more-or-less".
-  public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
+  // This factor defines the fraction of the in-memory-flush w.r.t. flush-to-disk memstore size
+  // It is not final as tests may change it
+  public static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.25;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private Store store;
