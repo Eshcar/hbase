@@ -64,7 +64,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
   // the threshold on active size for in-memory flush
-  private long flushSizeLowerBound;
+  private long inmemoryFlushSize;
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
@@ -76,22 +76,20 @@ public class CompactingMemStore extends AbstractMemStore {
     this.regionServices = regionServices;
     this.pipeline = new CompactionPipeline(getRegionServices());
     this.compactor = new MemStoreCompactor(this);
-    initFlushSizeLowerBound(conf);
+    initInmemoryFlushSize();
   }
 
-  private void initFlushSizeLowerBound(Configuration conf) {
-    flushSizeLowerBound =
-        conf.getLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
-            FlushLargeStoresPolicy.DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
-    if (LOG.isDebugEnabled()) {
-      LOG.debug(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND
-          + " is not specified, use global config(" + flushSizeLowerBound + ") instead");
+  private void initInmemoryFlushSize() {
+    long memstoreFlushSize = getRegionServices().getMemstoreFlushSize();
+    int numStores = getRegionServices().getNumStores();
+    if (numStores <= 1) {
+      // Family number might also be zero in some of our unit test case
+      numStores = 1;
     }
+    inmemoryFlushSize = memstoreFlushSize / numStores;
     // multiply by a factor
-    flushSizeLowerBound *= IN_MEMORY_FLUSH_THRESHOLD_FACTOR;
-    LOG.info("Setting in-memory flush size threshold for table "
-        + getRegionServices().getRegionInfo().getTable()
-        + "to " + flushSizeLowerBound);
+    inmemoryFlushSize *= IN_MEMORY_FLUSH_THRESHOLD_FACTOR;
+    LOG.debug("Setting in-memory flush size threshold to " + inmemoryFlushSize);
   }
 
   public static long getSegmentSize(Segment segment) {
@@ -301,11 +299,11 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private ThreadPoolExecutor getPool() {
-    return getRegionServices().getInmemoryCompactionPool();
+    return getRegionServices().getInMemoryCompactionPool();
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > flushSizeLowerBound) {
+    if(getActive().getSize() > inmemoryFlushSize) {
       // size above flush threshold
       return (allowCompaction.get() && !inMemoryFlushInProgress.get());
     }
@@ -401,7 +399,7 @@ public class CompactingMemStore extends AbstractMemStore {
   // debug method
   private void debug() {
     String msg = "active size="+getActive().getSize();
-    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR*flushSizeLowerBound;
+    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR* inmemoryFlushSize;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
     msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
     LOG.debug(msg);
