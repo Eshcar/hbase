@@ -164,7 +164,7 @@ public abstract class AbstractMemStore implements MemStore {
   /**
    * The passed snapshot was successfully persisted; it can be let go.
    * @param id Id of the snapshot to clean out.
-   * @g MemStore#snapshot()
+   * @see MemStore#snapshot()
    */
   @Override
   public void clearSnapshot(long id) throws UnexpectedStateException {

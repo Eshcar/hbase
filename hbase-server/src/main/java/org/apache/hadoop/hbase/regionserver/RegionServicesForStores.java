@@ -79,7 +79,15 @@ public class RegionServicesForStores {
     return region.getWAL();
   }
 
-  public ThreadPoolExecutor getInmemoryCompactionPool() { return INMEMORY_COMPACTION_POOL; }
+  public ThreadPoolExecutor getInMemoryCompactionPool() { return INMEMORY_COMPACTION_POOL; }
+
+  public long getMemstoreFlushSize() {
+    return region.getMemstoreFlushSize();
+  }
+
+  public int getNumStores() {
+    return region.getStores().size();
+  }
 
   // methods for tests
   long getGlobalMemstoreTotalSize() {
