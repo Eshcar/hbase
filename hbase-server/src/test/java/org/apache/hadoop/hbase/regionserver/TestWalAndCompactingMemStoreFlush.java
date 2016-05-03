@@ -153,7 +153,7 @@ public class TestWalAndCompactingMemStoreFlush {
         .getName());
     conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 300 *
         1024);
-    CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.5;
+    conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.5);
 
     // Intialize the region
     Region region = initHRegion("testSelectiveFlushWhenEnabled", conf);
@@ -406,7 +406,7 @@ public class TestWalAndCompactingMemStoreFlush {
         .getName());
     conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 300 *
         1024);
-    CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.5;
+    conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.5);
 
     // Intialize the HRegion
     HRegion region = initHRegion("testSelectiveFlushWhenNotEnabled", conf);
