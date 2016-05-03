@@ -53,9 +53,10 @@ public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER + ClassSize.TIMERANGE +
           ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
-  // This factor defines the fraction of the in-memory-flush w.r.t. flush-to-disk memstore size
-  // It is not final as tests may change it
-  public static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.25;
+  // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
+  public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
+      "hbase.memestore.inmemoryflush.threshold.factor";
+  private static final double IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT = 0.25;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private Store store;
@@ -75,10 +76,10 @@ public class CompactingMemStore extends AbstractMemStore {
     this.regionServices = regionServices;
     this.pipeline = new CompactionPipeline(getRegionServices());
     this.compactor = new MemStoreCompactor(this);
-    initInmemoryFlushSize();
+    initInmemoryFlushSize(conf);
   }
 
-  private void initInmemoryFlushSize() {
+  private void initInmemoryFlushSize(Configuration conf) {
     long memstoreFlushSize = getRegionServices().getMemstoreFlushSize();
     int numStores = getRegionServices().getNumStores();
     if (numStores <= 1) {
@@ -87,7 +88,9 @@ public class CompactingMemStore extends AbstractMemStore {
     }
     inmemoryFlushSize = memstoreFlushSize / numStores;
     // multiply by a factor
-    inmemoryFlushSize *= IN_MEMORY_FLUSH_THRESHOLD_FACTOR;
+    double factor =  conf.getDouble(IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY,
+        IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT);
+    inmemoryFlushSize *= factor;
     LOG.debug("Setting in-memory flush size threshold to " + inmemoryFlushSize);
   }
 
@@ -398,7 +401,7 @@ public class CompactingMemStore extends AbstractMemStore {
   // debug method
   private void debug() {
     String msg = "active size="+getActive().getSize();
-    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR* inmemoryFlushSize;
+    msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT* inmemoryFlushSize;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");
     msg += " inMemoryFlushInProgress is "+ (inMemoryFlushInProgress.get() ? "true" : "false");
     LOG.debug(msg);
