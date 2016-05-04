@@ -262,8 +262,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
       DEFAULT_VALUES.put(TTL, String.valueOf(DEFAULT_TTL));
       DEFAULT_VALUES.put(BLOCKSIZE, String.valueOf(DEFAULT_BLOCKSIZE));
       DEFAULT_VALUES.put(HConstants.IN_MEMORY, String.valueOf(DEFAULT_IN_MEMORY));
-      DEFAULT_VALUES.put(IN_MEMORY_COMPACTION, String.valueOf(
-          DEFAULT_IN_MEMORY_COMPACTION));
+      DEFAULT_VALUES.put(IN_MEMORY_COMPACTION, String.valueOf(DEFAULT_IN_MEMORY_COMPACTION));
       DEFAULT_VALUES.put(BLOCKCACHE, String.valueOf(DEFAULT_BLOCKCACHE));
       DEFAULT_VALUES.put(KEEP_DELETED_CELLS, String.valueOf(DEFAULT_KEEP_DELETED));
       DEFAULT_VALUES.put(DATA_BLOCK_ENCODING, String.valueOf(DEFAULT_DATA_BLOCK_ENCODING));
@@ -714,11 +713,10 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    */
   @VisibleForTesting
   public HColumnDescriptor setMemStoreClass(String className) {
-
     if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactingMemStore")) {
       return setValue(IN_MEMORY_COMPACTION, Boolean.toString(true));
     }
-    else return setValue(IN_MEMORY_COMPACTION, Boolean.toString(false));
+    return setValue(IN_MEMORY_COMPACTION, Boolean.toString(false));
   }
 
   public KeepDeletedCells getKeepDeletedCells() {
