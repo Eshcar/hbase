@@ -79,6 +79,8 @@ public class CellChunkMap extends CellFlatMap {
 
   @Override
   protected Cell getCell(int i) {
+    if(i<minCellIdx && i>=maxCellIdx) return null;
+    
     // find correct chunk
     int chunkIndex = (i / numOfCellsInsideChunk);
     byte[] block = chunks[chunkIndex].getData();

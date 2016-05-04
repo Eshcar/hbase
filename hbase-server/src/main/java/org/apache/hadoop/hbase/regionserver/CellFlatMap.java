@@ -43,8 +43,8 @@ import java.util.Set;
 public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   private final Comparator<? super Cell> comparator;
-  private int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
-  private int maxCellIdx   = 0;   // the index of the maximal cell (for sub-sets)
+  protected int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
+  protected int maxCellIdx   = 0;   // the index of the maximal cell (for sub-sets)
   private boolean descending = false;
 
   /* C-tor */

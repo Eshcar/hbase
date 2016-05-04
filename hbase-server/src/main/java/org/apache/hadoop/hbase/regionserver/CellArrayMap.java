@@ -23,7 +23,7 @@ import java.util.Comparator;
 import org.apache.hadoop.hbase.Cell;
 
 /**
- * CellArrayMap is a simple array of Cells and can be allocated only using JVM.
+ * CellArrayMap is a simple array of Cells and can be allocated only using on-heap.
  * In contrast, CellChunkMap can be also allocated off-heap.
  * As all java arrays CellArrayMap's array of references pointing to Cell objects.
  */
@@ -47,6 +47,7 @@ public class CellArrayMap extends CellFlatMap {
 
   @Override
   protected Cell getCell(int i) {
+    if(i<minCellIdx && i>=maxCellIdx) return null;
     return block[i];
   }
 }
