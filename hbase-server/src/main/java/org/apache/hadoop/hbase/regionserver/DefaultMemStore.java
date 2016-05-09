@@ -136,7 +136,7 @@ public class DefaultMemStore extends AbstractMemStore {
         getNextRow(cell, getSnapshot().getCellSet()));
   }
 
-  @Override public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfMoreRecent) {
+  @Override public void updateLowestUnflushedSequenceIdInWAL(boolean onlyIfMoreRecent) {
   }
 
   /**

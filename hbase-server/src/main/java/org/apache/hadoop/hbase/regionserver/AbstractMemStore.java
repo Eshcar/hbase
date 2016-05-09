@@ -99,7 +99,7 @@ public abstract class AbstractMemStore implements MemStore {
    * @param onlyIfMoreRecent a flag that marks whether to update the sequence id no matter what or
    *                      only if it is greater than the previous sequence id
    */
-  public abstract void updateLowestUnflushedSequenceIdInWal(boolean onlyIfMoreRecent);
+  public abstract void updateLowestUnflushedSequenceIdInWAL(boolean onlyIfMoreRecent);
 
   /**
    * Write an update

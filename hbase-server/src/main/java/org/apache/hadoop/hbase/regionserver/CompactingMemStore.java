@@ -123,10 +123,10 @@ public class CompactingMemStore extends AbstractMemStore {
   /**
    * This method is called when it is clear that the flush to disk is completed.
    * The store may do any post-flush actions at this point.
-   * One example is to update the wal with sequence number that is known only at the store level.
+   * One example is to update the WAL with sequence number that is known only at the store level.
    */
   @Override public void finalizeFlush() {
-    updateLowestUnflushedSequenceIdInWal(false);
+    updateLowestUnflushedSequenceIdInWAL(false);
   }
 
   @Override public boolean isSloppy() {
@@ -173,14 +173,14 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @Override
-  public void updateLowestUnflushedSequenceIdInWal(boolean onlyIfGreater) {
+  public void updateLowestUnflushedSequenceIdInWAL(boolean onlyIfGreater) {
     long minSequenceId = pipeline.getMinSequenceId();
     if(minSequenceId != Long.MAX_VALUE) {
       byte[] encodedRegionName = getRegionServices().getRegionInfo().getEncodedNameAsBytes();
       byte[] familyName = getFamilyNameInByte();
-      WAL wal = getRegionServices().getWAL();
-      if (wal != null) {
-        wal.updateStore(encodedRegionName, familyName, minSequenceId, onlyIfGreater);
+      WAL WAL = getRegionServices().getWAL();
+      if (WAL != null) {
+        WAL.updateStore(encodedRegionName, familyName, minSequenceId, onlyIfGreater);
       }
     }
   }

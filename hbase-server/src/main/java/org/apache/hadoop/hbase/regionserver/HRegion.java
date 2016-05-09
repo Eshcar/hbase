@@ -950,6 +950,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         if(hasSloppyStores) {
           htableDescriptor.setFlushPolicyClassName(FlushNonSloppyStoresFirstPolicy.class
               .getName());
+          LOG.info("Setting FlushNonSloppyStoresFirstPolicy for the region=" + this);
         }
       } catch (InterruptedException e) {
         throw (InterruptedIOException)new InterruptedIOException().initCause(e);
@@ -1467,22 +1468,30 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       LOG.debug("Updates disabled for region " + this);
       // Don't flush the cache if we are aborting
       if (!abort && canFlush) {
+        int failedfFlushCount = 0;
         int flushCount = 0;
-        while (this.memstoreSize.get() > 0) {
+        long tmp = 0;
+        long remainingSize = this.memstoreSize.get();
+        while (remainingSize > 0) {
           try {
-            if (flushCount++ > 0) {
-              int actualFlushes = flushCount - 1;
-              if (actualFlushes > 5) {
-                // If we tried 5 times and are unable to clear memory, abort
-                // so we do not lose data
-                throw new DroppedSnapshotException("Failed clearing memory after " +
-                  actualFlushes + " attempts on region: " +
-                    Bytes.toStringBinary(getRegionInfo().getRegionName()));
-              }
-              LOG.info("Running extra flush, " + actualFlushes +
-                " (carrying snapshot?) " + this);
-            }
             internalFlushcache(status);
+            if(flushCount >0) {
+              LOG.info("Running extra flush, " + flushCount +
+                  " (carrying snapshot?) " + this);
+            }
+            flushCount++;
+            tmp = this.memstoreSize.get();
+            if (tmp >= remainingSize) {
+              failedfFlushCount++;
+            }
+            remainingSize = tmp;
+            if (failedfFlushCount > 5) {
+              // If we failed 5 times and are unable to clear memory, abort
+              // so we do not lose data
+              throw new DroppedSnapshotException("Failed clearing memory after " +
+                  flushCount + " attempts on region: " +
+                  Bytes.toStringBinary(getRegionInfo().getRegionName()));
+            }
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
             synchronized (writestate) {

@@ -707,18 +707,6 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
     return setValue(IN_MEMORY_COMPACTION, Boolean.toString(inMemoryCompaction));
   }
 
-  /**
-   * @param className the name of the class to be used as a memstore
-   * @return this (for chained invocation)
-   */
-  @VisibleForTesting
-  public HColumnDescriptor setMemStoreClass(String className) {
-    if (className.equalsIgnoreCase("org.apache.hadoop.hbase.regionserver.CompactingMemStore")) {
-      return setValue(IN_MEMORY_COMPACTION, Boolean.toString(true));
-    }
-    return setValue(IN_MEMORY_COMPACTION, Boolean.toString(false));
-  }
-
   public KeepDeletedCells getKeepDeletedCells() {
     String value = getValue(KEEP_DELETED_CELLS);
     if (value != null) {
