@@ -80,8 +80,7 @@ public class TestWalAndCompactingMemStoreFlush {
     for (byte[] family : FAMILIES) {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
       // even column families are going to have compacted memstore
-      if(i%2 == 0) hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver" +
-              ".CompactingMemStore");
+      if(i%2 == 0) hcd.setInMemoryCompaction(true);
       htd.addFamily(hcd);
       i++;
     }

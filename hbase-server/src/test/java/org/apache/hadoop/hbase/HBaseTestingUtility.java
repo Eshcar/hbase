@@ -1849,9 +1849,9 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
     for (byte[] family : families) {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
       if(compactedMemStore != null && i < compactedMemStore.length) {
-        hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver.CompactingMemStore");
+        hcd.setInMemoryCompaction(true);
       } else {
-        hcd.setMemStoreClass("org.apache.hadoop.hbase.regionserver.DefaultMemStore");
+        hcd.setInMemoryCompaction(false);
 
       }
       i++;

@@ -133,7 +133,7 @@ class MemStoreCompactor {
       if (!isInterrupted.get()) {
         compactingMemStore.swapCompactedSegments(versionedList, result);
         // update the wal so it can be truncated and not get too long
-        compactingMemStore.updateLowestUnflushedSequenceIdInWal(true); // only if greater
+        compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
       }
     } catch (Exception e) {
       LOG.debug("Interrupting the MemStore in-memory compaction for store " + compactingMemStore
