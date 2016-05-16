@@ -110,10 +110,13 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
+  /*
+   * Scanners are ordered from 0 (oldest) to newest in increasing order.
+   */
   protected List<SegmentScanner> getListOfScanners(long readPt) throws IOException {
     List<SegmentScanner> list = new ArrayList<SegmentScanner>(2);
-    list.add(0, getActive().getSegmentScanner(readPt));
-    list.add(1, getSnapshot().getSegmentScanner(readPt));
+    list.add(0, getActive().getSegmentScanner(readPt, 1));
+    list.add(1, getSnapshot().getSegmentScanner(readPt, 0));
     return list;
   }
 
