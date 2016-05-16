@@ -81,6 +81,14 @@ public abstract class Segment {
   }
 
   /**
+   * Creates the scanner for the given read point, and a specific order in a list
+   * @return a scanner for the given read point
+   */
+  public SegmentScanner getSegmentScanner(long readPoint, long order) {
+    return new SegmentScanner(this, readPoint, order);
+  }
+
+  /**
    * Returns whether the segment has any cells
    * @return whether the segment has any cells
    */

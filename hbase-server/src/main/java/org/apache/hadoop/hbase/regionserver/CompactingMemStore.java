@@ -224,22 +224,19 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @Override
+  /*
+   * Scanners are ordered from 0 (oldest) to newest in increasing order.
+   */
   protected List<SegmentScanner> getListOfScanners(long readPt) throws IOException {
     List<Segment> pipelineList = pipeline.getSegments();
+    long order = pipelineList.size();
     LinkedList<SegmentScanner> list = new LinkedList<SegmentScanner>();
-    list.add(getActive().getSegmentScanner(readPt));
+    list.add(getActive().getSegmentScanner(readPt, order+1));
     for (Segment item : pipelineList) {
-      list.add(item.getSegmentScanner(readPt));
+      list.add(item.getSegmentScanner(readPt, order));
+      order--;
     }
-    list.add(getSnapshot().getSegmentScanner
-        (readPt));
-    // set sequence ids by decsending order
-    Iterator<SegmentScanner> iterator = list.descendingIterator();
-    int seqId = 0;
-    while (iterator.hasNext()) {
-      iterator.next().setSequenceID(seqId);
-      seqId++;
-    }
+    list.add(getSnapshot().getSegmentScanner(readPt, order));
     return list;
   }
 
