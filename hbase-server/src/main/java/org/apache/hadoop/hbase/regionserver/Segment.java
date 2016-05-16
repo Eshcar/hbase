@@ -285,24 +285,6 @@ public abstract class Segment {
     }
   }
 
-  void assertMinSequenceId(Log log) {
-    for (Cell cell: getCellSet()) {
-      if (cell.getSequenceId() == getMinSequenceId()) {
-        log.info("ESHCAR: cell with minimal sequence id is "+cell.toString()+", seqid="
-            + cell.getSequenceId());
-        return;
-      }
-    }
-    log.error("ESHCAR: no cell with minimal sequence id "+getMinSequenceId());
-  }
-
-  void assertCellType(Cell cell, Log log) {
-    if(KeyValue.Type.codeToType(cell.getTypeByte()) != KeyValue.Type.Put
-        && KeyValue.Type.codeToType(cell.getTypeByte()) != KeyValue.Type.Delete) {
-      log.info("Eshcar: cell="+cell.toString());
-    }
-  }
-
   @Override
   public String toString() {
     String res = "Store segment of type "+this.getClass().getName()+"; ";
