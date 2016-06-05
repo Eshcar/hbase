@@ -240,7 +240,7 @@ public class TestHeapSize  {
     // CellSet
     cl = CellSet.class;
     expected = ClassSize.estimateBase(cl, false);
-    actual = ClassSize.CELL_SKIPLIST_SET;
+    actual = ClassSize.CELL_SET;
     if (expected != actual) {
       ClassSize.estimateBase(cl, true);
       assertEquals(expected, actual);

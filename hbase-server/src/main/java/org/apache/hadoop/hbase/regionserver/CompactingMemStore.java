@@ -52,7 +52,7 @@ import org.apache.hadoop.hbase.wal.WAL;
 public class CompactingMemStore extends AbstractMemStore {
   public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER + ClassSize.TIMERANGE +
-          ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+          ClassSize.CELL_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
   // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
   public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
       "hbase.memestore.inmemoryflush.threshold.factor";
