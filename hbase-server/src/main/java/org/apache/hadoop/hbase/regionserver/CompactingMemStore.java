@@ -98,10 +98,19 @@ public class CompactingMemStore extends AbstractMemStore {
     int t = conf.getInt(COMPACTING_MEMSTORE_TYPE_KEY, COMPACTING_MEMSTORE_TYPE_DEFAULT);
     switch (t) {
     case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
+      LOG.info("Creating CompactingMemStore that is going to compact to SkipList data structure:"
+          + " region " + getRegionServices().getRegionInfo()
+          .getRegionNameAsString() + " and store: "+ getFamilyName());
       break;
     case 2: type = Type.COMPACT_TO_ARRAY_MAP;
+      LOG.info("Creating CompactingMemStore that is going to compact to CellArray data structure:"
+          + " region " + getRegionServices().getRegionInfo()
+          .getRegionNameAsString() + " and store: "+ getFamilyName());
       break;
     case 3: type = Type.COMPACT_TO_CHUNK_MAP;
+      LOG.info("Creating CompactingMemStore that is going to compact to ChunkMap data structure:"
+          + " region " + getRegionServices().getRegionInfo()
+          .getRegionNameAsString() + " and store: "+ getFamilyName());
       break;
     }
   }
@@ -427,7 +436,7 @@ public class CompactingMemStore extends AbstractMemStore {
       // this local copy of the list is marked with specific version
       versionedList = pipeline.getVersionedList();
       LOG.info(
-          "Starting the MemStore in-memory compaction for store " + store.getColumnFamilyName());
+          "Starting the MemStore in-memory compaction for store: " + store.getColumnFamilyName());
       doCompact();
       return true;
     }
@@ -467,7 +476,7 @@ public class CompactingMemStore extends AbstractMemStore {
               > COMPACTION_TRIGGER_REMAIN_FACTOR * versionedList.getNumOfCells())) {
             // too much cells "survive" the possible compaction we do not want to compact!
             LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
-                + " for store " + getFamilyName());
+                + " for store: " + getFamilyName());
             // Looking for Segment in the pipeline with SkipList index, to make it flat
             pipeline.flattenYoungestSegment(versionedList.getVersion());
             return;
@@ -500,6 +509,10 @@ public class CompactingMemStore extends AbstractMemStore {
     private ImmutableSegment compact(int numOfCells)
         throws IOException {
 
+      LOG.info(
+          "Starting in-memory compaction of type: " + type + ". Before compaction we have "
+              + numOfCells + " cells in the entire compaction pipeline");
+
       ImmutableSegment result = null;
       MemStoreCompactorIterator iterator =
           new MemStoreCompactorIterator(versionedList.getStoreSegments(), getComparator(),
@@ -517,6 +530,9 @@ public class CompactingMemStore extends AbstractMemStore {
                   ImmutableSegment.Type.ARRAY_MAP_BASED);
           break;
         case COMPACT_TO_CHUNK_MAP:
+//          org.junit.Assert.assertTrue("\n<<<< Compacting to CellChunkMap set for " + numOfCells
+//              + " cells. \n", false);
+
           result = SegmentFactory.instance()
               .createImmutableSegment(
                   getConfiguration(), getComparator(), iterator, numOfCells,

@@ -90,6 +90,8 @@ public class ImmutableSegment extends Segment {
     if (type == Type.ARRAY_MAP_BASED) {
       cs = createCellArrayMapSet(numOfCells, iterator);
     } else {
+//      org.junit.Assert.assertTrue("\n<<<< Creating CellChunkMap set for " + numOfCells
+//          + " cells. \n", false);
       cs = createCellChunkMapSet(numOfCells, iterator, conf);
     }
     this.setCellSet(null, cs);  // update the CellSet of the new Segment
@@ -222,6 +224,10 @@ public class ImmutableSegment extends Segment {
     int currentChunkIdx = 0;
     chunks[currentChunkIdx] = ms.allocateChunk();
     int offsetInCurentChunk = 0;
+
+    org.junit.Assert.assertTrue("\n<<<< Creating CellChunkMap set for " + numOfCells
+        + " cells. The calculated chunk size is " + chunkSize + " bytes. " + "We need "
+        + numberOfChunks + " chunks. " + "\n", false);
 
     while (iterator.hasNext()) {
       Cell c = iterator.next();
