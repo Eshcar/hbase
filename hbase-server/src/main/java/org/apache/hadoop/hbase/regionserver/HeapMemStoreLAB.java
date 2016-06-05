@@ -27,9 +27,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.util.ByteRange;
+import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.SimpleMutableByteRange;
 
 import com.google.common.base.Preconditions;
+
 
 /**
  * A memstore-local allocation buffer.
@@ -88,9 +90,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     this.chunkPool = MemStoreChunkPool.getPool(conf);
 
     // if we don't exclude allocations >CHUNK_SIZE, we'd infiniteloop on one!
-    Preconditions.checkArgument(
-      maxAlloc <= chunkSize,
-      MAX_ALLOC_KEY + " must be less than " + CHUNK_SIZE_KEY);
+    Preconditions.checkArgument(maxAlloc <= chunkSize,
+        MAX_ALLOC_KEY + " must be less than " + CHUNK_SIZE_KEY);
   }
 
   /**
@@ -102,11 +103,16 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   @Override
   public ByteRange allocateBytes(int size) {
     Preconditions.checkArgument(size >= 0, "negative size");
+    return allocateBytesWithID(size).getFirst();
+  }
+
+  public Pair<SimpleMutableByteRange, Integer> allocateBytesWithID(int size) {
+    Preconditions.checkArgument(size >= 0, "negative size");
 
     // Callers should satisfy large allocations directly from JVM since they
     // don't cause fragmentation as badly.
     if (size > maxAlloc) {
-      return null;
+      return new Pair<>(null,0);
     }
 
     while (true) {
@@ -117,7 +123,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       if (allocOffset != -1) {
         // We succeeded - this is the common case - small alloc
         // from a big buffer
-        return new SimpleMutableByteRange(c.data, allocOffset, size);
+        return new Pair<>(new SimpleMutableByteRange(c.data, allocOffset, size),c.getId());
       }
 
       // not enough space!
@@ -181,6 +187,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
    * allocate a new one from the JVM.
    */
   private Chunk getOrMakeChunk() {
+
     while (true) {
       // Try to get the chunk
       Chunk c = curChunk.get();
@@ -191,11 +198,18 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // No current chunk, so we want to allocate one. We race
       // against other allocators to CAS in an uninitialized chunk
       // (which is cheap to allocate)
-      c = (chunkPool != null) ? chunkPool.getChunk() : new Chunk(chunkSize);
+      if(chunkPool != null) {
+        c = chunkPool.getChunk();
+      } else {
+        // HBASE-14921: 555 is here till it is decided whether ChunkPool is always on
+        c = new Chunk(chunkSize, 555);
+        c.init();
+      }
+
       if (curChunk.compareAndSet(null, c)) {
         // we won race - now we need to actually do the expensive
         // allocation step
-        c.init();
+
         this.chunkQueue.add(c);
         return c;
       } else if (chunkPool != null) {
@@ -204,6 +218,32 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       // someone else won race - that's fine, we'll try to grab theirs
       // in the next iteration of the loop.
     }
+  }
+
+  /**
+   * Given a chunk ID return reference to the relevant chunk
+   * @return a chunk
+   */
+  public Chunk translateIdToChunk(int id) {
+    return chunkPool.translateIdToChunk(id);
+  }
+
+  /**
+   * Give the ID of the Chunk from where last allocation took the bytes
+   * @return a chunk
+   */
+  public int getCurrentChunkId() {
+    return curChunk.get().getId();
+  }
+
+  /**
+   * Use instead of allocateBytes() when new full chunk is needed
+   * @return a chunk
+   */
+  public Chunk allocateChunk() {
+    Chunk c = chunkPool.getChunk();
+    this.chunkQueue.add(c);
+    return c;
   }
 
   /**
@@ -227,12 +267,18 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     /** Size of chunk in bytes */
     private final int size;
 
+    /* A unique identifier of a chunk inside MemStoreChunkPool */
+    private final int id;
+
+    /* Chunk's index serves as replacement for pointer */
+
     /**
      * Create an uninitialized chunk. Note that memory is not allocated yet, so
      * this is cheap.
      * @param size in bytes
      */
-    Chunk(int size) {
+    Chunk(int size, int id) {
+      this.id = id;
       this.size = size;
     }
 
@@ -252,13 +298,13 @@ public class HeapMemStoreLAB implements MemStoreLAB {
         assert failInit; // should be true.
         throw e;
       }
+
       // Mark that it's ready for use
       boolean initted = nextFreeOffset.compareAndSet(
           UNINITIALIZED, 0);
       // We should always succeed the above CAS since only one thread
       // calls init()!
-      Preconditions.checkState(initted,
-          "Multiple threads tried to init same chunk");
+      Preconditions.checkState(initted, "Multiple threads tried to init same chunk");
     }
 
     /**
@@ -310,6 +356,14 @@ public class HeapMemStoreLAB implements MemStoreLAB {
       return "Chunk@" + System.identityHashCode(this) +
         " allocs=" + allocCount.get() + "waste=" +
         (data.length - nextFreeOffset.get());
+    }
+
+    public int getId() {
+      return id;
+    }
+
+    public byte[] getData() {
+      return data;
     }
   }
 }
