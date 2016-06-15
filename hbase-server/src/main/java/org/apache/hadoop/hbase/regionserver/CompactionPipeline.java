@@ -45,7 +45,7 @@ public class CompactionPipeline {
 
   private static final ImmutableSegment EMPTY_MEM_STORE_SEGMENT = SegmentFactory.instance()
       .createImmutableSegment(null,
-          CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+          CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM);
 
   public CompactionPipeline(RegionServicesForStores region) {
     this.region = region;
@@ -99,7 +99,7 @@ public class CompactionPipeline {
           +"Just before the swap the number of segments in pipeline is:"
           +versionedList.getStoreSegments().size()
           +", and the number of cells in new segment is:"+segment.getCellsCount());
-      swapSuffix(suffix,segment);
+      swapSuffix(suffix, segment);
     }
     if(region != null) {
       // update the global memstore size counter
@@ -111,6 +111,40 @@ public class CompactionPipeline {
           " globalMemstoreSize: "+globalMemstoreSize);
     }
     return true;
+  }
+
+  /**
+   * If the caller holds the current version, go over the the pipeline and try to flatten each
+   * segment. Flattening is replacing the ConcurrentSkipListMap based CellSet to CellArrayMAp based.
+   * Flattening of the segment that initially is not based on ConcurrentSkipListMap has no effect.
+   * Return after one segment was successfully flatten.
+   *
+   * @return true iff a segment was successfully flattened
+   */
+  public boolean flattenYoungestSegment(long requesterVersion) {
+
+    if(requesterVersion != version) {
+      LOG.info("Segment flattening failed, because versions do not match");
+      return false;
+    }
+
+    synchronized (pipeline){
+      if(requesterVersion != version) {
+        LOG.info("Segment flattening failed, because versions do not match");
+        return false;
+      }
+
+      for (ImmutableSegment s : pipeline) {
+        if (s.flatten()) {
+          LOG.info("Compaction pipeline segment " + s + " was flattened.");
+          return true;
+        }
+      }
+
+    }
+    // do not update the global memstore size counter and do not increase the version,
+    // because all the cells remain in place
+    return false;
   }
 
   public boolean isEmpty() {
@@ -166,7 +200,6 @@ public class CompactionPipeline {
       // empty suffix is always valid
       return true;
     }
-
     Iterator<ImmutableSegment> pipelineBackwardIterator = pipeline.descendingIterator();
     Iterator<ImmutableSegment> suffixBackwardIterator = suffix.descendingIterator();
     ImmutableSegment suffixCurrent;
