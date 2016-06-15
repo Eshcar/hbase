@@ -81,6 +81,12 @@ public class ClassSize {
   /** Overhead for ConcurrentSkipListMap Entry */
   public static final int CONCURRENT_SKIPLISTMAP_ENTRY;
 
+  /** Overhead for CellArrayMap */
+  public static final int CELL_ARRAY_MAP;
+
+  /** Overhead for Cell Array Entry */
+  public static final int CELL_ARRAY_MAP_ENTRY;
+
   /** Overhead for ReentrantReadWriteLock */
   public static final int REENTRANT_LOCK;
 
@@ -106,7 +112,7 @@ public class ClassSize {
   public static final int TIMERANGE_TRACKER;
 
   /** Overhead for CellSkipListSet */
-  public static final int CELL_SKIPLIST_SET;
+  public static final int CELL_SET;
 
   public static final int STORE_SERVICES;
 
@@ -262,9 +268,14 @@ public class ClassSize {
     // The size changes from jdk7 to jdk8, estimate the size rather than use a conditional
     CONCURRENT_SKIPLISTMAP = (int) estimateBase(ConcurrentSkipListMap.class, false);
 
-    CONCURRENT_SKIPLISTMAP_ENTRY =
+    CELL_ARRAY_MAP = align(2*OBJECT + 2*Bytes.SIZEOF_LONG + Bytes.SIZEOF_BOOLEAN
+        + 2*Bytes.SIZEOF_INT + REFERENCE);
+
+    CONCURRENT_SKIPLISTMAP_ENTRY = align(
         align(OBJECT + (3 * REFERENCE)) + /* one node per entry */
         align((OBJECT + (3 * REFERENCE))/2); /* one index per two entries */
+
+    CELL_ARRAY_MAP_ENTRY = align(OBJECT + 2*REFERENCE + 2*Bytes.SIZEOF_INT);
 
     REENTRANT_LOCK = align(OBJECT + (3 * REFERENCE));
 
@@ -282,7 +293,7 @@ public class ClassSize {
 
     TIMERANGE_TRACKER = align(ClassSize.OBJECT + Bytes.SIZEOF_LONG * 2);
 
-    CELL_SKIPLIST_SET = align(OBJECT + REFERENCE);
+    CELL_SET = align(OBJECT + REFERENCE);
 
     STORE_SERVICES = align(OBJECT + REFERENCE + ATOMIC_LONG);
   }

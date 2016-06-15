@@ -201,7 +201,8 @@ public class TestWalAndCompactingMemStoreFlush {
     // memstores of CF1, CF2 and CF3.
     String msg = "totalMemstoreSize="+totalMemstoreSize +
         " DefaultMemStore.DEEP_OVERHEAD="+DefaultMemStore.DEEP_OVERHEAD +
-        " DEEP_OVERHEAD_PER_PIPELINE_ITEM="+CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM +
+        " DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM="+CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM
+        +
         " cf1MemstoreSizePhaseI="+cf1MemstoreSizePhaseI +
         " cf2MemstoreSizePhaseI="+cf2MemstoreSizePhaseI +
         " cf3MemstoreSizePhaseI="+cf3MemstoreSizePhaseI ;
@@ -238,8 +239,8 @@ public class TestWalAndCompactingMemStoreFlush {
 
     s = s + "DefaultMemStore DEEP_OVERHEAD is:" + DefaultMemStore.DEEP_OVERHEAD
         + ", CompactingMemStore DEEP_OVERHEAD is:" + CompactingMemStore.DEEP_OVERHEAD
-        + ", CompactingMemStore DEEP_OVERHEAD_PER_PIPELINE_ITEM is:" + CompactingMemStore
-        .DEEP_OVERHEAD_PER_PIPELINE_ITEM
+        + ", CompactingMemStore DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM is:" + CompactingMemStore
+        .DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM
         + "\n----After first flush! CF1 should be flushed to memory, but not compacted.---\n"
         + "Size of CF1 is:" + cf1MemstoreSizePhaseII + ", size of CF2 is:" + cf2MemstoreSizePhaseII
         + ", size of CF3 is:" + cf3MemstoreSizePhaseII + "\n";
@@ -247,14 +248,14 @@ public class TestWalAndCompactingMemStoreFlush {
     // CF1 was flushed to memory, but there is nothing to compact, should
     // remain the same size plus renewed empty skip-list
     assertEquals(s, cf1MemstoreSizePhaseII,
-        cf1MemstoreSizePhaseI + CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+        cf1MemstoreSizePhaseI + CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM);
 
     // CF2 should become empty
     assertEquals(DefaultMemStore.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
 
     // verify that CF3 was flushed to memory and was compacted (this is approximation check)
     assertTrue(cf3MemstoreSizePhaseI/2+DefaultMemStore.DEEP_OVERHEAD +
-        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM >
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM >
         cf3MemstoreSizePhaseII);
     assertTrue(cf3MemstoreSizePhaseI/2 < cf3MemstoreSizePhaseII);
 
@@ -419,7 +420,8 @@ public class TestWalAndCompactingMemStoreFlush {
     // memstores of CF1, CF2 and CF3.
     String msg = "totalMemstoreSize="+totalMemstoreSize +
         " DefaultMemStore.DEEP_OVERHEAD="+DefaultMemStore.DEEP_OVERHEAD +
-        " DEEP_OVERHEAD_PER_PIPELINE_ITEM="+CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM +
+        " DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM="+CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM
+        +
         " cf1MemstoreSizePhaseI="+cf1MemstoreSizePhaseI +
         " cf2MemstoreSizePhaseI="+cf2MemstoreSizePhaseI +
         " cf3MemstoreSizePhaseI="+cf3MemstoreSizePhaseI ;

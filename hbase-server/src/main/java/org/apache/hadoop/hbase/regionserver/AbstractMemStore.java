@@ -64,14 +64,14 @@ public abstract class AbstractMemStore implements MemStore {
 
   public final static long DEEP_OVERHEAD = ClassSize.align(FIXED_OVERHEAD +
       (ClassSize.ATOMIC_LONG + ClassSize.TIMERANGE_TRACKER +
-      ClassSize.CELL_SKIPLIST_SET + ClassSize.CONCURRENT_SKIPLISTMAP));
+      ClassSize.CELL_SET + ClassSize.CONCURRENT_SKIPLISTMAP));
 
 
   protected AbstractMemStore(final Configuration conf, final CellComparator c) {
     this.conf = conf;
     this.comparator = c;
     resetCellSet();
-    this.snapshot = SegmentFactory.instance().createImmutableSegment(conf, c, 0);
+    this.snapshot = SegmentFactory.instance().createImmutableSegment(c, 0);
     this.snapshotId = NO_SNAPSHOT_ID;
   }
 
@@ -190,6 +190,17 @@ public abstract class AbstractMemStore implements MemStore {
   public long heapSize() {
     return getActive().getSize();
   }
+
+
+  /**
+   * @return a list containing a single memstore scanner.
+   */
+  @Override
+  public List<KeyValueScanner> getScanners(long readPt) throws IOException {
+    return Collections.<KeyValueScanner> singletonList(
+        new MemStoreScanner(getComparator(), getListOfScanners(readPt)));
+  }
+
 
   @Override
   public long getSnapshotSize() {
@@ -430,6 +441,13 @@ public abstract class AbstractMemStore implements MemStore {
    * Check whether anything need to be done based on the current active set size
    */
   protected abstract void checkActiveSize();
+
+  /**
+   * Returns a list of Store segment scanners, one per each store segment
+   * @param readPt the version number required to initialize the scanners
+   * @return a list of Store segment scanners, one per each store segment
+   */
+  protected abstract List<SegmentScanner> getListOfScanners(long readPt) throws IOException;
 
   /**
    * Returns an ordered list of segments from most recent to oldest in memstore
