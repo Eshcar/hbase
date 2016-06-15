@@ -83,10 +83,6 @@ public class CompactingMemStore extends AbstractMemStore {
     this.store = store;
     this.regionServices = regionServices;
     this.pipeline = new CompactionPipeline(getRegionServices());
-//    org.junit.Assert.assertTrue("\n\n<<<< In CompactingMemStore constructor. "
-//        + "The compactor field is \n" + this.compactor + "\n<<<< and this field is \n" + this
-//        + "\n<<<< trying to invoke the compactor constructor"
-//        + " \n\n",false);
     this.compactor = new MemStoreCompactor(this);
     initInmemoryFlushSize(conf);
   }
@@ -272,8 +268,6 @@ public class CompactingMemStore extends AbstractMemStore {
       InMemoryFlushRunnable runnable = new InMemoryFlushRunnable();
       LOG.info("Dispatching the MemStore in-memory flush for store " + store.getColumnFamilyName());
       getPool().execute(runnable);
-      // guard against queuing same old compactions over and over again
-      inMemoryFlushInProgress.set(true);
     }
   }
 
@@ -297,10 +291,10 @@ public class CompactingMemStore extends AbstractMemStore {
       if (allowCompaction.get()) {
         // setting the inMemoryFlushInProgress flag again for the case this method is invoked
         // directly (only in tests) in the common path setting from true to true is idempotent
-        inMemoryFlushInProgress.set(true);
-        // Speculative compaction execution, may be interrupted if flush is forced while
-        // compaction is in progress
-        compactor.start();
+        if (inMemoryFlushInProgress.compareAndSet(false, true))
+          // Speculative compaction execution, may be interrupted if flush is forced while
+          // compaction is in progress
+          compactor.start();
       }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
