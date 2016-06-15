@@ -29,7 +29,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdge;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Threads;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
@@ -37,6 +38,8 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
 import java.util.List;
+
+
 
 /**
  * compacted memstore test case
@@ -60,9 +63,13 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
 
   @Override public void setUp() throws Exception {
     compactingSetUp();
+    Configuration conf = HBaseConfiguration.create();
+
+    conf.setLong("hbase.hregion.compacting.memstore.type", 2); // compact to CellArrayMap
+
     this.memstore =
-        new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR, store,
-            regionServicesForStores, CompactingMemStore.Type.COMPACT_TO_ARRAY_MAP);
+        new CompactingMemStore(conf, CellComparator.COMPARATOR, store,
+            regionServicesForStores);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -74,6 +81,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
 
     // test 1 bucket
     addRowsByKeys(memstore, keys1);
+
     assertEquals(704, regionServicesForStores.getGlobalMemstoreTotalSize());
     assertEquals(4, memstore.getActive().getCellsCount());
     long size = memstore.getFlushableSize();
@@ -82,8 +90,8 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(440, regionServicesForStores.getGlobalMemstoreTotalSize());
-    for ( Segment s : memstore.getListOfSegments()) {
+    assertEquals(456, regionServicesForStores.getGlobalMemstoreTotalSize());
+    for ( Segment s : memstore.getSegments()) {
       counter += s.getCellsCount();
     }
     assertEquals(3, counter);
@@ -115,15 +123,15 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       Threads.sleep(1000);
     }
     int counter = 0;
-    for ( Segment s : memstore.getListOfSegments()) {
+    for ( Segment s : memstore.getSegments()) {
       counter += s.getCellsCount();
     }
     assertEquals(3,counter);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(440, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(456, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     addRowsByKeys(memstore, keys2);
-    assertEquals(968, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(984, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
@@ -137,11 +145,11 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
     counter = 0;
-    for ( Segment s : memstore.getListOfSegments()) {
+    for ( Segment s : memstore.getSegments()) {
       counter += s.getCellsCount();
     }
     assertEquals(4,counter);
-    assertEquals(592, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(608, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
@@ -171,7 +179,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(440, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(456, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     addRowsByKeys(memstore, keys2);
 
@@ -179,16 +187,16 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
         region.getMemstoreSize() + ", Memstore Total Size: " +
         regionServicesForStores.getGlobalMemstoreTotalSize() + "\n\n";
 
-    assertEquals(968, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(984, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     ((CompactingMemStore) memstore).disableCompaction();
     size = memstore.getFlushableSize();
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline without compaction
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(968, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(984, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     addRowsByKeys(memstore, keys3);
-    assertEquals(1496, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(1512, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     ((CompactingMemStore) memstore).enableCompaction();
     size = memstore.getFlushableSize();
@@ -197,7 +205,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(592, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(608, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot

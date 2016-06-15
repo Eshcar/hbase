@@ -24,7 +24,6 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
-import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.client.Scan;
@@ -92,7 +91,7 @@ public class ImmutableSegment extends Segment {
       MemStoreLAB memStoreLAB, int numOfCells, Type type) {
 
     super(null, comparator, memStoreLAB,
-        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM,
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_CELL_ARRAY_ITEM,
         (type == Type.ARRAY_MAP_BASED) ?
             ClassSize.CELL_ARRAY_MAP_ENTRY : ClassSize.CELL_CHUNK_MAP_ENTRY);
 
@@ -100,8 +99,6 @@ public class ImmutableSegment extends Segment {
     if (type == Type.ARRAY_MAP_BASED) {
       cs = createCellArrayMapSet(numOfCells, iterator);
     } else {
-//      org.junit.Assert.assertTrue("\n<<<< Creating CellChunkMap set for " + numOfCells
-//          + " cells. \n", false);
       cs = createCellChunkMapSet(numOfCells, iterator, conf);
     }
     this.setCellSet(null, cs);  // update the CellSet of the new Segment
@@ -119,7 +116,7 @@ public class ImmutableSegment extends Segment {
       CellComparator comparator, MemStoreCompactorIterator iterator, MemStoreLAB memStoreLAB) {
 
     super(new CellSet(comparator), comparator, memStoreLAB,
-        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM, ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
+        CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM, ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
 
     while (iterator.hasNext()) {
       Cell c = iterator.next();
@@ -153,6 +150,19 @@ public class ImmutableSegment extends Segment {
   @Override
   public long getMinTimestamp() {
     return this.timeRange.getMin();
+  }
+
+  @Override
+  public long getInternalSize() {
+    switch (type){
+    case SKIPLIST_MAP_BASED:
+      return size.get() - CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM;
+    case ARRAY_MAP_BASED:
+      return size.get() - CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_CELL_ARRAY_ITEM;
+    case CHUNK_MAP_BASED:
+      return size.get() - CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_CELL_CHUNK_ITEM;
+    default: throw new IllegalStateException();
+    }
   }
 
   /**------------------------------------------------------------------------
@@ -239,7 +249,7 @@ public class ImmutableSegment extends Segment {
     // calculate how many chunks we will need for metadata
     int chunkSize = conf.getInt(HeapMemStoreLAB.CHUNK_SIZE_KEY, HeapMemStoreLAB.CHUNK_SIZE_DEFAULT);
     int numOfCellsInChunk = chunkSize / CellChunkMap.BYTES_IN_CELL;
-    int numberOfChunks = numOfCells/numOfCellsInChunk;
+    int numberOfChunks = numOfCells/numOfCellsInChunk + 1;
 
     // all Chunks (for metadata and for data) are allocated from the current segment's MSLAB
     // TODO: when Chunk is going to be out of HeapMemStoreLAB we can use MemStoreLAB here
@@ -249,10 +259,6 @@ public class ImmutableSegment extends Segment {
     int currentChunkIdx = 0;
     chunks[currentChunkIdx] = ms.allocateChunk();
     int offsetInCurentChunk = 0;
-
-    org.junit.Assert.assertTrue("\n<<<< Creating CellChunkMap set for " + numOfCells
-        + " cells. The calculated chunk size is " + chunkSize + " bytes. " + "We need "
-        + numberOfChunks + " chunks. " + "\n", false);
 
     while (iterator.hasNext()) {
       Cell c = iterator.next();
@@ -299,4 +305,6 @@ public class ImmutableSegment extends Segment {
     offset = Bytes.putInt(referencesByteArray, offset, len);               // length
     return offset;
   }
+
+
 }

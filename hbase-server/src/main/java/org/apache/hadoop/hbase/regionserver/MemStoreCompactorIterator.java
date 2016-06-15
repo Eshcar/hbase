@@ -52,7 +52,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
 
   // C-tor
   public MemStoreCompactorIterator(LinkedList<ImmutableSegment> segments,
-      CellComparator comparator, int compactionKVMax, HStore store) throws IOException {
+      CellComparator comparator, int compactionKVMax, Store store) throws IOException {
 
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
 

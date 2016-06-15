@@ -45,7 +45,7 @@ public class CompactionPipeline {
 
   private static final ImmutableSegment EMPTY_MEM_STORE_SEGMENT = SegmentFactory.instance()
       .createImmutableSegment(null,
-          CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_ITEM);
+          CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM);
 
   public CompactionPipeline(RegionServicesForStores region) {
     this.region = region;

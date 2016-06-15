@@ -28,11 +28,7 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.io.hfile.BlockCacheKey;
 import org.apache.hadoop.hbase.io.hfile.LruBlockCache;
 import org.apache.hadoop.hbase.io.hfile.LruCachedBlock;
-import org.apache.hadoop.hbase.regionserver.CellSet;
-import org.apache.hadoop.hbase.regionserver.DefaultMemStore;
-import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.HStore;
-import org.apache.hadoop.hbase.regionserver.TimeRangeTracker;
+import org.apache.hadoop.hbase.regionserver.*;
 import org.apache.hadoop.hbase.testclassification.IOTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.ClassSize;
@@ -169,6 +165,24 @@ public class TestHeapSize  {
     cl = ConcurrentSkipListMap.class;
     expected = ClassSize.estimateBase(cl, false);
     actual = ClassSize.CONCURRENT_SKIPLISTMAP;
+    if(expected != actual) {
+      ClassSize.estimateBase(cl, true);
+      assertEquals(expected, actual);
+    }
+
+    // CellArrayMap
+    cl = CellArrayMap.class;
+    expected = ClassSize.estimateBase(cl, false);
+    actual = ClassSize.CELL_ARRAY_MAP;
+    if(expected != actual) {
+      ClassSize.estimateBase(cl, true);
+      assertEquals(expected, actual);
+    }
+
+    // CellChunkMap
+    cl = CellChunkMap.class;
+    expected = ClassSize.estimateBase(cl, false);
+    actual = ClassSize.CELL_CHUNK_MAP;
     if(expected != actual) {
       ClassSize.estimateBase(cl, true);
       assertEquals(expected, actual);
