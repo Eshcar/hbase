@@ -20,7 +20,6 @@ package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -31,7 +30,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
@@ -51,44 +49,33 @@ import org.apache.hadoop.hbase.wal.WAL;
  */
 @InterfaceAudience.Private
 public class CompactingMemStore extends AbstractMemStore {
-  public final static long DEEP_OVERHEAD_PER_PIPELINE_ITEM = ClassSize.align(
+
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM = ClassSize.align(
+      ClassSize.TIMERANGE_TRACKER + ClassSize.CELL_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
+
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_CELL_ARRAY_ITEM = ClassSize.align(
       ClassSize.TIMERANGE_TRACKER + ClassSize.TIMERANGE +
-          ClassSize.CELL_SET + ClassSize.CONCURRENT_SKIPLISTMAP);
-  public final static long DEEP_OVERHEAD_PER_PIPELINE_FLAT_ARRAY_ITEM = ClassSize.align(
-      ClassSize.TIMERANGE_TRACKER +
           ClassSize.CELL_SET + ClassSize.CELL_ARRAY_MAP);
+
+  public final static long DEEP_OVERHEAD_PER_PIPELINE_CELL_CHUNK_ITEM = ClassSize.align(
+      ClassSize.TIMERANGE_TRACKER + ClassSize.TIMERANGE +
+          ClassSize.CELL_SET + ClassSize.CELL_CHUNK_MAP);
+
   // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
   public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
       "hbase.memestore.inmemoryflush.threshold.factor";
   private static final double IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT = 0.25;
 
-  public final static double IN_MEMORY_FLUSH_THRESHOLD_FACTOR = 0.9;
-  public final static double COMPACTION_TRIGGER_REMAIN_FACTOR = 1;
-  public final static boolean COMPACTION_PRE_CHECK = false;
-
-  static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
-  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 1;
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private Store store;
   private RegionServicesForStores regionServices;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
-  // the threshold on active size for in-memory flush
-  private long inmemoryFlushSize;
+
+  private long inmemoryFlushSize;       // the threshold on active size for in-memory flush
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
-
-  /**
-   * Types of CompactingMemStore
-   */
-  public enum Type {
-    COMPACT_TO_SKIPLIST_MAP,
-    COMPACT_TO_ARRAY_MAP,
-    COMPACT_TO_CHUNK_MAP;
-  }
-
-  private Type type = Type.COMPACT_TO_SKIPLIST_MAP;
 
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store, RegionServicesForStores regionServices) throws IOException {
@@ -96,6 +83,10 @@ public class CompactingMemStore extends AbstractMemStore {
     this.store = store;
     this.regionServices = regionServices;
     this.pipeline = new CompactionPipeline(getRegionServices());
+//    org.junit.Assert.assertTrue("\n\n<<<< In CompactingMemStore constructor. "
+//        + "The compactor field is \n" + this.compactor + "\n<<<< and this field is \n" + this
+//        + "\n<<<< trying to invoke the compactor constructor"
+//        + " \n\n",false);
     this.compactor = new MemStoreCompactor(this);
     initInmemoryFlushSize(conf);
   }
@@ -116,7 +107,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   public static long getSegmentSize(Segment segment) {
-    return segment.getSize() - DEEP_OVERHEAD_PER_PIPELINE_ITEM;
+    return segment.getInternalSize();
   }
 
   public static long getSegmentsSize(List<? extends Segment> list) {
@@ -224,11 +215,15 @@ public class CompactingMemStore extends AbstractMemStore {
     pipeline.swap(versionedList, result);
   }
 
-  public boolean hasCompactibleSegments() {
+  public void flattenOneSegment(long requesterVersion) {
+    pipeline.flattenYoungestSegment(requesterVersion);
+  }
+
+  public boolean hasImmutableSegments() {
     return !pipeline.isEmpty();
   }
 
-  public VersionedSegmentsList getCompactibleSegments() {
+  public VersionedSegmentsList getImmutableSegments() {
     return pipeline.getVersionedList();
   }
 
@@ -305,7 +300,7 @@ public class CompactingMemStore extends AbstractMemStore {
         inMemoryFlushInProgress.set(true);
         // Speculative compaction execution, may be interrupted if flush is forced while
         // compaction is in progress
-        compactor.startCompaction();
+        compactor.start();
       }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
@@ -337,14 +332,14 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   private void stopCompaction() {
     if (inMemoryFlushInProgress.get()) {
-      compactor.stopCompact();
+      compactor.stop();
       inMemoryFlushInProgress.set(false);
     }
   }
 
   private void pushActiveToPipeline(MutableSegment active) {
     if (!active.isEmpty()) {
-      long delta = DEEP_OVERHEAD_PER_PIPELINE_ITEM - DEEP_OVERHEAD;
+      long delta = DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM - DEEP_OVERHEAD;
       active.setSize(active.getSize() + delta);
       pipeline.pushHead(active);
       resetCellSet();
@@ -417,7 +412,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   // debug method
-  private void debug() {
+  public void debug() {
     String msg = "active size="+getActive().getSize();
     msg += " threshold="+IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT* inmemoryFlushSize;
     msg += " allow compaction is "+ (allowCompaction.get() ? "true" : "false");

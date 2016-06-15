@@ -78,4 +78,9 @@ public class MutableSegment extends Segment {
     return getTimeRangeTracker().getMin();
   }
 
+  @Override
+  public long getInternalSize() {
+    return size.get() - CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM;
+  }
+
 }

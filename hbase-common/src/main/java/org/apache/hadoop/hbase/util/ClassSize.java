@@ -187,7 +187,7 @@ public class ClassSize {
     // The size changes from jdk7 to jdk8, estimate the size rather than use a conditional
     CONCURRENT_SKIPLISTMAP = (int) estimateBase(ConcurrentSkipListMap.class, false);
 
-    CELL_ARRAY_MAP = align(2*OBJECT + Bytes.SIZEOF_LONG + Bytes.SIZEOF_BOOLEAN
+    CELL_ARRAY_MAP = align(2*OBJECT + 2*Bytes.SIZEOF_LONG + Bytes.SIZEOF_BOOLEAN
         + 2*Bytes.SIZEOF_INT + REFERENCE);
 
     CELL_CHUNK_MAP = align(2*OBJECT + Bytes.SIZEOF_LONG + Bytes.SIZEOF_BOOLEAN

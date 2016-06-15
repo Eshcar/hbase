@@ -196,9 +196,11 @@ public abstract class Segment {
    */
 
   protected Segment setCellSet(CellSet cellSetOld, CellSet cellSetNew) {
-    this.cellSet.compareAndSet(cellSetOld,cellSetNew);
+    this.cellSet.compareAndSet(cellSetOld, cellSetNew);
     return this;
   }
+
+  public abstract long getInternalSize();
 
   /**
    * Returns the heap size of the segment

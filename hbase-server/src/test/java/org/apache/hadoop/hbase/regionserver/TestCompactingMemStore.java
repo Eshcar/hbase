@@ -620,7 +620,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       Threads.sleep(1000);
     }
     int counter = 0;
-    for ( Segment s : memstore.getListOfSegments()) {
+    for ( Segment s : memstore.getSegments()) {
       counter += s.getCellsCount();
     }
     assertEquals(3, counter);
