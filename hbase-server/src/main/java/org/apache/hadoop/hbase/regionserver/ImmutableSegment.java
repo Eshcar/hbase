@@ -213,6 +213,7 @@ public class ImmutableSegment extends Segment {
 
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from current ConcurrentSkipListMap based CellSet
+  // (without compacting iterator)
   private CellSet recreateCellArrayMapSet(int numOfCells) {
 
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
