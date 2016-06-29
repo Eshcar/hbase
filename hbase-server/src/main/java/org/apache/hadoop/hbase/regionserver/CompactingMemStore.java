@@ -291,15 +291,17 @@ public class CompactingMemStore extends AbstractMemStore {
       if (allowCompaction.get()) {
         // setting the inMemoryFlushInProgress flag again for the case this method is invoked
         // directly (only in tests) in the common path setting from true to true is idempotent
-        if (inMemoryFlushInProgress.compareAndSet(false, true))
-          // Speculative compaction execution, may be interrupted if flush is forced while
-          // compaction is in progress
-          compactor.start();
+        inMemoryFlushInProgress.set(true);
+        // Speculative compaction execution, may be interrupted if flush is forced while
+        // compaction is in progress
+        compactor.start();
       }
     } catch (IOException e) {
       LOG.warn("Unable to run memstore compaction. region "
           + getRegionServices().getRegionInfo().getRegionNameAsString()
           + "store: "+ getFamilyName(), e);
+    } finally {
+      stopCompaction();
     }
   }
 
@@ -312,9 +314,11 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    if(getActive().getSize() > inmemoryFlushSize) {
-      // size above flush threshold
-      return (allowCompaction.get() && !inMemoryFlushInProgress.get());
+    if(getActive().getSize() > inmemoryFlushSize) { // size above flush threshold
+      if (allowCompaction.get())      // the compaction is allowed in the test case
+        // the inMemoryFlushInProgress is CASed to be true here in order to mutual exclude
+        // the insert of the active into the compaction pipeline
+        return (inMemoryFlushInProgress.compareAndSet(false,true));
     }
     return false;
   }

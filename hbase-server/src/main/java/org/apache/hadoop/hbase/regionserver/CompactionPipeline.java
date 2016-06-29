@@ -134,9 +134,20 @@ public class CompactionPipeline {
         return false;
       }
 
+      long sizeBeforeFlat = 0;
+      long globalMemstoreSize = 0;
+
       for (ImmutableSegment s : pipeline) {
+        // remember the old size in case this segment is going to be flatten
+        sizeBeforeFlat = s.getInternalSize();
         if (s.flatten()) {
-          LOG.info("Compaction pipeline segment " + s + " was flattened.");
+          if(region != null) {
+            long sizeAfterFlat = s.getInternalSize();
+            long delta = sizeBeforeFlat - sizeAfterFlat;
+            globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-delta);
+          }
+          LOG.info("Compaction pipeline segment " + s + " was flattened; globalMemstoreSize: "
+              + globalMemstoreSize);
           return true;
         }
       }
