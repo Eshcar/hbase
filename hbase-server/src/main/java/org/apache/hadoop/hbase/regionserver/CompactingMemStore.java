@@ -37,7 +37,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
-import org.apache.hadoop.util.StringUtils;
 
 /**
  * A memstore implementation which supports in-memory compaction.
@@ -245,7 +244,7 @@ public class CompactingMemStore extends AbstractMemStore {
     List<Segment> pipelineList = pipeline.getSegments();
     long order = pipelineList.size();
     LinkedList<SegmentScanner> list = new LinkedList<SegmentScanner>();
-    list.add(getActive().getSegmentScanner(readPt, order + 1));
+    list.add(getActive().getSegmentScanner(readPt, order+1));
     for (Segment item : pipelineList) {
       list.add(item.getSegmentScanner(readPt, order));
       order--;

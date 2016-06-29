@@ -29,6 +29,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
+
 /**
  * Class for determining the "size" of a class, an attempt to calculate the
  * actual bytes that an object of this class will occupy in memory
