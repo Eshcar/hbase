@@ -35,7 +35,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
-import org.apache.hadoop.util.StringUtils;
 
 /**
  * A memstore implementation which supports in-memory compaction.
@@ -154,20 +153,8 @@ public class CompactingMemStore extends AbstractMemStore {
       LOG.warn("Snapshot called again without clearing previous. " +
           "Doing nothing. Another ongoing flush or did we fail last attempt?");
     } else {
-      int numOfPipeSegments = 0; int numOfPipeCells = 0; int internalSizes = 0;
-      for ( Segment s : pipeline.getSegments()) {
-        numOfPipeSegments++;
-        numOfPipeCells += s.getCellsCount();
-        internalSizes += s.getInternalSize();
-      }
       LOG.info("FLUSHING TO DISK: region "+ getRegionServices().getRegionInfo()
-          .getRegionNameAsString() + "store: "+ getFamilyName()
-          + "\n<<<<<< The compaction pipeline: " + pipeline.toString() + ". Pipeline's size: "
-          + pipeline.size() + ". Number of pipeline's segments: " + numOfPipeSegments
-          + " and cells: " + numOfPipeCells + " and internal sizes" + internalSizes
-          + "\n<<<<<< Is there in-memory-flush in progress? " + inMemoryFlushInProgress
-          + ". Active segment internal size: " + active.getInternalSize() + " and just size: "
-          + active.getSize() + ". Is active segment empty? " + active.isEmpty() );
+          .getRegionNameAsString() + "store: "+ getFamilyName());
       stopCompaction();
       pushActiveToPipeline(active);
       snapshotId = EnvironmentEdgeManager.currentTime();
@@ -252,7 +239,7 @@ public class CompactingMemStore extends AbstractMemStore {
     List<Segment> pipelineList = pipeline.getSegments();
     long order = pipelineList.size();
     LinkedList<SegmentScanner> list = new LinkedList<SegmentScanner>();
-    list.add(getActive().getSegmentScanner(readPt, order + 1));
+    list.add(getActive().getSegmentScanner(readPt, order+1));
     for (Segment item : pipelineList) {
       list.add(item.getSegmentScanner(readPt, order));
       order--;
@@ -275,8 +262,7 @@ public class CompactingMemStore extends AbstractMemStore {
       * in exclusive mode while this method (checkActiveSize) is invoked holding updatesLock
       * in the shared mode. */
       InMemoryFlushRunnable runnable = new InMemoryFlushRunnable();
-      LOG.info("Dispatching the MemStore in-memory flush for store " + store.getColumnFamilyName()
-          + "; memstore=" + StringUtils.byteDesc(regionServices.getGlobalMemstoreTotalSize()));
+      LOG.info("Dispatching the MemStore in-memory flush for store " + store.getColumnFamilyName());
       getPool().execute(runnable);
     }
   }
