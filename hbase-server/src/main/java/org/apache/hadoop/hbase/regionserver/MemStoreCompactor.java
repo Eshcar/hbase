@@ -147,7 +147,7 @@ class MemStoreCompactor {
   private void doCompaction() {
     ImmutableSegment result = null;
     int immutCellsNum = versionedList.getNumOfCells();  // number of immutable cells
-    boolean toFlatten =                                  // the option to flatten or not to flatten
+    boolean toFlatten =                                 // the option to flatten or not to flatten
         compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
             MEMSTORE_COMPACTOR_FLATTENING_DEFAULT);
 
@@ -185,7 +185,6 @@ class MemStoreCompactor {
       Thread.currentThread().interrupt();
     } finally {
       releaseResources();
-      compactingMemStore.setInMemoryFlushInProgress(false);
     }
 
   }
