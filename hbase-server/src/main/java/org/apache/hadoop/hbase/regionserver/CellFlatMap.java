@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -32,7 +33,7 @@ import java.util.Set;
 
 /**
  * CellFlatMap stores a constant number of elements and is immutable after creation stage.
- * Due to being immutable the CellFlatMap can be implemented as array.
+ * Being immutable, the CellFlatMap can be implemented as array.
  * The actual array can be on- or off-heap and is implemented in concrete class derived from CellFlatMap.
  * The CellFlatMap uses no synchronization primitives, it is assumed to be created by a
  * single thread and then it can be read-only by multiple threads.
@@ -40,11 +41,12 @@ import java.util.Set;
  * The "flat" in the name, means that the memory layout of the Map is sequential array and thus
  * requires less memory than ConcurrentSkipListMap.
  */
+@InterfaceAudience.Private
 public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   private final Comparator<? super Cell> comparator;
   protected int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
-  protected int maxCellIdx   = 0;   // the index of the maximal cell (for sub-sets)
+  protected int maxCellIdx   = 0;   // the index of the cell after the maximal cell (for sub-sets)
   private boolean descending = false;
 
   /* C-tor */
@@ -76,13 +78,15 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
     int end = maxCellIdx - 1;
 
     while (begin <= end) {
-      int mid = begin + ((end - begin) / 2);
+      int mid = (begin + end) >>> 1;
       Cell midCell = getCell(mid);
       int compareRes = comparator.compare(midCell, needle);
 
       if (compareRes == 0) {
         return mid;  // 0 means equals. We found the key
-      } else if (compareRes < 0) {
+      }
+
+      if (compareRes < 0) {
         // midCell is less than needle so we need to look at farther up
         begin = mid + 1;
       } else {
@@ -101,7 +105,12 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
     if (inclusive && index >= 0) {
       index = (descending) ? index - 1 : index + 1;
     }
-    return Math.abs(index);
+    index = Math.abs(index);
+    if (index < minCellIdx || index >= maxCellIdx) {
+      throw new IllegalArgumentException("Index " + index
+          + " out of boundary, when looking for key " + key);
+    }
+    return index;
   }
 
   @Override
@@ -116,7 +125,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   @Override
   public boolean isEmpty() {
-    return (size()==0);
+    return ( size() == 0 );
   }
 
 
@@ -130,7 +139,8 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
     int fromIndex = (getValidIndex(fromKey, !fromInclusive));
 
     if (fromIndex > toIndex) {
-      throw new IllegalArgumentException("inconsistent range");
+      throw new IllegalArgumentException("Inconsistent range, when looking from "
+          + fromKey + " to " + toKey);
     }
     return createSubCellFlatMap(comparator, fromIndex, toIndex, descending);
   }
@@ -234,7 +244,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   @Override
   public boolean containsValue(Object o) { // use containsKey(Object o) instead
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("Use containsKey(Object o) instead");
   }
 
   @Override

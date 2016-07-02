@@ -181,13 +181,19 @@ public class ClassSize {
     // The size changes from jdk7 to jdk8, estimate the size rather than use a conditional
     CONCURRENT_SKIPLISTMAP = (int) estimateBase(ConcurrentSkipListMap.class, false);
 
-    CELL_ARRAY_MAP = align(2*OBJECT + 2*Bytes.SIZEOF_LONG + Bytes.SIZEOF_BOOLEAN
-        + 2*Bytes.SIZEOF_INT + REFERENCE);
+    // CELL_ARRAY_MAP is the size of an instance of CellArrayMap class, which extends
+    // CellFlatMap class. CellArrayMap object containing a ref to an Array, so
+    // OBJECT + REFERENCE + ARRAY
+    // CellFlatMap object contains two integers, one boolean and one reference to object, so
+    // 2*INT + BOOLEAN + REFERENCE
+    CELL_ARRAY_MAP = align(OBJECT + 2*Bytes.SIZEOF_INT + Bytes.SIZEOF_BOOLEAN
+        + ARRAY + 2*REFERENCE);
 
     CONCURRENT_SKIPLISTMAP_ENTRY = align(
         align(OBJECT + (3 * REFERENCE)) + /* one node per entry */
         align((OBJECT + (3 * REFERENCE))/2)); /* one index per two entries */
 
+    // REFERENCE in the CellArrayMap and the Cell object itself
     CELL_ARRAY_MAP_ENTRY = align(OBJECT + 2*REFERENCE + 2*Bytes.SIZEOF_INT);
 
     REENTRANT_LOCK = align(OBJECT + (3 * REFERENCE));

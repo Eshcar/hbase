@@ -207,6 +207,11 @@ public class CompactingMemStore extends AbstractMemStore {
     pipeline.swap(versionedList, result);
   }
 
+  /**
+   * @param requesterVersion The caller must hold the VersionedList of the pipeline
+   *           with version taken earlier. This version must be passed as a parameter here.
+   *           The flattening happens only if versions match.
+   */
   public void flattenOneSegment(long requesterVersion) {
     pipeline.flattenYoungestSegment(requesterVersion);
   }

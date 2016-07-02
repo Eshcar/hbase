@@ -207,7 +207,7 @@ public class ImmutableSegment extends Segment {
       updateMetaInfo(c,true);
     }
     // build the immutable CellSet
-    CellArrayMap cam = new CellArrayMap(getComparator(),cells,0,i,false);
+    CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, i, false);
     return new CellSet(cam);
   }
 
@@ -230,7 +230,7 @@ public class ImmutableSegment extends Segment {
       throw new IllegalStateException(ie);
     }
     // build the immutable CellSet
-    CellArrayMap cam = new CellArrayMap(getComparator(),cells,0,idx,false);
+    CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
     return new CellSet(cam);
   }
 

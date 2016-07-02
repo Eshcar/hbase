@@ -21,33 +21,35 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.util.Comparator;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 /**
- * CellArrayMap is a simple array of Cells and can be allocated only using on-heap.
- * In contrast, CellChunkMap can be also allocated off-heap.
+ * CellArrayMap is a simple array of Cells and cannot be allocated off-heap.
  * As all java arrays CellArrayMap's array of references pointing to Cell objects.
  */
+@InterfaceAudience.Private
 public class CellArrayMap extends CellFlatMap {
 
   private final Cell[] block;
 
   /* The Cells Array is created only when CellArrayMap is created, all sub-CellBlocks use
    * boundary indexes. The given Cell array must be ordered. */
-  public CellArrayMap(Comparator<? super Cell> comparator, Cell[] b, int min, int max, boolean d) {
-    super(comparator,min,max,d);
+  public CellArrayMap(
+      Comparator<? super Cell> comparator, Cell[] b, int min, int max, boolean descending) {
+    super(comparator,min,max,descending);
     this.block = b;
   }
 
   /* To be used by base class only to create a sub-CellFlatMap */
   @Override
   protected CellFlatMap createSubCellFlatMap(Comparator<? super Cell> comparator, int min, int max,
-      boolean d) {
-    return new CellArrayMap(comparator,this.block,min,max,d);
+      boolean descending) {
+    return new CellArrayMap(comparator, this.block, min, max, descending);
   }
 
   @Override
   protected Cell getCell(int i) {
-    if(i<minCellIdx && i>=maxCellIdx) return null;
+    if( (i < minCellIdx) && (i >= maxCellIdx) ) return null;
     return block[i];
   }
 }
