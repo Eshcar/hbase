@@ -279,7 +279,7 @@ public class ClassSize {
 
     CONCURRENT_SKIPLISTMAP_ENTRY = align(
         align(OBJECT + (3 * REFERENCE)) + /* one node per entry */
-        align((OBJECT + (3 * REFERENCE))/2); /* one index per two entries */
+        align((OBJECT + (3 * REFERENCE))/2)); /* one index per two entries */
 
     // REFERENCE in the CellArrayMap and the Cell object itself
     CELL_ARRAY_MAP_ENTRY = align(OBJECT + 2*REFERENCE + 2*Bytes.SIZEOF_INT);
