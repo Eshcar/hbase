@@ -121,16 +121,17 @@ public class CompactionPipeline {
 
   /**
    * If the caller holds the current version, go over the the pipeline and try to flatten each
-   * segment. Flattening is replacing the ConcurrentSkipListMap based CellSet to CellArrayMAp based.
+   * segment. Flattening is replacing the ConcurrentSkipListMap based CellSet to CellArrayMap based.
    * Flattening of the segment that initially is not based on ConcurrentSkipListMap has no effect.
-   * Return after one segment was successfully flatten.
+   * Return after one segment is successfully flatten.
    *
    * @return true iff a segment was successfully flattened
    */
   public boolean flattenYoungestSegment(long requesterVersion) {
 
     if(requesterVersion != version) {
-      LOG.info("Segment flattening failed, because versions do not match");
+      LOG.warn("Segment flattening failed, because versions do not match. Requester version: "
+          + requesterVersion + ", actual version: " + version);
       return false;
     }
 

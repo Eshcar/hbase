@@ -78,7 +78,6 @@ class MemStoreCompactor {
   private Type type = Type.COMPACT_TO_SKIPLIST_MAP;
 
   public MemStoreCompactor(CompactingMemStore compactingMemStore) {
-    //org.junit.Assert.assertTrue("\n\n<<<< In MemStoreCompactor constructor \n\n",false);
     this.compactingMemStore = compactingMemStore;
     this.compactionKVMax = compactingMemStore.getConfiguration().getInt(
         HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
@@ -97,11 +96,11 @@ class MemStoreCompactor {
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
     switch (t) {
     case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
-      LOG.info("Creating CompactingMemStore that is going to compact to SkipList data structure "
+      LOG.trace("Creating CompactingMemStore that is going to compact to SkipList data structure "
           + " for store: " + compactingMemStore.getFamilyName());
       break;
     case 2: type = Type.COMPACT_TO_ARRAY_MAP;
-      LOG.info("Creating CompactingMemStore that is going to compact to CellArray data structure "
+      LOG.trace("Creating CompactingMemStore that is going to compact to CellArray data structure "
           + " for store: " + compactingMemStore.getFamilyName());
       break;
     }
