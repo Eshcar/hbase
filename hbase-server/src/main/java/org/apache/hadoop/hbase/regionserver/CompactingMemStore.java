@@ -245,17 +245,20 @@ public class CompactingMemStore extends AbstractMemStore {
   /*
    * Scanners are ordered from 0 (oldest) to newest in increasing order.
    */
-  protected List<SegmentScanner> getListOfScanners(long readPt) throws IOException {
+  public List<KeyValueScanner> getScanners(long readPt) throws IOException {
     List<Segment> pipelineList = pipeline.getSegments();
     long order = pipelineList.size();
-    LinkedList<SegmentScanner> list = new LinkedList<SegmentScanner>();
-    list.add(getActive().getSegmentScanner(readPt, order+1));
+    // The list of elements in pipeline + the active element + the snapshot segment
+    // TODO : This will change when the snapshot is made of more than one element
+    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(pipelineList.size() + 2);
+    list.add(getActive().getSegmentScanner(readPt, order + 1));
     for (Segment item : pipelineList) {
       list.add(item.getSegmentScanner(readPt, order));
       order--;
     }
     list.add(getSnapshot().getSegmentScanner(readPt, order));
-    return list;
+    return Collections.<KeyValueScanner> singletonList(
+      new MemStoreScanner(getComparator(), list));
   }
 
   /**

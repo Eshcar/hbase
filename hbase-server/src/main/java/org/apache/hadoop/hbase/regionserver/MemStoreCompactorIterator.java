@@ -57,7 +57,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
 
     // list of Scanners of segments in the pipeline, when compaction starts
-    List<SegmentScanner> scanners = new ArrayList<SegmentScanner>();
+    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
 
     // create the list of scanners with maximally possible read point, meaning that
     // all KVs are going to be returned by the pipeline traversing

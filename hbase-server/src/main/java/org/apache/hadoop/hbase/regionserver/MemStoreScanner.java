@@ -31,7 +31,7 @@ import org.apache.htrace.Trace;
 
 /**
  * This is the scanner for any MemStore implementation, derived from MemStore.
- * The MemStoreScanner combines SegmentScanner from different Segments and
+ * The MemStoreScanner combines KeyValueScanner from different Segments and
  * uses the key-value heap and the reversed key-value heap for the aggregated key-values set.
  * It is assumed that only traversing forward or backward is used (without zigzagging in between)
  */
@@ -57,7 +57,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   private Type type = Type.UNDEFINED;
 
   // remember the initial version of the scanners list
-  List<SegmentScanner> scanners;
+  List<KeyValueScanner> scanners;
 
   private final CellComparator comparator;
 
@@ -70,7 +70,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param scanners   List of scanners, from which the heap will be built
    * @param type       The scan type COMPACT_FORWARD should be used for compaction
    */
-  public MemStoreScanner(CellComparator comparator, List<SegmentScanner> scanners, Type type)
+  public MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners, Type type)
       throws IOException {
     super();
     this.type = type;
@@ -95,7 +95,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
   /* Constructor used only when the scan usage is unknown
   and need to be defined according to the first move */
-  public MemStoreScanner(CellComparator comparator, List<SegmentScanner> scanners)
+  public MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners)
       throws IOException {
     this(comparator, scanners, Type.UNDEFINED);
   }
@@ -125,7 +125,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
          currentCell != null;
          currentCell = heap.next()) {
 
-      // all the logic of presenting cells is inside the internal SegmentScanners
+      // all the logic of presenting cells is inside the internal KeyValueScanners
       // located inside the heap
 
       return currentCell;

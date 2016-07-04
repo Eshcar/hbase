@@ -119,7 +119,7 @@ public class DefaultMemStore extends AbstractMemStore {
     list.add(getActive().getSegmentScanner(readPt, 1));
     list.add(getSnapshot().getSegmentScanner(readPt, 0));
     return Collections.<KeyValueScanner> singletonList(
-      new MemStoreScanner((AbstractMemStore) this, list, readPt));
+      new MemStoreScanner(getComparator(), list));
   }
 
   @Override

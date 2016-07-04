@@ -191,17 +191,6 @@ public abstract class AbstractMemStore implements MemStore {
     return getActive().getSize();
   }
 
-
-  /**
-   * @return a list containing a single memstore scanner.
-   */
-  @Override
-  public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    return Collections.<KeyValueScanner> singletonList(
-        new MemStoreScanner(getComparator(), getListOfScanners(readPt)));
-  }
-
-
   @Override
   public long getSnapshotSize() {
     return getSnapshot().getSize();
@@ -441,13 +430,6 @@ public abstract class AbstractMemStore implements MemStore {
    * Check whether anything need to be done based on the current active set size
    */
   protected abstract void checkActiveSize();
-
-  /**
-   * Returns a list of Store segment scanners, one per each store segment
-   * @param readPt the version number required to initialize the scanners
-   * @return a list of Store segment scanners, one per each store segment
-   */
-  protected abstract List<SegmentScanner> getListOfScanners(long readPt) throws IOException;
 
   /**
    * Returns an ordered list of segments from most recent to oldest in memstore
