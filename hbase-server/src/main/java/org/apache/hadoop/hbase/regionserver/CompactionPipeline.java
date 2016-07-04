@@ -95,7 +95,6 @@ public class CompactionPipeline {
         return false;
       }
       suffix = versionedList.getStoreSegments();
-
       if (LOG.isDebugEnabled()) {
         LOG.debug("Swapping pipeline suffix with compacted item. "
             + "Just before the swap the number of segments in pipeline is:"
@@ -103,7 +102,6 @@ public class CompactionPipeline {
             + ", and the number of cells in new segment is:" + segment.getCellsCount());
       }
       swapSuffix(suffix,segment);
-
     }
     if(region != null) {
       // update the global memstore size counter

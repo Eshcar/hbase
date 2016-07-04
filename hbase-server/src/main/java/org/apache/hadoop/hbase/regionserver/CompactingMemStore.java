@@ -257,8 +257,7 @@ public class CompactingMemStore extends AbstractMemStore {
       order--;
     }
     list.add(getSnapshot().getSegmentScanner(readPt, order));
-    return Collections.<KeyValueScanner> singletonList(
-      new MemStoreScanner(getComparator(), list));
+    return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(getComparator(), list));
   }
 
   /**
