@@ -208,8 +208,8 @@ public class CompactingMemStore extends AbstractMemStore {
     this.inMemoryFlushInProgress.set(inMemoryFlushInProgress);
   }
 
-  public void swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result) {
-    pipeline.swap(versionedList, result);
+  public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result) {
+    return pipeline.swap(versionedList, result);
   }
 
   /**
@@ -301,7 +301,7 @@ public class CompactingMemStore extends AbstractMemStore {
     }
     // Phase II: Compact the pipeline
     try {
-      if (allowCompaction.get() && inMemoryFlushInProgress.compareAndSet(false, true)) {
+      if (allowCompaction.get()) {
         // setting the inMemoryFlushInProgress flag again for the case this method is invoked
         // directly (only in tests) in the common path setting from true to true is idempotent
         inMemoryFlushInProgress.set(true);
@@ -328,7 +328,6 @@ public class CompactingMemStore extends AbstractMemStore {
 
   private boolean shouldFlushInMemory() {
     if(getActive().getSize() > inmemoryFlushSize) { // size above flush threshold
-      if (allowCompaction.get())      // the compaction is allowed in the test case
         // the inMemoryFlushInProgress is CASed to be true here in order to mutual exclude
         // the insert of the active into the compaction pipeline
         return (inMemoryFlushInProgress.compareAndSet(false,true));

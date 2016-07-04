@@ -144,6 +144,7 @@ class MemStoreCompactor {
   */
   private void doCompaction() {
     ImmutableSegment result = null;
+    boolean resultSwapped = false;
     int immutCellsNum = versionedList.getNumOfCells();  // number of immutable cells
     boolean toFlatten =                                 // the option to flatten or not to flatten
         compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
@@ -173,7 +174,7 @@ class MemStoreCompactor {
 
       // Phase III: swap the old compaction pipeline - END COPY-COMPACTION
       if (!isInterrupted.get()) {
-        compactingMemStore.swapCompactedSegments(versionedList, result);
+        resultSwapped = compactingMemStore.swapCompactedSegments(versionedList, result);
         // update the wal so it can be truncated and not get too long
         compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
       }
@@ -182,6 +183,7 @@ class MemStoreCompactor {
           + compactingMemStore.getFamilyName());
       Thread.currentThread().interrupt();
     } finally {
+      if ((result != null) && (!resultSwapped)) result.close();
       releaseResources();
     }
 
