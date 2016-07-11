@@ -47,7 +47,7 @@ class MemStoreCompactor {
 
   // Possibility for external guidance whether to flatten the segments without compaction
   static final String MEMSTORE_COMPACTOR_FLATTENING = "hbase.hregion.compacting.memstore.flatten";
-  static final boolean MEMSTORE_COMPACTOR_FLATTENING_DEFAULT = true;
+  static final boolean MEMSTORE_COMPACTOR_FLATTENING_DEFAULT = false;
 
   // Possibility for external setting of the compacted structure (SkipList, CellArray, etc.)
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
@@ -124,9 +124,8 @@ class MemStoreCompactor {
   * Non-blocking request
   */
   public void stop() {
-    isInterrupted.compareAndSet(false, true);
+      isInterrupted.compareAndSet(false, true);
   }
-
 
   /**----------------------------------------------------------------------
   * Close the scanners and clear the pointers in order to allow good

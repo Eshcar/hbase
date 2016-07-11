@@ -186,6 +186,7 @@ public class ImmutableSegment extends Segment {
     incSize(ClassSize.CELL_ARRAY_MAP + numOfCells * constantCellMetaDataSize);
 
     CellSet  newCellSet = recreateCellArrayMapSet(numOfCells); // build the CellSet CellArrayMap based
+    type = Type.ARRAY_MAP_BASED;
     setCellSet(oldCellSet,newCellSet);
     return true;
   }

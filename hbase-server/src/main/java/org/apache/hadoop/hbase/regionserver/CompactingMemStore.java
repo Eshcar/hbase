@@ -315,7 +315,7 @@ public class CompactingMemStore extends AbstractMemStore {
           + getRegionServices().getRegionInfo().getRegionNameAsString()
           + "store: "+ getFamilyName(), e);
     } finally {
-      stopCompaction();
+      inMemoryFlushInProgress.set(false);
     }
   }
 
