@@ -282,7 +282,7 @@ public class ClassSize {
         align((OBJECT + (3 * REFERENCE))/2)); /* one index per two entries */
 
     // REFERENCE in the CellArrayMap and the Cell object itself
-    CELL_ARRAY_MAP_ENTRY = align(OBJECT + 2*REFERENCE + 2*Bytes.SIZEOF_INT);
+    CELL_ARRAY_MAP_ENTRY = align(OBJECT + REFERENCE);
 
     REENTRANT_LOCK = align(OBJECT + (3 * REFERENCE));
 

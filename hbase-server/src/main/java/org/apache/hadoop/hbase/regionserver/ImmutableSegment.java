@@ -29,10 +29,6 @@ import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
-import org.apache.hadoop.hbase.util.Pair;
-import org.apache.hadoop.hbase.util.SimpleMutableByteRange;
-import org.apache.hadoop.hbase.util.ByteRange;
-import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 
@@ -117,8 +113,7 @@ public class ImmutableSegment extends Segment {
       Cell c = iterator.next();
       // The scanner is doing all the elimination logic
       // now we just copy it to the new segment
-      KeyValue kv = KeyValueUtil.ensureKeyValue(c);
-      Cell newKV = maybeCloneWithAllocator(kv);
+      Cell newKV = maybeCloneWithAllocator(c);
       internalAdd(newKV);
     }
     type = Type.SKIPLIST_MAP_BASED;
@@ -180,10 +175,10 @@ public class ImmutableSegment extends Segment {
     constantCellMetaDataSize = ClassSize.CELL_ARRAY_MAP_ENTRY;
 
     // arrange the meta-data size, decrease all meta-data sizes related to SkipList
-    incSize(
+    updateSize(
         -(ClassSize.CONCURRENT_SKIPLISTMAP + numOfCells * ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY));
     // add size of CellArrayMap and meta-data overhead per Cell
-    incSize(ClassSize.CELL_ARRAY_MAP + numOfCells * constantCellMetaDataSize);
+    updateSize(ClassSize.CELL_ARRAY_MAP + numOfCells * constantCellMetaDataSize);
 
     CellSet  newCellSet = recreateCellArrayMapSet(numOfCells); // build the CellSet CellArrayMap based
     type = Type.ARRAY_MAP_BASED;
@@ -230,6 +225,7 @@ public class ImmutableSegment extends Segment {
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
     }
+    segmentScanner.close();
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
     return new CellSet(cam);

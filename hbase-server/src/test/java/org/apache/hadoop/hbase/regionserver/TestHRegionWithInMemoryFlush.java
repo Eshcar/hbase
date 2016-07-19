@@ -40,8 +40,9 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestRule;
 
-import static org.apache.hadoop.hbase.HBaseTestingUtility.*;
 import static org.apache.hadoop.hbase.HBaseTestingUtility.START_KEY;
+import static org.apache.hadoop.hbase.HBaseTestingUtility.fam1;
+import static org.apache.hadoop.hbase.HBaseTestingUtility.fam2;
 import static org.apache.hadoop.hbase.HBaseTestingUtility.fam3;
 import static org.junit.Assert.assertNotNull;
 
@@ -144,14 +145,6 @@ public class TestHRegionWithInMemoryFlush extends TestHRegion{
           }
         }
         LOG.info("Made 4 regions");
-        // The splits should have been even. Test I can get some arbitrary row
-        // out of each.
-//        int interval = (LAST_CHAR - FIRST_CHAR) / 3;
-//        byte[] b = Bytes.toBytes(START_KEY);
-//        for (HRegion r : sortedMap.values()) {
-//          assertGet(r, fam3, b);
-//          b[0] += interval;
-//        }
       } finally {
         for (int i = 0; i < regions.length; i++) {
           try {

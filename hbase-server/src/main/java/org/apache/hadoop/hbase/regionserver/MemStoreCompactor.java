@@ -94,14 +94,11 @@ class MemStoreCompactor {
 
     int t = compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_TYPE_KEY,
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
+
     switch (t) {
     case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
-      LOG.trace("Creating CompactingMemStore that is going to compact to SkipList data structure "
-          + " for store: " + compactingMemStore.getFamilyName());
       break;
     case 2: type = Type.COMPACT_TO_ARRAY_MAP;
-      LOG.trace("Creating CompactingMemStore that is going to compact to CellArray data structure "
-          + " for store: " + compactingMemStore.getFamilyName());
       break;
     }
 
@@ -110,7 +107,7 @@ class MemStoreCompactor {
     versionedList = compactingMemStore.getImmutableSegments();
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Starting the MemStore in-memory compaction for store "
+      LOG.debug("Starting the MemStore in-memory compaction of type " + type + " for store "
           + compactingMemStore.getStore().getColumnFamilyName());
     }
 
@@ -173,8 +170,7 @@ class MemStoreCompactor {
 
       // Phase III: swap the old compaction pipeline - END COPY-COMPACTION
       if (!isInterrupted.get()) {
-        resultSwapped = compactingMemStore.swapCompactedSegments(versionedList, result);
-        if (compactingMemStore.swapCompactedSegments(versionedList, result)) {
+        if (resultSwapped = compactingMemStore.swapCompactedSegments(versionedList, result)) {
           // update the wal so it can be truncated and not get too long
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
         } else {

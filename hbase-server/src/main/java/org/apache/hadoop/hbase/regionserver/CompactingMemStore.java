@@ -351,7 +351,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private void pushActiveToPipeline(MutableSegment active) {
     if (!active.isEmpty()) {
       long delta = DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM - DEEP_OVERHEAD;
-      active.setSize(active.getSize() + delta);
+      active.updateSize(delta);
       pipeline.pushHead(active);
       resetCellSet();
     }

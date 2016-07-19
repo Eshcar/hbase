@@ -139,12 +139,10 @@ public class CompactionPipeline {
         return false;
       }
 
-      long sizeBeforeFlat = 0;
-      long globalMemstoreSize = 0;
-
       for (ImmutableSegment s : pipeline) {
         // remember the old size in case this segment is going to be flatten
-        sizeBeforeFlat = s.getInternalSize();
+        long sizeBeforeFlat = s.getInternalSize();
+        long globalMemstoreSize = 0;
         if (s.flatten()) {
           if(region != null) {
             long sizeAfterFlat = s.getInternalSize();

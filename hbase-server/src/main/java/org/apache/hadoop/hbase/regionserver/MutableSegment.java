@@ -51,7 +51,7 @@ public class MutableSegment extends Segment {
     if (found != null && found.getSequenceId() == cell.getSequenceId()) {
       long sz = heapSizeChange(cell, true);
       getCellSet().remove(cell);
-      incSize(-sz);
+      updateSize(-sz);
       return sz;
     }
     return 0;
