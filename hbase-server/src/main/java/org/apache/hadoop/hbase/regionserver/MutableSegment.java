@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.client.Scan;
 
 /**
@@ -30,7 +31,7 @@ import org.apache.hadoop.hbase.client.Scan;
 public class MutableSegment extends Segment {
   protected MutableSegment(CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB,
       long size) {
-    super(cellSet, comparator, memStoreLAB, size);
+    super(cellSet, comparator, memStoreLAB, size, ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
   }
 
   /**
@@ -50,9 +51,9 @@ public class MutableSegment extends Segment {
   public long rollback(Cell cell) {
     Cell found = getCellSet().get(cell);
     if (found != null && found.getSequenceId() == cell.getSequenceId()) {
-      long sz = AbstractMemStore.heapSizeChange(cell, true);
+      long sz = heapSizeChange(cell, true);
       getCellSet().remove(cell);
-      incSize(-sz);
+      updateSize(-sz);
       return sz;
     }
     return 0;
@@ -80,15 +81,7 @@ public class MutableSegment extends Segment {
   }
 
   @Override
-  protected void updateMetaInfo(Cell toAdd, long s) {
-    getTimeRangeTracker().includeTimestamp(toAdd);
-    size.addAndGet(s);
-    // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
-    // When we use ACL CP or Visibility CP which deals with Tags during
-    // mutation, the TagRewriteCell.getTagsLength() is a cheaper call. We do not
-    // parse the byte[] to identify the tags length.
-    if(toAdd.getTagsLength() > 0) {
-      tagsPresent = true;
-    }
+  public long getInternalSize() {
+    return size.get() - CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM;
   }
 }
