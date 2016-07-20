@@ -114,7 +114,8 @@ public class ImmutableSegment extends Segment {
       // The scanner is doing all the elimination logic
       // now we just copy it to the new segment
       Cell newKV = maybeCloneWithAllocator(c);
-      internalAdd(newKV);
+      boolean useMSLAB = (newKV != c);
+      internalAdd(newKV, useMSLAB);
     }
     type = Type.SKIPLIST_MAP_BASED;
     TimeRangeTracker trt = getTimeRangeTracker();
@@ -197,8 +198,7 @@ public class ImmutableSegment extends Segment {
       Cell c = iterator.next();
       // The scanner behind the iterator is doing all the elimination logic
       // now we just copy it to the new segment (also MSLAB copy)
-      KeyValue kv = KeyValueUtil.ensureKeyValue(c);
-      cells[i++] = maybeCloneWithAllocator(kv);
+      cells[i++] = maybeCloneWithAllocator(c);
       // last parameter false, because in compaction count both Heap (Data) and MetaData size
       updateMetaInfo(c,true);
     }
