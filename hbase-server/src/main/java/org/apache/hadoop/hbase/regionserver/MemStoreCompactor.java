@@ -96,10 +96,11 @@ class MemStoreCompactor {
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
 
     switch (t) {
-    case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
-      break;
-    case 2: type = Type.COMPACT_TO_ARRAY_MAP;
-      break;
+      case 1: type = Type.COMPACT_TO_SKIPLIST_MAP;
+        break;
+      case 2: type = Type.COMPACT_TO_ARRAY_MAP;
+        break;
+      default: throw new RuntimeException("Unknown type " + type); // sanity check
     }
 
     // get a snapshot of the list of the segments from the pipeline,
@@ -199,7 +200,7 @@ class MemStoreCompactor {
   private ImmutableSegment compact(int numOfCells)
       throws IOException {
 
-    LOG.info("Starting in-memory compaction of type: " + type + ". Before compaction we have "
+    LOG.debug("Starting in-memory compaction of type: " + type + ". Before compaction we have "
         + numOfCells + " cells in the entire compaction pipeline");
 
     ImmutableSegment result = null;

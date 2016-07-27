@@ -226,8 +226,10 @@ public class ImmutableSegment extends Segment {
       }
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
+    } finally {
+      segmentScanner.close();
     }
-    segmentScanner.close();
+
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
     return new CellSet(cam);

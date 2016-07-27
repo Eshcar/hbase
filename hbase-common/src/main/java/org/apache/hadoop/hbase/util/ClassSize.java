@@ -281,8 +281,8 @@ public class ClassSize {
         align(OBJECT + (3 * REFERENCE)) + /* one node per entry */
         align((OBJECT + (3 * REFERENCE))/2)); /* one index per two entries */
 
-    // REFERENCE in the CellArrayMap and the Cell object itself
-    CELL_ARRAY_MAP_ENTRY = align(OBJECT + REFERENCE);
+    // REFERENCE in the CellArrayMap all the rest is counted in KeyValue.heapSize()
+    CELL_ARRAY_MAP_ENTRY = align(REFERENCE);
 
     REENTRANT_LOCK = align(OBJECT + (3 * REFERENCE));
 

@@ -68,8 +68,13 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
    * Binary search for a given key in between given boundaries of the array.
    * Positive returned numbers mean the index.
    * Negative returned numbers means the key not found.
+   *
    * The absolute value of the output is the
-   * possible insert index for the searched key: (-1 * insertion point)
+   * possible insert index for the searched key
+   *
+   * In twos-complement, (-1 * insertion point)-1 is the bitwise not of the insert point.
+   *
+   *
    * @param needle The key to look for in all of the entries
    * @return Same return value as Arrays.binarySearch.
    */
@@ -95,22 +100,39 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
       }
     }
 
-    return (-1 * begin);
+    return (-1 * begin)-1;
   }
 
-  /* Get the index of the key taking into consideration whether
+  /* Get the index of the given anchor key for creating subsequent set.
+  ** It doesn't matter whether the given key exists in the set or not.
+  **
+  ** taking into consideration whether
   ** the key should be inclusive or exclusive */
-  private int getValidIndex(Cell key, boolean inclusive) {
+  private int getValidIndex(Cell key, boolean inclusive, boolean tail) {
     int index = find(key);
-    if (inclusive && index >= 0) {
-      index = (descending) ? index - 1 : index + 1;
+    int result = -1;
+
+    // if the key is found and to be included, for all possibilities, the answer is the found index
+    if (index >= 0 && inclusive) result = index;
+
+    // The compliment Operator (~) converts the returned insertion point to the real one
+    if (index<0) result = ~index;
+
+    if (tail && result==-1) {
+      if (index >= 0 && !inclusive)
+        result = (descending) ? index - 1 : index + 1;
+    } else if (result==-1) {
+      if (index >= 0 && !inclusive)
+        result = (descending) ? index + 1 : index - 1;
     }
-    index = Math.abs(index);
-    if (index < minCellIdx || index >= maxCellIdx) {
-      throw new IllegalArgumentException("Index " + index
-          + " out of boundary, when looking for key " + key);
+
+    if (result < minCellIdx || result > maxCellIdx) {
+      throw new IllegalArgumentException("Index " + result + " (initial index " + index + ") "
+          + " out of boundary, when looking for key " + key + ". The minCellIdx is " + minCellIdx
+          + " and the maxCellIdx is " + maxCellIdx + ". Finally, descending? " + descending
+          + " and was the key requested inclusively? " + inclusive);
     }
-    return index;
+    return result;
   }
 
   @Override
@@ -135,25 +157,26 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
                                                     boolean fromInclusive,
                                                     Cell toKey,
                                                     boolean toInclusive) {
-    int toIndex = getValidIndex(toKey, toInclusive);
-    int fromIndex = (getValidIndex(fromKey, !fromInclusive));
+    int toIndex = getValidIndex(toKey, toInclusive, false);
+    int fromIndex = (getValidIndex(fromKey, fromInclusive, true));
 
     if (fromIndex > toIndex) {
       throw new IllegalArgumentException("Inconsistent range, when looking from "
           + fromKey + " to " + toKey);
     }
-    return createSubCellFlatMap(comparator, fromIndex, toIndex, descending);
+    return createSubCellFlatMap(comparator, fromIndex, toIndex+1, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
-    int index = getValidIndex(toKey, inclusive);
-    return createSubCellFlatMap(comparator, minCellIdx, index, descending);
+    int index = getValidIndex(toKey, inclusive, false);
+    // "+1" because the max index is one after the true index
+    return createSubCellFlatMap(comparator, minCellIdx, index+1, descending);
   }
 
   @Override
   public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
-    int index = (getValidIndex(fromKey, !inclusive));
+    int index = (getValidIndex(fromKey, inclusive, true));
     return createSubCellFlatMap(comparator, index, maxCellIdx, descending);
   }
 
