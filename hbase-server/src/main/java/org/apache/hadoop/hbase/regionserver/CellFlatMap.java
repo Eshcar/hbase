@@ -23,12 +23,11 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.NavigableMap;
 import java.util.Set;
-
 
 
 /**
@@ -42,7 +41,7 @@ import java.util.Set;
  * requires less memory than ConcurrentSkipListMap.
  */
 @InterfaceAudience.Private
-public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
+public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
 
   private final Comparator<? super Cell> comparator;
   protected int minCellIdx   = 0;   // the index of the minimal cell (for sub-sets)
@@ -58,8 +57,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
   }
 
   /* Used for abstract CellFlatMap creation, implemented by derived class */
-  protected abstract CellFlatMap createSubCellFlatMap(Comparator<? super Cell> comparator, int min,
-      int max, boolean descending);
+  protected abstract CellFlatMap createSubCellFlatMap(int min, int max, boolean descending);
 
   /* Returns the i-th cell in the cell block */
   protected abstract Cell getCell(int i);
@@ -153,7 +151,7 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
 
   // ---------------- Sub-Maps ----------------
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> subMap( Cell fromKey,
+  public NavigableMap<Cell, Cell> subMap( Cell fromKey,
                                                     boolean fromInclusive,
                                                     Cell toKey,
                                                     boolean toInclusive) {
@@ -164,39 +162,39 @@ public abstract class CellFlatMap implements ConcurrentNavigableMap<Cell,Cell> {
       throw new IllegalArgumentException("Inconsistent range, when looking from "
           + fromKey + " to " + toKey);
     }
-    return createSubCellFlatMap(comparator, fromIndex, toIndex+1, descending);
+    return createSubCellFlatMap(fromIndex, toIndex+1, descending);
   }
 
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
+  public NavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
     int index = getValidIndex(toKey, inclusive, false);
     // "+1" because the max index is one after the true index
-    return createSubCellFlatMap(comparator, minCellIdx, index+1, descending);
+    return createSubCellFlatMap(minCellIdx, index+1, descending);
   }
 
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
+  public NavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
     int index = (getValidIndex(fromKey, inclusive, true));
-    return createSubCellFlatMap(comparator, index, maxCellIdx, descending);
+    return createSubCellFlatMap(index, maxCellIdx, descending);
   }
 
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> descendingMap() {
-    return createSubCellFlatMap(comparator, minCellIdx, maxCellIdx, true);
+  public NavigableMap<Cell, Cell> descendingMap() {
+    return createSubCellFlatMap(minCellIdx, maxCellIdx, true);
   }
 
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> subMap(Cell k1, Cell k2) {
+  public NavigableMap<Cell, Cell> subMap(Cell k1, Cell k2) {
     return this.subMap(k1, true, k2, true);
   }
 
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> headMap(Cell k) {
+  public NavigableMap<Cell, Cell> headMap(Cell k) {
     return this.headMap(k, true);
   }
 
   @Override
-  public ConcurrentNavigableMap<Cell, Cell> tailMap(Cell k) {
+  public NavigableMap<Cell, Cell> tailMap(Cell k) {
     return this.tailMap(k, true);
   }
 

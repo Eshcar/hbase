@@ -51,7 +51,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   private Iterator<Cell> kvsIterator;
 
   // C-tor
-  public MemStoreCompactorIterator(LinkedList<ImmutableSegment> segments,
+  public MemStoreCompactorIterator(List<ImmutableSegment> segments,
       CellComparator comparator, int compactionKVMax, Store store) throws IOException {
 
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
@@ -62,7 +62,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     // create the list of scanners with maximally possible read point, meaning that
     // all KVs are going to be returned by the pipeline traversing
     for (Segment segment : segments) {
-      scanners.add(segment.getSegmentScanner(store.getSmallestReadPoint()));
+      scanners.add(segment.getScanner(store.getSmallestReadPoint()));
     }
 
     scanner = new MemStoreScanner(comparator, scanners, MemStoreScanner.Type.COMPACT_FORWARD);
@@ -86,7 +86,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
         return false;
       }
     }
-    return hasMore;
+    return (kvsIterator.hasNext() || hasMore);
   }
 
   @Override
@@ -131,22 +131,28 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
 
 
   private boolean refillKVS() {
-    kvs.clear();    // clear previous KVS, first initiated in the constructor
-    if (!hasMore) { // if there is nothing expected next in compactingScanner
+    kvs.clear();          // clear previous KVS, first initiated in the constructor
+    if (!hasMore) {       // if there is nothing expected next in compactingScanner
       return false;
     }
 
-    try {           // try to get next KVS
+    try {                 // try to get next KVS
       hasMore = compactingScanner.next(kvs, scannerContext);
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
     }
 
-    if (!kvs.isEmpty() ) {  // is the new KVS empty ?
+    if (!kvs.isEmpty() ) {// is the new KVS empty ?
       kvsIterator = kvs.iterator();
       return true;
+    } else {
+      // KVS is empty, but hasMore still true?
+      if (hasMore) {      // try to move to next row
+        return refillKVS();
+      }
+
     }
-    return false;
+    return hasMore;
   }
 
 

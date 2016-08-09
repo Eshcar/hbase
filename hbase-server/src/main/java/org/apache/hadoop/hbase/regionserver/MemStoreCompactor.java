@@ -47,13 +47,15 @@ class MemStoreCompactor {
 
   // Possibility for external guidance whether to flatten the segments without compaction
   static final String MEMSTORE_COMPACTOR_FLATTENING = "hbase.hregion.compacting.memstore.flatten";
-  static final boolean MEMSTORE_COMPACTOR_FLATTENING_DEFAULT = false;
+  static final boolean MEMSTORE_COMPACTOR_FLATTENING_DEFAULT = true;
 
   // Possibility for external setting of the compacted structure (SkipList, CellArray, etc.)
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
   static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 1;
 
-  public final static double COMPACTION_THRESHOLD_REMAIN_FRACTION = 0.8;
+  static final String COMPACTION_THRESHOLD_REMAIN_FRACTION
+      = "hbase.hregion.compacting.memstore.comactPercent";
+  static final double COMPACTION_THRESHOLD_REMAIN_FRACTION_DEFAULT = 0.2;
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
   private CompactingMemStore compactingMemStore;
@@ -67,10 +69,11 @@ class MemStoreCompactor {
   // the limit to the size of the groups to be later provided to MemStoreCompactorIterator
   private final int compactionKVMax;
 
+  double fraction = 0.8;
   /**
    * Types of Compaction
    */
-  public enum Type {
+  private enum Type {
     COMPACT_TO_SKIPLIST_MAP,
     COMPACT_TO_ARRAY_MAP
   }
@@ -81,7 +84,9 @@ class MemStoreCompactor {
     this.compactingMemStore = compactingMemStore;
     this.compactionKVMax = compactingMemStore.getConfiguration().getInt(
         HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
-
+    this.fraction = 1 - compactingMemStore.getConfiguration().getDouble(
+        COMPACTION_THRESHOLD_REMAIN_FRACTION,
+        COMPACTION_THRESHOLD_REMAIN_FRACTION_DEFAULT);
   }
 
   /**----------------------------------------------------------------------
@@ -154,7 +159,7 @@ class MemStoreCompactor {
 
         if ( !isInterrupted.get() &&
              (immutCellsNum
-            > COMPACTION_THRESHOLD_REMAIN_FRACTION * versionedList.getNumOfCells())) {
+            > fraction * versionedList.getNumOfCells())) {
           // too much cells "survive" the possible compaction, we do not want to compact!
           LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
               + " for store: " + compactingMemStore.getFamilyName());
@@ -174,13 +179,7 @@ class MemStoreCompactor {
         if (resultSwapped = compactingMemStore.swapCompactedSegments(versionedList, result)) {
           // update the wal so it can be truncated and not get too long
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
-        } else {
-          // We just ignored the Segment 'result' and swap did not happen.
-          result.close();
         }
-      } else {
-        // We just ignore the Segment 'result'.
-        result.close();
       }
     } catch (Exception e) {
       LOG.debug("Interrupting the MemStore in-memory compaction for store "
@@ -197,11 +196,11 @@ class MemStoreCompactor {
    * The copy-compaction is the creation of the ImmutableSegment (from the relevant type)
    * based on the Compactor Iterator. The new ImmutableSegment is returned.
    */
-  private ImmutableSegment compact(int numOfCells)
-      throws IOException {
+  private ImmutableSegment compact(int numOfCells) throws IOException {
 
-    LOG.debug("Starting in-memory compaction of type: " + type + ". Before compaction we have "
-        + numOfCells + " cells in the entire compaction pipeline");
+    LOG.debug("Starting in-memory compaction of type: " + type +
+        ". The estimated number of cells after compaction is " + numOfCells
+        + " cells in the entire compaction pipeline");
 
     ImmutableSegment result = null;
     MemStoreCompactorIterator iterator =

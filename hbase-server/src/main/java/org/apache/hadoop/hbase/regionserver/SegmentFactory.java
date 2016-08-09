@@ -22,7 +22,6 @@ import com.google.common.base.Preconditions;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.io.IOException;
@@ -78,8 +77,7 @@ public final class SegmentFactory {
         segmentType != ImmutableSegment.Type.SKIPLIST_MAP_BASED, "wrong immutable segment type");
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
     return
-        new ImmutableSegment(
-            conf, comparator, iterator, memStoreLAB, numOfCells, segmentType);
+        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType);
   }
 
   //****** private methods to instantiate concrete store segments **********//

@@ -42,9 +42,8 @@ public class CellArrayMap extends CellFlatMap {
 
   /* To be used by base class only to create a sub-CellFlatMap */
   @Override
-  protected CellFlatMap createSubCellFlatMap(Comparator<? super Cell> comparator, int min, int max,
-      boolean descending) {
-    return new CellArrayMap(comparator, this.block, min, max, descending);
+  protected CellFlatMap createSubCellFlatMap(int min, int max, boolean descending) {
+    return new CellArrayMap(comparator(), this.block, min, max, descending);
   }
 
   @Override

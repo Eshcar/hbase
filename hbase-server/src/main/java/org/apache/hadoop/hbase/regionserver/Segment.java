@@ -52,6 +52,8 @@ public abstract class Segment {
   private final CellComparator comparator;
   private long minSequenceId;
   private volatile MemStoreLAB memStoreLAB;
+  /* The size includes everything allocated for this segment,
+  *  use keySize() to get only size of the cells */
   protected final AtomicLong size;
   protected volatile boolean tagsPresent;
   private final TimeRangeTracker timeRangeTracker;
@@ -85,7 +87,7 @@ public abstract class Segment {
    * Creates the scanner for the given read point
    * @return a scanner for the given read point
    */
-  public SegmentScanner getSegmentScanner(long readPoint) {
+  public SegmentScanner getScanner(long readPoint) {
     return new SegmentScanner(this, readPoint);
   }
 
@@ -93,7 +95,7 @@ public abstract class Segment {
    * Creates the scanner for the given read point, and a specific order in a list
    * @return a scanner for the given read point
    */
-  public SegmentScanner getSegmentScanner(long readPoint, long order) {
+  public SegmentScanner getScanner(long readPoint, long order) {
     return new SegmentScanner(this, readPoint, order);
   }
 
@@ -210,7 +212,8 @@ public abstract class Segment {
     return this;
   }
 
-  public abstract long getInternalSize();
+  /* return only cell's heap size */
+  public abstract long keySize();
 
   /**
    * Returns the heap size of the segment
@@ -286,7 +289,7 @@ public abstract class Segment {
     if (!succ && mslabUsed) {
       s += getCellLength(cellToAdd);
     }
-    getTimeRangeTracker().includeTimestamp( cellToAdd);
+    getTimeRangeTracker().includeTimestamp(cellToAdd);
     updateSize(s);
     minSequenceId = Math.min(minSequenceId, cellToAdd.getSequenceId());
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
@@ -339,6 +342,7 @@ public abstract class Segment {
   public long getConstantCellMetaDataSize() {
     return this.constantCellMetaDataSize;
   }
+
   @Override
   public String toString() {
     String res = "Store segment of type "+this.getClass().getName()+"; ";

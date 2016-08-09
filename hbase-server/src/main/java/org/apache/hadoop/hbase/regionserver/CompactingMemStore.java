@@ -72,6 +72,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   private long inmemoryFlushSize;       // the threshold on active size for in-memory flush
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
+  @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
@@ -100,7 +101,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   public static long getSegmentSize(Segment segment) {
-    return segment.getInternalSize();
+    return segment.keySize();
   }
 
   public static long getSegmentsSize(List<? extends Segment> list) {
@@ -247,12 +248,12 @@ public class CompactingMemStore extends AbstractMemStore {
     // The list of elements in pipeline + the active element + the snapshot segment
     // TODO : This will change when the snapshot is made of more than one element
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(pipelineList.size() + 2);
-    list.add(getActive().getSegmentScanner(readPt, order + 1));
+    list.add(getActive().getScanner(readPt, order + 1));
     for (Segment item : pipelineList) {
-      list.add(item.getSegmentScanner(readPt, order));
+      list.add(item.getScanner(readPt, order));
       order--;
     }
-    list.add(getSnapshot().getSegmentScanner(readPt, order));
+    list.add(getSnapshot().getScanner(readPt, order));
     return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(getComparator(), list));
   }
 
@@ -353,7 +354,7 @@ public class CompactingMemStore extends AbstractMemStore {
       long delta = DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM - DEEP_OVERHEAD;
       active.updateSize(delta);
       pipeline.pushHead(active);
-      resetCellSet();
+      resetActive();
     }
   }
 

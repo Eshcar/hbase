@@ -135,21 +135,21 @@ public class CompactionPipeline {
 
     synchronized (pipeline){
       if(requesterVersion != version) {
-        LOG.info("Segment flattening failed, because versions do not match");
+        LOG.warn("Segment flattening failed, because versions do not match");
         return false;
       }
 
       for (ImmutableSegment s : pipeline) {
         // remember the old size in case this segment is going to be flatten
-        long sizeBeforeFlat = s.getInternalSize();
+        long sizeBeforeFlat = s.keySize();
         long globalMemstoreSize = 0;
         if (s.flatten()) {
           if(region != null) {
-            long sizeAfterFlat = s.getInternalSize();
+            long sizeAfterFlat = s.keySize();
             long delta = sizeBeforeFlat - sizeAfterFlat;
             globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-delta);
           }
-          LOG.info("Compaction pipeline segment " + s + " was flattened; globalMemstoreSize: "
+          LOG.debug("Compaction pipeline segment " + s + " was flattened; globalMemstoreSize: "
               + globalMemstoreSize);
           return true;
         }

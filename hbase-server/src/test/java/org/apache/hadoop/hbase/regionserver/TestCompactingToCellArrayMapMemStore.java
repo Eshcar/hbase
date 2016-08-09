@@ -31,6 +31,8 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Threads;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
@@ -216,13 +218,12 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
 
     memstore.clearSnapshot(snapshot.getId());
 
-    //assertTrue(tstStr, false);
-    testFlattening();
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Flattening tests
   //////////////////////////////////////////////////////////////////////////////
+  @Test
   public void testFlattening() throws IOException {
 
     String[] keys1 = { "A", "A", "B", "C", "F", "H"};
@@ -265,19 +266,69 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     }
     assertEquals(10,counter);
 
-//    try {
-//      testGetNextRow();
-//    } catch (Exception e){}
-
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
     ImmutableSegment s = memstore.getSnapshot();
     memstore.clearSnapshot(snapshot.getId());
+  }
 
-  //  assertTrue("\nBLA-BLA\n", false);
+  @Test
+  public void testCountOfCellsAfterFlatteningByScan() throws IOException {
+    String[] keys1 = { "A", "B", "C" }; // A, B, C
+    addRowsByKeysWith50Cols(memstore, keys1);
+    // this should only flatten as there are no duplicates
+    ((CompactingMemStore) memstore).flushInMemory();
+    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+      Threads.sleep(10);
+    }
+    List<KeyValueScanner> scanners = memstore.getScanners(Long.MAX_VALUE);
+    MemStoreScanner scanner = new MemStoreScanner(CellComparator.COMPARATOR, scanners);
+    int count = 0;
+    while (scanner.next() != null) {
+      count++;
+    }
+    assertEquals("the count should be ", count, 150);
+    scanner.close();
+  }
+
+  @Test
+  public void testCountOfCellsAfterFlatteningByIterator() throws IOException {
+    String[] keys1 = { "A", "B", "C" }; // A, B, C
+    addRowsByKeysWith50Cols(memstore, keys1);
+    // this should only flatten as there are no duplicates
+    ((CompactingMemStore) memstore).flushInMemory();
+    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+      Threads.sleep(10);
+    }
+    // Just doing the cnt operation here
+    MemStoreCompactorIterator itr = new MemStoreCompactorIterator(
+        ((CompactingMemStore) memstore).getImmutableSegments().getStoreSegments(),
+        CellComparator.COMPARATOR, 10, ((CompactingMemStore) memstore).getStore());
+    int cnt = 0;
+    try {
+      while (itr.next() != null) {
+        cnt++;
+      }
+    } finally {
+      itr.close();
+    }
+    assertEquals("the count should be ", cnt, 150);
   }
 
 
-
+  private void addRowsByKeysWith50Cols(AbstractMemStore hmc, String[] keys) {
+    byte[] fam = Bytes.toBytes("testfamily");
+    for (int i = 0; i < keys.length; i++) {
+      long timestamp = System.currentTimeMillis();
+      Threads.sleep(1); // to make sure each kv gets a different ts
+      byte[] row = Bytes.toBytes(keys[i]);
+      for(int  j =0 ;j < 50; j++) {
+        byte[] qf = Bytes.toBytes("testqualifier"+j);
+        byte[] val = Bytes.toBytes(keys[i] + j);
+        KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
+        hmc.add(kv);
+      }
+    }
+  }
 
   private void addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
     byte[] fam = Bytes.toBytes("testfamily");

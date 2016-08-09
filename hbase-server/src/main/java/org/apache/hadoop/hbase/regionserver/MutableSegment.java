@@ -44,21 +44,6 @@ public class MutableSegment extends Segment {
     return internalAdd(cell, mslabUsed);
   }
 
-  /**
-   * Removes the given cell from the segment
-   * @return the change in the heap size
-   */
-  public long rollback(Cell cell) {
-    Cell found = getCellSet().get(cell);
-    if (found != null && found.getSequenceId() == cell.getSequenceId()) {
-      long sz = heapSizeChange(cell, true);
-      getCellSet().remove(cell);
-      updateSize(-sz);
-      return sz;
-    }
-    return 0;
-  }
-
   //methods for test
 
   /**
@@ -81,7 +66,7 @@ public class MutableSegment extends Segment {
   }
 
   @Override
-  public long getInternalSize() {
+  public long keySize() {
     return size.get() - CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM;
   }
 }

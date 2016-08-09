@@ -70,12 +70,12 @@ public abstract class AbstractMemStore implements MemStore {
   protected AbstractMemStore(final Configuration conf, final CellComparator c) {
     this.conf = conf;
     this.comparator = c;
-    resetCellSet();
+    resetActive();
     this.snapshot = SegmentFactory.instance().createImmutableSegment(c, 0);
     this.snapshotId = NO_SNAPSHOT_ID;
   }
 
-  protected void resetCellSet() {
+  protected void resetActive() {
     // Reset heap to not include any keys
     this.active = SegmentFactory.instance().createMutableSegment(conf, comparator, DEEP_OVERHEAD);
     this.timeOfOldestEdit = Long.MAX_VALUE;
