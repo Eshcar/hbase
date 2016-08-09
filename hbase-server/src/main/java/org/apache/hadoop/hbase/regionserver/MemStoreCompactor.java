@@ -78,7 +78,7 @@ class MemStoreCompactor {
     COMPACT_TO_ARRAY_MAP
   }
 
-  private Type type = Type.COMPACT_TO_SKIPLIST_MAP;
+  private Type type = Type.COMPACT_TO_ARRAY_MAP;
 
   public MemStoreCompactor(CompactingMemStore compactingMemStore) {
     this.compactingMemStore = compactingMemStore;
