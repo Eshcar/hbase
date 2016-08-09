@@ -293,8 +293,7 @@ public class CompactingMemStore extends AbstractMemStore {
       try {
         MutableSegment active = getActive();
         if (LOG.isDebugEnabled()) {
-          LOG.debug("IN-MEMORY FLUSH: Pushing active segment into compaction pipeline, "
-              + "and initiating compaction.");
+          LOG.debug("IN-MEMORY FLUSH: Pushing active segment into compaction pipeline");
         }
         pushActiveToPipeline(active);
       } finally {

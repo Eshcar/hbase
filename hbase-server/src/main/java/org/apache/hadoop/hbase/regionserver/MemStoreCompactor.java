@@ -51,7 +51,7 @@ class MemStoreCompactor {
 
   // Possibility for external setting of the compacted structure (SkipList, CellArray, etc.)
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
-  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 1;
+  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 2;  // COMPACT_TO_ARRAY_MAP as default
 
   static final String COMPACTION_THRESHOLD_REMAIN_FRACTION
       = "hbase.hregion.compacting.memstore.comactPercent";
@@ -113,7 +113,7 @@ class MemStoreCompactor {
     versionedList = compactingMemStore.getImmutableSegments();
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Starting the MemStore in-memory compaction of type " + type + " for store "
+      LOG.debug("Starting the MemStore In-Memory Shrink of type " + type + " for store "
           + compactingMemStore.getStore().getColumnFamilyName());
     }
 
@@ -198,9 +198,9 @@ class MemStoreCompactor {
    */
   private ImmutableSegment compact(int numOfCells) throws IOException {
 
-    LOG.debug("Starting in-memory compaction of type: " + type +
-        ". The estimated number of cells after compaction is " + numOfCells
-        + " cells in the entire compaction pipeline");
+    LOG.debug("In-Memory compaction does pay off - The estimated number of cells "
+        + "after compaction is " + numOfCells
+        + ", while number of cells before is " + versionedList.getNumOfCells());
 
     ImmutableSegment result = null;
     MemStoreCompactorIterator iterator =
