@@ -140,6 +140,21 @@ class MemStoreCompactor {
   }
 
   /**----------------------------------------------------------------------
+   * Check whether there are some signs to definitely not to flatten,
+   * returns false if we must compact. If this method returns true we
+   * still need to evaluate the compaction.
+   */
+  private boolean toFlatten() {
+    boolean userToFlatten =         // the user configurable option to flatten or not to flatten
+        compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
+            MEMSTORE_COMPACTOR_FLATTENING_DEFAULT);
+    int numOfSegments = versionedList.getNumOfSegments();
+    if (numOfSegments > 3)          // hard-coded for now as it is going to move to policy
+      return false;
+    else return userToFlatten;
+  }
+
+  /**----------------------------------------------------------------------
   * The worker thread performs the compaction asynchronously.
   * The solo (per compactor) thread only reads the compaction pipeline.
   * There is at most one thread per memstore instance.
@@ -148,13 +163,10 @@ class MemStoreCompactor {
     ImmutableSegment result = null;
     boolean resultSwapped = false;
     int immutCellsNum = versionedList.getNumOfCells();  // number of immutable cells
-    boolean toFlatten =                                 // the option to flatten or not to flatten
-        compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
-            MEMSTORE_COMPACTOR_FLATTENING_DEFAULT);
 
     try {
       // PHASE I: estimate the compaction expedience - EVALUATE COMPACTION
-      if (toFlatten) {
+      if (toFlatten()) {
         immutCellsNum = countCellsForCompaction();
 
         if ( !isInterrupted.get() &&
@@ -200,7 +212,8 @@ class MemStoreCompactor {
 
     LOG.debug("In-Memory compaction does pay off - The estimated number of cells "
         + "after compaction is " + numOfCells
-        + ", while number of cells before is " + versionedList.getNumOfCells());
+        + ", while number of cells before is " + versionedList.getNumOfCells()
+        + ". The fraction of remaining cells should be: " + fraction);
 
     ImmutableSegment result = null;
     MemStoreCompactorIterator iterator =

@@ -59,4 +59,7 @@ public class VersionedSegmentsList {
     return totalCells;
   }
 
+  public int getNumOfSegments() {
+    return storeSegments.size();
+  }
 }

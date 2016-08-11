@@ -255,7 +255,11 @@ public class TestWalAndCompactingMemStoreFlush {
     assertTrue(cf3MemstoreSizePhaseI/2+DefaultMemStore.DEEP_OVERHEAD +
         CompactingMemStore.DEEP_OVERHEAD_PER_PIPELINE_SKIPLIST_ITEM >
         cf3MemstoreSizePhaseII);
-    assertTrue(cf3MemstoreSizePhaseI/2 < cf3MemstoreSizePhaseII);
+
+    // CF3 was compacted and flattened!
+    assertTrue("\n<<< Size of CF3 in phase I - " + cf3MemstoreSizePhaseI
+            + ", size of CF3 in phase II - " + cf3MemstoreSizePhaseII + "\n",
+        cf3MemstoreSizePhaseI / 2 > cf3MemstoreSizePhaseII);
 
 
     // Now the smallest LSN in the region should be the same as the smallest
@@ -374,6 +378,7 @@ public class TestWalAndCompactingMemStoreFlush {
     HBaseTestingUtility.closeRegionAndWAL(region);
   }
 
+  @Test(timeout = 180000)
   public void testSelectiveFlushWhenEnabledNoFlattening() throws IOException {
 
     // Set up the configuration
@@ -384,8 +389,9 @@ public class TestWalAndCompactingMemStoreFlush {
     conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 200 * 1024);
     conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.5);
 
-    // set memstore segment flattening to false
+    // set memstore segment flattening to false and compact to skip-list
     conf.setBoolean("hbase.hregion.compacting.memstore.flatten", false);
+    conf.setInt("hbase.hregion.compacting.memstore.type",1);
 
     // Intialize the region
     Region region = initHRegion("testSelectiveFlushWhenEnabled", conf);

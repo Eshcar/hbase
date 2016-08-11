@@ -601,7 +601,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(376, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(264, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
@@ -634,10 +634,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     }
     assertEquals(3, counter);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(376, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(264, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     addRowsByKeys(memstore, keys2);
-    assertEquals(752, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(640, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline and compact
@@ -645,7 +645,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(496, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(368, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
@@ -676,7 +676,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(376, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(264, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     addRowsByKeys(memstore, keys2);
 
@@ -684,16 +684,16 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
         region.getMemstoreSize() + ", Memstore Total Size: " +
         regionServicesForStores.getGlobalMemstoreTotalSize() + "\n\n";
 
-    assertEquals(752, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(640, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     ((CompactingMemStore)memstore).disableCompaction();
     size = memstore.getFlushableSize();
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(752, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(640, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     addRowsByKeys(memstore, keys3);
-    assertEquals(1128, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(1016, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     ((CompactingMemStore)memstore).enableCompaction();
     size = memstore.getFlushableSize();
@@ -702,7 +702,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       Threads.sleep(10);
     }
     assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(496, regionServicesForStores.getGlobalMemstoreTotalSize());
+    assertEquals(384, regionServicesForStores.getGlobalMemstoreTotalSize());
 
     size = memstore.getFlushableSize();
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
