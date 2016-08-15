@@ -184,7 +184,8 @@ class MemStoreCompactor {
       final long startTime = EnvironmentEdgeManager.currentTime();
       immutCellsNum = countCellsForCompaction();
       long time = EnvironmentEdgeManager.currentTime() - startTime;
-      LOG.debug("In-Memory compaction speculative scan took " + time + " ms");
+      LOG.debug("In-Memory compaction speculative scan took " + time + " ms, for store "
+          + compactingMemStore.getFamilyName());
       if (immutCellsNum > fraction * versionedList.getNumOfCells()) {
         return true;
       }
