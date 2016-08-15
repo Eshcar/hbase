@@ -24,6 +24,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @InterfaceAudience.Private
 class MemStoreCompactor {
 
-  // Possibility for external guidance whether to flatten the segments without compaction
+  // Possibility for external guidance whether the flattening is allowed
   static final String MEMSTORE_COMPACTOR_FLATTENING = "hbase.hregion.compacting.memstore.flatten";
   static final boolean MEMSTORE_COMPACTOR_FLATTENING_DEFAULT = true;
 
@@ -53,9 +54,15 @@ class MemStoreCompactor {
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
   static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 2;  // COMPACT_TO_ARRAY_MAP as default
 
+  // What percentage of the duplications is causing compaction?
   static final String COMPACTION_THRESHOLD_REMAIN_FRACTION
       = "hbase.hregion.compacting.memstore.comactPercent";
   static final double COMPACTION_THRESHOLD_REMAIN_FRACTION_DEFAULT = 0.2;
+
+  // Possibility for external guidance whether the flattening is allowed
+  static final String MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN
+      = "hbase.hregion.compacting.memstore.avoidSpeculativeScan";
+  static final boolean MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN_DEFAULT = false;
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
   private CompactingMemStore compactingMemStore;
@@ -70,6 +77,8 @@ class MemStoreCompactor {
   private final int compactionKVMax;
 
   double fraction = 0.8;
+
+  int immutCellsNum = 0;  // number of immutable for compaction cells
   /**
    * Types of Compaction
    */
@@ -111,6 +120,7 @@ class MemStoreCompactor {
     // get a snapshot of the list of the segments from the pipeline,
     // this local copy of the list is marked with specific version
     versionedList = compactingMemStore.getImmutableSegments();
+    immutCellsNum = versionedList.getNumOfCells();
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Starting the MemStore In-Memory Shrink of type " + type + " for store "
@@ -148,10 +158,40 @@ class MemStoreCompactor {
     boolean userToFlatten =         // the user configurable option to flatten or not to flatten
         compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
             MEMSTORE_COMPACTOR_FLATTENING_DEFAULT);
+    if (userToFlatten==false) {
+      LOG.debug("In-Memory shrink is doing compaction, as user asked to avoid flattening");
+      return false;                 // the user doesn't want to flatten
+    }
+
+    // limit the number of the segments in the pipeline
     int numOfSegments = versionedList.getNumOfSegments();
-    if (numOfSegments > 3)          // hard-coded for now as it is going to move to policy
-      return false;
-    else return userToFlatten;
+    if (numOfSegments > 3) {        // hard-coded for now as it is going to move to policy
+      LOG.debug("In-Memory shrink is doing compaction, as there already are " + numOfSegments
+          + " segments in the compaction pipeline");
+      return false;                 // to avoid "too many open files later", compact now
+    }
+    // till here we hvae all the signs that it is possible to flatten, run the speculative scan
+    // (if allowed by the user) to check the efficiency of compaction
+    boolean avoidSpeculativeScan =   // the user configurable option to avoid the speculative scan
+        compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN,
+            MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN_DEFAULT);
+    if (avoidSpeculativeScan==true) {
+      LOG.debug("In-Memory shrink is doing flattening, as user asked to avoid compaction "
+          + "evaluation");
+      return true;                  // flatten without checking the compaction expedience
+    }
+    try {
+      final long startTime = EnvironmentEdgeManager.currentTime();
+      immutCellsNum = countCellsForCompaction();
+      long time = EnvironmentEdgeManager.currentTime() - startTime;
+      LOG.debug("In-Memory compaction speculative scan took " + time + " ms");
+      if (immutCellsNum > fraction * versionedList.getNumOfCells()) {
+        return true;
+      }
+    } catch(Exception e) {
+      return true;
+    }
+    return false;
   }
 
   /**----------------------------------------------------------------------
@@ -162,23 +202,16 @@ class MemStoreCompactor {
   private void doCompaction() {
     ImmutableSegment result = null;
     boolean resultSwapped = false;
-    int immutCellsNum = versionedList.getNumOfCells();  // number of immutable cells
 
     try {
       // PHASE I: estimate the compaction expedience - EVALUATE COMPACTION
       if (toFlatten()) {
-        immutCellsNum = countCellsForCompaction();
-
-        if ( !isInterrupted.get() &&
-             (immutCellsNum
-            > fraction * versionedList.getNumOfCells())) {
-          // too much cells "survive" the possible compaction, we do not want to compact!
-          LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
-              + " for store: " + compactingMemStore.getFamilyName());
-          // Looking for Segment in the pipeline with SkipList index, to make it flat
-          compactingMemStore.flattenOneSegment(versionedList.getVersion());
-          return;
-        }
+        // too much cells "survive" the possible compaction, we do not want to compact!
+        LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
+            + " for store: " + compactingMemStore.getFamilyName());
+        // Looking for Segment in the pipeline with SkipList index, to make it flat
+        compactingMemStore.flattenOneSegment(versionedList.getVersion());
+        return;
       }
 
       // PHASE II: create the new compacted ImmutableSegment - START COPY-COMPACTION
@@ -211,9 +244,8 @@ class MemStoreCompactor {
   private ImmutableSegment compact(int numOfCells) throws IOException {
 
     LOG.debug("In-Memory compaction does pay off - The estimated number of cells "
-        + "after compaction is " + numOfCells
-        + ", while number of cells before is " + versionedList.getNumOfCells()
-        + ". The fraction of remaining cells should be: " + fraction);
+        + "after compaction is " + numOfCells + ", while number of cells before is " + versionedList
+        .getNumOfCells() + ". The fraction of remaining cells should be: " + fraction);
 
     ImmutableSegment result = null;
     MemStoreCompactorIterator iterator =
