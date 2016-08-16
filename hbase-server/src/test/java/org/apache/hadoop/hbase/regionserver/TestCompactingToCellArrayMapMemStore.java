@@ -342,8 +342,6 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
       hmc.add(kv);
       LOG.debug("added kv: " + kv.getKeyString() + ", timestamp" + kv.getTimestamp());
-      //long size = AbstractMemStore.heapSizeChange(kv, true);
-      //regionServicesForStores.addAndGetGlobalMemstoreSize(size);
     }
     regionServicesForStores.addAndGetGlobalMemstoreSize(hmc.getActive().getSize() - size);//
   }

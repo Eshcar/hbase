@@ -160,8 +160,6 @@ public class ImmutableSegment extends Segment {
    * Change the CellSet of this ImmutableSegment from one based on ConcurrentSkipListMap to one
    * based on CellArrayMap.
    * If this ImmutableSegment is not based on ConcurrentSkipListMap , this is NOP
-   * For now the change from ConcurrentSkipListMap to CellChunkMap is not supported, because
-   * this requires the Cell to know on which Chunk it is placed.
    *
    * Synchronization of the CellSet replacement:
    * The reference to the CellSet is AtomicReference and is updated only when ImmutableSegment
