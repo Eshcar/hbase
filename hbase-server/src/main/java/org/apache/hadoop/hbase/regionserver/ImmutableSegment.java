@@ -19,7 +19,6 @@
 package org.apache.hadoop.hbase.regionserver;
 
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -187,7 +186,7 @@ public class ImmutableSegment extends Segment {
     // add size of CellArrayMap and meta-data overhead per Cell
     newSegmentSizeDelta = newSegmentSizeDelta + ClassSize.CELL_ARRAY_MAP +
         numOfCells * ClassSize.CELL_ARRAY_MAP_ENTRY;
-    updateSize(newSegmentSizeDelta);
+    incSize(newSegmentSizeDelta);
 
     return true;
   }

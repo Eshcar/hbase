@@ -226,7 +226,7 @@ public abstract class Segment {
   /**
    * Updates the heap size counter of the segment by the given delta
    */
-  public void updateSize(long delta) {
+  public void incSize(long delta) {
     size.addAndGet(delta);
   }
 
@@ -290,7 +290,7 @@ public abstract class Segment {
       s += getCellLength(cellToAdd);
     }
     getTimeRangeTracker().includeTimestamp(cellToAdd);
-    updateSize(s);
+    incSize(s);
     minSequenceId = Math.min(minSequenceId, cellToAdd.getSequenceId());
     // In no tags case this NoTagsKeyValue.getTagsLength() is a cheap call.
     // When we use ACL CP or Visibility CP which deals with Tags during

@@ -20,16 +20,10 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -46,11 +40,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @InterfaceAudience.Private
 class MemStoreCompactor {
 
-  // Possibility for external guidance whether the flattening is allowed
+  // Option for external guidance whether flattening is allowed
   static final String MEMSTORE_COMPACTOR_FLATTENING = "hbase.hregion.compacting.memstore.flatten";
   static final boolean MEMSTORE_COMPACTOR_FLATTENING_DEFAULT = true;
 
-  // Possibility for external setting of the compacted structure (SkipList, CellArray, etc.)
+  // Option for external setting of the compacted structure (SkipList, CellArray, etc.)
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
   static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 2;  // COMPACT_TO_ARRAY_MAP as default
 
@@ -59,7 +53,7 @@ class MemStoreCompactor {
       = "hbase.hregion.compacting.memstore.comactPercent";
   static final double COMPACTION_THRESHOLD_REMAIN_FRACTION_DEFAULT = 0.2;
 
-  // Possibility for external guidance whether the flattening is allowed
+  // Option for external guidance whether the flattening is allowed
   static final String MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN
       = "hbase.hregion.compacting.memstore.avoidSpeculativeScan";
   static final boolean MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN_DEFAULT = false;
@@ -154,7 +148,7 @@ class MemStoreCompactor {
    * returns false if we must compact. If this method returns true we
    * still need to evaluate the compaction.
    */
-  private boolean toFlatten() {
+  private boolean shouldFlatten() {
     boolean userToFlatten =         // the user configurable option to flatten or not to flatten
         compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
             MEMSTORE_COMPACTOR_FLATTENING_DEFAULT);
@@ -202,7 +196,7 @@ class MemStoreCompactor {
 
     try {
       // PHASE I: estimate the compaction expedience - EVALUATE COMPACTION
-      if (toFlatten()) {
+      if (shouldFlatten()) {
         // too much cells "survive" the possible compaction, we do not want to compact!
         LOG.debug("In-Memory compaction does not pay off - storing the flattened segment"
             + " for store: " + compactingMemStore.getFamilyName());

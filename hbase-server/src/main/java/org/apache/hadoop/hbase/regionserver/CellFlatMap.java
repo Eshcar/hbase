@@ -337,9 +337,6 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
     throw new UnsupportedOperationException();
   }
 
-  //@Override
-  //public boolean replace(Cell k, Cell v, Cell v1) {throw new UnsupportedOperationException();}
-
   @Override
   public void putAll(Map<? extends Cell, ? extends Cell> map) {
     throw new UnsupportedOperationException();

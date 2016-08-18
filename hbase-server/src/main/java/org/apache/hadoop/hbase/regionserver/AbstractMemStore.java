@@ -301,7 +301,7 @@ public abstract class AbstractMemStore implements MemStore {
             // false means there was a change, so give us the size.
             long delta = heapSizeChange(cur, true);
             addedSize -= delta;
-            active.updateSize(-delta);
+            active.incSize(-delta);
             it.remove();
             setOldestEditTimeToNow();
           } else {
