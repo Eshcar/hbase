@@ -616,6 +616,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   @Test
   public void testCompaction2Buckets() throws IOException {
 
+    memstore.getConfiguration().setBoolean("hbase.hregion.compacting.memstore.flatten", false);
+
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
 

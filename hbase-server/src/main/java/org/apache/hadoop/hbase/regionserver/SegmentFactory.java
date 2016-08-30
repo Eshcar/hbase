@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.io.IOException;
+import java.util.LinkedList;
 
 /**
  * A singleton store segment factory.
@@ -70,16 +71,35 @@ public final class SegmentFactory {
   }
 
   // create new flat immutable segment from compacting old immutable segment
-  public ImmutableSegment createImmutableSegment(final Configuration conf, final CellComparator comparator,
+  public ImmutableSegment createImmutableSegment(
+      final Configuration conf, final CellComparator comparator,
       MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType)
       throws IOException {
-    Preconditions.checkArgument(
-        segmentType != ImmutableSegment.Type.SKIPLIST_MAP_BASED, "wrong immutable segment type");
-    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
+    Preconditions.checkArgument(segmentType != ImmutableSegment.Type.SKIPLIST_MAP_BASED,
+        "wrong immutable segment type");
+    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);;
     return
-        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType);
+        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, false);
   }
 
+  // create new flat immutable segment from merging old immutable segment
+  public ImmutableSegment createImmutableSegment(
+      final Configuration conf, final CellComparator comparator,
+      MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType,
+      LinkedList<ImmutableSegment> segments)
+      throws IOException {
+    Preconditions.checkArgument(segmentType != ImmutableSegment.Type.ARRAY_MAP_BASED,
+        "wrong immutable segment type");
+    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);;
+
+    for (Segment s: segments){
+        ((HeapMemStoreLAB)memStoreLAB).addPooledChunkQueue(
+            ((HeapMemStoreLAB)s.getMemStoreLAB()).getChunkQueue());
+    }
+
+    return
+        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, true);
+  }
   //****** private methods to instantiate concrete store segments **********//
 
   private MutableSegment generateMutableSegment(

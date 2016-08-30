@@ -107,6 +107,13 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   }
 
   /**
+   * To be used for merging multiple MSLABs
+   */
+  public void addPooledChunkQueue(BlockingQueue<PooledChunk> queueToBeAdded) {
+    queueToBeAdded.drainTo(pooledChunkQueue);
+  }
+
+  /**
    * Allocate a slice of the given length.
    *
    * If the size is larger than the maximum size specified for this
@@ -242,8 +249,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return this.curChunk.get();
   }
 
-  @VisibleForTesting
-  BlockingQueue<PooledChunk> getChunkQueue() {
+  //@VisibleForTesting
+  public BlockingQueue<PooledChunk> getChunkQueue() {
     return this.pooledChunkQueue;
   }
 }
