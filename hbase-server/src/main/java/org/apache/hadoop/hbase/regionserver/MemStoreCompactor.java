@@ -46,7 +46,7 @@ class MemStoreCompactor {
 
   // Option for external setting of the compacted structure (SkipList, CellArray, etc.)
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
-  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 2;  // COMPACT_TO_ARRAY_MAP as default
+  static final int COMPACTING_MEMSTORE_TYPE_DEFAULT = 2;  // COMPACT_DATA_TO_ARRAY_MAP as default
 
   // What percentage of the duplications is causing compaction?
   static final String COMPACTION_THRESHOLD_REMAIN_FRACTION
@@ -76,13 +76,13 @@ class MemStoreCompactor {
   /**
    * Types of actions to be done on the pipeline upon MemStoreCompaction invocation
    */
-  private enum ActionUponInvocation {
-    COMPACT_TO_SKIPLIST_MAP,
-    COMPACT_TO_ARRAY_MAP,
-    MERGE_TO_ARRAY_MAP
+  private enum Action {
+    COMPACT_DATA_TO_SKIPLIST_MAP,
+    COMPACT_DATA_TO_ARRAY_MAP,
+    COMPACT_INDEX_TO_ARRAY_MAP
   }
 
-  private ActionUponInvocation type = ActionUponInvocation.COMPACT_TO_ARRAY_MAP;
+  private Action action = Action.COMPACT_DATA_TO_ARRAY_MAP;
 
   public MemStoreCompactor(CompactingMemStore compactingMemStore) {
     this.compactingMemStore = compactingMemStore;
@@ -101,15 +101,15 @@ class MemStoreCompactor {
   public boolean start() throws IOException {
     if (!compactingMemStore.hasImmutableSegments()) return false;  // no compaction on empty
 
-    int t = compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_TYPE_KEY,
+    int memStoreType = compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_TYPE_KEY,
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
 
-    switch (t) {
-      case 1: type = ActionUponInvocation.COMPACT_TO_SKIPLIST_MAP;
+    switch (memStoreType) {
+      case 1: action = Action.COMPACT_DATA_TO_SKIPLIST_MAP;
         break;
-      case 2: type = ActionUponInvocation.COMPACT_TO_ARRAY_MAP;
+      case 2: action = Action.COMPACT_DATA_TO_ARRAY_MAP;
         break;
-      default: throw new RuntimeException("Unknown type " + type); // sanity check
+      default: throw new RuntimeException("Unknown action " + action); // sanity check
     }
 
     // get a snapshot of the list of the segments from the pipeline,
@@ -118,7 +118,7 @@ class MemStoreCompactor {
     immutCellsNum = versionedList.getNumOfCells();
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Starting the MemStore In-Memory Shrink of type " + type + " for store "
+      LOG.debug("Starting the MemStore In-Memory Shrink of type " + action + " for store "
           + compactingMemStore.getStore().getColumnFamilyName());
     }
 
@@ -150,31 +150,34 @@ class MemStoreCompactor {
    * still need to evaluate the compaction.
    */
   private boolean shouldFlatten() {
-    if (isInterrupted.get())        // if the entire process is interrupted refuse to flatten
+
+    if (isInterrupted.get())        // if the entire process is interrupted cancel flattening
       return false;                 // the compaction also doesn't start when interrupted
+
     boolean userToFlatten =         // the user configurable option to flatten or not to flatten
         compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_FLATTENING,
             MEMSTORE_COMPACTOR_FLATTENING_DEFAULT);
     if (userToFlatten==false) {
-      LOG.debug("In-Memory shrink is doing compaction, as user asked to avoid flattening");
+      LOG.debug("In-Memory Compaction compacts the data, as user asked to avoid flattening");
       return false;                 // the user doesn't want to flatten
     }
 
     // limit the number of the segments in the pipeline
     int numOfSegments = versionedList.getNumOfSegments();
     if (numOfSegments > 3) {        // hard-coded for now as it is going to move to policy
-      LOG.debug("In-Memory shrink is doing MERGE, as there already are " + numOfSegments
+      LOG.debug("In-Memory Compaction merges the segments, as there already are " + numOfSegments
           + " segments in the compaction pipeline");
-      type = ActionUponInvocation.MERGE_TO_ARRAY_MAP;
+      action = Action.COMPACT_INDEX_TO_ARRAY_MAP;
       return false;                 // to avoid "too many open files later", compact now
     }
+
     // till here we hvae all the signs that it is possible to flatten, run the speculative scan
     // (if allowed by the user) to check the efficiency of compaction
     boolean avoidSpeculativeScan =   // the user configurable option to avoid the speculative scan
         compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN,
             MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN_DEFAULT);
     if (avoidSpeculativeScan==true) {
-      LOG.debug("In-Memory shrink is doing flattening, as user asked to avoid compaction "
+      LOG.debug("In-Memory Compaction flattens the new segment, as user asked to avoid compaction "
           + "evaluation");
       return true;                  // flatten without checking the compaction expedience
     }
@@ -233,7 +236,7 @@ class MemStoreCompactor {
   }
 
   /**----------------------------------------------------------------------
-   * The copy-compaction is the creation of the ImmutableSegment (from the relevant type)
+   * The copy-compaction is the creation of the ImmutableSegment (from the relevant action)
    * based on the Compactor Iterator. The new ImmutableSegment is returned.
    */
   private ImmutableSegment compact(int numOfCells) throws IOException {
@@ -248,22 +251,22 @@ class MemStoreCompactor {
             compactingMemStore.getComparator(),
             compactionKVMax, compactingMemStore.getStore());
     try {
-      switch (type) {
-      case COMPACT_TO_SKIPLIST_MAP:
+      switch (action) {
+      case COMPACT_DATA_TO_SKIPLIST_MAP:
         result = SegmentFactory.instance().createImmutableSegment(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator);
         break;
-      case COMPACT_TO_ARRAY_MAP:
+      case COMPACT_DATA_TO_ARRAY_MAP:
         result = SegmentFactory.instance().createImmutableSegment(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
             numOfCells, ImmutableSegment.Type.ARRAY_MAP_BASED);
         break;
-      case MERGE_TO_ARRAY_MAP:
+      case COMPACT_INDEX_TO_ARRAY_MAP:
         result = SegmentFactory.instance().createImmutableSegment(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
             numOfCells, ImmutableSegment.Type.ARRAY_MAP_BASED, versionedList.getStoreSegments());
         break;
-      default: throw new RuntimeException("Unknown type " + type); // sanity check
+      default: throw new RuntimeException("Unknown action " + action); // sanity check
       }
     } finally {
       iterator.close();

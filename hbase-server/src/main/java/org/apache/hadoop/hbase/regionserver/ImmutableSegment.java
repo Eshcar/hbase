@@ -79,7 +79,7 @@ public class ImmutableSegment extends Segment {
    * are going to be introduced.
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreCompactorIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean doMerge) {
 
     super(null,  // initiailize the CellSet with NULL
         comparator, memStoreLAB,
@@ -88,7 +88,7 @@ public class ImmutableSegment extends Segment {
         ClassSize.CELL_ARRAY_MAP_ENTRY);
 
     // build the true CellSet based on CellArrayMap
-    CellSet cs = createCellArrayMapSet(numOfCells, iterator, merge);
+    CellSet cs = createCellArrayMapSet(numOfCells, iterator, doMerge);
 
     this.setCellSet(null, cs);            // update the CellSet of the new Segment
     this.type = type;
@@ -202,13 +202,13 @@ public class ImmutableSegment extends Segment {
     while (iterator.hasNext()) {
       Cell c = iterator.next();
       // The scanner behind the iterator is doing all the elimination logic
-      if (!merge) {
-        // now we just copy it to the new segment (also MSLAB copy)
-        cells[i] = maybeCloneWithAllocator(c);
-      } else {
+      if (merge) {
         // if this is merge we just move the Cell object without copying MSLAB
         // the sizes still need to be updated in the new segment
         cells[i] = c;
+      } else {
+        // now we just copy it to the new segment (also MSLAB copy)
+        cells[i] = maybeCloneWithAllocator(c);
       }
       boolean usedMSLAB = (getMemStoreLAB()!=null);
       // second parameter true, because in compaction addition of the cell to new segment

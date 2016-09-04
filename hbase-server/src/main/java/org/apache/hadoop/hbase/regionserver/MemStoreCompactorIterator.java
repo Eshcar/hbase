@@ -130,7 +130,7 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
 
 
   /* Refill kev-value set (should be invoked only when KVS is empty)
-   * Returns false in case there is nothing left and true otherwise */
+   * Returns true if KVS is non-empty */
   private boolean refillKVS() {
     kvs.clear();          // clear previous KVS, first initiated in the constructor
     if (!hasMore) {       // if there is nothing expected next in compactingScanner

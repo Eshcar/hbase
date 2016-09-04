@@ -77,7 +77,7 @@ public final class SegmentFactory {
       throws IOException {
     Preconditions.checkArgument(segmentType != ImmutableSegment.Type.SKIPLIST_MAP_BASED,
         "wrong immutable segment type");
-    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);;
+    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
     return
         new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, false);
   }
@@ -90,7 +90,7 @@ public final class SegmentFactory {
       throws IOException {
     Preconditions.checkArgument(segmentType != ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
-    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);;
+    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
 
     for (Segment s: segments){
         ((HeapMemStoreLAB)memStoreLAB).addPooledChunkQueue(
