@@ -79,7 +79,9 @@ public final class SegmentFactory {
         "wrong immutable segment type");
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
     return
-        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, false);
+      // the last parameter "false" means not to merge, but to compact the pipeline
+      // in order to create the new segment
+      new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, false);
   }
 
   // create new flat immutable segment from merging old immutable segment
@@ -98,6 +100,8 @@ public final class SegmentFactory {
     }
 
     return
+        // the last parameter "true" means to merge the compaction pipeline
+        // in order to create the new segment
         new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, true);
   }
   //****** private methods to instantiate concrete store segments **********//

@@ -69,6 +69,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
 
   private AtomicReference<Chunk> curChunk = new AtomicReference<Chunk>();
   // A queue of chunks from pool contained by this memstore LAB
+  // TODO: in the future, it would be better to have List implementation instead of Queue,
+  // as FIFO order is not so important here
   @VisibleForTesting
   BlockingQueue<PooledChunk> pooledChunkQueue = null;
   private final int chunkSize;
@@ -249,7 +251,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return this.curChunk.get();
   }
 
-  //@VisibleForTesting
+
   public BlockingQueue<PooledChunk> getChunkQueue() {
     return this.pooledChunkQueue;
   }
