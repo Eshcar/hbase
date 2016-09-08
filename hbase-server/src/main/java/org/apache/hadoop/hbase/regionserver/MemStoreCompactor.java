@@ -114,7 +114,7 @@ class MemStoreCompactor {
       case "data-compaction": action = Action.COMPACT;
         break;
       default:
-        throw new RuntimeException("Unknown action " + action); // sanity check
+        throw new RuntimeException("Unknown memstore type " + memStoreType); // sanity check
     }
 
     // get a snapshot of the list of the segments from the pipeline,

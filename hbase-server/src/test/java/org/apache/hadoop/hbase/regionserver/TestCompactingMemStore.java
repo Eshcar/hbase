@@ -589,6 +589,11 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   @Test
   public void testCompaction1Bucket() throws IOException {
 
+    // set memstore to do data compaction and not to use the speculative scan
+    memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "data-compaction");
+    memstore.getConfiguration().setBoolean("hbase.hregion.compacting.memstore.avoidSpeculativeScan",
+        true);
+
     String[] keys1 = { "A", "A", "B", "C" }; //A1, A2, B3, C4
 
     // test 1 bucket
@@ -616,7 +621,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   @Test
   public void testCompaction2Buckets() throws IOException {
 
-    memstore.getConfiguration().setBoolean("hbase.hregion.compacting.memstore.flatten", false);
+    // set memstore to do data compaction and not to use the speculative scan
+    memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "data-compaction");
+    memstore.getConfiguration().setBoolean(
+        "hbase.hregion.compacting.memstore.avoidSpeculativeScan", true);
 
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
@@ -661,6 +669,11 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
 
   @Test
   public void testCompaction3Buckets() throws IOException {
+
+    // set memstore to do data compaction and not to use the speculative scan
+    memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "data-compaction");
+    memstore.getConfiguration().setBoolean(
+        "hbase.hregion.compacting.memstore.avoidSpeculativeScan", true);
 
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
