@@ -69,7 +69,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
 
     // set memstore to do data compaction and not to use the speculative scan
     conf.set("hbase.hregion.compacting.memstore.type", "data-compaction");
-    conf.setBoolean("hbase.hregion.compacting.memstore.avoidSpeculativeScan", true);
+    conf.setBoolean("hbase.hregion.compacting.memstore.speculativeScan", false);
 
     this.memstore =
         new CompactingMemStore(conf, CellComparator.COMPARATOR, store,

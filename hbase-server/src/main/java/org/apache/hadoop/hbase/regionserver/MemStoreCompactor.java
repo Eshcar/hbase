@@ -52,9 +52,9 @@ class MemStoreCompactor {
 
   // Option for external guidance whether the speculative scan
   // (to evaluate compaction efficiency) is allowed
-  static final String MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN
-      = "hbase.hregion.compacting.memstore.avoidSpeculativeScan";
-  static final boolean MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN_DEFAULT = false;
+  static final String MEMSTORE_COMPACTOR_SPECULATIVE_SCAN
+      = "hbase.hregion.compacting.memstore.speculativeScan";
+  static final boolean MEMSTORE_COMPACTOR_SPECULATIVE_SCAN_DEFAULT = true;
 
   // Maximal number of the segments in the compaction pipeline
   private static final int THRESHOLD_PIPELINE_SEGMENTS = 3;
@@ -71,18 +71,22 @@ class MemStoreCompactor {
   // the limit to the size of the groups to be later provided to MemStoreCompactorIterator
   private final int compactionKVMax;
 
+  // the upper bound on the percentage of the pre-compaction amount of cells,
+  // which are going to "survive" after compaction; no compaction for percentage above this
   double fraction = 0.7;
 
   int immutCellsNum = 0;  // number of immutable for compaction cells
 
   /**
-   * Types of actions to be done on the pipeline upon MemStoreCompaction invocation
+   * Types of actions to be done on the pipeline upon MemStoreCompaction invocation.
+   * Note that every value covers the previous ones, i.e. if MERGE is the action it implies
+   * that the youngest segment is going to be flatten anyway.
    */
   private enum Action {
     NOP,
-    FLATTEN,
-    MERGE,
-    COMPACT
+    FLATTEN,  // flatten the youngest segment in the pipeline
+    MERGE,    // merge all the segments in the pipeline into one
+    COMPACT   // copy-compact the data of all the segments in the pipeline
   }
 
   private Action action = Action.FLATTEN;
@@ -102,8 +106,9 @@ class MemStoreCompactor {
    * is already an ongoing compaction or no segments to compact.
    */
   public boolean start() throws IOException {
-    if (!compactingMemStore.hasImmutableSegments()) // no compaction on empty pipeline
+    if (!compactingMemStore.hasImmutableSegments()) { // no compaction on empty pipeline
       return false;
+    }
 
     String memStoreType = compactingMemStore.getConfiguration().get(COMPACTING_MEMSTORE_TYPE_KEY,
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
@@ -162,11 +167,10 @@ class MemStoreCompactor {
     if (action == Action.COMPACT) { // try to compact if it worth it
       // check if running the speculative scan (to check the efficiency of compaction)
       // is allowed by the user
-      boolean avoidSpeculativeScan =
-          compactingMemStore.getConfiguration().getBoolean(
-              MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN,
-              MEMSTORE_COMPACTOR_AVOID_SPECULATIVE_SCAN_DEFAULT);
-      if (avoidSpeculativeScan==true) {
+      boolean useSpeculativeScan =
+          compactingMemStore.getConfiguration().getBoolean(MEMSTORE_COMPACTOR_SPECULATIVE_SCAN,
+              MEMSTORE_COMPACTOR_SPECULATIVE_SCAN_DEFAULT);
+      if (useSpeculativeScan==false) {
         LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
             + " is going to be compacted, without compaction-evaluation");
         return Action.COMPACT;      // compact without checking the compaction expedience
@@ -222,7 +226,8 @@ class MemStoreCompactor {
 
       // Substitute the pipeline with one segment
       if (!isInterrupted.get()) {
-        if (resultSwapped = compactingMemStore.swapCompactedSegments(versionedList, result)) {
+        if (resultSwapped = compactingMemStore.swapCompactedSegments(
+            versionedList, result, (action==Action.MERGE))) {
           // update the wal so it can be truncated and not get too long
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
         }
