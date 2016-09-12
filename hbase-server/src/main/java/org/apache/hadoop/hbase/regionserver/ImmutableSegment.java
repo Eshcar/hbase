@@ -79,7 +79,7 @@ public class ImmutableSegment extends Segment {
    * are going to be introduced.
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreCompactorIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, Type type) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean doMerge) {
 
     super(null,  // initiailize the CellSet with NULL
         comparator, memStoreLAB,
@@ -88,7 +88,7 @@ public class ImmutableSegment extends Segment {
         ClassSize.CELL_ARRAY_MAP_ENTRY);
 
     // build the true CellSet based on CellArrayMap
-    CellSet cs = createCellArrayMapSet(numOfCells, iterator);
+    CellSet cs = createCellArrayMapSet(numOfCells, iterator, doMerge);
 
     this.setCellSet(null, cs);            // update the CellSet of the new Segment
     this.type = type;
@@ -194,19 +194,26 @@ public class ImmutableSegment extends Segment {
   /////////////////////  PRIVATE METHODS  /////////////////////
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from compacting iterator
-  private CellSet createCellArrayMapSet(int numOfCells, MemStoreCompactorIterator iterator) {
+  private CellSet createCellArrayMapSet(int numOfCells, MemStoreCompactorIterator iterator,
+      boolean doMerge) {
 
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     int i = 0;
     while (iterator.hasNext()) {
       Cell c = iterator.next();
       // The scanner behind the iterator is doing all the elimination logic
-      // now we just copy it to the new segment (also MSLAB copy)
-      cells[i] = maybeCloneWithAllocator(c);
-      boolean usedMSLAB = (cells[i] != c);
+      if (doMerge) {
+        // if this is merge we just move the Cell object without copying MSLAB
+        // the sizes still need to be updated in the new segment
+        cells[i] = c;
+      } else {
+        // now we just copy it to the new segment (also MSLAB copy)
+        cells[i] = maybeCloneWithAllocator(c);
+      }
+      boolean useMSLAB = (getMemStoreLAB()!=null);
       // second parameter true, because in compaction addition of the cell to new segment
       // is always successful
-      updateMetaInfo(c, true, usedMSLAB); // updates the size per cell
+      updateMetaInfo(c, true, useMSLAB); // updates the size per cell
       i++;
     }
     // build the immutable CellSet

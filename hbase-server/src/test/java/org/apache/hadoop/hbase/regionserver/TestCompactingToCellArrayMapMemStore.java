@@ -67,7 +67,8 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     compactingSetUp();
     Configuration conf = HBaseConfiguration.create();
 
-    conf.setLong("hbase.hregion.compacting.memstore.type", 2); // compact to CellArrayMap
+    // set memstore to do data compaction and not to use the speculative scan
+    conf.set("hbase.hregion.compacting.memstore.type", "data-compaction");
 
     this.memstore =
         new CompactingMemStore(conf, CellComparator.COMPARATOR, store,
@@ -221,17 +222,16 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Flattening tests
+  // Merging tests
   //////////////////////////////////////////////////////////////////////////////
   @Test
-  public void testFlattening() throws IOException {
+  public void testMerging() throws IOException {
 
     String[] keys1 = { "A", "A", "B", "C", "F", "H"};
     String[] keys2 = { "A", "B", "D", "G", "I", "J"};
     String[] keys3 = { "D", "B", "B", "E" };
 
-    // set flattening to true
-    memstore.getConfiguration().setBoolean("hbase.hregion.compacting.memstore.flatten", true);
+    memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "index-compaction");
 
     addRowsByKeys(memstore, keys1);
 
@@ -264,7 +264,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     for ( Segment s : memstore.getSegments()) {
       counter += s.getCellsCount();
     }
-    assertEquals(10,counter);
+    assertEquals(16,counter);
 
     MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
     ImmutableSegment s = memstore.getSnapshot();

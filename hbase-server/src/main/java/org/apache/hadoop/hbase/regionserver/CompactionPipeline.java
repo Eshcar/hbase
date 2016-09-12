@@ -83,9 +83,11 @@ public class CompactionPipeline {
    * Swapping only if there were no changes to the suffix of the list while it was compacted.
    * @param versionedList tail of the pipeline that was compacted
    * @param segment new compacted segment
+   * @param merge
    * @return true iff swapped tail with new compacted segment
    */
-  public boolean swap(VersionedSegmentsList versionedList, ImmutableSegment segment) {
+  public boolean swap(
+      VersionedSegmentsList versionedList, ImmutableSegment segment, boolean merge) {
     if (versionedList.getVersion() != version) {
       return false;
     }
@@ -101,13 +103,14 @@ public class CompactionPipeline {
             + versionedList.getStoreSegments().size()
             + ", and the number of cells in new segment is:" + segment.getCellsCount());
       }
-      swapSuffix(suffix,segment);
+      swapSuffix(suffix,segment, merge);
     }
     if (region != null) {
       // update the global memstore size counter
       long suffixSize = CompactingMemStore.getSegmentsSize(suffix);
       long newSize = CompactingMemStore.getSegmentSize(segment);
       long delta = suffixSize - newSize;
+      if (merge) assert(delta==0); // sanity check
       long globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-delta);
       if (LOG.isDebugEnabled()) {
         LOG.debug("Suffix size: " + suffixSize + " compacted item size: " + newSize
@@ -189,10 +192,13 @@ public class CompactionPipeline {
     return CompactingMemStore.getSegmentSize(pipeline.peekLast());
   }
 
-  private void swapSuffix(LinkedList<ImmutableSegment> suffix, ImmutableSegment segment) {
+  private void swapSuffix(LinkedList<ImmutableSegment> suffix, ImmutableSegment segment,
+      boolean merge) {
     version++;
-    for(Segment itemInSuffix : suffix) {
-      itemInSuffix.close();
+    if (!merge) {
+      for (Segment itemInSuffix : suffix) {
+        itemInSuffix.close();
+      }
     }
     pipeline.removeAll(suffix);
     pipeline.addLast(segment);
