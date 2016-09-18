@@ -90,9 +90,11 @@ public class CompactionPipeline {
    * Swapping only if there were no changes to the suffix of the list while it was compacted.
    * @param versionedList tail of the pipeline that was compacted
    * @param segment new compacted segment
+   * @param closeSuffix - wether to close the suffix (to release memory), as part of swapping it out
    * @return true iff swapped tail with new compacted segment
    */
-  public boolean swap(VersionedSegmentsList versionedList, ImmutableSegment segment) {
+  public boolean swap(
+      VersionedSegmentsList versionedList, ImmutableSegment segment, boolean closeSuffix) {
     if (versionedList.getVersion() != version) {
       return false;
     }
@@ -108,13 +110,14 @@ public class CompactionPipeline {
             + versionedList.getStoreSegments().size()
             + ", and the number of cells in new segment is:" + segment.getCellsCount());
       }
-      swapSuffix(suffix,segment);
+      swapSuffix(suffix,segment, closeSuffix);
     }
     if (region != null) {
       // update the global memstore size counter
       long suffixSize = getSegmentsKeySize(suffix);
       long newSize = segment.keySize();
       long delta = suffixSize - newSize;
+      if (!closeSuffix) assert(delta>0); // sanity check
       long globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-delta);
       if (LOG.isDebugEnabled()) {
         LOG.debug("Suffix size: " + suffixSize + " compacted item size: " + newSize
@@ -204,10 +207,13 @@ public class CompactionPipeline {
     return pipeline.peekLast().keySize();
   }
 
-  private void swapSuffix(LinkedList<ImmutableSegment> suffix, ImmutableSegment segment) {
+  private void swapSuffix(LinkedList<ImmutableSegment> suffix, ImmutableSegment segment,
+      boolean close) {
     version++;
-    for (Segment itemInSuffix : suffix) {
-      itemInSuffix.close();
+    if (close) {
+      for (Segment itemInSuffix : suffix) {
+        itemInSuffix.close();
+      }
     }
     pipeline.removeAll(suffix);
     pipeline.addLast(segment);
