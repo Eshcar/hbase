@@ -45,6 +45,10 @@ class MemStoreCompactor {
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
   static final String COMPACTING_MEMSTORE_TYPE_DEFAULT = "index-compaction";
 
+  // constant strings explaining user's possibilities
+  static final String INDEX_COMPACTION_CONFIG = "index-compaction";
+  static final String DATA_COMPACTION_CONFIG  = "data-compaction";
+
   // Maximal number of the segments in the compaction pipeline
   private static final int THRESHOLD_PIPELINE_SEGMENTS = 1;
 
@@ -66,7 +70,7 @@ class MemStoreCompactor {
    * that the youngest segment is going to be flatten anyway.
    */
   private enum Action {
-    NOP,
+    NOOP,
     FLATTEN,  // flatten the youngest segment in the pipeline
     MERGE,    // merge all the segments in the pipeline into one
     COMPACT   // copy-compact the data of all the segments in the pipeline
@@ -141,7 +145,7 @@ class MemStoreCompactor {
   private Action policy() {
 
     if (isInterrupted.get())        // if the entire process is interrupted cancel flattening
-      return Action.NOP;            // the compaction also doesn't start when interrupted
+      return Action.NOOP;            // the compaction also doesn't start when interrupted
 
     if (action == Action.COMPACT) { // compact according to the user request
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
@@ -179,7 +183,7 @@ class MemStoreCompactor {
       switch (nextStep){
       case FLATTEN:   // Youngest Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion());
-      case NOP:       // intentionally falling through
+      case NOOP:       // intentionally falling through
         return;
       case MERGE:
       case COMPACT:
@@ -222,7 +226,7 @@ class MemStoreCompactor {
     MemStoreCompactorIterator iterator =
         new MemStoreCompactorIterator(versionedList.getStoreSegments(),
             compactingMemStore.getComparator(),
-            compactionKVMax, compactingMemStore.getStore());
+            compactionKVMax, compactingMemStore.getStore(), (action==Action.COMPACT));
     try {
       switch (action) {
       case COMPACT:
@@ -253,9 +257,9 @@ class MemStoreCompactor {
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
 
     switch (memStoreType) {
-    case "index-compaction": action = Action.MERGE;
+    case INDEX_COMPACTION_CONFIG: action = Action.MERGE;
       break;
-    case "data-compaction": action = Action.COMPACT;
+    case DATA_COMPACTION_CONFIG: action = Action.COMPACT;
       break;
     default:
       throw new RuntimeException("Unknown memstore type " + memStoreType); // sanity check

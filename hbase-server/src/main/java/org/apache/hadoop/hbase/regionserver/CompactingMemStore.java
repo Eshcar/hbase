@@ -161,13 +161,7 @@ public class CompactingMemStore extends AbstractMemStore {
             + getRegionServices().getRegionInfo().getRegionNameAsString() + "store: "
             + getFamilyName());
       }
-      if (!compactor.isIndexCompaction()){  // if there is ongoing time-consuming data-compaction
-        stopCompaction();                   // interrupt and stop it
-      } else {
-        while (inMemoryFlushInProgress.get()) {
-          Threads.sleep(10);                // if there is ongoing short-term index-compaction,
-        }                                   // busy-wait till iti s finished
-      }
+      stopCompaction();
       pushActiveToPipeline(active);
       snapshotId = EnvironmentEdgeManager.currentTime();
       pushTailToSnapshot();
@@ -213,7 +207,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
       boolean merge) {
-    return pipeline.swap(versionedList, result, merge);
+    return pipeline.swap(versionedList, result, !merge);
   }
 
   /**

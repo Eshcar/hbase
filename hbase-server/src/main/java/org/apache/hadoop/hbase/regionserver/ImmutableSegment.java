@@ -79,7 +79,7 @@ public class ImmutableSegment extends Segment {
    * are going to be introduced.
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreCompactorIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean doMerge) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge) {
 
     super(null,  // initiailize the CellSet with NULL
         comparator, memStoreLAB,
@@ -88,7 +88,7 @@ public class ImmutableSegment extends Segment {
         ClassSize.CELL_ARRAY_MAP_ENTRY);
 
     // build the true CellSet based on CellArrayMap
-    CellSet cs = createCellArrayMapSet(numOfCells, iterator, doMerge);
+    CellSet cs = createCellArrayMapSet(numOfCells, iterator, merge);
 
     this.setCellSet(null, cs);            // update the CellSet of the new Segment
     this.type = type;
@@ -158,7 +158,7 @@ public class ImmutableSegment extends Segment {
   /**------------------------------------------------------------------------
    * Change the CellSet of this ImmutableSegment from one based on ConcurrentSkipListMap to one
    * based on CellArrayMap.
-   * If this ImmutableSegment is not based on ConcurrentSkipListMap , this is NOP
+   * If this ImmutableSegment is not based on ConcurrentSkipListMap , this is NOOP
    *
    * Synchronization of the CellSet replacement:
    * The reference to the CellSet is AtomicReference and is updated only when ImmutableSegment
@@ -195,14 +195,14 @@ public class ImmutableSegment extends Segment {
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from compacting iterator
   private CellSet createCellArrayMapSet(int numOfCells, MemStoreCompactorIterator iterator,
-      boolean doMerge) {
+      boolean merge) {
 
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     int i = 0;
     while (iterator.hasNext()) {
       Cell c = iterator.next();
       // The scanner behind the iterator is doing all the elimination logic
-      if (doMerge) {
+      if (merge) {
         // if this is merge we just move the Cell object without copying MSLAB
         // the sizes still need to be updated in the new segment
         cells[i] = c;

@@ -75,7 +75,7 @@ public final class SegmentFactory {
       final Configuration conf, final CellComparator comparator,
       MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType)
       throws IOException {
-    Preconditions.checkArgument(segmentType != ImmutableSegment.Type.SKIPLIST_MAP_BASED,
+    Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
     return
@@ -90,7 +90,7 @@ public final class SegmentFactory {
       MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType,
       LinkedList<ImmutableSegment> segments)
       throws IOException {
-    Preconditions.checkArgument(segmentType != ImmutableSegment.Type.ARRAY_MAP_BASED,
+    Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
 

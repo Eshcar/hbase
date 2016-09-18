@@ -46,13 +46,14 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   private StoreScanner compactingScanner;
 
   private final ScannerContext scannerContext;
-
+  private boolean useSQM; // do we need SQM for obsolete cells elimination
   private boolean hasMore;
   private Iterator<Cell> kvsIterator;
 
   // C-tor
-  public MemStoreCompactorIterator(List<ImmutableSegment> segments,
-      CellComparator comparator, int compactionKVMax, Store store) throws IOException {
+  public MemStoreCompactorIterator(
+      List<ImmutableSegment> segments, CellComparator comparator, int compactionKVMax, Store store,
+      boolean useSQM) throws IOException {
 
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
 
@@ -66,20 +67,24 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
     }
 
     scanner = new MemStoreScanner(comparator, scanners, MemStoreScanner.Type.COMPACT_FORWARD);
+    this.useSQM = useSQM;
 
-    // reinitialize the compacting scanner for each instance of iterator
-    compactingScanner = createScanner(store, scanner);
+    if (useSQM) { // build the scanner based on Query Matcher
+      // reinitialize the compacting scanner for each instance of iterator
+      compactingScanner = createScanner(store, scanner);
 
-    hasMore = compactingScanner.next(kvs, scannerContext);
+      hasMore = compactingScanner.next(kvs, scannerContext);
 
-    if (!kvs.isEmpty()) {
-      kvsIterator = kvs.iterator();
+      if (!kvs.isEmpty()) {
+        kvsIterator = kvs.iterator();
+      }
     }
 
   }
 
   @Override
   public boolean hasNext() {
+    if (!useSQM) return (scanner.peek()!=null);
     if (!kvsIterator.hasNext()) {
       // refillKVS() method should be invoked only if !kvsIterator.hasNext()
       if (!refillKVS()) {
@@ -91,6 +96,16 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
 
   @Override
   public Cell next()  {
+    if (!useSQM) {
+      Cell result = null;
+      try {                 // try to get next
+        result = scanner.next();
+      } catch (IOException ie) {
+        throw new IllegalStateException(ie);
+      }
+      return result;
+    }
+
     if (!kvsIterator.hasNext()) {
       // refillKVS() method should be invoked only if !kvsIterator.hasNext()
       if (!refillKVS())  return null;
@@ -99,8 +114,10 @@ public class MemStoreCompactorIterator implements Iterator<Cell> {
   }
 
   public void close() {
-    compactingScanner.close();
-    compactingScanner = null;
+    if (useSQM) {
+      compactingScanner.close();
+      compactingScanner = null;
+    }
     scanner.close();
     scanner = null;
   }
