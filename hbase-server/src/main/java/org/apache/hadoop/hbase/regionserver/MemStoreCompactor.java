@@ -43,8 +43,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MemStoreCompactor {
 
   public static final long DEEP_OVERHEAD = ClassSize
-      .align(ClassSize.OBJECT + 4 * ClassSize.REFERENCE + 2 * Bytes.SIZEOF_INT + Bytes.SIZEOF_DOUBLE
-          + ClassSize.ATOMIC_BOOLEAN);
+      .align(ClassSize.OBJECT
+          + 2 * ClassSize.REFERENCE     // compactingMemStore, versionedList
+          + 2 * Bytes.SIZEOF_INT        // compactionKVMax, action
+          + ClassSize.ATOMIC_BOOLEAN);  // isInterrupted
 
   // The external setting of the compacting MemStore behaviour
   // Compaction of the index without the data is the default
