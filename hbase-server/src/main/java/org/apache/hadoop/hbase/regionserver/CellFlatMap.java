@@ -120,16 +120,17 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
       if (index >= 0 && !inclusive)
         result = (descending) ? index - 1 : index + 1;
     } else if (result==-1) {
-      if (index >= 0 && !inclusive)
+      if (index > 0 && !inclusive)
         result = (descending) ? index + 1 : index - 1;
+      else if (index==0 && !inclusive)
     }
 
-    if (result < minCellIdx || result > maxCellIdx) {
-      throw new IllegalArgumentException("Index " + result + " (initial index " + index + ") "
-          + " out of boundary, when looking for key " + key + ". The minCellIdx is " + minCellIdx
-          + " and the maxCellIdx is " + maxCellIdx + ". Finally, descending? " + descending
-          + " and was the key requested inclusively? " + inclusive);
-    }
+//    if (result < minCellIdx || result > maxCellIdx) {
+//      throw new IllegalArgumentException("Index " + result + " (initial index " + index + ") "
+//          + " out of boundary, when looking for key " + key + ". The minCellIdx is " + minCellIdx
+//          + " and the maxCellIdx is " + maxCellIdx + ". Finally, descending? " + descending
+//          + " and was the key requested inclusively? " + inclusive);
+//    }
     return result;
   }
 

@@ -24,10 +24,12 @@ import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.util.Iterator;
 import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.SortedSet;
 import static org.junit.Assert.assertTrue;
 
@@ -35,6 +37,15 @@ import static org.junit.Assert.assertTrue;
 public class TestCellFlatSet extends TestCase {
 
   private static final int NUM_OF_CELLS = 4;
+
+  /* 16645 start */
+  private Cell ascCells[];
+  private CellArrayMap ascCbOnHeap;
+  private Cell descCells[];
+  private CellArrayMap descCbOnHeap;
+  private KeyValue innerCell;
+  private KeyValue outerCell;
+  /* 16645 end */
 
   private Cell cells[];
   private CellArrayMap cbOnHeap;
@@ -61,6 +72,15 @@ public class TestCellFlatSet extends TestCase {
     final KeyValue kv3 = new KeyValue(three, f, q, 30, v);
     final KeyValue kv4 = new KeyValue(four, f, q, 40, v);
 
+    /* 16645 start */
+    innerCell = new KeyValue(Bytes.toBytes(10), f, q, 10, v);
+    outerCell = new KeyValue(Bytes.toBytes(50), f, q, 10, v);
+    ascCells = new Cell[] {kv1,kv2,kv3,kv4};
+    ascCbOnHeap = new CellArrayMap(CellComparator.COMPARATOR,ascCells,0,NUM_OF_CELLS,false);
+    descCells = new Cell[] {kv4,kv3,kv2,kv1};
+    descCbOnHeap = new CellArrayMap(CellComparator.COMPARATOR,descCells,0,NUM_OF_CELLS,true);
+    /* 16645 end */
+
     cells = new Cell[] {kv1,kv2,kv3,kv4};
     cbOnHeap = new CellArrayMap(CellComparator.COMPARATOR,cells,0,NUM_OF_CELLS,false);
 
@@ -76,6 +96,52 @@ public class TestCellFlatSet extends TestCase {
     testCellBlocks(cs);
     testIterators(cs);
   }
+
+  /* 16645 start */
+
+  @Test
+  public void testAsc() throws Exception {
+    CellSet ascCs = new CellSet(ascCbOnHeap);
+    assertEquals(NUM_OF_CELLS, ascCs.size());
+    testSubSet(ascCs);
+    //assert false;
+  }
+
+  private void testSubSet(CellSet cs) throws Exception {
+    for (int i = 0; i != ascCells.length; ++i) {
+      NavigableSet<Cell> excludeTail = cs.tailSet(ascCells[i], false);
+      NavigableSet<Cell> includeTail = cs.tailSet(ascCells[i], true);
+      assertEquals(ascCells.length - 1 - i, excludeTail.size());
+      assertEquals(ascCells.length - i, includeTail.size());
+      Iterator<Cell> excludeIter = excludeTail.iterator();
+      Iterator<Cell> includeIter = includeTail.iterator();
+      for (int j = 1 + i; j != ascCells.length; ++j) {
+        assertEquals(true, CellUtil.equals(excludeIter.next(), ascCells[j]));
+      }
+      for (int j = i; j != ascCells.length; ++j) {
+        assertEquals(true, CellUtil.equals(includeIter.next(), ascCells[j]));
+      }
+    }
+    assertEquals(NUM_OF_CELLS, cs.tailSet(innerCell, false).size());
+    assertEquals(0, cs.tailSet(outerCell, false).size());
+    for (int i = 0; i != ascCells.length; ++i) {
+      NavigableSet<Cell> excludeHead = cs.headSet(ascCells[i], false);
+      NavigableSet<Cell> includeHead = cs.headSet(ascCells[i], true);
+      assertEquals(i, excludeHead.size());
+      assertEquals(i + 1, includeHead.size());
+      Iterator<Cell> excludeIter = excludeHead.iterator();
+      Iterator<Cell> includeIter = includeHead.iterator();
+      for (int j = 0; j != i; ++j) {
+        assertEquals(true, CellUtil.equals(excludeIter.next(), ascCells[j]));
+      }
+      for (int j = 0; j != i + 1; ++j) {
+        assertEquals(true, CellUtil.equals(includeIter.next(), ascCells[j]));
+      }
+    }
+    assertEquals(0, cs.headSet(innerCell, false).size());
+    assertEquals(NUM_OF_CELLS, cs.headSet(outerCell, false).size());
+  }
+  /* 16645 end */
 
   /* Generic basic test for immutable CellSet */
   private void testCellBlocks(CellSet cs) throws Exception {
