@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.wal.WAL;
 
 /**
@@ -195,9 +196,9 @@ public class CompactingMemStore extends AbstractMemStore {
     return list;
   }
 
-  public boolean swapCompactedSegments(VersionedSegmentsList versionedList,
-      ImmutableSegment result) {
-    return pipeline.swap(versionedList, result);
+  public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
+      boolean merge) {
+    return pipeline.swap(versionedList, result, !merge);
   }
 
   /**
