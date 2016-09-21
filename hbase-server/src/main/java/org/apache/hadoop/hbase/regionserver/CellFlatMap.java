@@ -89,7 +89,9 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
         return mid;  // 0 means equals. We found the key
       }
 
-      if (compareRes < 0) {
+      // look on the comparison results; reverse the meaning of the comparison
+      // in case the order is descending (by using XOR)
+      if ((compareRes < 0) ^ descending) {
         // midCell is less than needle so we need to look at farther up
         begin = mid + 1;
       } else {
@@ -120,9 +122,36 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
       if (index >= 0 && !inclusive)
         result = (descending) ? index - 1 : index + 1;
     } else if (result==-1) {
-      if (index > 0 && !inclusive)
+      if (index >= 0 && !inclusive)
         result = (descending) ? index + 1 : index - 1;
-      else if (index==0 && !inclusive)
+    }
+
+    if (!tail && index==minCellIdx-1 && !inclusive) {
+      // there was a request for an ending index for a key which is first in the set or smaller
+      // than all the keys in the set (bigger in descending case). This key is not requested to be
+      // included, thus the empty set (the entire set in descending case) need to be returned
+      result = (descending) ? minCellIdx : minCellIdx-1;
+    }
+
+    if (!tail && index==-maxCellIdx-1 && !inclusive) {
+      // there was a request for an ending index for a key which is last in the set or bigger
+      // than all the keys in the set (smaller in descending case). This key is not requested to be
+      // included, thus the entire set (the empty set in descending case) need to be returned
+      result = (descending) ? maxCellIdx : maxCellIdx-1;
+    }
+
+    if (tail && index==minCellIdx-1 && !inclusive) {
+      // there was a request for a starting index for a key which is first in the set or smaller
+      // than all the keys in the set (bigger in descending case). This key is not requested to be
+      // included, thus the empty set need to be returned
+      result = (descending) ? minCellIdx-1 : minCellIdx;
+    }
+
+    if (tail && index==-maxCellIdx-1 && !inclusive) {
+      // there was a request for a starting index for a key which is last in the set or bigger
+      // than all the keys in the set (smaller in descending case). This key is not requested to be
+      // included, thus the empty set (the entire set in descending case) need to be returned
+      result = (descending) ? maxCellIdx-1 : maxCellIdx;
     }
 
 //    if (result < minCellIdx || result > maxCellIdx) {
@@ -170,13 +199,20 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
   public NavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
     int index = getValidIndex(toKey, inclusive, false);
     // "+1" because the max index is one after the true index
-    return createSubCellFlatMap(minCellIdx, index+1, descending);
+    return
+        descending ?
+            createSubCellFlatMap(index, maxCellIdx, descending) :
+            createSubCellFlatMap(minCellIdx, index+1, descending);
   }
 
   @Override
   public NavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
     int index = (getValidIndex(fromKey, inclusive, true));
-    return createSubCellFlatMap(index, maxCellIdx, descending);
+    return
+        descending ?
+            // "+1" because the max index is one after the true index
+            createSubCellFlatMap(minCellIdx, index+1, descending) :
+            createSubCellFlatMap(index, maxCellIdx, descending);
   }
 
   @Override

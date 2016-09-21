@@ -107,6 +107,13 @@ public class TestCellFlatSet extends TestCase {
     //assert false;
   }
 
+  @Test
+  public void testDesc() throws Exception {
+    CellSet descCs = new CellSet(descCbOnHeap);
+    assertEquals(NUM_OF_CELLS, descCs.size());
+    testSubSet(descCs);
+  }
+
   private void testSubSet(CellSet cs) throws Exception {
     for (int i = 0; i != ascCells.length; ++i) {
       NavigableSet<Cell> excludeTail = cs.tailSet(ascCells[i], false);
