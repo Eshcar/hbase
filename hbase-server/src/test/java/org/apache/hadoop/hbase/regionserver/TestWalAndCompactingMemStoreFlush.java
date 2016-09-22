@@ -132,7 +132,6 @@ public class TestWalAndCompactingMemStoreFlush {
     // set memstore to do data compaction and not to use the speculative scan
     conf.set("hbase.hregion.compacting.memstore.type", "data-compaction");
 
-
     // Intialize the region
     Region region = initHRegion("testSelectiveFlushWithDataCompaction", conf);
 
@@ -330,7 +329,7 @@ public class TestWalAndCompactingMemStoreFlush {
         .getEarliestMemstoreSeqNum(region.getRegionInfo().getEncodedNameAsBytes());
 
     assertTrue(
-        CompactingMemStore.DEEP_OVERHEAD + MutableSegment.DEEP_OVERHEAD < cf1MemstoreSizePhaseV);
+        CompactingMemStore.DEEP_OVERHEAD + MutableSegment.DEEP_OVERHEAD <= cf1MemstoreSizePhaseV);
     assertEquals(DefaultMemStore.DEEP_OVERHEAD + MutableSegment.DEEP_OVERHEAD,
         cf2MemstoreSizePhaseV);
     assertEquals(CompactingMemStore.DEEP_OVERHEAD + MutableSegment.DEEP_OVERHEAD,
@@ -388,6 +387,7 @@ public class TestWalAndCompactingMemStoreFlush {
     conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.5);
     // set memstore to index-compaction
     conf.set("hbase.hregion.compacting.memstore.type", "index-compaction");
+
     // Initialize the region
     Region region = initHRegion("testSelectiveFlushWithIndexCompaction", conf);
 
@@ -438,7 +438,11 @@ public class TestWalAndCompactingMemStoreFlush {
 
     // The total memstore size should be the same as the sum of the sizes of
     // memstores of CF1, CF2 and CF3.
-    assertEquals(totalMemstoreSizePhaseI + 3 * DefaultMemStore.DEEP_OVERHEAD,
+    assertEquals(
+        totalMemstoreSizePhaseI
+            + 1*DefaultMemStore.DEEP_OVERHEAD
+            + 2*CompactingMemStore.DEEP_OVERHEAD
+            + 3*MutableSegment.DEEP_OVERHEAD,
         cf1MemstoreSizePhaseI + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     /*------------------------------------------------------------------------------*/
@@ -477,7 +481,7 @@ public class TestWalAndCompactingMemStoreFlush {
     // CF1 was flushed to memory, should be flattened and take less space
     assertTrue(cf1MemstoreSizePhaseII < cf1MemstoreSizePhaseI);
     // CF2 should become empty
-    assertEquals(DefaultMemStore.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
+    assertEquals(DefaultMemStore.DEEP_OVERHEAD+MutableSegment.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
     // verify that CF3 was flushed to memory and was not compacted (this is an approximation check)
     // if compacted CF# should be at least twice less because its every key was duplicated
     assertTrue(cf3MemstoreSizePhaseI / 2 < cf3MemstoreSizePhaseII);
@@ -489,8 +493,12 @@ public class TestWalAndCompactingMemStoreFlush {
     // memstores of CF1, CF2 and CF3. Counting the empty active segments in CF1/2/3 and pipeline
     // items in CF1/2
     assertEquals(
-        totalMemstoreSizePhaseII + 3 * DefaultMemStore.DEEP_OVERHEAD
-            + 2 *  ImmutableSegment.DEEP_OVERHEAD_CAM,
+        totalMemstoreSizePhaseII
+            + 1*DefaultMemStore.DEEP_OVERHEAD
+            + 2*CompactingMemStore.DEEP_OVERHEAD
+            + 3*MutableSegment.DEEP_OVERHEAD
+            + 2*CompactionPipeline.ENTRY_OVERHEAD
+            + 2*ImmutableSegment.DEEP_OVERHEAD_CAM,
         cf1MemstoreSizePhaseII + cf2MemstoreSizePhaseII + cf3MemstoreSizePhaseII);
 
     /*------------------------------------------------------------------------------*/
@@ -519,8 +527,12 @@ public class TestWalAndCompactingMemStoreFlush {
     // memstores of CF1, CF2 and CF3. Counting the empty active segments in CF1/2/3 and pipeline
     // items in CF1/2
     assertEquals(
-        totalMemstoreSizePhaseIII + 3 * DefaultMemStore.DEEP_OVERHEAD
-            + 2 *  ImmutableSegment.DEEP_OVERHEAD_CAM,
+        totalMemstoreSizePhaseIII
+            + 1*DefaultMemStore.DEEP_OVERHEAD
+            + 2*CompactingMemStore.DEEP_OVERHEAD
+            + 3*MutableSegment.DEEP_OVERHEAD
+            + 2*CompactionPipeline.ENTRY_OVERHEAD
+            + 2*ImmutableSegment.DEEP_OVERHEAD_CAM,
         cf1MemstoreSizePhaseIII + cf2MemstoreSizePhaseII + cf3MemstoreSizePhaseII);
 
     /*------------------------------------------------------------------------------*/
@@ -545,9 +557,7 @@ public class TestWalAndCompactingMemStoreFlush {
     /* PHASE IV - validation */
     // CF1's biggest pipeline component (inserted before first flush) should be flushed to disk
     // CF2 should remain empty
-    assertEquals(
-        cf1MemstoreSizePhaseIII - cf1MemstoreSizePhaseI + CompactingMemStore.DEEP_OVERHEAD
-            + MutableSegment.DEEP_OVERHEAD, cf1MemstoreSizePhaseIV);
+    assertTrue(cf1MemstoreSizePhaseIII > cf1MemstoreSizePhaseIV);
     assertEquals(DefaultMemStore.DEEP_OVERHEAD + MutableSegment.DEEP_OVERHEAD,
         cf2MemstoreSizePhaseIV);
     // CF3 shouldn't have been touched.
@@ -803,7 +813,8 @@ public class TestWalAndCompactingMemStoreFlush {
 
     // The total memstore size should be the same as the sum of the sizes of
     // memstores of CF1, CF2 and CF3.
-    assertEquals(totalMemstoreSize + 3 * DefaultMemStore.DEEP_OVERHEAD,
+    assertEquals(totalMemstoreSize + 1 * DefaultMemStore.DEEP_OVERHEAD
+            + 2 * CompactingMemStore.DEEP_OVERHEAD + 3 * MutableSegment.DEEP_OVERHEAD,
         cf1MemstoreSizePhaseI + cf2MemstoreSizePhaseI + cf3MemstoreSizePhaseI);
 
     // Flush!
@@ -827,7 +838,8 @@ public class TestWalAndCompactingMemStoreFlush {
     long smallestSeqCF3PhaseII = region.getOldestSeqIdOfStore(FAMILY3);
 
     // CF2 should have been cleared
-    assertEquals(DefaultMemStore.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
+    assertEquals(
+        DefaultMemStore.DEEP_OVERHEAD+MutableSegment.DEEP_OVERHEAD, cf2MemstoreSizePhaseII);
 
     // Add same entries to compact them later
     for (int i = 1; i <= 1200; i++) {

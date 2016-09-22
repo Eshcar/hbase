@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HConstants;
@@ -53,22 +54,15 @@ public class MemStoreCompactor {
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
   static final String COMPACTING_MEMSTORE_TYPE_DEFAULT = "index-compaction";
 
-  // constant strings explaining user's possibilities
+  // Configuration options for MemStore compaction
   static final String INDEX_COMPACTION_CONFIG = "index-compaction";
   static final String DATA_COMPACTION_CONFIG  = "data-compaction";
 
-  // Maximal number of the segments in the compaction pipeline
+  // The upper bound for the number of segments we store in the pipeline prior to merging.
+  // This constant is subject to further experimentation.
   private static final int THRESHOLD_PIPELINE_SEGMENTS = 1;
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
-
-  /**
-   * Types of Compaction
-   */
-  private enum Type {
-    COMPACT_TO_SKIPLIST_MAP,
-    COMPACT_TO_ARRAY_MAP
-  }
 
   private CompactingMemStore compactingMemStore;
 
@@ -247,12 +241,12 @@ public class MemStoreCompactor {
     try {
       switch (action) {
       case COMPACT:
-        result = SegmentFactory.instance().createImmutableSegment(
+        result = SegmentFactory.instance().createImmutableSegmentByCompaction(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
             versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
         break;
       case MERGE:
-        result = SegmentFactory.instance().createImmutableSegment(
+        result = SegmentFactory.instance().createImmutableSegmentByMerge(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
             versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,
             versionedList.getStoreSegments());
@@ -269,7 +263,8 @@ public class MemStoreCompactor {
   /**----------------------------------------------------------------------
    * Initiate the action according to user config, after its default is Action.MERGE
    */
-  private void initiateAction() {
+  @VisibleForTesting
+  void initiateAction() {
     String memStoreType = compactingMemStore.getConfiguration().get(COMPACTING_MEMSTORE_TYPE_KEY,
         COMPACTING_MEMSTORE_TYPE_DEFAULT);
 

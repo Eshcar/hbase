@@ -227,7 +227,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     String[] keys3 = { "D", "B", "B", "E" };
 
     memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "index-compaction");
-
+    ((CompactingMemStore)memstore).initiateType();
     addRowsByKeys(memstore, keys1);
 
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact

@@ -90,7 +90,7 @@ public class CompactionPipeline {
    * Swapping only if there were no changes to the suffix of the list while it was compacted.
    * @param versionedList tail of the pipeline that was compacted
    * @param segment new compacted segment
-   * @param closeSuffix - wether to close the suffix (to release memory), as part of swapping it out
+   * @param closeSuffix - whether to close the suffix (to release memory), as part of swapping it out
    * @return true iff swapped tail with new compacted segment
    */
   public boolean swap(
@@ -117,7 +117,7 @@ public class CompactionPipeline {
       long suffixSize = getSegmentsKeySize(suffix);
       long newSize = segment.keySize();
       long delta = suffixSize - newSize;
-      if (!closeSuffix) assert(delta>0); // sanity check
+      assert (closeSuffix || delta>0); // sanity check
       long globalMemstoreSize = region.addAndGetGlobalMemstoreSize(-delta);
       if (LOG.isDebugEnabled()) {
         LOG.debug("Suffix size: " + suffixSize + " compacted item size: " + newSize
@@ -208,9 +208,9 @@ public class CompactionPipeline {
   }
 
   private void swapSuffix(LinkedList<ImmutableSegment> suffix, ImmutableSegment segment,
-      boolean close) {
+      boolean closeItemsInSuffix) {
     version++;
-    if (close) {
+    if (closeItemsInSuffix) {
       for (Segment itemInSuffix : suffix) {
         itemInSuffix.close();
       }

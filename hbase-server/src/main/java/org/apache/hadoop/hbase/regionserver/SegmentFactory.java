@@ -51,10 +51,10 @@ public final class SegmentFactory {
     return new ImmutableSegment(comparator, iterator, getMemStoreLAB(conf));
   }
 
-  // create new flat immutable segment from compacting old immutable segment
-  public ImmutableSegment createImmutableSegment(
-      final Configuration conf, final CellComparator comparator,
-      MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType)
+  // create new flat immutable segment from compacting old immutable segments
+  public ImmutableSegment createImmutableSegmentByCompaction(final Configuration conf,
+      final CellComparator comparator, MemStoreCompactorIterator iterator, int numOfCells,
+      ImmutableSegment.Type segmentType)
       throws IOException {
     Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
@@ -82,11 +82,10 @@ public final class SegmentFactory {
     return generateMutableSegment(conf, comparator, memStoreLAB);
   }
 
-  // create new flat immutable segment from merging old immutable segment
-  public ImmutableSegment createImmutableSegment(
-      final Configuration conf, final CellComparator comparator,
-      MemStoreCompactorIterator iterator, int numOfCells, ImmutableSegment.Type segmentType,
-      LinkedList<ImmutableSegment> segments)
+  // create new flat immutable segment from merging old immutable segments
+  public ImmutableSegment createImmutableSegmentByMerge(final Configuration conf,
+      final CellComparator comparator, MemStoreCompactorIterator iterator, int numOfCells,
+      ImmutableSegment.Type segmentType, LinkedList<ImmutableSegment> segments)
       throws IOException {
     Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
