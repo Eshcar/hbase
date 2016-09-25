@@ -109,7 +109,32 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
   ** taking into consideration whether
   ** the key should be inclusive or exclusive */
   private int getValidIndex(Cell key, boolean inclusive, boolean tail) {
-    int index = find(key);
+    final int index = find(key);
+    // get the valid (positive) insertion point from the output of the find() method
+    int insertionPoint = index < 0 ? ~index : index;
+
+    // correct the insertion point in case the given anchor key DOES EXIST in the set
+    if (index >= 0) {
+      if ( descending && !(tail ^ inclusive)) {
+        // for the descending case
+        // if anchor for head set (tail=false) AND anchor is not inclusive -> move the insertion pt
+        // if anchor for tail set (tail=true) AND the keys is inclusive -> move the insertion point
+        //         because the end index of a set is the index of the cell after the maximal cell
+        insertionPoint += 1;
+      } else if ( !descending && (tail ^ inclusive)) {
+        // for the ascending case
+        // if anchor for head set (tail=false) AND anchor is inclusive -> move the insertion point
+        //         because the end index of a set is the index of the cell after the maximal cell
+        // if anchor for tail set (tail=true) AND the keys is not inclusive -> move the insertion pt
+        insertionPoint += 1;
+      }
+    }
+
+    // insert the insertion point into the valid range,
+    // as we may enlarge it too much in the above correction
+    return Math.min(Math.max(insertionPoint, minCellIdx), maxCellIdx);
+
+    /*
     int result = -1;
 
     // if the key is found and to be included, for all possibilities, the answer is the found index
@@ -161,6 +186,7 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
 //          + " and was the key requested inclusively? " + inclusive);
 //    }
     return result;
+    */
   }
 
   @Override
@@ -178,7 +204,41 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
     return ( size() == 0 );
   }
 
+  @Override
+  public NavigableMap<Cell, Cell> subMap( Cell fromKey,
+      boolean fromInclusive,
+      Cell toKey,
+      boolean toInclusive) {
+    final int lessCellIndex = getValidIndex(fromKey, fromInclusive, true);
+    final int greaterCellIndex = getValidIndex(toKey, toInclusive, false);
+    if (descending) {
+      return createSubCellFlatMap(greaterCellIndex, lessCellIndex, descending);
+    } else {
+      return createSubCellFlatMap(lessCellIndex, greaterCellIndex, descending);
+    }
 
+  }
+
+  @Override
+  public NavigableMap<Cell, Cell> headMap(Cell toKey, boolean inclusive) {
+    if (descending) {
+      return createSubCellFlatMap(getValidIndex(toKey, inclusive, false), maxCellIdx, descending);
+    } else {
+      return createSubCellFlatMap(minCellIdx, getValidIndex(toKey, inclusive, false), descending);
+    }
+  }
+
+  @Override
+  public NavigableMap<Cell, Cell> tailMap(Cell fromKey, boolean inclusive) {
+    if (descending) {
+      return createSubCellFlatMap(minCellIdx, getValidIndex(fromKey, inclusive, true), descending);
+    } else {
+      return createSubCellFlatMap(getValidIndex(fromKey, inclusive, true), maxCellIdx, descending);
+    }
+  }
+
+
+  /*
   // ---------------- Sub-Maps ----------------
   @Override
   public NavigableMap<Cell, Cell> subMap( Cell fromKey,
@@ -214,6 +274,7 @@ public abstract class CellFlatMap implements NavigableMap<Cell,Cell> {
             createSubCellFlatMap(minCellIdx, index+1, descending) :
             createSubCellFlatMap(index, maxCellIdx, descending);
   }
+  */
 
   @Override
   public NavigableMap<Cell, Cell> descendingMap() {
