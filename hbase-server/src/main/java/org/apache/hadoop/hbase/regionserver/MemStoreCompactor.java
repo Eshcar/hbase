@@ -192,11 +192,11 @@ public class MemStoreCompactor {
     try {
       Action nextStep = policy();
       switch (nextStep){
-      case FLATTEN:   // Youngest Segment in the pipeline is with SkipList index, make it flat
+      case FLATTEN:    // Youngest Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion());
       case NOOP:       // intentionally falling through
         return;
-      case MERGE:
+      case MERGE:      // intentionally fall through
       case COMPACT:
         break;
       default: throw new RuntimeException("Unknown action " + action); // sanity check
@@ -216,7 +216,7 @@ public class MemStoreCompactor {
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
         }
       }
-    } catch (Exception e) {
+    } catch (IOException e) {
       LOG.debug("Interrupting the MemStore in-memory compaction for store "
           + compactingMemStore.getFamilyName());
       Thread.currentThread().interrupt();
