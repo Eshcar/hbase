@@ -129,7 +129,7 @@ public class TestWalAndCompactingMemStoreFlush {
         FlushNonSloppyStoresFirstPolicy.class.getName());
     conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 200 * 1024);
     conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.25);
-    // set memstore to do data compaction and not to use the speculative scan
+    // set memstore to do data compaction
     conf.set("hbase.hregion.compacting.memstore.type", "data-compaction");
 
     // Intialize the region

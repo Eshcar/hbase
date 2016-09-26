@@ -72,7 +72,7 @@ public class MemStoreCompactor {
   // a flag raised when compaction is requested to stop
   private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
-  // the limit to the size of the groups to be later provided to MemStoreCompactorIterator
+  // the limit to the size of the groups to be later provided to MemStoreSegmentsIterator
   private final int compactionKVMax;
 
   /**
@@ -106,10 +106,6 @@ public class MemStoreCompactor {
       return false;
     }
 
-    // for the tests that change the configuration on the fly, initiate the action once again here,
-    // although it was already initiated in the constructor
-    initiateAction();
-
     // get a snapshot of the list of the segments from the pipeline,
     // this local copy of the list is marked with specific version
     versionedList = compactingMemStore.getImmutableSegments();
@@ -140,7 +136,7 @@ public class MemStoreCompactor {
   }
 
   /**----------------------------------------------------------------------
-  * Close the scanners and clear the pointers in order to allow good
+  * Reset the interruption indicator and clear the pointers in order to allow good
   * garbage collection
   */
   private void releaseResources() {
@@ -149,14 +145,14 @@ public class MemStoreCompactor {
   }
 
   /**----------------------------------------------------------------------
-   * Check whether there are some signs to definitely not to flatten,
-   * returns false if we must compact. If this method returns true we
-   * still need to evaluate the compaction.
+   * Decide what to do with the new and old segments in the compaction pipeline.
+   * Implements basic in-memory compaction policy.
    */
   private Action policy() {
 
-    if (isInterrupted.get())        // if the entire process is interrupted cancel flattening
-      return Action.NOOP;            // the compaction also doesn't start when interrupted
+    if (isInterrupted.get()) {      // if the entire process is interrupted cancel flattening
+      return Action.NOOP;           // the compaction also doesn't start when interrupted
+    }
 
     if (action == Action.COMPACT) { // compact according to the user request
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
@@ -221,7 +217,9 @@ public class MemStoreCompactor {
           + compactingMemStore.getFamilyName());
       Thread.currentThread().interrupt();
     } finally {
-      if ((result != null) && (!resultSwapped)) result.close();
+      if ((result != null) && (!resultSwapped)) {
+        result.close();
+      }
       releaseResources();
     }
 
@@ -234,18 +232,25 @@ public class MemStoreCompactor {
   private ImmutableSegment createSubstitution() throws IOException {
 
     ImmutableSegment result = null;
-    MemStoreCompactorIterator iterator =
-        new MemStoreCompactorIterator(versionedList.getStoreSegments(),
-            compactingMemStore.getComparator(),
-            compactionKVMax, compactingMemStore.getStore(), (action==Action.COMPACT));
+    MemStoreSegmentsIterator iterator = null;
     try {
       switch (action) {
       case COMPACT:
+        iterator =
+          new MemStoreCompactorSegmentsIterator(versionedList.getStoreSegments(),
+              compactingMemStore.getComparator(),
+              compactionKVMax, compactingMemStore.getStore());
+
         result = SegmentFactory.instance().createImmutableSegmentByCompaction(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
             versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
         break;
       case MERGE:
+        iterator =
+            new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
+                compactingMemStore.getComparator(),
+                compactionKVMax, compactingMemStore.getStore());
+
         result = SegmentFactory.instance().createImmutableSegmentByMerge(
             compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
             versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,

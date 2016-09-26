@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.List;
 
 /**
  * A singleton store segment factory.
@@ -47,13 +48,13 @@ public final class SegmentFactory {
 
   // create skip-list-based (non-flat) immutable segment from compacting old immutable segments
   public ImmutableSegment createImmutableSegment(final Configuration conf,
-      final CellComparator comparator, MemStoreCompactorIterator iterator) {
+      final CellComparator comparator, MemStoreSegmentsIterator iterator) {
     return new ImmutableSegment(comparator, iterator, getMemStoreLAB(conf));
   }
 
   // create new flat immutable segment from compacting old immutable segments
   public ImmutableSegment createImmutableSegmentByCompaction(final Configuration conf,
-      final CellComparator comparator, MemStoreCompactorIterator iterator, int numOfCells,
+      final CellComparator comparator, MemStoreSegmentsIterator iterator, int numOfCells,
       ImmutableSegment.Type segmentType)
       throws IOException {
     Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
@@ -84,8 +85,8 @@ public final class SegmentFactory {
 
   // create new flat immutable segment from merging old immutable segments
   public ImmutableSegment createImmutableSegmentByMerge(final Configuration conf,
-      final CellComparator comparator, MemStoreCompactorIterator iterator, int numOfCells,
-      ImmutableSegment.Type segmentType, LinkedList<ImmutableSegment> segments)
+      final CellComparator comparator, MemStoreSegmentsIterator iterator, int numOfCells,
+      ImmutableSegment.Type segmentType, List<ImmutableSegment> segments)
       throws IOException {
     Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");

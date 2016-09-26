@@ -85,7 +85,7 @@ public class ImmutableSegment extends Segment {
    * The input parameter "type" exists for future use when more types of flat ImmutableSegments
    * are going to be introduced.
    */
-  protected ImmutableSegment(CellComparator comparator, MemStoreCompactorIterator iterator,
+  protected ImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
       MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge) {
 
     super(null, // initiailize the CellSet with NULL
@@ -103,7 +103,7 @@ public class ImmutableSegment extends Segment {
    * list of older ImmutableSegments.
    * The given iterator returns the Cells that "survived" the compaction.
    */
-  protected ImmutableSegment(CellComparator comparator, MemStoreCompactorIterator iterator,
+  protected ImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
       MemStoreLAB memStoreLAB) {
     super(new CellSet(comparator), // initiailize the CellSet with empty CellSet
         comparator, memStoreLAB);
@@ -189,7 +189,7 @@ public class ImmutableSegment extends Segment {
   /////////////////////  PRIVATE METHODS  /////////////////////
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from compacting iterator
-  private CellSet createCellArrayMapSet(int numOfCells, MemStoreCompactorIterator iterator,
+  private CellSet createCellArrayMapSet(int numOfCells, MemStoreSegmentsIterator iterator,
       boolean merge) {
 
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array

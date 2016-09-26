@@ -313,9 +313,9 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       Threads.sleep(10);
     }
     // Just doing the cnt operation here
-    MemStoreCompactorIterator itr = new MemStoreCompactorIterator(
+    MemStoreSegmentsIterator itr = new MemStoreMergerSegmentsIterator(
         ((CompactingMemStore) memstore).getImmutableSegments().getStoreSegments(),
-        CellComparator.COMPARATOR, 10, ((CompactingMemStore) memstore).getStore(), true);
+        CellComparator.COMPARATOR, 10, ((CompactingMemStore) memstore).getStore());
     int cnt = 0;
     try {
       while (itr.next() != null) {
