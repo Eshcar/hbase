@@ -58,7 +58,6 @@ public abstract class MemStoreSegmentsIterator implements Iterator<Cell> {
     }
 
     scanner = new MemStoreScanner(comparator, scanners, true);
-
   }
 
 
