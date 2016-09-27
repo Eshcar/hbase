@@ -512,6 +512,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // set memstore to do data compaction and not to use the speculative scan
     memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "data-compaction");
     ((CompactingMemStore)memstore).initiateType();
+
     byte[] row = Bytes.toBytes("testrow");
     byte[] fam = Bytes.toBytes("testfamily");
     byte[] qf1 = Bytes.toBytes("testqualifier1");

@@ -66,6 +66,9 @@ public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator 
 
   @Override
   public boolean hasNext() {
+    if (kvsIterator == null)  { // for the case when the result is empty
+      return false;
+    }
     if (!kvsIterator.hasNext()) {
       // refillKVS() method should be invoked only if !kvsIterator.hasNext()
       if (!refillKVS()) {
@@ -77,6 +80,9 @@ public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator 
 
   @Override
   public Cell next()  {
+    if (kvsIterator == null)  { // for the case when the result is empty
+      return null;
+    }
     if (!kvsIterator.hasNext()) {
       // refillKVS() method should be invoked only if !kvsIterator.hasNext()
       if (!refillKVS())  return null;

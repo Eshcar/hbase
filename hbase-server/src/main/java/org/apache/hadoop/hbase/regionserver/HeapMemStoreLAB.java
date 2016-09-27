@@ -111,7 +111,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   /**
    * To be used for merging multiple MSLABs
    */
-  public void addPooledChunkQueue(BlockingQueue<PooledChunk> targetQueue) {
+  public void addIntoPooledChunks(BlockingQueue<PooledChunk> targetQueue) {
     if ( targetQueue == null ) {
       return;
     }
@@ -255,7 +255,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   }
 
 
-  public BlockingQueue<PooledChunk> getChunkQueue() {
+  public BlockingQueue<PooledChunk> getPooledChunks() {
     return this.pooledChunkQueue;
   }
 }

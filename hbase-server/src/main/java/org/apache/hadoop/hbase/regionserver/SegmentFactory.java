@@ -25,7 +25,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 
 import java.io.IOException;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -93,8 +92,8 @@ public final class SegmentFactory {
     MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
 
     for (Segment s: segments){
-        ((HeapMemStoreLAB)memStoreLAB).addPooledChunkQueue(
-            ((HeapMemStoreLAB)s.getMemStoreLAB()).getChunkQueue());
+        ((HeapMemStoreLAB)memStoreLAB).addIntoPooledChunks(
+            ((HeapMemStoreLAB) s.getMemStoreLAB()).getPooledChunks());
     }
 
     return
