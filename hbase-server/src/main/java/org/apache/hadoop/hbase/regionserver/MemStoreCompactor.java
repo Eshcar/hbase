@@ -187,15 +187,14 @@ public class MemStoreCompactor {
 
     try {
       Action nextStep = policy();
-      switch (nextStep){
-      case FLATTEN:    // Youngest Segment in the pipeline is with SkipList index, make it flat
-        compactingMemStore.flattenOneSegment(versionedList.getVersion());
-      case NOOP:       // intentionally falling through
+
+      if (nextStep == Action.NOOP) {
         return;
-      case MERGE:      // intentionally fall through
-      case COMPACT:
-        break;
-      default: throw new RuntimeException("Unknown action " + action); // sanity check
+      }
+      if (nextStep == Action.FLATTEN) {
+        // Youngest Segment in the pipeline is with SkipList index, make it flat
+        compactingMemStore.flattenOneSegment(versionedList.getVersion());
+        return;
       }
 
       // Create one segment representing all segments in the compaction pipeline,
@@ -233,33 +232,32 @@ public class MemStoreCompactor {
 
     ImmutableSegment result = null;
     MemStoreSegmentsIterator iterator = null;
-    try {
-      switch (action) {
-      case COMPACT:
-        iterator =
+
+    switch (action) {
+    case COMPACT:
+      iterator =
           new MemStoreCompactorSegmentsIterator(versionedList.getStoreSegments(),
               compactingMemStore.getComparator(),
               compactionKVMax, compactingMemStore.getStore());
 
-        result = SegmentFactory.instance().createImmutableSegmentByCompaction(
-            compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-            versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
-        break;
-      case MERGE:
-        iterator =
-            new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
-                compactingMemStore.getComparator(),
-                compactionKVMax, compactingMemStore.getStore());
-
-        result = SegmentFactory.instance().createImmutableSegmentByMerge(
-            compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-            versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,
-            versionedList.getStoreSegments());
-        break;
-      default: throw new RuntimeException("Unknown action " + action); // sanity check
-      }
-    } finally {
+      result = SegmentFactory.instance().createImmutableSegmentByCompaction(
+          compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
+          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
       iterator.close();
+      break;
+    case MERGE:
+      iterator =
+          new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
+              compactingMemStore.getComparator(),
+              compactionKVMax, compactingMemStore.getStore());
+
+      result = SegmentFactory.instance().createImmutableSegmentByMerge(
+          compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
+          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,
+          versionedList.getStoreSegments());
+      iterator.close();
+      break;
+    default: throw new RuntimeException("Unknown action " + action); // sanity check
     }
 
     return result;
