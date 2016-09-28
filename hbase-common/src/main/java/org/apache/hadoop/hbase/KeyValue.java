@@ -19,7 +19,16 @@
  */
 package org.apache.hadoop.hbase;
 
-import static org.apache.hadoop.hbase.util.Bytes.len;
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.io.HeapSize;
+import org.apache.hadoop.hbase.util.ByteBufferUtils;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.ClassSize;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.RawComparator;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -35,16 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.io.HeapSize;
-import org.apache.hadoop.hbase.util.ByteBufferUtils;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.ClassSize;
-import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.io.RawComparator;
-import com.google.common.annotations.VisibleForTesting;
+import static org.apache.hadoop.hbase.util.Bytes.len;
 
 /**
  * An HBase Key/Value. This is the fundamental HBase Type.
@@ -353,6 +353,15 @@ public class KeyValue implements Cell, HeapSize, Cloneable, SettableSequenceId,
     this.bytes = bytes;
     this.offset = offset;
     this.length = length;
+    validateOffset();
+  }
+
+  protected void validateOffset() {
+    if(offset > bytes.length) {
+      throw new IllegalArgumentException("offset="+offset+" is bigger than bytes length="+bytes
+          .length);
+    }
+
   }
 
   /**
@@ -630,6 +639,7 @@ public class KeyValue implements Cell, HeapSize, Cloneable, SettableSequenceId,
          family, foffset, flength, qualifier, qoffset, qlength,
         timestamp, type, value, voffset, vlength, tags);
      this.offset = boffset;
+    validateOffset();
    }
 
   /**
@@ -2638,6 +2648,7 @@ public class KeyValue implements Cell, HeapSize, Cloneable, SettableSequenceId,
       this.length = length;
       this.offset = offset;
       this.rowLen = Bytes.toShort(this.bytes, this.offset);
+      validateOffset();
     }
 
     @Override
@@ -2657,6 +2668,7 @@ public class KeyValue implements Cell, HeapSize, Cloneable, SettableSequenceId,
       this.offset = offset;
       this.length = length;
       this.rowLen = Bytes.toShort(this.bytes, this.offset);
+      validateOffset();
     }
 
     @Override
