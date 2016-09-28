@@ -45,10 +45,13 @@ public class MemStoreCompactor {
 
   public static final long DEEP_OVERHEAD = ClassSize
       .align(ClassSize.OBJECT
-          + 2 * ClassSize.REFERENCE     // compactingMemStore, versionedList
-          + 2 * Bytes.SIZEOF_INT        // compactionKVMax, action
-          + ClassSize.ATOMIC_BOOLEAN);  // isInterrupted
-
+          + 4 * ClassSize.REFERENCE
+          // compactingMemStore, versionedList, action, isInterrupted (the reference)
+          // "action" is an enum and thus it is a class with static final constants,
+          // so counting only the size of the reference to it and not the size of the internals
+          + Bytes.SIZEOF_INT            // compactionKVMax
+          + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
+      );
   // The external setting of the compacting MemStore behaviour
   // Compaction of the index without the data is the default
   static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
