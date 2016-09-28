@@ -18,14 +18,14 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.SortedSet;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.SortedSet;
 
 /**
  * A scanner of a single memstore segment.
@@ -332,6 +332,7 @@ public class SegmentScanner implements KeyValueScanner {
       while (iter.hasNext()) {
         next = iter.next();
         if (next.getSequenceId() <= this.readPoint) {
+          validate(next);
           return next;                    // skip irrelevant versions
         }
         if (stopSkippingKVsIfNextRow &&   // for backwardSeek() stay in the
@@ -348,6 +349,11 @@ public class SegmentScanner implements KeyValueScanner {
         last = next;
       }
     }
+  }
+
+
+  private void validate(Cell cell) {
+    cell.validateOffset();
   }
 
   /**

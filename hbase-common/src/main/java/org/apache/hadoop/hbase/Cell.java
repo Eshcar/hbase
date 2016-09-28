@@ -63,6 +63,7 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 @InterfaceStability.Evolving
 public interface Cell {
 
+  void validateOffset();
   //1) Row
 
   /**

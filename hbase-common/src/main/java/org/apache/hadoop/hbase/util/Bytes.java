@@ -832,7 +832,7 @@ public class Bytes implements Comparable<Bytes> {
     if (length != expectedLength) {
       reason = "Wrong length: " + length + ", expected " + expectedLength;
     } else {
-     reason = "offset (" + offset + ") + length (" + length + ") exceed the"
+     reason = "offset (" + offset + ") + length (" + length + ") exceeds the"
         + " capacity of the byte array: " + bytes.length;
     }
     return new IllegalArgumentException(reason);

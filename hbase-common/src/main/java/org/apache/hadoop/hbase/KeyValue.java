@@ -356,7 +356,8 @@ public class KeyValue implements Cell, HeapSize, Cloneable, SettableSequenceId,
     validateOffset();
   }
 
-  protected void validateOffset() {
+  @Override
+  public void validateOffset() {
     if(offset > bytes.length) {
       throw new IllegalArgumentException("offset="+offset+" is bigger than bytes length="+bytes
           .length);
