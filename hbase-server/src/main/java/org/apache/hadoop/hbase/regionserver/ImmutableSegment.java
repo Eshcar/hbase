@@ -196,6 +196,7 @@ public class ImmutableSegment extends Segment {
     int i = 0;
     while (iterator.hasNext()) {
       Cell c = iterator.next();
+      c.validateOffset();
       // The scanner behind the iterator is doing all the elimination logic
       if (merge) {
         // if this is merge we just move the Cell object without copying MSLAB

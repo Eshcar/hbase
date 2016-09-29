@@ -17,15 +17,15 @@
  */
 package org.apache.hadoop.hbase.io;
 
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ByteBufferUtils;
+import org.apache.hadoop.hbase.util.Bytes;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.util.ByteBufferUtils;
-import org.apache.hadoop.hbase.util.Bytes;
 
 /**
  * Our own implementation of ByteArrayOutputStream where all methods are NOT synchronized and
@@ -72,6 +72,10 @@ public class ByteArrayOutputStream extends OutputStream implements ByteBufferSup
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    if(off+len >= b.length) {
+      throw new IllegalArgumentException("offset="+off+" + length="+len+" is bigger than bytes "
+          + "length="+b.length);
+    }
     checkSizeAndGrow(len);
     System.arraycopy(b, off, this.buf, this.pos, len);
     this.pos += len;
