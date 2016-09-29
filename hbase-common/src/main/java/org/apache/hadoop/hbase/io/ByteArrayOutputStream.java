@@ -72,7 +72,7 @@ public class ByteArrayOutputStream extends OutputStream implements ByteBufferSup
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
-    if(off+len >= b.length) {
+    if(off+len > b.length) {
       throw new IllegalArgumentException("offset="+off+" + length="+len+" is bigger than bytes "
           + "length="+b.length);
     }
