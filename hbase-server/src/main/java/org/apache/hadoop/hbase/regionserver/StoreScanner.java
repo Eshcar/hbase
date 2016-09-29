@@ -523,11 +523,11 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     }
 
     Cell cell = this.heap.peek();
-    cell.validateOffset();
     if (cell == null) {
       close(false);// Do all cleanup except heap.close()
       return scannerContext.setScannerState(NextState.NO_MORE_VALUES).hasMoreValues();
     }
+    cell.validateOffset();
 
     // only call setRow if the row changes; avoids confusing the query matcher
     // if scanning intra-row
