@@ -17,9 +17,6 @@
  */
 package org.apache.hadoop.hbase.regionserver.querymatcher;
 
-import java.io.IOException;
-import java.util.Iterator;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
@@ -31,12 +28,14 @@ import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.TagType;
 import org.apache.hadoop.hbase.TagUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.regionserver.RegionCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.ScanInfo;
 import org.apache.hadoop.hbase.regionserver.querymatcher.DeleteTracker.DeleteResult;
 import org.apache.hadoop.hbase.util.Bytes;
+
+import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * A query matcher that is specifically designed for the scan case.
@@ -179,6 +178,7 @@ public abstract class ScanQueryMatcher {
     if (rowComparator.compareRows(currentRow, cell) != 0) {
       return MatchCode.DONE;
     }
+    cell.validateOffset();
     // optimize case.
     if (this.stickyNextRow) {
       return MatchCode.SEEK_NEXT_ROW;

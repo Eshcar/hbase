@@ -538,6 +538,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     if (!scannerContext.hasAnyLimit(LimitScope.BETWEEN_CELLS) || matcher.currentRow() == null) {
       this.countPerRow = 0;
       matcher.setToNewRow(cell);
+      cell.validateOffset();
     }
 
     // Clear progress away unless invoker has indicated it should be kept.
@@ -560,6 +561,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
 
       if (prevCell != cell) ++kvsScanned; // Do object compare - we set prevKV from the same heap.
       checkScanOrder(prevCell, cell, comparator);
+      cell.validateOffset();
       prevCell = cell;
       ScanQueryMatcher.MatchCode qcode = matcher.match(cell);
       qcode = optimize(qcode, cell);
