@@ -221,7 +221,7 @@ public class MemStoreCompactor {
           + compactingMemStore.getFamilyName());
       Thread.currentThread().interrupt();
     } finally {
-      if ((result != null) && (!resultSwapped)) result.close();
+//      if ((result != null) && (!resultSwapped)) result.close();
       releaseResources();
     }
 
