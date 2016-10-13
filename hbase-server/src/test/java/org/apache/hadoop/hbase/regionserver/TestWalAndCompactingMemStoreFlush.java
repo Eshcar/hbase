@@ -889,6 +889,124 @@ public class TestWalAndCompactingMemStoreFlush {
     HBaseTestingUtility.closeRegionAndWAL(region);
   }
 
+
+  // should end in 300 seconds (5 minutes)
+  @Test(timeout = 300000)
+  public void testStressFlushAndWALinIndexCompaction() throws IOException {
+    // Set up the configuration
+    Configuration conf = HBaseConfiguration.create();
+    conf.setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 600 * 1024);
+    conf.set(FlushPolicyFactory.HBASE_FLUSH_POLICY_KEY,
+        FlushNonSloppyStoresFirstPolicy.class.getName());
+    conf.setLong(FlushLargeStoresPolicy.HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN, 200 * 1024);
+    conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.5);
+    // set memstore to do data compaction and not to use the speculative scan
+    conf.set("hbase.hregion.compacting.memstore.type", "index-compaction");
+
+    // Successfully initialize the HRegion
+    HRegion region = initHRegion("testSelectiveFlushAndWALinDataCompaction", conf);
+
+    Thread[] threads = new Thread[25];
+    for (int i = 0; i < threads.length; i++){
+      int id = i * 10000;
+      ConcurrentPutRunnable runnable = new ConcurrentPutRunnable(region,id);
+      threads[i] = new Thread(runnable);
+      threads[i].start();
+    }
+    Threads.sleep(10000); // let other threads start
+    region.flush(true);   // enforce flush of everything TO DISK while there are still ongoing puts
+    Threads.sleep(10000); // let other threads continue
+    region.flush(true);   // enforce flush of everything TO DISK while there are still ongoing puts
+
+    ((CompactingMemStore) region.getStore(FAMILY1).getMemStore()).flushInMemory();
+    ((CompactingMemStore) region.getStore(FAMILY3).getMemStore()).flushInMemory();
+    while (((CompactingMemStore) region.getStore(FAMILY1).getMemStore())
+        .isMemStoreFlushingInMemory())
+      Threads.sleep(10);
+    while (((CompactingMemStore) region.getStore(FAMILY3).getMemStore())
+        .isMemStoreFlushingInMemory())
+      Threads.sleep(10);
+
+    for(int i = 0; i < threads.length; i++) {
+      try {
+        threads[i].join();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  /**
+   * The in-memory-flusher thread performs the flush asynchronously.
+   * There is at most one thread per memstore instance.
+   * It takes the updatesLock exclusively, pushes active into the pipeline, releases updatesLock
+   * and compacts the pipeline.
+   */
+  private class ConcurrentPutRunnable implements Runnable {
+    private final HRegion stressedRegion;
+    private final int startNumber;
+
+    ConcurrentPutRunnable(HRegion r, int i) {
+      this.stressedRegion = r;
+      this.startNumber = i;
+    }
+
+    @Override
+    public void run() {
+
+      try {
+        int dummy = startNumber/10000;
+        System.out.print("Thread " + dummy + " with start number " + startNumber + " starts\n");
+        // Add 1200 entries for CF1, 100 for CF2 and 50 for CF3
+        for (int i = startNumber; i <= startNumber+3000; i++) {
+          stressedRegion.put(createPut(1, i));
+          if (i <= startNumber+2000) {
+            stressedRegion.put(createPut(2, i));
+            if (i <= startNumber+1000) {
+              stressedRegion.put(createPut(3, i));
+            }
+          }
+        }
+        System.out.print("Thread with start number " + startNumber + " continues to more puts\n");
+        // Now add more puts for CF2, so that we only flush CF2 to disk
+        for (int i = startNumber+3000; i < startNumber+5000; i++) {
+          stressedRegion.put(createPut(2, i));
+        }
+        // And add more puts for CF1
+        for (int i = startNumber+5000; i < startNumber+7000; i++) {
+          stressedRegion.put(createPut(1, i));
+        }
+        System.out.print("Thread with start number " + startNumber + " flushes\n");
+        // flush (IN MEMORY) one of the stores (each thread flushes different store)
+        // and wait till the flush and the following action are done
+        if (startNumber == 0) {
+          ((CompactingMemStore) stressedRegion.getStore(FAMILY1).getMemStore()).flushInMemory();
+          while (((CompactingMemStore) stressedRegion.getStore(FAMILY1).getMemStore())
+                  .isMemStoreFlushingInMemory())
+                Threads.sleep(10);
+        }
+        if (startNumber == 10000) {
+          ((CompactingMemStore) stressedRegion.getStore(FAMILY2).getMemStore()).flushInMemory();
+          while (((CompactingMemStore) stressedRegion.getStore(FAMILY2).getMemStore())
+              .isMemStoreFlushingInMemory())
+            Threads.sleep(10);
+        }
+        if (startNumber == 20000) {
+          ((CompactingMemStore) stressedRegion.getStore(FAMILY3).getMemStore()).flushInMemory();
+          while (((CompactingMemStore) stressedRegion.getStore(FAMILY3).getMemStore())
+              .isMemStoreFlushingInMemory())
+            Threads.sleep(10);
+        }
+        System.out.print("Thread with start number " + startNumber + " finishes\n");
+      } catch (IOException e) {
+       assert false;
+      }
+    }
+
+
+
+  }
+
   private WAL getWAL(Region region) {
     return ((HRegion)region).getWAL();
   }
