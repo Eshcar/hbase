@@ -89,13 +89,7 @@ public final class SegmentFactory {
       throws IOException {
     Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
-    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
-
-    for (Segment s: segments){
-        ((HeapMemStoreLAB)memStoreLAB).addIntoPooledChunks(
-            ((HeapMemStoreLAB) s.getMemStoreLAB()).getPooledChunks());
-    }
-
+    MemStoreLAB memStoreLAB = getMergedMemStoreLAB(conf, segments);
     return
         // the last parameter "true" means to merge the compaction pipeline
         // in order to create the new segment
@@ -117,6 +111,20 @@ public final class SegmentFactory {
       memStoreLAB = ReflectionUtils.instantiateWithCustomCtor(className,
           new Class[] { Configuration.class }, new Object[] { conf });
     }
+    return memStoreLAB;
+  }
+
+  private MemStoreLAB getMergedMemStoreLAB(Configuration conf, List<ImmutableSegment> segments) {
+    MemStoreLAB memStoreLAB = getMemStoreLAB(conf);
+    // this yet unpublished MemStoreLAB is going to hold the list of the pooled chunk
+    // from all previous segments
+    for (Segment s: segments){
+      ((HeapMemStoreLAB)memStoreLAB).addIntoPooledChunks(
+          ((HeapMemStoreLAB) s.getMemStoreLAB()).getPooledChunks());
+    }
+    // increasing the counter so this segment will not close the chunks
+    // (put them back to chunk pool) before the previous segment
+    memStoreLAB.incScannerCount();
     return memStoreLAB;
   }
 

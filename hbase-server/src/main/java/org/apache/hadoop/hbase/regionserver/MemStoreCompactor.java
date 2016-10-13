@@ -187,9 +187,9 @@ public class MemStoreCompactor {
   private void doCompaction() {
     ImmutableSegment result = null;
     boolean resultSwapped = false;
-
+    Action nextStep = null;
     try {
-      Action nextStep = policy();
+      nextStep = policy();
 
       if (nextStep == Action.NOOP) {
         return;
@@ -219,8 +219,26 @@ public class MemStoreCompactor {
           + compactingMemStore.getFamilyName());
       Thread.currentThread().interrupt();
     } finally {
-      if ((result != null) && (!resultSwapped)) {
-        result.close();
+      // For the MERGE case, if the result was created, but swap didn't happen,
+      // we DON'T need to close the result segment (meaning its MSLAB)!
+      // Because closing the result segment means closing the chunks of all segments
+      // in the compaction pipeline, which still have ongoing scans.
+      if (nextStep != Action.MERGE) {
+        if ((result != null) && (!resultSwapped)) {
+          result.close();
+        }
+      } else {
+        // For the MERGE case, if the result was created and the swap was successful,
+        // we need to finish the merge of the MSLABs of all segments in the compaction pipeline,
+        // to the MSLAB of the substituted segment. Namely, we need to rearrange the closing
+        // of the open scans count from old MSLABs to new MSLABs.
+        if ((result != null) && resultSwapped) {
+          for (ImmutableSegment seg : versionedList.getStoreSegments()) {
+            ((HeapMemStoreLAB)result.getMemStoreLAB()).finishMerge(
+                (HeapMemStoreLAB)seg.getMemStoreLAB()
+            );
+          }
+        }
       }
       releaseResources();
     }
