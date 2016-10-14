@@ -238,6 +238,7 @@ public class MemStoreCompactor {
                 (HeapMemStoreLAB)seg.getMemStoreLAB()
             );
           }
+          result.decScannerCount();  // allow the segment to be closed, because merge is done
         }
       }
       releaseResources();
