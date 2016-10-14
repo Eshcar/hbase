@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,6 +70,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
 
   private AtomicReference<Chunk> curChunk = new AtomicReference<Chunk>();
   // A queue of chunks from pool contained by this memstore LAB
+  // TODO: in the future, it would be better to have List implementation instead of Queue,
+  // as FIFO order is not so important here
   @VisibleForTesting
   BlockingQueue<PooledChunk> pooledChunkQueue = null;
   private final int chunkSize;
@@ -83,6 +86,9 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   private AtomicBoolean reclaimed = new AtomicBoolean(false);
   // Current count of open scanners which reading data from this MemStoreLAB
   private final AtomicInteger openScannerCount = new AtomicInteger();
+  // The MSLAB that gets the ownership over the openScannerCount and the pooledChunkQueue
+  // (if pool is used). This happens when this mslab is merged into nextMSLAB
+  private HeapMemStoreLAB nextMSLAB = null;
 
   // Used in testing
   public HeapMemStoreLAB() {
@@ -101,9 +107,20 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     }
 
     // if we don't exclude allocations >CHUNK_SIZE, we'd infiniteloop on one!
-    Preconditions.checkArgument(
-      maxAlloc <= chunkSize,
-      MAX_ALLOC_KEY + " must be less than " + CHUNK_SIZE_KEY);
+    Preconditions.checkArgument(maxAlloc <= chunkSize,
+        MAX_ALLOC_KEY + " must be less than " + CHUNK_SIZE_KEY);
+  }
+
+
+  /**
+   * To be used to start the merging multiple MSLABs
+   * Pay attention that MSLAB that was successfully merged and replaced will never be closed
+   */
+  public void addIntoPooledChunks(BlockingQueue<PooledChunk> targetQueue) {
+    if ( targetQueue == null ) {
+      return;
+    }
+    targetQueue.drainTo(pooledChunkQueue);
   }
 
   @Override
@@ -149,6 +166,22 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   }
 
   /**
+   * To be used to finish the merging multiple MSLABs into this MSLAB. This MSLAB This method is
+   * called after successful replacement, meaning the oldMSLAB is already unreachable for NEW scans.
+   */
+  synchronized public void finishMerge(HeapMemStoreLAB oldMSLAB) {
+    synchronized (oldMSLAB){
+      oldMSLAB.setNextMSLAB(this);
+      openScannerCount.addAndGet(oldMSLAB.openScannerCount.get());
+    }
+    return;
+  }
+
+  public void setNextMSLAB(HeapMemStoreLAB newMSLAB) {
+    nextMSLAB = newMSLAB;
+  }
+
+  /**
    * Called when opening a scanner on the data of this MemStoreLAB
    */
   @Override
@@ -160,7 +193,12 @@ public class HeapMemStoreLAB implements MemStoreLAB {
    * Called when closing a scanner on the data of this MemStoreLAB
    */
   @Override
-  public void decScannerCount() {
+  synchronized public void decScannerCount() {
+    // if we have a following MSLAB redirect decrement of the counter there
+    if (nextMSLAB != null) {
+      nextMSLAB.decScannerCount();
+      return;
+    }
     int count = this.openScannerCount.decrementAndGet();
     if (this.closed && chunkPool != null && count == 0
         && reclaimed.compareAndSet(false, true)) {
@@ -236,8 +274,8 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return this.curChunk.get();
   }
 
-  @VisibleForTesting
-  BlockingQueue<PooledChunk> getChunkQueue() {
+
+  public BlockingQueue<PooledChunk> getPooledChunks() {
     return this.pooledChunkQueue;
   }
 }
