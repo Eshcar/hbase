@@ -52,14 +52,15 @@ public class MemStoreCompactor {
           + Bytes.SIZEOF_INT            // compactionKVMax
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
-  // The external setting of the compacting MemStore behaviour
-  // Compaction of the index without the data is the default
-  static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
-  static final String COMPACTING_MEMSTORE_TYPE_DEFAULT = "index-compaction";
 
   // Configuration options for MemStore compaction
   static final String INDEX_COMPACTION_CONFIG = "index-compaction";
   static final String DATA_COMPACTION_CONFIG  = "data-compaction";
+
+  // The external setting of the compacting MemStore behaviour
+  // Compaction of the index without the data is the default
+  static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
+  static final String COMPACTING_MEMSTORE_TYPE_DEFAULT = INDEX_COMPACTION_CONFIG;
 
   // The upper bound for the number of segments we store in the pipeline prior to merging.
   // This constant is subject to further experimentation.

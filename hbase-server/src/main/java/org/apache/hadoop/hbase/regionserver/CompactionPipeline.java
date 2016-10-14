@@ -208,9 +208,9 @@ public class CompactionPipeline {
   }
 
   private void swapSuffix(List<ImmutableSegment> suffix, ImmutableSegment segment,
-      boolean closeItemsInSuffix) {
+      boolean closeSegmentsInSuffix) {
     version++;
-    if ( closeItemsInSuffix ) {
+    if ( closeSegmentsInSuffix ) {
       for (Segment itemInSuffix : suffix) {
         itemInSuffix.close();
       }
