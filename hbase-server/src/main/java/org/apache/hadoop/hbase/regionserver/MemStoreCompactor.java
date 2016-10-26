@@ -64,7 +64,7 @@ public class MemStoreCompactor {
 
   // The upper bound for the number of segments we store in the pipeline prior to merging.
   // This constant is subject to further experimentation.
-  private static final int THRESHOLD_PIPELINE_SEGMENTS = 3;
+  private static final int THRESHOLD_PIPELINE_SEGMENTS = 2;
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
