@@ -27,16 +27,15 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * The MemStoreMergerSegmentsIterator extends MemStoreSegmentsIterator
+ * The SegmentsMergerIterator extends SegmentsIterator
  * and performs the scan for simple merge operation meaning it is NOT based on SQM
  */
 @InterfaceAudience.Private
-public class MemStoreMergerSegmentsIterator extends MemStoreSegmentsIterator {
+public class SegmentsMergerIterator extends SegmentsIterator {
 
   // C-tor
-  public MemStoreMergerSegmentsIterator(List<ImmutableSegment> segments, CellComparator comparator,
-      int compactionKVMax, Store store
-  ) throws IOException {
+  public SegmentsMergerIterator(List<ImmutableSegment> segments, CellComparator comparator,
+      int compactionKVMax, Store store) throws IOException {
     super(segments,comparator,compactionKVMax,store);
   }
 

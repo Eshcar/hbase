@@ -395,7 +395,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  void initiateType() {
+  void initiateAction() {
     compactor.initiateAction();
   }
 

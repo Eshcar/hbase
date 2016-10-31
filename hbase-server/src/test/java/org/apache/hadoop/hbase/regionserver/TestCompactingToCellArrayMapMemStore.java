@@ -227,7 +227,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     String[] keys3 = { "D", "B", "B", "E" };
 
     memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "index-compaction");
-    ((CompactingMemStore)memstore).initiateType();
+    ((CompactingMemStore)memstore).initiateAction();
     addRowsByKeys(memstore, keys1);
 
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact
@@ -314,7 +314,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
       Threads.sleep(10);
     }
     // Just doing the cnt operation here
-    MemStoreSegmentsIterator itr = new MemStoreMergerSegmentsIterator(
+    SegmentsIterator itr = new SegmentsMergerIterator(
         ((CompactingMemStore) memstore).getImmutableSegments().getStoreSegments(),
         CellComparator.COMPARATOR, 10, ((CompactingMemStore) memstore).getStore());
     int cnt = 0;

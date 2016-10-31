@@ -32,11 +32,11 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * The MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator
+ * The SegmentsCompactorIterator extends SegmentsIterator
  * and performs the scan for compaction operation meaning it is based on SQM
  */
 @InterfaceAudience.Private
-public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator {
+public class SegmentsCompactorIterator extends SegmentsIterator {
 
   private List<Cell> kvs = new ArrayList<Cell>();
   private boolean hasMore;
@@ -46,10 +46,8 @@ public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator 
   private StoreScanner compactingScanner;
 
   // C-tor
-  public MemStoreCompactorSegmentsIterator(
-      List<ImmutableSegment> segments,
-      CellComparator comparator, int compactionKVMax, Store store
-  ) throws IOException {
+  public SegmentsCompactorIterator(List<ImmutableSegment> segments, CellComparator comparator,
+      int compactionKVMax, Store store) throws IOException {
     super(segments,comparator,compactionKVMax,store);
 
     // build the scanner based on Query Matcher

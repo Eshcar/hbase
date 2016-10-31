@@ -166,7 +166,7 @@ public class HeapMemStoreLAB implements MemStoreLAB {
   }
 
   /**
-   * To be used to finish the merging multiple MSLABs into this MSLAB. This MSLAB This method is
+   * To be used to finish the merging multiple MSLABs into this MSLAB. This method is
    * called after successful replacement, meaning the oldMSLAB is already unreachable for NEW scans.
    */
   synchronized public void finishMerge(HeapMemStoreLAB oldMSLAB) {
@@ -274,7 +274,10 @@ public class HeapMemStoreLAB implements MemStoreLAB {
     return this.curChunk.get();
   }
 
-
+  /**
+   * To be used to start merging this MSLAB into a new MSLAB. So the ownership of all
+   * the chunk queues (of old merged MSLABs) is transferred to the new MSLAB.
+   */
   public BlockingQueue<PooledChunk> getPooledChunks() {
     return this.pooledChunkQueue;
   }

@@ -76,7 +76,7 @@ public class MemStoreCompactor {
   // a flag raised when compaction is requested to stop
   private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
-  // the limit to the size of the groups to be later provided to MemStoreSegmentsIterator
+  // the limit to the size of the groups to be later provided to SegmentsIterator
   private final int compactionKVMax;
 
   /**
@@ -133,10 +133,10 @@ public class MemStoreCompactor {
   }
 
   /**----------------------------------------------------------------------
-   * The interface to check whether user requested the index-compaction
+   * The interface to check whether user requested to stop the compaction
    */
-  public boolean isIndexCompaction() {
-    return (action == Action.MERGE);
+  private boolean isCompactorStopped() {
+    return (isInterrupted.get() == true);
   }
 
   /**----------------------------------------------------------------------
@@ -154,7 +154,7 @@ public class MemStoreCompactor {
    */
   private Action policy() {
 
-    if (isInterrupted.get()) {      // if the entire process is interrupted cancel flattening
+    if (isCompactorStopped()) {      // if the entire process is interrupted cancel flattening
       return Action.NOOP;           // the compaction also doesn't start when interrupted
     }
 
@@ -203,12 +203,12 @@ public class MemStoreCompactor {
 
       // Create one segment representing all segments in the compaction pipeline,
       // either by compaction or by merge
-      if (!isInterrupted.get()) {
-        result = createSubstitution();
+      if (!isCompactorStopped()) {
+        result = compactOrMerge();
       }
 
       // Substitute the pipeline with one segment
-      if (!isInterrupted.get()) {
+      if (!isCompactorStopped()) {
         if (resultSwapped = compactingMemStore.swapCompactedSegments(
             versionedList, result, (action==Action.MERGE))) {
           // update the wal so it can be truncated and not get too long
@@ -251,15 +251,15 @@ public class MemStoreCompactor {
    * Creation of the ImmutableSegment either by merge or copy-compact of the segments of the
    * pipeline, based on the Compactor Iterator. The new ImmutableSegment is returned.
    */
-  private ImmutableSegment createSubstitution() throws IOException {
+  private ImmutableSegment compactOrMerge() throws IOException {
 
     ImmutableSegment result = null;
-    MemStoreSegmentsIterator iterator = null;
+    SegmentsIterator iterator = null;
 
     switch (action) {
     case COMPACT:
       iterator =
-          new MemStoreCompactorSegmentsIterator(versionedList.getStoreSegments(),
+          new SegmentsCompactorIterator(versionedList.getStoreSegments(),
               compactingMemStore.getComparator(),
               compactionKVMax, compactingMemStore.getStore());
 
@@ -270,7 +270,7 @@ public class MemStoreCompactor {
       break;
     case MERGE:
       iterator =
-          new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
+          new SegmentsMergerIterator(versionedList.getStoreSegments(),
               compactingMemStore.getComparator(),
               compactionKVMax, compactingMemStore.getStore());
 

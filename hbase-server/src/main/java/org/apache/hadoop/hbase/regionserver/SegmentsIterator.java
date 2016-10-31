@@ -27,13 +27,13 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * The MemStoreSegmentsIterator is designed to perform one iteration over given list of segments
- * For another iteration new instance of MemStoreSegmentsIterator needs to be created
+ * The SegmentsIterator is designed to perform one iteration over given list of segments
+ * For another iteration new instance of SegmentsIterator needs to be created
  * The iterator is not thread-safe and must have only one instance per MemStore
  * in each period of time
  */
 @InterfaceAudience.Private
-public abstract class MemStoreSegmentsIterator implements Iterator<Cell> {
+public abstract class SegmentsIterator implements Iterator<Cell> {
 
   // scanner for full or partial pipeline (heap of segment scanners)
   // we need to keep those scanners in order to close them at the end
@@ -43,7 +43,7 @@ public abstract class MemStoreSegmentsIterator implements Iterator<Cell> {
 
 
   // C-tor
-  public MemStoreSegmentsIterator(List<ImmutableSegment> segments, CellComparator comparator,
+  public SegmentsIterator(List<Segment> segments, CellComparator comparator,
       int compactionKVMax, Store store) throws IOException {
 
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
