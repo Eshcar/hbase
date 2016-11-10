@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The MemStoreScanner is used to traverse the compaction pipeline. The MemStoreScanner
  * is included in internal store scanner, where all compaction logic is implemented.
  * Threads safety: It is assumed that the compaction pipeline is immutable,
- * therefore no special synchronization is required.
+ * therefore no special synchronization is required.gi
  */
 @InterfaceAudience.Private
 public class MemStoreCompactor {
@@ -64,7 +64,7 @@ public class MemStoreCompactor {
 
   // The upper bound for the number of segments we store in the pipeline prior to merging.
   // This constant is subject to further experimentation.
-  private static final int THRESHOLD_PIPELINE_SEGMENTS = 2;
+  private static final int THRESHOLD_PIPELINE_SEGMENTS = 15;
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
