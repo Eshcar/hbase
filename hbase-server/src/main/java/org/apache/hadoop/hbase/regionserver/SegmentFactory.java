@@ -116,10 +116,14 @@ public final class SegmentFactory {
   }
 
   private MemStoreLAB getMergedMemStoreLAB(Configuration conf, List<ImmutableSegment> segments) {
-    List<MemStoreLAB> mslabs = new ArrayList<MemStoreLAB>();
-    for (ImmutableSegment segment : segments) {
-      mslabs.add(segment.getMemStoreLAB());
+    MemStoreLAB memStoreLAB = null;
+    if (conf.getBoolean(USEMSLAB_KEY, USEMSLAB_DEFAULT)) {
+      List<MemStoreLAB> mslabs = new ArrayList<MemStoreLAB>();
+      for (ImmutableSegment segment : segments) {
+        mslabs.add(segment.getMemStoreLAB());
+      }
+      memStoreLAB = new ImmutableMemStoreLAB(mslabs);
     }
-    return new ImmutableMemStoreLAB(mslabs);
+    return memStoreLAB;
   }
 }
