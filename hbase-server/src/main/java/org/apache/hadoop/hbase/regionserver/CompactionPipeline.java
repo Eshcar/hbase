@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -74,6 +75,15 @@ public class CompactionPipeline {
         return EMPTY_MEM_STORE_SEGMENT;
       }
       return removeLast();
+    }
+  }
+
+  public List<ImmutableSegment> drain() {
+    synchronized (pipeline){
+      version++;
+      List<ImmutableSegment> result = this.pipeline;
+      this.pipeline = new LinkedList<ImmutableSegment>();
+      return result;
     }
   }
 
@@ -202,6 +212,16 @@ public class CompactionPipeline {
     return pipeline.size();
   }
 
+  public List<KeyValueScanner> getScanners(long readPoint, long order) {
+    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>(this.pipeline.size());
+    for (Segment segment : this.pipeline) {
+      scanners.add(segment.getScanner(readPoint, order));
+      order--;
+    }
+    return scanners;
+  }
+
+
   public long getMinSequenceId() {
     long minSequenceId = Long.MAX_VALUE;
     if (!isEmpty()) {
@@ -213,6 +233,11 @@ public class CompactionPipeline {
   public MemstoreSize getTailSize() {
     if (isEmpty()) return MemstoreSize.EMPTY_SIZE;
     return new MemstoreSize(pipeline.peekLast().keySize(), pipeline.peekLast().heapOverhead());
+  }
+
+  public MemstoreSize getPipelineSize() {
+    if (isEmpty()) return MemstoreSize.EMPTY_SIZE;
+    return new MemstoreSize(getSegmentsKeySize(pipeline), getSegmentsHeapOverhead(pipeline));
   }
 
   private void swapSuffix(List<ImmutableSegment> suffix, ImmutableSegment segment,

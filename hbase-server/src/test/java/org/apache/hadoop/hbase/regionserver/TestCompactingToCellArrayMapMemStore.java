@@ -68,6 +68,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     this.memstore =
         new CompactingMemStore(conf, CellComparator.COMPARATOR, store,
             regionServicesForStores);
+    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
   }
 
   //////////////////////////////////////////////////////////////////////////////

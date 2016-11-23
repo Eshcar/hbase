@@ -64,7 +64,7 @@ public class MemStoreCompactor {
 
   // The upper bound for the number of segments we store in the pipeline prior to merging.
   // This constant is subject to further experimentation.
-  private static final int THRESHOLD_PIPELINE_SEGMENTS = 1;
+  private static final int THRESHOLD_PIPELINE_SEGMENTS = 10;
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
@@ -196,6 +196,8 @@ public class MemStoreCompactor {
         return;
       }
       if (nextStep == Action.FLATTEN) {
+        // if multiple segments appear in the pipeline flush them to the disk later together
+        compactingMemStore.useCompositeSnapshot();
         // Youngest Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion());
         return;

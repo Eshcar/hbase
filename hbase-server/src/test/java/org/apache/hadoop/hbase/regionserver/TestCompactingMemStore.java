@@ -81,6 +81,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     compactingSetUp();
     this.memstore = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR,
         store, regionServicesForStores);
+    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
+    assertEquals(MemstoreSize.EMPTY_SIZE.getDataSize(), 0);
   }
 
   protected void compactingSetUp() throws Exception {
@@ -131,6 +133,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // use case 3: first in snapshot second in kvset
     this.memstore = new CompactingMemStore(HBaseConfiguration.create(),
         CellComparator.COMPARATOR, store, regionServicesForStores);
+    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
     this.memstore.add(kv1.clone(), null);
     // As compaction is starting in the background the repetition
     // of the k1 might be removed BUT the scanners created earlier
@@ -171,6 +174,9 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // Add more versions to make it a little more interesting.
     Thread.sleep(1);
     addRows(this.memstore);
+    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
+
+
     Cell closestToEmpty = ((CompactingMemStore)this.memstore).getNextRow(KeyValue.LOWESTKEY);
     assertTrue(CellComparator.COMPARATOR.compareRows(closestToEmpty,
         new KeyValue(Bytes.toBytes(0), System.currentTimeMillis())) == 0);
@@ -271,7 +277,9 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
 
     this.memstore.upsert(l, 2, null);// readpoint is 2
     MemstoreSize newSize = this.memstore.size();
-    assert (newSize.getDataSize() > oldSize.getDataSize());
+    assertTrue("\n<<< The old size is " + oldSize.getDataSize() + " and the new size is "
+        + newSize.getDataSize() + "\n",
+        newSize.getDataSize() > oldSize.getDataSize());
     //The kv1 should be removed.
     assert (memstore.getActive().getCellsCount() == 2);
 

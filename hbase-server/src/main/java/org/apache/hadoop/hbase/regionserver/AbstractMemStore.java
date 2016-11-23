@@ -20,6 +20,8 @@ package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
@@ -49,7 +51,7 @@ public abstract class AbstractMemStore implements MemStore {
   // active segment absorbs write operations
   protected volatile MutableSegment active;
   // Snapshot of memstore.  Made for flusher.
-  protected volatile ImmutableSegment snapshot;
+  protected volatile CompositeImmutableSegment snapshot;
   protected volatile long snapshotId;
   // Used to track when to flush
   private volatile long timeOfOldestEdit;
@@ -63,7 +65,7 @@ public abstract class AbstractMemStore implements MemStore {
     this.conf = conf;
     this.comparator = c;
     resetActive();
-    this.snapshot = SegmentFactory.instance().createImmutableSegment(c);
+    this.snapshot = initEmptyCompositeSnapshot();
     this.snapshotId = NO_SNAPSHOT_ID;
   }
 
@@ -147,7 +149,7 @@ public abstract class AbstractMemStore implements MemStore {
     // create a new snapshot and let the old one go.
     Segment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = SegmentFactory.instance().createImmutableSegment(this.comparator);
+      this.snapshot = initEmptyCompositeSnapshot();
     }
     this.snapshotId = NO_SNAPSHOT_ID;
     oldSnapshot.close();
@@ -275,6 +277,15 @@ public abstract class AbstractMemStore implements MemStore {
     if (timeOfOldestEdit == Long.MAX_VALUE) {
       timeOfOldestEdit = EnvironmentEdgeManager.currentTime();
     }
+  }
+
+  protected CompositeImmutableSegment initEmptyCompositeSnapshot() {
+    ImmutableSegment emptySegment =
+        SegmentFactory.instance().createImmutableSegment(getComparator());
+    List<ImmutableSegment> emptySegments =
+        new ArrayList<ImmutableSegment>(Arrays.asList(emptySegment));
+    return  // maximal possible read point to create the scanner
+        new CompositeImmutableSegment(getComparator(), emptySegments);
   }
 
   /**
