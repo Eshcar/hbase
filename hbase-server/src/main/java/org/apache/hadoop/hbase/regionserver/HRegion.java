@@ -18,6 +18,14 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import static org.apache.hadoop.hbase.HConstants.REPLICATION_SCOPE_LOCAL;
+import static org.junit.Assert.assertEquals;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -181,13 +189,6 @@ import org.apache.hadoop.io.MultipleIOException;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.htrace.Trace;
 import org.apache.htrace.TraceScope;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
 
 
 @SuppressWarnings("deprecation")
@@ -6917,13 +6918,31 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     long before =  EnvironmentEdgeManager.currentTime();
     Scan scan = new Scan(get);
+    InternalScan internalScan = new InternalScan(get);
+    internalScan.checkOnlyMemStore();
+    LOG.info("ESHCAR1 (HRegion): get internal scanner for row="+get.getRow()+
+        ", family="+ get.getFamilyMap().keySet());
+    if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
+      internalScan.setLoadColumnFamiliesOnDemand(isLoadingCfsOnDemandDefault());
+    }
     if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
       scan.setLoadColumnFamiliesOnDemand(isLoadingCfsOnDemandDefault());
     }
     RegionScanner scanner = null;
+    RegionScanner internalScanner = null;
     try {
-      scanner = getScanner(scan, null, nonceGroup, nonce);
-      scanner.next(results);
+      int size = results.size();
+      LOG.info("ESHCAR2 (HRegion): initial size of results is "+size+",  results="+results);
+      internalScanner = getScanner(internalScan,null, nonceGroup,nonce);
+      internalScanner.next(results);
+      LOG.info("ESHCAR3 (HRegion): after internal scan size of results is "
+          + results.size() + ", results="+results);
+      if(results.size() <= size) {
+        scanner = getScanner(scan, null, nonceGroup, nonce);
+        scanner.next(results);
+        LOG.info("ESHCAR4 (HRegion): after full scan size of results is "
+            + results.size() + ", results="+results);
+      }
     } finally {
       if (scanner != null)
         scanner.close();

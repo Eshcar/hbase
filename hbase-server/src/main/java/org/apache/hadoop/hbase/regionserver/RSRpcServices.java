@@ -2254,13 +2254,31 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
     long before = EnvironmentEdgeManager.currentTime();
     Scan scan = new Scan(get);
+    InternalScan internalScan = new InternalScan(get);
+    internalScan.checkOnlyMemStore();
+    LOG.info("ESHCAR1 (RSRpcServices): get internal scanner for row="+get.getRow()+
+        ", family="+ get.getFamilyMap().keySet());
+    if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
+      internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
+    }
     if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
       scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
     }
     RegionScanner scanner = null;
+    RegionScanner internalScanner = null;
     try {
-      scanner = region.getScanner(scan);
-      scanner.next(results);
+      int size = results.size();
+      LOG.info("ESHCAR2 (RSRpcServices): initial size of results is "+size+",  results="+results);
+      internalScanner = region.getScanner(internalScan);
+      internalScanner.next(results);
+      LOG.info("ESHCAR3 (RSRpcServices): after internal scan size of results is "
+          + results.size() + ", results="+results);
+      if(results.size() <= size) {
+        scanner = region.getScanner(scan);
+        scanner.next(results);
+        LOG.info("ESHCAR4 (RSRpcServices): after full scan size of results is "
+            + results.size() + ", results=" + results);
+      }
     } finally {
       if (scanner != null) {
         if (closeCallBack == null) {
