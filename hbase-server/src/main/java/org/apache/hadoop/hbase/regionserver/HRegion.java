@@ -6926,13 +6926,31 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     long before =  EnvironmentEdgeManager.currentTime();
     Scan scan = new Scan(get);
+    InternalScan internalScan = new InternalScan(get);
+    internalScan.checkOnlyMemStore();
+    LOG.info("ESHCAR1 (HRegion): get internal scanner for row="+get.getRow()+
+        ", family="+ get.getFamilyMap().keySet());
+    if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
+      internalScan.setLoadColumnFamiliesOnDemand(isLoadingCfsOnDemandDefault());
+    }
     if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
       scan.setLoadColumnFamiliesOnDemand(isLoadingCfsOnDemandDefault());
     }
     RegionScanner scanner = null;
+    RegionScanner internalScanner = null;
     try {
-      scanner = getScanner(scan, null, nonceGroup, nonce);
-      scanner.next(results);
+      int size = results.size();
+      LOG.info("ESHCAR2 (HRegion): initial size of results is "+size+",  results="+results);
+      internalScanner = getScanner(internalScan,null, nonceGroup,nonce);
+      internalScanner.next(results);
+      LOG.info("ESHCAR3 (HRegion): after internal scan size of results is "
+          + results.size() + ", results="+results);
+      if(results.size() <= size) {
+        scanner = getScanner(scan, null, nonceGroup, nonce);
+        scanner.next(results);
+        LOG.info("ESHCAR4 (HRegion): after full scan size of results is "
+            + results.size() + ", results="+results);
+      }
     } finally {
       if (scanner != null)
         scanner.close();
