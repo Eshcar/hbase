@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -91,7 +92,10 @@ public class DefaultMemStore extends AbstractMemStore {
       if (!this.active.isEmpty()) {
         ImmutableSegment immutableSegment = SegmentFactory.instance().
             createImmutableSegment(this.active);
-        this.snapshot = immutableSegment;
+        List<ImmutableSegment> emptySegments =
+            new ArrayList<ImmutableSegment>(Arrays.asList(immutableSegment));
+        this.snapshot = // maximal possible read point to create the scanner
+            new CompositeImmutableSegment(getComparator(), emptySegments);
         resetActive();
       }
     }
@@ -125,18 +129,24 @@ public class DefaultMemStore extends AbstractMemStore {
    * Scanners are ordered from 0 (oldest) to newest in increasing order.
    */
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(2);
-    list.add(this.active.getScanner(readPt, 1));
-    list.add(this.snapshot.getScanner(readPt, 0));
-    return Collections.<KeyValueScanner> singletonList(
-      new MemStoreScanner(getComparator(), list));
+
+    int order = 1;                    // for active segment
+    order += snapshot.size();         // for all segments in the snapshot
+
+    // The list of elements in pipeline + the active element + the snapshot segments
+    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(order);
+    list.add(this.active.getScanner(readPt, order));
+    order--;
+    list.addAll(snapshot.getScanners(readPt,order));
+
+    return Collections.<KeyValueScanner>singletonList(new MemStoreScanner(getComparator(), list));
   }
 
   @Override
   protected List<Segment> getSegments() throws IOException {
     List<Segment> list = new ArrayList<Segment>(2);
     list.add(this.active);
-    list.add(this.snapshot);
+    list.addAll(this.snapshot.getAllSegments());
     return list;
   }
 
@@ -146,9 +156,18 @@ public class DefaultMemStore extends AbstractMemStore {
    * @return Next row or null if none found.
    */
   Cell getNextRow(final Cell cell) {
-    return getLowest(
-        getNextRow(cell, this.active.getCellSet()),
-        getNextRow(cell, this.snapshot.getCellSet()));
+    Cell lowest = null;
+    List<Segment> segments = new ArrayList<Segment>(1 + snapshot.getAllSegments().size());
+    segments.add(this.active);
+    segments.addAll(snapshot.getAllSegments());
+    for (Segment segment : segments) {
+      if (lowest == null) {
+        lowest = getNextRow(cell, segment.getCellSet());
+      } else {
+        lowest = getLowest(lowest, getNextRow(cell, segment.getCellSet()));
+      }
+    }
+    return lowest;
   }
 
   @Override public void updateLowestUnflushedSequenceIdInWAL(boolean onlyIfMoreRecent) {
