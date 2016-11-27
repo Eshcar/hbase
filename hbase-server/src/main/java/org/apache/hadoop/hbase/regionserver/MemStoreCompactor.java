@@ -197,7 +197,7 @@ public class MemStoreCompactor {
       }
       if (nextStep == Action.FLATTEN) {
         // if multiple segments appear in the pipeline flush them to the disk later together
-        compactingMemStore.useCompositeSnapshot();
+        compactingMemStore.setCompositeSnapshot(true);
         // Youngest Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion());
         return;

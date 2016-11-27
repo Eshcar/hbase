@@ -81,7 +81,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     compactingSetUp();
     this.memstore = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR,
         store, regionServicesForStores);
-    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
+    ((CompactingMemStore)this.memstore).setCompositeSnapshot(true);
     assertEquals(MemstoreSize.EMPTY_SIZE.getDataSize(), 0);
   }
 
@@ -133,7 +133,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // use case 3: first in snapshot second in kvset
     this.memstore = new CompactingMemStore(HBaseConfiguration.create(),
         CellComparator.COMPARATOR, store, regionServicesForStores);
-    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
+    ((CompactingMemStore)this.memstore).setCompositeSnapshot(true);
     this.memstore.add(kv1.clone(), null);
     // As compaction is starting in the background the repetition
     // of the k1 might be removed BUT the scanners created earlier
@@ -174,7 +174,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // Add more versions to make it a little more interesting.
     Thread.sleep(1);
     addRows(this.memstore);
-    ((CompactingMemStore)this.memstore).useCompositeSnapshot();
+    ((CompactingMemStore)this.memstore).setCompositeSnapshot(true);
 
 
     Cell closestToEmpty = ((CompactingMemStore)this.memstore).getNextRow(KeyValue.LOWESTKEY);

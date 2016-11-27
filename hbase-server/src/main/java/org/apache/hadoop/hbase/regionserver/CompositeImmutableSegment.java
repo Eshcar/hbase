@@ -44,6 +44,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   private final List<ImmutableSegment> segments;
   private final CellComparator comparator;
   private final TimeRangeTracker timeRangeTracker;
+  private long keySize = 0;
 
   // This scanner need to be remembered in order to close it when the snapshot is cleared.
   // Initially CollectionBackedScanner didn't raise the scanner counters thus there was no
@@ -59,6 +60,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     for (ImmutableSegment s : segments) {
       this.timeRangeTracker.includeTimestamp(s.getTimeRangeTracker().getMax());
       this.timeRangeTracker.includeTimestamp(s.getTimeRangeTracker().getMin());
+      this.keySize += s.keySize();
     }
   }
 
@@ -77,7 +79,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * @return a special scanner for the MemStoreSnapshot object
    */
   public KeyValueScanner getKeyValueScanner() {
-    KeyValueScanner scaner;
+    KeyValueScanner scanner;
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(segments.size());
     for (ImmutableSegment s : segments) {
       this.timeRangeTracker.includeTimestamp(s.getTimeRangeTracker().getMax());
@@ -86,13 +88,13 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     }
 
     try {
-      scaner = new MemStoreScanner(getComparator(), list);
+      scanner = new MemStoreScanner(getComparator(), list);
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
     }
 
-    flushingScanner = scaner;
-    return scaner;
+    flushingScanner = scanner;
+    return scanner;
   }
 
   @Override
@@ -121,7 +123,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   public int getCellsCount() {
     int result = 0;
     for (ImmutableSegment s : segments) {
-      result = result + s.getCellsCount();
+      result += s.getCellsCount();
     }
     return result;
   }
@@ -139,6 +141,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   public void close() {
     if (flushingScanner != null) {
       flushingScanner.close();
+      flushingScanner = null;
     }
     for (ImmutableSegment s : segments) {
       s.close();
@@ -239,11 +242,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * @return Sum of all cell's size.
    */
   public long keySize() {
-    long result = 0;
-    for (ImmutableSegment s : segments) {
-      result = result + s.keySize();
-    }
-    return result;
+    return this.keySize;
   }
 
   /**
@@ -252,7 +251,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   public long heapOverhead() {
     long result = 0;
     for (ImmutableSegment s : segments) {
-      result = result + s.heapOverhead();
+      result += s.heapOverhead();
     }
     return result;
   }
@@ -351,10 +350,11 @@ public class CompositeImmutableSegment extends ImmutableSegment {
 
   @Override
   public String toString() {
-    String res = "This is CompositeImmutableSegment and those are its segments:: ";
+    StringBuilder sb =
+        new StringBuilder("This is CompositeImmutableSegment and those are its segments:: ");
     for (ImmutableSegment s : segments) {
-      res = res + s.toString();
+      sb.append(s.toString());
     }
-    return res;
+    return sb.toString();
   }
 }

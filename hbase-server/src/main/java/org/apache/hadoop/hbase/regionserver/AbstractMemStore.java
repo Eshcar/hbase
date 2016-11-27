@@ -284,8 +284,7 @@ public abstract class AbstractMemStore implements MemStore {
         SegmentFactory.instance().createImmutableSegment(getComparator());
     List<ImmutableSegment> emptySegments =
         new ArrayList<ImmutableSegment>(Arrays.asList(emptySegment));
-    return  // maximal possible read point to create the scanner
-        new CompositeImmutableSegment(getComparator(), emptySegments);
+    return new CompositeImmutableSegment(getComparator(), emptySegments);
   }
 
   /**

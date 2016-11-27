@@ -20,7 +20,10 @@ package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -227,12 +230,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   // the following three methods allow to manipulate the settings of composite snapshot
-  public void useCompositeSnapshot() {
-    this.compositeSnapshot = true;
-  }
-
-  public void useTailSnapshot() {
-    this.compositeSnapshot = false;
+  public void setCompositeSnapshot(boolean useCompositeSnapshot) {
+    this.compositeSnapshot = useCompositeSnapshot;
   }
 
   public boolean isCompositeSnapshot() {
