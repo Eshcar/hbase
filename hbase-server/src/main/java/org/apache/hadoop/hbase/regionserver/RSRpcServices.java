@@ -38,6 +38,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -1092,6 +1093,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     minimumScanTimeLimitDelta = rs.conf.getLong(
       REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA,
       DEFAULT_REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA);
+
+    memoryScansOptimization = rs.conf.getBoolean(MEMORY_SCAN_OPTIMIZATION_KEY, false);
 
     InetSocketAddress address = rpcServer.getListenerAddress();
     if (address == null) {
@@ -2323,6 +2326,10 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
   }
 
+  private static AtomicInteger MEMORY_SCANS = new AtomicInteger(0);
+  private static AtomicInteger FULL_SCANS = new AtomicInteger(0);
+  private static String MEMORY_SCAN_OPTIMIZATION_KEY = "regionserver.memory.scan.optimization";
+  private boolean memoryScansOptimization = false;
   private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,
       RpcCallContext context) throws IOException {
     region.prepareGet(get);
@@ -2337,12 +2344,13 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
     long before = EnvironmentEdgeManager.currentTime();
     Scan scan = new Scan(get);
-    InternalScan internalScan = new InternalScan(get);
-    internalScan.checkOnlyMemStore();
-    LOG.info("ESHCAR1 (RSRpcServices): get internal scanner for row="+get.getRow()+
-        ", family="+ get.getFamilyMap().keySet());
-    if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
-      internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
+    InternalScan internalScan = null;
+    if(memoryScansOptimization) {
+      internalScan = new InternalScan(get);
+      internalScan.checkOnlyMemStore();
+      if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
+        internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
+      }
     }
     if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
       scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
@@ -2350,17 +2358,26 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     RegionScanner scanner = null;
     RegionScanner internalScanner = null;
     try {
-      int size = results.size();
-      LOG.info("ESHCAR2 (RSRpcServices): initial size of results is "+size+",  results="+results);
-      internalScanner = region.getScanner(internalScan);
-      internalScanner.next(results);
-      LOG.info("ESHCAR3 (RSRpcServices): after internal scan size of results is "
-          + results.size() + ", results="+results);
-      if(results.size() <= size) {
+      int size = 0;
+      int memScansCount = 0;
+      if(memoryScansOptimization) {
+        size = results.size();
+        internalScanner = region.getScanner(internalScan);
+        internalScanner.next(results);
+        memScansCount = MEMORY_SCANS.incrementAndGet();
+      }
+      if(memoryScansOptimization && results.size() <= size) {
         scanner = region.getScanner(scan);
         scanner.next(results);
-        LOG.info("ESHCAR4 (RSRpcServices): after full scan size of results is "
-            + results.size() + ", results=" + results);
+        int fullScansCount = FULL_SCANS.incrementAndGet();
+        if(fullScansCount % 20000 == 0) {
+          LOG.info("ESHCAR memScansCount="
+              + memScansCount + " fullScansCount=" + fullScansCount);
+        }
+      }
+      if(!memoryScansOptimization) {
+        scanner = region.getScanner(scan);
+        scanner.next(results);
       }
     } finally {
       if (scanner != null) {
