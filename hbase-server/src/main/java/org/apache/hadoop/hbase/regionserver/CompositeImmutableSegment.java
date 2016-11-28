@@ -43,6 +43,9 @@ public class CompositeImmutableSegment extends ImmutableSegment {
 
   private final List<ImmutableSegment> segments;
   private final CellComparator comparator;
+  // CompositeImmutableSegment is used for snapshots and snapshot should
+  // support getTimeRangeTracker() interface.
+  // Thus we hold a constant TRT build in the construction time from TRT of the given segments.
   private final TimeRangeTracker timeRangeTracker;
   private long keySize = 0;
 
