@@ -2343,7 +2343,6 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
     }
     long before = EnvironmentEdgeManager.currentTime();
-    Scan scan = new Scan(get);
     InternalScan internalScan = null;
     if(memoryScansOptimization) {
       internalScan = new InternalScan(get);
@@ -2351,9 +2350,6 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
         internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
       }
-    }
-    if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
-      scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
     }
     RegionScanner scanner = null;
     RegionScanner internalScanner = null;
@@ -2366,7 +2362,12 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         internalScanner.next(results);
         memScansCount = MEMORY_SCANS.incrementAndGet();
       }
+      Scan scan = null;
       if(memoryScansOptimization && results.size() <= size) {
+        scan = new Scan(get);
+        if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
+          scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
+        }
         scanner = region.getScanner(scan);
         scanner.next(results);
         int fullScansCount = FULL_SCANS.incrementAndGet();
@@ -2381,21 +2382,11 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
     } finally {
       if (scanner != null) {
-        if (closeCallBack == null) {
-          // If there is a context then the scanner can be added to the current
-          // RpcCallContext. The rpc callback will take care of closing the
-          // scanner, for eg in case
-          // of get()
-          assert scanner instanceof org.apache.hadoop.hbase.ipc.RpcCallback;
-          context.setCallBack((RegionScannerImpl) scanner);
-        } else {
-          // The call is from multi() where the results from the get() are
-          // aggregated and then send out to the
-          // rpc. The rpccall back will close all such scanners created as part
-          // of multi().
-          closeCallBack.addScanner(scanner);
-        }
+        addScannerToCloseContext(closeCallBack, context, scanner);
       }
+      if (internalScanner != null) {
+        addScannerToCloseContext(closeCallBack, context, internalScanner);
+       }
     }
 
     // post-get CP hook
@@ -2404,6 +2395,24 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
     region.metricsUpdateForGet(results, before);
     return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);
+  }
+
+  private void addScannerToCloseContext(RegionScannersCloseCallBack closeCallBack,
+      RpcCallContext context, RegionScanner scanner) {
+    if (closeCallBack == null) {
+      // If there is a context then the scanner can be added to the current
+      // RpcCallContext. The rpc callback will take care of closing the
+      // scanner, for eg in case
+      // of get()
+      assert scanner instanceof RpcCallback;
+      context.setCallBack((RegionScannerImpl) scanner);
+    } else {
+      // The call is from multi() where the results from the get() are
+      // aggregated and then send out to the
+      // rpc. The rpccall back will close all such scanners created as part
+      // of multi().
+      closeCallBack.addScanner(scanner);
+    }
   }
 
   /**
