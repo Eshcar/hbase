@@ -20,8 +20,6 @@ package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
@@ -51,7 +49,7 @@ public abstract class AbstractMemStore implements MemStore {
   // active segment absorbs write operations
   protected volatile MutableSegment active;
   // Snapshot of memstore.  Made for flusher.
-  protected volatile CompositeImmutableSegment snapshot;
+  protected volatile ImmutableSegment snapshot;
   protected volatile long snapshotId;
   // Used to track when to flush
   private volatile long timeOfOldestEdit;
@@ -65,7 +63,7 @@ public abstract class AbstractMemStore implements MemStore {
     this.conf = conf;
     this.comparator = c;
     resetActive();
-    this.snapshot = initEmptyCompositeSnapshot();
+    this.snapshot = SegmentFactory.instance().createImmutableSegment(c);
     this.snapshotId = NO_SNAPSHOT_ID;
   }
 
@@ -146,7 +144,7 @@ public abstract class AbstractMemStore implements MemStore {
     // create a new snapshot and let the old one go.
     Segment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = initEmptyCompositeSnapshot();
+      this.snapshot = SegmentFactory.instance().createImmutableSegment(this.comparator);
     }
     this.snapshotId = NO_SNAPSHOT_ID;
     oldSnapshot.close();
@@ -161,14 +159,12 @@ public abstract class AbstractMemStore implements MemStore {
   public String toString() {
     StringBuffer buf = new StringBuffer();
     int i = 1;
-    try {
-      for (Segment segment : getSegments()) {
-        buf.append("Segment (" + i + ") " + segment.toString() + "; ");
-        i++;
-      }
-    } catch (IOException e){
-      return e.toString();
+
+    for (Segment segment : getSegments()) {
+      buf.append("Segment (" + i + ") " + segment.toString() + "; ");
+      i++;
     }
+
     return buf.toString();
   }
 
@@ -234,6 +230,7 @@ public abstract class AbstractMemStore implements MemStore {
    * @return Next row or null if none found.  If one found, will be a new
    * KeyValue -- can be destroyed by subsequent calls to this method.
    */
+  @VisibleForTesting
   protected Cell getNextRow(final Cell key,
       final NavigableSet<Cell> set) {
     Cell result = null;
@@ -249,6 +246,25 @@ public abstract class AbstractMemStore implements MemStore {
       break;
     }
     return result;
+  }
+
+  /**
+   * @param cell Find the row that comes after this one.  If null, we return the
+   *             first.
+   * @return Next row or null if none found.
+   */
+  @VisibleForTesting
+  Cell getNextRow(final Cell cell) {
+    Cell lowest = null;
+    List<Segment> segments = getSegments();
+    for (Segment segment : segments) {
+      if (lowest == null) {
+        lowest = getNextRow(cell, segment.getCellSet());
+      } else {
+        lowest = getLowest(lowest, getNextRow(cell, segment.getCellSet()));
+      }
+    }
+    return lowest;
   }
 
   private Cell maybeCloneWithAllocator(Cell cell) {
@@ -274,14 +290,6 @@ public abstract class AbstractMemStore implements MemStore {
     if (timeOfOldestEdit == Long.MAX_VALUE) {
       timeOfOldestEdit = EnvironmentEdgeManager.currentTime();
     }
-  }
-
-  protected CompositeImmutableSegment initEmptyCompositeSnapshot() {
-    ImmutableSegment emptySegment =
-        SegmentFactory.instance().createImmutableSegment(getComparator());
-    List<ImmutableSegment> emptySegments =
-        new ArrayList<ImmutableSegment>(Arrays.asList(emptySegment));
-    return new CompositeImmutableSegment(getComparator(), emptySegments);
   }
 
   /**
@@ -317,6 +325,6 @@ public abstract class AbstractMemStore implements MemStore {
   /**
    * @return an ordered list of segments from most recent to oldest in memstore
    */
-  protected abstract List<Segment> getSegments() throws IOException;
+  protected abstract List<Segment> getSegments();
 
 }

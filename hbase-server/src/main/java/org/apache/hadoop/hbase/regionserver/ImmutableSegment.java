@@ -30,6 +30,10 @@ import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.util.CollectionBackedScanner;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * ImmutableSegment is an abstract class that extends the API supported by a {@link Segment},
@@ -148,6 +152,15 @@ public class ImmutableSegment extends Segment {
   @Override
   public long getMinTimestamp() {
     return this.timeRange.getMin();
+  }
+
+  public long getNumOfSegments() {
+    return 1;
+  }
+
+  public List<Segment> getAllSegments() {
+    List<Segment> res = new ArrayList<Segment>(Arrays.asList(this));
+    return res;
   }
 
   /**------------------------------------------------------------------------

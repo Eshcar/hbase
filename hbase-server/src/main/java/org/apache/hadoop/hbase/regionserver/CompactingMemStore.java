@@ -218,6 +218,8 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
+  // the getSegments() method is used for tests only
+  @VisibleForTesting
   @Override
   public List<Segment> getSegments() {
     List<Segment> pipelineList = pipeline.getSegments();
@@ -278,9 +280,9 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
 
-    int order = 1;                    // for active segment
-    order += pipeline.size();         // for all segments in the pipeline
-    order += snapshot.size();         // for all segments in the snapshot
+    int order = 1;                        // for active segment
+    order += pipeline.size();             // for all segments in the pipeline
+    order += snapshot.getNumOfSegments(); // for all segments in the snapshot
 
     // The list of elements in pipeline + the active element + the snapshot segments
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(order);
@@ -393,18 +395,15 @@ public class CompactingMemStore extends AbstractMemStore {
   private void pushTailToSnapshot() {
     ImmutableSegment tail = pipeline.pullTail();
     if (!tail.isEmpty()) {
-      List<ImmutableSegment> tailSegments =
-          new ArrayList<ImmutableSegment>(Arrays.asList(tail));
-      this.snapshot = // maximal possible read point to create the scanner
-          new CompositeImmutableSegment(getComparator(), tailSegments);
+      this.snapshot = tail;
     }
   }
 
   private void pushPipelineToSnapshot() {
     List<ImmutableSegment> segments = pipeline.drain();
     if (!segments.isEmpty()) {
-      this.snapshot = // maximal possible read point to create the scanner
-          new CompositeImmutableSegment(getComparator(), segments);
+      this.snapshot =
+          SegmentFactory.instance().createCompositeImmutableSegment(getComparator(),segments);
     }
   }
 
@@ -453,24 +452,6 @@ public class CompactingMemStore extends AbstractMemStore {
   @VisibleForTesting
   void initiateType() {
     compactor.initiateAction();
-  }
-
-  /**
-   * @param cell Find the row that comes after this one.  If null, we return the
-   *             first.
-   * @return Next row or null if none found.
-   */
-  Cell getNextRow(final Cell cell) {
-    Cell lowest = null;
-    List<Segment> segments = getSegments();
-    for (Segment segment : segments) {
-      if (lowest == null) {
-        lowest = getNextRow(cell, segment.getCellSet());
-      } else {
-        lowest = getLowest(lowest, getNextRow(cell, segment.getCellSet()));
-      }
-    }
-    return lowest;
   }
 
   // debug method

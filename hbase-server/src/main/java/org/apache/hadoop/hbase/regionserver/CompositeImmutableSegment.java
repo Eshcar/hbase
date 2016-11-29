@@ -72,7 +72,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     return res;
   }
 
-  public long size() {
+  public long getNumOfSegments() {
     return segments.size();
   }
 
@@ -85,8 +85,6 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     KeyValueScanner scanner;
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(segments.size());
     for (ImmutableSegment s : segments) {
-      this.timeRangeTracker.includeTimestamp(s.getTimeRangeTracker().getMax());
-      this.timeRangeTracker.includeTimestamp(s.getTimeRangeTracker().getMin());
       list.add(s.getScanner(Long.MAX_VALUE));
     }
 
