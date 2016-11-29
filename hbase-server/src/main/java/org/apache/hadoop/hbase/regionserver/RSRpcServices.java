@@ -2343,42 +2343,37 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
     }
     long before = EnvironmentEdgeManager.currentTime();
-    InternalScan internalScan = null;
-    if(memoryScansOptimization) {
-      internalScan = new InternalScan(get);
-      internalScan.checkOnlyMemStore();
-      if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
-        internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
-      }
-    }
     RegionScanner scanner = null;
     RegionScanner internalScanner = null;
     try {
       int size = 0;
       int memScansCount = 0;
       if(memoryScansOptimization) {
+        InternalScan internalScan = new InternalScan(get);
+        internalScan.checkOnlyMemStore();
+        if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
+          internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
+        }
         size = results.size();
         internalScanner = region.getScanner(internalScan);
         internalScanner.next(results);
         memScansCount = MEMORY_SCANS.incrementAndGet();
       }
-      Scan scan = null;
-      if(memoryScansOptimization && results.size() <= size) {
-        scan = new Scan(get);
+      if(!memoryScansOptimization ||
+          (memoryScansOptimization && results.size() <= size)) {
+        Scan scan = new Scan(get);
         if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
           scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
         }
         scanner = region.getScanner(scan);
         scanner.next(results);
-        int fullScansCount = FULL_SCANS.incrementAndGet();
-        if(fullScansCount % 20000 == 0) {
-          LOG.info("ESHCAR memScansCount="
-              + memScansCount + " fullScansCount=" + fullScansCount);
+        if(memoryScansOptimization) {
+          int fullScansCount = FULL_SCANS.incrementAndGet();
+          if (fullScansCount % 20000 == 0) {
+            LOG.info("ESHCAR memScansCount="
+                + memScansCount + " fullScansCount=" + fullScansCount);
+          }
         }
-      }
-      if(!memoryScansOptimization) {
-        scanner = region.getScanner(scan);
-        scanner.next(results);
       }
     } finally {
       if (scanner != null) {
