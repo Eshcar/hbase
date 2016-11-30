@@ -2377,11 +2377,19 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
     } finally {
       if (scanner != null) {
-        addScannerToCloseContext(closeCallBack, context, scanner);
+        // Executed a full scan:
+        // (1) add the full scan to call back context
+        // (2) close memory scan
+        addScannerToCallBackContext(closeCallBack, context, scanner);
+        if (internalScanner != null) {
+          internalScanner.close();
+        }
       }
-      if (internalScanner != null) {
-        addScannerToCloseContext(closeCallBack, context, internalScanner);
-       }
+      // Only executed a memory scan:
+      //  add the memory scan to call back context; there it is closed
+      else if (internalScanner != null) {
+        addScannerToCallBackContext(closeCallBack, context, internalScanner);
+      }
     }
 
     // post-get CP hook
@@ -2392,7 +2400,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);
   }
 
-  private void addScannerToCloseContext(RegionScannersCloseCallBack closeCallBack,
+  private void addScannerToCallBackContext(RegionScannersCloseCallBack closeCallBack,
       RpcCallContext context, RegionScanner scanner) {
     if (closeCallBack == null) {
       // If there is a context then the scanner can be added to the current
