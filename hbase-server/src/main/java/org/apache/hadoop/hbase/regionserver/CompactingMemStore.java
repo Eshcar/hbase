@@ -285,6 +285,7 @@ public class CompactingMemStore extends AbstractMemStore {
     order += snapshot.getNumOfSegments(); // for all segments in the snapshot
 
     // The list of elements in pipeline + the active element + the snapshot segments
+    // The order is the Segment ordinal
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(order);
     list.add(this.active.getScanner(readPt, order));
     order--;

@@ -203,8 +203,7 @@ public class CompactionPipeline {
 
   public List<Segment> getSegments() {
     synchronized (pipeline){
-      List<Segment> res = new LinkedList<Segment>(pipeline);
-      return res;
+      return new LinkedList<Segment>(pipeline);
     }
   }
 
@@ -216,7 +215,10 @@ public class CompactionPipeline {
     List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>(this.pipeline.size());
     for (Segment segment : this.pipeline) {
       scanners.add(segment.getScanner(readPoint, order));
+      // The order is the Segment ordinal
       order--;
+      // order should never be negative so this is just a sanity check
+      order = (order<0) ? 0 : order;
     }
     return scanners;
   }

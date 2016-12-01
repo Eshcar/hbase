@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
@@ -67,9 +68,9 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     }
   }
 
+  @VisibleForTesting
   public List<Segment> getAllSegments() {
-    List<Segment> res = new LinkedList<Segment>(segments);
-    return res;
+    return new LinkedList<Segment>(segments);
   }
 
   public long getNumOfSegments() {
@@ -103,7 +104,10 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>(this.segments.size());
     for (Segment segment : this.segments) {
       scanners.add(segment.getScanner(readPoint, order));
+      // The order is the Segment ordinal
       order--;
+      // order should never be negative so this is just a sanity check
+      order = (order<0) ? 0 : order;
     }
     return scanners;
   }

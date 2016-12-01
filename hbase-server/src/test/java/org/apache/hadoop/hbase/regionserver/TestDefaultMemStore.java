@@ -210,9 +210,6 @@ public class TestDefaultMemStore {
     count = 0;
     int snapshotIndex = 5;
 
-//    assertTrue("\n<<< The memstore scanners with one snapshot are: \n" + memstorescanners
-//        + "\n",false);
-
     try {
       while (s.next(result)) {
 
