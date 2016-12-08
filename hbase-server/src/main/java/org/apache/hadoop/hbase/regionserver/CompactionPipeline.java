@@ -79,10 +79,13 @@ public class CompactionPipeline {
   }
 
   public List<ImmutableSegment> drain() {
+    LinkedList<ImmutableSegment> result = new LinkedList<ImmutableSegment>();
     synchronized (pipeline){
       version++;
-      List<ImmutableSegment> result = this.pipeline;
-      this.pipeline = new LinkedList<ImmutableSegment>();
+      while (!this.pipeline.isEmpty()) {
+        ImmutableSegment segment = this.pipeline.removeFirst();
+        result.addLast(segment);
+      }
       return result;
     }
   }
