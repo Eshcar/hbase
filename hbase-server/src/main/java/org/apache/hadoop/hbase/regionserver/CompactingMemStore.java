@@ -55,6 +55,8 @@ public class CompactingMemStore extends AbstractMemStore {
   // The external setting of the compacting MemStore behaviour
   public static final String COMPACTING_MEMSTORE_TYPE_KEY =
       "hbase.hregion.compacting.memstore.type";
+  public static final String COMPACTING_MEMSTORE_TYPE_DEFAULT =
+      String.valueOf(HColumnDescriptor.MemoryCompaction.BASIC);
   // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
   public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
       "hbase.memstore.inmemoryflush.threshold.factor";

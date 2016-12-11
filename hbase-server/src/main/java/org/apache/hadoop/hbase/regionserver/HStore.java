@@ -241,7 +241,12 @@ public class HStore implements Store {
     // to clone it?
     scanInfo = new ScanInfo(conf, family, ttl, timeToPurgeDeletes, this.comparator);
     String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
-    final HColumnDescriptor.MemoryCompaction inMemoryCompaction = family.getInMemoryCompaction();
+    HColumnDescriptor.MemoryCompaction inMemoryCompaction = family.getInMemoryCompaction();
+    if(inMemoryCompaction == null) {
+      inMemoryCompaction = HColumnDescriptor.MemoryCompaction.valueOf(conf.get
+          (CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+              CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT));
+    }
     switch (inMemoryCompaction) {
       case BASIC :
       case EAGER :
