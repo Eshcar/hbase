@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -28,6 +29,9 @@ import org.apache.hadoop.hbase.util.ClassSize;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.apache.hadoop.hbase.HColumnDescriptor.*;
+import static org.apache.hadoop.hbase.HColumnDescriptor.MemoryCompaction.*;
 
 /**
  * The ongoing MemStore Compaction manager, dispatches a solo running compaction and interrupts
@@ -52,15 +56,6 @@ public class MemStoreCompactor {
           + Bytes.SIZEOF_INT            // compactionKVMax
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
-
-  // Configuration options for MemStore compaction
-  static final String INDEX_COMPACTION_CONFIG = "index-compaction";
-  static final String DATA_COMPACTION_CONFIG  = "data-compaction";
-
-  // The external setting of the compacting MemStore behaviour
-  // Compaction of the index without the data is the default
-  static final String COMPACTING_MEMSTORE_TYPE_KEY = "hbase.hregion.compacting.memstore.type";
-  static final String COMPACTING_MEMSTORE_TYPE_DEFAULT = INDEX_COMPACTION_CONFIG;
 
   // The upper bound for the number of segments we store in the pipeline prior to merging.
   // This constant is subject to further experimentation.
@@ -93,7 +88,8 @@ public class MemStoreCompactor {
 
   private Action action = Action.FLATTEN;
 
-  public MemStoreCompactor(CompactingMemStore compactingMemStore) {
+  public MemStoreCompactor(CompactingMemStore compactingMemStore,
+      MemoryCompaction compactionPolicy) {
     this.compactingMemStore = compactingMemStore;
     this.compactionKVMax = compactingMemStore.getConfiguration()
         .getInt(HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
@@ -278,16 +274,19 @@ public class MemStoreCompactor {
    */
   @VisibleForTesting
   void initiateAction() {
-    String memStoreType = compactingMemStore.getConfiguration().get(COMPACTING_MEMSTORE_TYPE_KEY,
-        COMPACTING_MEMSTORE_TYPE_DEFAULT);
+    String compType = compactingMemStore.getConfiguration().get(
+        CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+        String.valueOf(BASIC));
 
-    switch (memStoreType) {
-    case INDEX_COMPACTION_CONFIG: action = Action.MERGE;
+    switch (valueOf(compType)){
+    case NONE: action = Action.NOOP;
       break;
-    case DATA_COMPACTION_CONFIG: action = Action.COMPACT;
+    case BASIC: action = Action.MERGE;
+      break;
+    case EAGER: action = Action.COMPACT;
       break;
     default:
-      throw new RuntimeException("Unknown memstore type " + memStoreType); // sanity check
+      throw new RuntimeException("Unknown memstore type " + compType); // sanity check
     }
   }
 }

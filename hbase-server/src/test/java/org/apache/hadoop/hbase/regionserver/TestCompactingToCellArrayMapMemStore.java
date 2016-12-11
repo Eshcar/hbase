@@ -62,12 +62,13 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     compactingSetUp();
     Configuration conf = HBaseConfiguration.create();
 
-    // set memstore to do data compaction and not to use the speculative scan
-    conf.set("hbase.hregion.compacting.memstore.type", "data-compaction");
+    // set memstore to do data compaction
+    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+        String.valueOf(HColumnDescriptor.MemoryCompaction.EAGER));
 
     this.memstore =
         new CompactingMemStore(conf, CellComparator.COMPARATOR, store,
-            regionServicesForStores);
+            regionServicesForStores, HColumnDescriptor.MemoryCompaction.BASIC);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -266,7 +267,8 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     String[] keys2 = { "A", "B", "D", "G", "I", "J"};
     String[] keys3 = { "D", "B", "B", "E" };
 
-    memstore.getConfiguration().set("hbase.hregion.compacting.memstore.type", "index-compaction");
+    memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+        String.valueOf(HColumnDescriptor.MemoryCompaction.BASIC));
     ((CompactingMemStore)memstore).initiateType();
     addRowsByKeys(memstore, keys1);
 

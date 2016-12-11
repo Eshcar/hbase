@@ -376,7 +376,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
       family.setInMemory(true);
     }
     if(opts.inMemoryCompaction) {
-      family.setInMemoryCompaction(true);
+      family.setInMemoryCompaction(HColumnDescriptor.MemoryCompaction.BASIC);
     }
     desc.addFamily(family);
     if (opts.replicas != DEFAULT_OPTS.replicas) {

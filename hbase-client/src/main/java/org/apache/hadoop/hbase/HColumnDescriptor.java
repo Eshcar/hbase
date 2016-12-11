@@ -65,6 +65,11 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   private static final byte COLUMN_DESCRIPTOR_VERSION = (byte) 11;
 
   public static final String IN_MEMORY_COMPACTION = "IN_MEMORY_COMPACTION";
+  public enum MemoryCompaction {
+    NONE,
+    BASIC,
+    EAGER
+  }
 
   // These constants are used as FileInfo keys
   public static final String COMPRESSION = "COMPRESSION";
@@ -176,7 +181,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   /**
    * Default setting for whether to set the memstore of this column family as compacting or not.
    */
-  public static final boolean DEFAULT_IN_MEMORY_COMPACTION = false;
+  public static final MemoryCompaction DEFAULT_IN_MEMORY_COMPACTION = MemoryCompaction.BASIC;
 
   /**
    * Default setting for preventing deleted from being collected immediately.
@@ -691,21 +696,20 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    * @return True if we prefer to keep the in-memory data compacted
    *          for this column family
    */
-  public boolean isInMemoryCompaction() {
+  public MemoryCompaction getInMemoryCompaction() {
     String value = getValue(IN_MEMORY_COMPACTION);
     if (value != null) {
-      return Boolean.parseBoolean(value);
+      return MemoryCompaction.valueOf(value);
     }
     return DEFAULT_IN_MEMORY_COMPACTION;
   }
 
   /**
-   * @param inMemoryCompaction True if we prefer to keep the in-memory data compacted
-   *                  for this column family
+   * @param inMemoryCompaction the prefered in-memory compaction policy
    * @return this (for chained invocation)
    */
-  public HColumnDescriptor setInMemoryCompaction(boolean inMemoryCompaction) {
-    return setValue(IN_MEMORY_COMPACTION, Boolean.toString(inMemoryCompaction));
+  public HColumnDescriptor setInMemoryCompaction(MemoryCompaction inMemoryCompaction) {
+    return setValue(IN_MEMORY_COMPACTION, inMemoryCompaction.toString());
   }
 
   public KeepDeletedCells getKeepDeletedCells() {
