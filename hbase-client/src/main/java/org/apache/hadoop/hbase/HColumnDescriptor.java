@@ -65,6 +65,9 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   private static final byte COLUMN_DESCRIPTOR_VERSION = (byte) 11;
 
   public static final String IN_MEMORY_COMPACTION = "IN_MEMORY_COMPACTION";
+
+  @InterfaceAudience.Public
+  @InterfaceStability.Evolving
   public enum MemoryCompaction {
     NONE,
     BASIC,
