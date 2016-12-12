@@ -259,6 +259,7 @@ public abstract class AbstractMemStore implements MemStore {
     List<Segment> segments = getSegments();
     for (Segment segment : segments) {
       if (lowest == null) {
+        //TODO: we may want to move the getNextRow ability to the segment
         lowest = getNextRow(cell, segment.getCellSet());
       } else {
         lowest = getLowest(lowest, getNextRow(cell, segment.getCellSet()));

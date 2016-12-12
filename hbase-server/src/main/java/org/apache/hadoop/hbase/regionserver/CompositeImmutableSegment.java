@@ -162,14 +162,6 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
-  /**
-   * Get cell length after serialized in {@link Cell}
-   */
-  @VisibleForTesting
-  static int getCellLength(Cell cell) {
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
-  }
-
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS){
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
@@ -336,11 +328,6 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    */
   protected SortedSet<Cell> tailSet(Cell firstCell) {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
-  }
-
-  @VisibleForTesting
-  MemStoreLAB getMemStoreLAB() {
-    return segments.get(0).getMemStoreLAB();
   }
 
   // Debug methods

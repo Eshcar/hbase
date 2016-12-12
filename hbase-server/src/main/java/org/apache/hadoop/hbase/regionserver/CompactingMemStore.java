@@ -67,7 +67,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
-  private boolean compositeSnapshot = false;
+  private boolean compositeSnapshot = true;
 
   public static final long DEEP_OVERHEAD = AbstractMemStore.DEEP_OVERHEAD
       + 6 * ClassSize.REFERENCE // Store, RegionServicesForStores, CompactionPipeline,
@@ -283,7 +283,7 @@ public class CompactingMemStore extends AbstractMemStore {
     int order = 1;                        // for active segment
     order += pipeline.size();             // for all segments in the pipeline
     order += snapshot.getNumOfSegments(); // for all segments in the snapshot
-
+    // TODO: check alternatives to using this order
     // The list of elements in pipeline + the active element + the snapshot segments
     // The order is the Segment ordinal
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(order);
