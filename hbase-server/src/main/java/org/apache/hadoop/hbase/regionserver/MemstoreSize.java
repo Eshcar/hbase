@@ -89,7 +89,7 @@ public class MemstoreSize {
       return false;
     }
     MemstoreSize other = (MemstoreSize) obj;
-    return this.dataSize == other.dataSize && this.heapOverhead == other.heapOverhead;
+    return getDataSize() == other.dataSize && getHeapOverhead() == other.heapOverhead;
   }
 
   @Override
