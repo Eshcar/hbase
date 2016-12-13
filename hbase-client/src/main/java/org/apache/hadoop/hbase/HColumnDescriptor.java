@@ -66,11 +66,29 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
 
   public static final String IN_MEMORY_COMPACTION = "IN_MEMORY_COMPACTION";
 
+  /**
+   * Enum describing all possible memory compaction policies
+   */
   @InterfaceAudience.Public
   @InterfaceStability.Evolving
   public enum MemoryCompaction {
+    /**
+     * No memory compaction, when size threshold is exceeded data is flushed to disk
+     */
     NONE,
+    /**
+     * Basic policy applies optimizations which modify the index to a more compacted representation.
+     * This is beneficial in all access patterns. The smaller the cells are the greater the
+     * benefit of this policy.
+     * This is the default policy.
+     */
     BASIC,
+    /**
+     * In addition to compacting the index representation as the basic policy, eager policy
+     * eliminates duplication while the data is still in memory (much like the
+     * on-disk compaction does after the data is flushed to disk). This policy is most useful for
+     * applications with high data churn or small working sets.
+     */
     EAGER
   }
 
@@ -689,7 +707,8 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
   }
 
   /**
-   * @return in-memory compaction policy if set for the cf
+   * @return in-memory compaction policy if set for the cf. Returns null if no policy is set for
+   *          for this column family
    */
   public MemoryCompaction getInMemoryCompaction() {
     String value = getValue(IN_MEMORY_COMPACTION);
@@ -701,6 +720,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
 
   /**
    * @param inMemoryCompaction the prefered in-memory compaction policy
+   *                  for this column family
    * @return this (for chained invocation)
    */
   public HColumnDescriptor setInMemoryCompaction(MemoryCompaction inMemoryCompaction) {

@@ -21,7 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HColumnDescriptor.MemoryCompaction;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -29,9 +29,6 @@ import org.apache.hadoop.hbase.util.ClassSize;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.apache.hadoop.hbase.HColumnDescriptor.*;
-import static org.apache.hadoop.hbase.HColumnDescriptor.MemoryCompaction.*;
 
 /**
  * The ongoing MemStore Compaction manager, dispatches a solo running compaction and interrupts
@@ -93,7 +90,7 @@ public class MemStoreCompactor {
     this.compactingMemStore = compactingMemStore;
     this.compactionKVMax = compactingMemStore.getConfiguration()
         .getInt(HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
-    initiateAction();
+    initiateAction(compactionPolicy);
   }
 
   /**----------------------------------------------------------------------
@@ -273,12 +270,9 @@ public class MemStoreCompactor {
    * Initiate the action according to user config, after its default is Action.MERGE
    */
   @VisibleForTesting
-  void initiateAction() {
-    String compType = compactingMemStore.getConfiguration().get(
-        CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(BASIC));
+  void initiateAction(MemoryCompaction compType) {
 
-    switch (valueOf(compType)){
+    switch (compType){
     case NONE: action = Action.NOOP;
       break;
     case BASIC: action = Action.MERGE;

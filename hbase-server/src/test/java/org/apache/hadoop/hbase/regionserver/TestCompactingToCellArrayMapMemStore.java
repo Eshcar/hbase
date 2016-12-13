@@ -267,9 +267,10 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     String[] keys2 = { "A", "B", "D", "G", "I", "J"};
     String[] keys3 = { "D", "B", "B", "E" };
 
+    HColumnDescriptor.MemoryCompaction compactionType = HColumnDescriptor.MemoryCompaction.BASIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(HColumnDescriptor.MemoryCompaction.BASIC));
-    ((CompactingMemStore)memstore).initiateType();
+        String.valueOf(compactionType));
+    ((CompactingMemStore)memstore).initiateType(compactionType);
     addRowsByKeys(memstore, keys1);
 
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact

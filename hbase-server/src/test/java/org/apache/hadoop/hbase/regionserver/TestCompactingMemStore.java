@@ -469,9 +469,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
+    HColumnDescriptor.MemoryCompaction compactionType = HColumnDescriptor.MemoryCompaction.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(HColumnDescriptor.MemoryCompaction.EAGER));
-    ((CompactingMemStore)memstore).initiateType();
+        String.valueOf(compactionType));
+    ((CompactingMemStore)memstore).initiateType(compactionType);
 
     byte[] row = Bytes.toBytes("testrow");
     byte[] fam = Bytes.toBytes("testfamily");
@@ -551,9 +552,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   public void testCompaction1Bucket() throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
+    HColumnDescriptor.MemoryCompaction compactionType = HColumnDescriptor.MemoryCompaction.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(HColumnDescriptor.MemoryCompaction.EAGER));
-    ((CompactingMemStore)memstore).initiateType();
+        String.valueOf(compactionType));
+    ((CompactingMemStore)memstore).initiateType(compactionType);
 
     String[] keys1 = { "A", "A", "B", "C" }; //A1, A2, B3, C4
 
@@ -587,9 +589,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   public void testCompaction2Buckets() throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
+    HColumnDescriptor.MemoryCompaction compactionType = HColumnDescriptor.MemoryCompaction.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(HColumnDescriptor.MemoryCompaction.EAGER));
-    ((CompactingMemStore)memstore).initiateType();
+        String.valueOf(compactionType));
+    ((CompactingMemStore)memstore).initiateType(compactionType);
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
 
@@ -641,9 +644,10 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   public void testCompaction3Buckets() throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
+    HColumnDescriptor.MemoryCompaction compactionType = HColumnDescriptor.MemoryCompaction.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(HColumnDescriptor.MemoryCompaction.EAGER));
-    ((CompactingMemStore)memstore).initiateType();
+        String.valueOf(compactionType));
+    ((CompactingMemStore)memstore).initiateType(compactionType);
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
     String[] keys3 = { "D", "B", "B" };

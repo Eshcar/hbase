@@ -423,8 +423,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  void initiateType() {
-    compactor.initiateAction();
+  void initiateType(HColumnDescriptor.MemoryCompaction compactionType) {
+    compactor.initiateAction(compactionType);
   }
 
   /**
