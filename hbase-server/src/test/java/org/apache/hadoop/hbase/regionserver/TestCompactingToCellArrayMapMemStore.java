@@ -68,7 +68,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
 
     this.memstore =
         new CompactingMemStore(conf, CellComparator.COMPARATOR, store,
-            regionServicesForStores, HColumnDescriptor.MemoryCompaction.BASIC);
+            regionServicesForStores, HColumnDescriptor.MemoryCompaction.EAGER);
   }
 
   //////////////////////////////////////////////////////////////////////////////
