@@ -221,7 +221,7 @@ public class CompactionPipeline {
       scanners.add(segment.getScanner(readPoint, order));
       // The order is the Segment ordinal
       order--;
-      assert order>0; // order should never be negative so this is just a sanity check
+      assert order>=0; // order should never be negative so this is just a sanity check
     }
     return scanners;
   }
