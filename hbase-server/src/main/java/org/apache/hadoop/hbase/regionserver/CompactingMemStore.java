@@ -399,18 +399,26 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private void pushTailToSnapshot() {
-    ImmutableSegment tail = pipeline.pullTail();
-    if (!tail.isEmpty()) {
-      this.snapshot = tail;
-    }
+    VersionedSegmentsList segments = pipeline.getVersionedTail();
+    pushToSnapshot(segments.getStoreSegments());
+    pipeline.swap(segments,null,false); // do not close segments as they are in snapshot now
   }
 
   private void pushPipelineToSnapshot() {
-    List<ImmutableSegment> segments = pipeline.drain();
-    if (!segments.isEmpty()) {
-      this.snapshot =
-          SegmentFactory.instance().createCompositeImmutableSegment(getComparator(),segments);
+    VersionedSegmentsList segments = pipeline.getVersionedList();
+    pushToSnapshot(segments.getStoreSegments());
+    pipeline.swap(segments,null,false); // do not close segments as they are in snapshot now
+  }
+
+  private void pushToSnapshot(List<ImmutableSegment> segments) {
+    if(segments.isEmpty()) return;
+    if(segments.size() == 1 && !segments.get(0).isEmpty()) {
+      this.snapshot = segments.get(0);
+      return;
     }
+    // else craete composite snapshot
+    this.snapshot =
+        SegmentFactory.instance().createCompositeImmutableSegment(getComparator(),segments);
   }
 
   private RegionServicesForStores getRegionServices() {
