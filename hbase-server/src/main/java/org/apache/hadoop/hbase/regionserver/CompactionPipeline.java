@@ -49,11 +49,13 @@ public class CompactionPipeline {
 
   private final RegionServicesForStores region;
   private LinkedList<ImmutableSegment> pipeline;
+  private volatile LinkedList<ImmutableSegment> readOnlyCopy;
   private long version;
 
   public CompactionPipeline(RegionServicesForStores region) {
     this.region = region;
     this.pipeline = new LinkedList<>();
+    this.readOnlyCopy = new LinkedList<>();
     this.version = 0;
   }
 
@@ -61,14 +63,15 @@ public class CompactionPipeline {
     ImmutableSegment immutableSegment = SegmentFactory.instance().
         createImmutableSegment(segment);
     synchronized (pipeline){
-      return addFirst(immutableSegment);
+      boolean res = addFirst(immutableSegment);
+      readOnlyCopy = new LinkedList<>(pipeline);
+      return res;
     }
   }
 
   public VersionedSegmentsList getVersionedList() {
     synchronized (pipeline){
-      List<ImmutableSegment> segmentList = new ArrayList<>(pipeline);
-      return new VersionedSegmentsList(segmentList, version);
+      return new VersionedSegmentsList(readOnlyCopy, version);
     }
   }
 
@@ -115,6 +118,7 @@ public class CompactionPipeline {
             + ", and the number of cells in new segment is:" + count);
       }
       swapSuffix(suffix, segment, closeSuffix);
+      readOnlyCopy = new LinkedList<>(pipeline);
     }
     if (closeSuffix && region != null) {
       // update the global memstore size counter
@@ -193,33 +197,32 @@ public class CompactionPipeline {
   }
 
   public boolean isEmpty() {
-    return pipeline.isEmpty();
+    return readOnlyCopy.isEmpty();
   }
 
-  public List<Segment> getSegments() {
-    synchronized (pipeline){
-      return new LinkedList<>(pipeline);
-    }
+  public List<? extends Segment> getSegments() {
+    return readOnlyCopy;
   }
 
   public long size() {
-    return pipeline.size();
+    return readOnlyCopy.size();
   }
 
   public long getMinSequenceId() {
     long minSequenceId = Long.MAX_VALUE;
     if (!isEmpty()) {
-      minSequenceId = pipeline.getLast().getMinSequenceId();
+      minSequenceId = readOnlyCopy.getLast().getMinSequenceId();
     }
     return minSequenceId;
   }
 
   public MemstoreSize getTailSize() {
+    LinkedList<? extends Segment> localCopy = readOnlyCopy;
     if (isEmpty()) return MemstoreSize.EMPTY_SIZE;
-    return new MemstoreSize(pipeline.peekLast().keySize(), pipeline.peekLast().heapOverhead());
+    return new MemstoreSize(localCopy.peekLast().keySize(), localCopy.peekLast().heapOverhead());
   }
 
-  private void swapSuffix(List<ImmutableSegment> suffix, ImmutableSegment segment,
+  private void swapSuffix(List<? extends Segment> suffix, ImmutableSegment segment,
       boolean closeSegmentsInSuffix) {
     version++;
     // During index merge we won't be closing the segments undergoing the merge. Segment#close()
