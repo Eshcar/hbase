@@ -32,37 +32,48 @@ import org.apache.hadoop.hbase.util.ClassSize;
 
 /**
  * The compaction pipeline of a {@link CompactingMemStore}, is a FIFO queue of segments.
- * It supports pushing a segment at the head of the pipeline and pulling a segment from the
- * tail to flush to disk.
- * It also supports swap operation to allow the compactor swap a subset of the segments with a new
- * (compacted) one. This swap succeeds only if the version number passed with the list of segments
- * to swap is the same as the current version of the pipeline.
- * The pipeline version is updated whenever swapping segments or pulling the segment at the tail.
+ * It supports pushing a segment at the head of the pipeline and removing a segment from the
+ * tail when it is flushed to disk.
+ * It also supports swap method to allow the in-memory compaction swap a subset of the segments
+ * at the tail of the pipeline with a new (compacted) one. This swap succeeds only if the version
+ * number passed with the list of segments to swap is the same as the current version of the
+ * pipeline.
+ * Essentially, there are two methods which can change the structure of the pipeline: pushHead()
+ * and swap(), the later is used both by a flush to disk and by an in-memory compaction.
+ * The pipeline version is updated by swap(); it allows to identify conflicting operations at the
+ * suffix of the pipeline.
+ *
+ * The synchronization model is copy-on-write. Methods which change the structure of the
+ * pipeline (pushHead() and swap()) apply their changes in the context of a lock. They also make
+ * a read-only copy of the pipeline's list. Read methods read from a read-only copy. If a read
+ * method accesses the read-only copy more than once it makes a local copy of it
+ * to ensure it accesses the same copy.
+ *
+ * The methods getVersionedList(), getVersionedTail(), and flattenYoungestSegment() are also
+ * protected by a lock since they need to have a consistent (atomic) view of the pipeline lsit
+ * and version number.
  */
 @InterfaceAudience.Private
 public class CompactionPipeline {
   private static final Log LOG = LogFactory.getLog(CompactionPipeline.class);
 
   public final static long FIXED_OVERHEAD = ClassSize
-      .align(ClassSize.OBJECT + (2 * ClassSize.REFERENCE) + Bytes.SIZEOF_LONG);
-  public final static long DEEP_OVERHEAD = FIXED_OVERHEAD + ClassSize.LINKEDLIST;
+      .align(ClassSize.OBJECT + (3 * ClassSize.REFERENCE) + Bytes.SIZEOF_LONG);
+  public final static long DEEP_OVERHEAD = FIXED_OVERHEAD + (2* ClassSize.LINKEDLIST);
 
   private final RegionServicesForStores region;
-  private LinkedList<ImmutableSegment> pipeline;
-  private volatile LinkedList<ImmutableSegment> readOnlyCopy;
-  private long version;
+  private LinkedList<ImmutableSegment> pipeline = new LinkedList<>();
+  private LinkedList<ImmutableSegment> readOnlyCopy = new LinkedList<>();
+  private long version = 0;
 
   public CompactionPipeline(RegionServicesForStores region) {
     this.region = region;
-    this.pipeline = new LinkedList<>();
-    this.readOnlyCopy = new LinkedList<>();
-    this.version = 0;
   }
 
   public boolean pushHead(MutableSegment segment) {
     ImmutableSegment immutableSegment = SegmentFactory.instance().
         createImmutableSegment(segment);
-    synchronized (pipeline){
+    synchronized (this){
       boolean res = addFirst(immutableSegment);
       readOnlyCopy = new LinkedList<>(pipeline);
       return res;
@@ -70,13 +81,13 @@ public class CompactionPipeline {
   }
 
   public VersionedSegmentsList getVersionedList() {
-    synchronized (pipeline){
+    synchronized (this){
       return new VersionedSegmentsList(readOnlyCopy, version);
     }
   }
 
   public VersionedSegmentsList getVersionedTail() {
-    synchronized (pipeline){
+    synchronized (this){
       List<ImmutableSegment> segmentList = new ArrayList<>();
       if(!pipeline.isEmpty()) {
         segmentList.add(0, pipeline.getLast());
@@ -102,7 +113,7 @@ public class CompactionPipeline {
       return false;
     }
     List<ImmutableSegment> suffix;
-    synchronized (pipeline){
+    synchronized (this){
       if(versionedList.getVersion() != version) {
         return false;
       }
@@ -172,7 +183,7 @@ public class CompactionPipeline {
       return false;
     }
 
-    synchronized (pipeline){
+    synchronized (this){
       if(requesterVersion != version) {
         LOG.warn("Segment flattening failed, because versions do not match");
         return false;
@@ -210,15 +221,16 @@ public class CompactionPipeline {
 
   public long getMinSequenceId() {
     long minSequenceId = Long.MAX_VALUE;
-    if (!isEmpty()) {
-      minSequenceId = readOnlyCopy.getLast().getMinSequenceId();
+    LinkedList<? extends Segment> localCopy = readOnlyCopy;
+    if (!localCopy.isEmpty()) {
+      minSequenceId = localCopy.getLast().getMinSequenceId();
     }
     return minSequenceId;
   }
 
   public MemstoreSize getTailSize() {
     LinkedList<? extends Segment> localCopy = readOnlyCopy;
-    if (isEmpty()) return MemstoreSize.EMPTY_SIZE;
+    if (localCopy.isEmpty()) return MemstoreSize.EMPTY_SIZE;
     return new MemstoreSize(localCopy.peekLast().keySize(), localCopy.peekLast().heapOverhead());
   }
 
