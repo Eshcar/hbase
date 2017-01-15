@@ -161,7 +161,12 @@ public class CompactingMemStore extends AbstractMemStore {
       stopCompaction();
       pushActiveToPipeline(this.active);
       snapshotId = EnvironmentEdgeManager.currentTime();
-      pushTailToSnapshot();
+      // in both cases whatever is pushed to snapshot is cleared from the pipeline
+      if (compositeSnapshot) {
+        pushPipelineToSnapshot();
+      } else {
+        pushTailToSnapshot();
+      }
     }
     return new MemStoreSnapshot(snapshotId, this.snapshot);
   }
@@ -174,8 +179,13 @@ public class CompactingMemStore extends AbstractMemStore {
   public MemstoreSize getFlushableSize() {
     MemstoreSize snapshotSize = getSnapshotSize();
     if (snapshotSize.getDataSize() == 0) {
-      // if snapshot is empty the tail of the pipeline is flushed
-      snapshotSize = pipeline.getTailSize();
+      // if snapshot is empty the tail of the pipeline (or everything in the memstore) is flushed
+      if (compositeSnapshot) {
+        snapshotSize = pipeline.getPipelineSize();
+        snapshotSize.incMemstoreSize(this.active.keySize(), this.active.heapOverhead());
+      } else {
+        snapshotSize = pipeline.getTailSize();
+      }
     }
     return snapshotSize.getDataSize() > 0 ? snapshotSize
         : new MemstoreSize(this.active.keySize(), this.active.heapOverhead());
@@ -222,8 +232,18 @@ public class CompactingMemStore extends AbstractMemStore {
     List<Segment> list = new ArrayList<>(pipelineList.size() + 2);
     list.add(this.active);
     list.addAll(pipelineList);
-    list.add(this.snapshot);
+    list.addAll(this.snapshot.getAllSegments());
+
     return list;
+  }
+
+  // the following three methods allow to manipulate the settings of composite snapshot
+  public void setCompositeSnapshot(boolean useCompositeSnapshot) {
+    this.compositeSnapshot = useCompositeSnapshot;
+  }
+
+  public boolean isCompositeSnapshot() {
+    return this.compositeSnapshot;
   }
 
   public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
@@ -266,17 +286,20 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
     List<? extends Segment> pipelineList = pipeline.getSegments();
-    long order = pipelineList.size();
+    int order = pipelineList.size() + snapshot.getNumOfSegments();
     // The list of elements in pipeline + the active element + the snapshot segment
     // TODO : This will change when the snapshot is made of more than one element
     // The order is the Segment ordinal
-    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(pipelineList.size() + 2);
+    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(order+1);
     list.add(this.active.getScanner(readPt, order + 1));
     for (Segment item : pipelineList) {
       list.add(item.getScanner(readPt, order));
       order--;
     }
-    list.add(this.snapshot.getScanner(readPt, order));
+    for (Segment item : snapshot.getAllSegments()) {
+      list.add(item.getScanner(readPt, order));
+      order--;
+    }
     return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(getComparator(), list));
   }
 
@@ -388,6 +411,8 @@ public class CompactingMemStore extends AbstractMemStore {
     while (!done) {
       VersionedSegmentsList segments = pipeline.getVersionedList();
       pushToSnapshot(segments.getStoreSegments());
+      // swap can return false in case the pipeline was updated by ongoing compaction
+      // and the version increase, the chance of it happenning is very low
       done = pipeline.swap(segments, null, false); // don't close segments; they are in snapshot now
     }
   }
@@ -397,8 +422,10 @@ public class CompactingMemStore extends AbstractMemStore {
     if(segments.size() == 1 && !segments.get(0).isEmpty()) {
       this.snapshot = segments.get(0);
       return;
+    } else { // create composite snapshot
+      this.snapshot =
+          SegmentFactory.instance().createCompositeImmutableSegment(getComparator(), segments);
     }
-    // TODO else craete composite snapshot
   }
 
   private RegionServicesForStores getRegionServices() {

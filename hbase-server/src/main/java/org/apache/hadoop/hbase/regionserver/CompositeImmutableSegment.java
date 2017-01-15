@@ -74,7 +74,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     return new LinkedList<Segment>(segments);
   }
 
-  public long getNumOfSegments() {
+  public int getNumOfSegments() {
     return segments.size();
   }
 

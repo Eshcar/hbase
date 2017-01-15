@@ -153,7 +153,7 @@ public class ImmutableSegment extends Segment {
     return this.timeRange.getMin();
   }
 
-  public long getNumOfSegments() {
+  public int getNumOfSegments() {
     return 1;
   }
 
