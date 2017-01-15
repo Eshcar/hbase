@@ -264,6 +264,14 @@ class SequenceIdAccounting {
    * oldest/lowest outstanding edit.
    */
   Long startCacheFlush(final byte[] encodedRegionName, final Set<byte[]> families) {
+    Map<byte[],Long> familytoSeq = new HashMap<>();
+    for (byte[] familyName : families){
+      familytoSeq.put(familyName,HConstants.NO_SEQNUM);
+    }
+    return startCacheFlush(encodedRegionName,familytoSeq);
+  }
+
+  Long startCacheFlush(final byte[] encodedRegionName, final Map<byte[], Long> familyToSeq) {
     Map<ImmutableByteArray, Long> oldSequenceIds = null;
     Long lowestUnflushedInRegion = HConstants.NO_SEQNUM;
     synchronized (tieLock) {
@@ -273,9 +281,14 @@ class SequenceIdAccounting {
         // circumstance because another concurrent thread now may add sequenceids for this family
         // (see above in getOrCreateLowestSequenceId). Make sure you are ok with this. Usually it
         // is fine because updates are blocked when this method is called. Make sure!!!
-        for (byte[] familyName : families) {
-          ImmutableByteArray familyNameWrapper = ImmutableByteArray.wrap(familyName);
-          Long seqId = m.remove(familyNameWrapper);
+        for (Map.Entry<byte[], Long> entry : familyToSeq.entrySet()) {
+          ImmutableByteArray familyNameWrapper = ImmutableByteArray.wrap((byte[]) entry.getKey());
+          Long seqId = null;
+          if(entry.getValue() == HConstants.NO_SEQNUM) {
+            seqId = m.remove(familyNameWrapper);
+          } else {
+            seqId = m.replace(familyNameWrapper, entry.getValue());
+          }
           if (seqId != null) {
             if (oldSequenceIds == null) {
               oldSequenceIds = new HashMap<>();
