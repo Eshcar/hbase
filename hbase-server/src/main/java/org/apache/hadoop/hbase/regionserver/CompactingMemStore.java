@@ -407,13 +407,24 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private void pushPipelineToSnapshot() {
+    int iterationsCnt = 0;
     boolean done = false;
     while (!done) {
+      iterationsCnt++;
       VersionedSegmentsList segments = pipeline.getVersionedList();
       pushToSnapshot(segments.getStoreSegments());
       // swap can return false in case the pipeline was updated by ongoing compaction
       // and the version increase, the chance of it happenning is very low
       done = pipeline.swap(segments, null, false); // don't close segments; they are in snapshot now
+      if (iterationsCnt>2) {
+        // practically it is impossible that this loop iterates more than two times
+        // (because the compaction is stopped and none restarts it while in snapshot request),
+        // however stopping here for the case of the infinite loop causing by any error
+        LOG.warn("Multiple unsuccessful attempts to push the compaction pipeline to snapshot," +
+            " while flushing to disk.");
+        this.snapshot = SegmentFactory.instance().createImmutableSegment(getComparator());
+        break;
+      }
     }
   }
 

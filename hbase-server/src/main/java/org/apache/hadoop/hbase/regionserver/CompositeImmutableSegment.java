@@ -51,12 +51,6 @@ public class CompositeImmutableSegment extends ImmutableSegment {
 
   private long keySize = 0;
 
-  // This scanner need to be remembered in order to close it when the snapshot is cleared.
-  // Initially CollectionBackedScanner didn't raise the scanner counters thus there was no
-  // need to close it. Now when MemStoreScanner is used instead we need to decrease the
-  // scanner counters.
- // private KeyValueScanner flushingScanner = null;
-
   public CompositeImmutableSegment(CellComparator comparator, List<ImmutableSegment> segments) {
     super(comparator);
     this.comparator = comparator;
@@ -96,21 +90,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
       throw new IllegalStateException(ie);
     }
 
-  //  flushingScanner = scanner;
     return scanner;
-  }
-
-  @Override
-  public List<KeyValueScanner> getScanners(long readPoint, long order) {
-    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>(this.segments.size());
-    for (Segment segment : this.segments) {
-      scanners.add(segment.getScanner(readPoint, order));
-      // The order is the Segment ordinal
-      order--;
-      // order should never be negative so this is just a sanity check
-      order = (order<0) ? 0 : order;
-    }
-    return scanners;
   }
 
   /**
@@ -145,10 +125,6 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * Closing a segment before it is being discarded
    */
   public void close() {
-//    if (flushingScanner != null) {
-//      flushingScanner.close();
-//      flushingScanner = null;
-   // }
     for (ImmutableSegment s : segments) {
       s.close();
     }
@@ -176,19 +152,8 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * @return a scanner for the given read point
    */
   public KeyValueScanner getScanner(long readPoint) {
-    KeyValueScanner resultScanner;
-    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(segments.size());
-    for (ImmutableSegment s : segments) {
-      list.add(s.getScanner(readPoint));
-    }
-
-    try {
-      resultScanner = new MemStoreScanner(getComparator(), list);
-    } catch (IOException ie) {
-      throw new IllegalStateException(ie);
-    }
-
-    return resultScanner;
+    // Long.MAX_VALUE is DEFAULT_SCANNER_ORDER
+    return getScanner(readPoint,Long.MAX_VALUE);
   }
 
   /**
@@ -237,7 +202,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   }
 
   /**
-   * @return Sum of all cell's size.
+   * @return Sum of all cell sizes.
    */
   public long keySize() {
     return this.keySize;
