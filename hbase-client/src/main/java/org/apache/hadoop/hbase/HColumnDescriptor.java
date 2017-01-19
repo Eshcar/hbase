@@ -725,7 +725,7 @@ public class HColumnDescriptor implements Comparable<HColumnDescriptor> {
    *                  for this column family
    * @return this (for chained invocation)
    */
-  public HColumnDescriptor setInMemoryCompaction(MemoryCompaction inMemoryCompaction) {
+  public HColumnDescriptor setInMemoryCompaction(MemoryCompactionPolicy inMemoryCompaction) {
     return setValue(IN_MEMORY_COMPACTION, inMemoryCompaction.toString());
   }
 

@@ -22,13 +22,7 @@ import java.util.Arrays;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -72,10 +66,10 @@ public class TestWalAndCompactingMemStoreFlush {
       HColumnDescriptor hcd = new HColumnDescriptor(family);
       // even column families are going to have compacted memstore
       if(i%2 == 0) {
-        hcd.setInMemoryCompaction(HColumnDescriptor.MemoryCompaction.valueOf(
+        hcd.setInMemoryCompaction(MemoryCompactionPolicy.valueOf(
             conf.get(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY)));
       } else {
-        hcd.setInMemoryCompaction(HColumnDescriptor.MemoryCompaction.NONE);
+        hcd.setInMemoryCompaction(MemoryCompactionPolicy.NONE);
       }
       htd.addFamily(hcd);
       i++;
