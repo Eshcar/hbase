@@ -88,15 +88,22 @@ public class CompactingMemStore extends AbstractMemStore {
       + 2 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress and allowCompaction
       + CompactionPipeline.DEEP_OVERHEAD + MemStoreCompactor.DEEP_OVERHEAD);
 
-  public CompactingMemStore(Configuration conf, CellComparator c,
+  public CompactingMemStore(final Configuration conf, final CellComparator c,
       HStore store, RegionServicesForStores regionServices,
-      MemoryCompactionPolicy compactionPolicy) throws IOException {
-    super(conf, c);
+      final MemoryCompactionPolicy compactionPolicy,
+      final Long maxFlushedTimestamp) throws IOException {
+    super(conf, c, maxFlushedTimestamp);
     this.store = store;
     this.regionServices = regionServices;
     this.pipeline = new CompactionPipeline(getRegionServices());
     this.compactor = new MemStoreCompactor(this, compactionPolicy);
     initInmemoryFlushSize(conf);
+  }
+
+  CompactingMemStore(final Configuration conf, final CellComparator c,
+      HStore store, RegionServicesForStores regionServices,
+      final MemoryCompactionPolicy compactionPolicy) throws IOException {
+    this(conf, c, store, regionServices, compactionPolicy, 0L);
   }
 
   private void initInmemoryFlushSize(Configuration conf) {
@@ -319,8 +326,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
     List<? extends Segment> pipelineList = pipeline.getSegments();
     int order = pipelineList.size() + snapshot.getNumOfSegments();
-    // The list of elements in pipeline + the active element + the snapshot segment
-    // TODO : This will change when the snapshot is made of more than one element
+    // The list of elements in pipeline + the active element + the snapshot segments
     // The order is the Segment ordinal
     List<KeyValueScanner> list = new ArrayList<>(order+1);
     list.add(this.active.getScanner(readPt, order + 1));
@@ -332,6 +338,8 @@ public class CompactingMemStore extends AbstractMemStore {
       list.add(item.getScanner(readPt, order));
       order--;
     }
+    // TODO check if we can change the implementation to return multiple scanners
+    // so we can later filter out each one of them and not either keep all or eliminate all
     return Collections.<KeyValueScanner> singletonList(new MemStoreScanner(getComparator(), list));
   }
 

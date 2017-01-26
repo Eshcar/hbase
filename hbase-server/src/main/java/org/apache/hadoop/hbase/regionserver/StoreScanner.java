@@ -435,6 +435,10 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     long expiredTimestampCutoff = minVersions == 0 ? oldestUnexpiredTS: Long.MIN_VALUE;
 
     // include only those scan files which pass all filters
+    // TODO check if we can change the implementation to return multiple scanners from a memstore
+    // so we can filter out (here) each one of them and not either keep all or eliminate all
+    // For historical reasons MemStore (both default and Compacting) return a singleton list
+    // comprising of a single MemStoreScanner. Perhaps this is not needed. end of TODO
     for (KeyValueScanner kvs : allScanners) {
       boolean isFile = kvs.isFileScanner();
       if ((!isFile && filesOnly) || (isFile && memOnly)) {

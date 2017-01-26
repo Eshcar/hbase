@@ -22,6 +22,7 @@ package org.apache.hadoop.hbase.client;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -31,6 +32,8 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
@@ -532,4 +535,51 @@ public class Get extends Query
       return (Get) super.setIsolationLevel(level);
   }
 
+  public boolean shouldApplyMemoryScanOptimization() {
+    // TODO add a flag which indicates if the user wants to apply the optimization
+    for(Set<byte[]> columns : familyMap.values()) {
+      if(columns == null) return false; // not explicit set of columns -- cannot apply optimization
+    }
+    return true;
+  }
+
+  public boolean satisfiedWith(List<Cell> results) {
+    if(!shouldApplyMemoryScanOptimization()) return false;
+    Bytes[] columns = getColumns();
+    int[] counters = new int[columns.length];
+    // count #cells per qualifier in the list of columns
+    for(Cell cell : results) {
+      int index = 0;
+      for(Bytes col : columns) {
+        if(CellComparator.compareQualifiers(cell, col.get(), col.getOffset(), col.getLength()) ==
+            0) {
+          counters[index]++;
+        }
+        index++;
+      }
+    }
+    // verify each qualifier has sufficient number of versions as defined by the get operation
+    for (int i = 0; i < counters.length; i++) {
+      if(counters[i] < maxVersions) {
+        return false; // not enough versions
+      }
+    }
+    return true; // the get operation is satisfied with the result
+  }
+
+  // returns a set of all columns qualifiers asked by the get operation
+  private Bytes[] getColumns() {
+    Set<byte[]> allColumns = new HashSet<>();
+    for(Set<byte[]> columns : familyMap.values()) {
+      if (columns != null) {
+        allColumns.addAll(columns);
+      }
+    }
+    Bytes[] res = new Bytes[allColumns.size()];
+    int i=0;
+    for(byte[] col : allColumns) {
+      res[i++] = new Bytes(col);
+    }
+    return res;
+  }
 }
