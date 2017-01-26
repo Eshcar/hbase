@@ -117,6 +117,10 @@ public class MutableSegment extends Segment {
         && (this.timeRangeTracker.getMax() >= oldestUnexpiredTS));
   }
 
+  @Override public long getMaxTimestamp() {
+    return this.timeRangeTracker.getMax();
+  }
+
   @Override
   public long getMinTimestamp() {
     return this.timeRangeTracker.getMin();

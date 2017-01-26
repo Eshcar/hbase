@@ -137,11 +137,14 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
+<<<<<<< HEAD
   @Override
   public long getMinTimestamp(){
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
+=======
+>>>>>>> HBASE-17339: Scan-Memory-First Optimization for Get Operations
   /**
    * Creates the scanner for the given read point
    * @return a scanner for the given read point
@@ -263,6 +266,24 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   @Override
   public int compareRows(Cell left, Cell right) {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+  }
+
+  @Override
+  public long getMaxTimestamp() {
+    long max = Long.MIN_VALUE;
+    for (Segment s : segments) {
+      max = Math.max(max, s.getMaxTimestamp());
+    }
+    return max;
+  }
+
+  @Override
+  public long getMinTimestamp() {
+    long min = Long.MAX_VALUE;
+    for (Segment s : segments) {
+      min = Math.min(min, s.getMinTimestamp());
+    }
+    return min;
   }
 
   /**

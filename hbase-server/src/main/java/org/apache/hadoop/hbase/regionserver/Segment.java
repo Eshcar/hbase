@@ -180,6 +180,7 @@ public abstract class Segment {
 
   public abstract boolean shouldSeek(Scan scan, long oldestUnexpiredTS);
 
+  public abstract long getMaxTimestamp();
   public abstract long getMinTimestamp();
 
   public boolean isTagsPresent() {

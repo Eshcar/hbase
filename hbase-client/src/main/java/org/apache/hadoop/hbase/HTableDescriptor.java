@@ -197,6 +197,10 @@ public class HTableDescriptor implements Comparable<HTableDescriptor> {
   /** Relative priority of the table used for rpc scheduling */
   private static final int DEFAULT_PRIORITY = HConstants.NORMAL_QOS;
 
+  private static final String MEMORY_SCAN_OPTIMIZATION = "MEMORY_SCAN_OPTIMIZATION";
+  private static final Bytes MEMORY_SCAN_OPTIMIZATION_KEY =
+      new Bytes(Bytes.toBytes(MEMORY_SCAN_OPTIMIZATION));
+
   /*
    *  The below are ugly but better than creating them each time till we
    *  replace booleans being saved as Strings with plain booleans.  Need a
@@ -235,6 +239,8 @@ public class HTableDescriptor implements Comparable<HTableDescriptor> {
 
   public static final boolean DEFAULT_REGION_MEMSTORE_REPLICATION = true;
 
+  public static final Boolean DEFAULT_MEMORY_SCAN_OPTIMIZATION = false;
+
   private final static Map<String, String> DEFAULT_VALUES = new HashMap<>();
   private final static Set<Bytes> RESERVED_KEYWORDS = new HashSet<>();
 
@@ -250,6 +256,7 @@ public class HTableDescriptor implements Comparable<HTableDescriptor> {
     DEFAULT_VALUES.put(REGION_REPLICATION, String.valueOf(DEFAULT_REGION_REPLICATION));
     DEFAULT_VALUES.put(NORMALIZATION_ENABLED, String.valueOf(DEFAULT_NORMALIZATION_ENABLED));
     DEFAULT_VALUES.put(PRIORITY, String.valueOf(DEFAULT_PRIORITY));
+    DEFAULT_VALUES.put(MEMORY_SCAN_OPTIMIZATION, String.valueOf(DEFAULT_MEMORY_SCAN_OPTIMIZATION));
     for (String s : DEFAULT_VALUES.keySet()) {
       RESERVED_KEYWORDS.add(new Bytes(Bytes.toBytes(s)));
     }
@@ -391,8 +398,7 @@ public class HTableDescriptor implements Comparable<HTableDescriptor> {
    * @param name
    */
   private void setMetaFlags(final TableName name) {
-    setMetaRegion(isRootRegion() ||
-        name.equals(TableName.META_TABLE_NAME));
+    setMetaRegion(isRootRegion() || name.equals(TableName.META_TABLE_NAME));
   }
 
   /**
@@ -595,6 +601,17 @@ public class HTableDescriptor implements Comparable<HTableDescriptor> {
    */
   public void remove(final byte [] key) {
     remove(new Bytes(key));
+  }
+
+  /**
+   * @return true iff scan-memory-first optimization of Get operations can be applied on the table
+   */
+  public boolean getMemoryScanOptimization() {
+    return isSomething(MEMORY_SCAN_OPTIMIZATION_KEY, DEFAULT_MEMORY_SCAN_OPTIMIZATION);
+  }
+
+  public HTableDescriptor setMemoryScanOptimization(final boolean memoryScanOptimization) {
+    return setValue(MEMORY_SCAN_OPTIMIZATION_KEY, memoryScanOptimization? TRUE: FALSE);
   }
 
   /**

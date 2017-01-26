@@ -349,6 +349,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   private volatile Optional<ConfigurationManager> configurationManager;
 
+  private boolean memoryScanOptimization = HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION;
+
   // Used for testing.
   private volatile Long timeoutForWriteLock = null;
 
@@ -371,6 +373,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
     }
     return minimumReadPoint;
+  }
+
+  public boolean getMemoryScanOptimization() {
+    return memoryScanOptimization;
   }
 
   /*
@@ -767,6 +773,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.durability = htd.getDurability() == Durability.USE_DEFAULT
         ? DEFAULT_DURABILITY
         : htd.getDurability();
+    this.memoryScanOptimization = htd.getMemoryScanOptimization();
     if (rsServices != null) {
       this.rsAccounting = this.rsServices.getRegionServerAccounting();
       // don't initialize coprocessors if not running within a regionserver
@@ -2761,12 +2768,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     } finally {
       closeRegionOperation(Operation.SCAN);
     }
-  }
-
-  protected RegionScanner instantiateRegionScanner(Scan scan,
-      List<KeyValueScanner> additionalScanners) throws IOException {
-    return instantiateRegionScanner(scan, additionalScanners, HConstants.NO_NONCE,
-      HConstants.NO_NONCE);
   }
 
   protected RegionScanner instantiateRegionScanner(Scan scan,
@@ -5773,13 +5774,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     private final long maxResultSize;
     private final ScannerContext defaultScannerContext;
     private final FilterWrapper filter;
+    private Map<byte[], Long> storesMaxFlushedTimestamp;
 
     @Override
     public HRegionInfo getRegionInfo() {
       return region.getRegionInfo();
     }
 
-    RegionScannerImpl(Scan scan, List<KeyValueScanner> additionalScanners, HRegion region)
+    protected RegionScannerImpl(Scan scan, List<KeyValueScanner> additionalScanners, HRegion region)
         throws IOException {
       this(scan, additionalScanners, region, HConstants.NO_NONCE, HConstants.NO_NONCE);
     }
@@ -5824,6 +5826,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     protected void initializeScanners(Scan scan, List<KeyValueScanner> additionalScanners)
         throws IOException {
+      storesMaxFlushedTimestamp = new HashMap<>(scan.getFamilyMap().size());
       // Here we separate all scanners into two lists - scanner that provide data required
       // by the filter to operate (scanners list) and all others (joinedScanners list).
       List<KeyValueScanner> scanners = new ArrayList<>(scan.getFamilyMap().size());
@@ -5839,7 +5842,18 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) {
           Store store = stores.get(entry.getKey());
-          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt);
+          KeyValueScanner scanner;
+          try {
+            // This is the first collect of max flushed ts of stores
+            // It is later validated by a second collect if a scan memory optimization is applied
+            // It is VERY IMPORTANT that the order of the next two lines is not changed
+            // 1. collect max flushed timestamp
+            // 2. create scanner
+            storesMaxFlushedTimestamp.put(entry.getKey(), store.getMaxFlushedTimestamp());
+            scanner = store.getScanner(scan, entry.getValue(), this.readPt);
+          } catch (FileNotFoundException e) {
+            throw handleFileNotFound(e);
+          }
           instantiatedScanners.add(scanner);
           if (this.filter == null || !scan.doLoadColumnFamiliesOnDemand()
               || this.filter.isFamilyEssential(entry.getKey())) {
@@ -6408,6 +6422,41 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       if (joinedHeap != null) {
         joinedHeap.shipped();
       }
+    }
+
+    @Override
+    public boolean testTSMonotonicity() {
+      assert storesMaxFlushedTimestamp != null;
+      for(Long ts : storesMaxFlushedTimestamp.values()) {
+        if(ts == null) {
+          return false; // null indicates the store does not preserve ts monotonicity
+        }
+      }
+      return true;
+    }
+
+    @Override
+    /**
+     * We use a double-collect technique to verify that the memory scanners were created on a
+     * snapshot of all memstores in a point in time where all stores are monotonic with respect
+     * to the timestamps in store files.
+     * The values read in maxFlushedTimestamp from all stores when we created the scanners
+     * (first collect) are stored in storesMaxFlushedTimestamp.
+     * If we read the same values again (second collect) it means the values are taken from a
+     * consistent view in which all stores maintain monotonicity.
+     */
+    public boolean recheckTSMonotonicity(InternalScan scan) {
+      for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) {
+        Store store = stores.get(entry.getKey());
+        Long collectI = storesMaxFlushedTimestamp.get(entry.getKey());
+        assert collectI != null;
+        Long collectII = store.getMaxFlushedTimestamp();
+        if(!collectI.equals(collectII)) {
+          return false;
+        }
+      }
+      // double-collect: seen same max flushed ts in all stores as in the first collect
+      return true;
     }
 
     @Override
