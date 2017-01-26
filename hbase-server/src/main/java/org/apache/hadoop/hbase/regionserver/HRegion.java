@@ -774,8 +774,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         ? DEFAULT_DURABILITY
         : htd.getDurability();
     this.memoryScanOptimization = htd.getMemoryScanOptimization();
+<<<<<<< HEAD
     LOG.info("ESHCAR memoryScanOptimization="
         + memoryScanOptimization);
+=======
+>>>>>>> HBASE-17339: Scan-Memory-First Optimization for Get Operations
     if (rsServices != null) {
       this.rsAccounting = this.rsServices.getRegionServerAccounting();
       // don't initialize coprocessors if not running within a regionserver
@@ -5844,7 +5847,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) {
           Store store = stores.get(entry.getKey());
+<<<<<<< HEAD
           KeyValueScanner scanner = null;
+=======
+          KeyValueScanner scanner;
+>>>>>>> HBASE-17339: Scan-Memory-First Optimization for Get Operations
           try {
             // This is the first collect of max flushed ts of stores
             // It is later validated by a second collect if a scan memory optimization is applied

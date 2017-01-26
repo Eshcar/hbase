@@ -139,6 +139,7 @@ public interface MemStore {
    * are done
    */
   default void stopReplayingFromWAL(){return;}
+
   /**
    * A store preserves monotonicity if all timestamps in memstore are strictly greater than all
    * timestamps in store files.

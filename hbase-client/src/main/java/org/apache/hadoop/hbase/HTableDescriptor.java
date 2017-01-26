@@ -241,8 +241,8 @@ public class HTableDescriptor implements Comparable<HTableDescriptor> {
 
   public static final Boolean DEFAULT_MEMORY_SCAN_OPTIMIZATION = false;
 
-  private final static Map<String, String> DEFAULT_VALUES = new HashMap<String, String>();
-  private final static Set<Bytes> RESERVED_KEYWORDS = new HashSet<Bytes>();
+  private final static Map<String, String> DEFAULT_VALUES = new HashMap<>();
+  private final static Set<Bytes> RESERVED_KEYWORDS = new HashSet<>();
 
   static {
     DEFAULT_VALUES.put(MAX_FILESIZE,
