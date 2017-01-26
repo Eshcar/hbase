@@ -158,7 +158,7 @@ import org.apache.zookeeper.ZooKeeper.States;
 @InterfaceStability.Evolving
 @SuppressWarnings("deprecation")
 public class HBaseTestingUtility extends HBaseCommonTestingUtility {
-   private MiniZooKeeperCluster zkCluster = null;
+  private MiniZooKeeperCluster zkCluster = null;
 
   public static final String REGIONS_PER_SERVER_KEY = "hbase.test.regions-per-server";
   /**
@@ -170,6 +170,10 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
 
   public static final String PRESPLIT_TEST_TABLE_KEY = "hbase.test.pre-split-table";
   public static final boolean PRESPLIT_TEST_TABLE = true;
+
+  public static final String TESTING_MEMORY_SCAN_OPTIMIZATION =
+      "hbase.test.memory.scan.optimization";
+
   /**
    * Set if we were passed a zkCluster.  If so, we won't shutdown zk as
    * part of general shutdown.
@@ -363,7 +367,7 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    * Close both the region {@code r} and it's underlying WAL. For use in tests.
    */
   public static void closeRegionAndWAL(final Region r) throws IOException {
-    closeRegionAndWAL((HRegion)r);
+    closeRegionAndWAL((HRegion) r);
   }
 
   /**
@@ -1486,6 +1490,12 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       // on is interfering.
       hcd.setBloomFilterType(BloomType.NONE);
       htd.addFamily(hcd);
+    }
+    if(c != null) {
+      String opt = c.get(TESTING_MEMORY_SCAN_OPTIMIZATION);
+      if (opt != null) {
+        htd.setMemoryScanOptimization(Boolean.valueOf(opt));
+      }
     }
     getAdmin().createTable(htd, splitKeys);
     // HBaseAdmin only waits for regions to appear in hbase:meta

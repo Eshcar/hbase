@@ -60,7 +60,7 @@ public class DefaultMemStore extends AbstractMemStore {
   /**
    * Default constructor. Used for tests.
    */
-  public DefaultMemStore() {
+  DefaultMemStore() {
     this(HBaseConfiguration.create(), CellComparator.COMPARATOR);
   }
 
@@ -68,8 +68,13 @@ public class DefaultMemStore extends AbstractMemStore {
    * Constructor.
    * @param c Comparator
    */
-  public DefaultMemStore(final Configuration conf, final CellComparator c) {
-    super(conf, c);
+  public DefaultMemStore(final Configuration conf, final CellComparator c,
+      final Long maxFlushedTimestamp) {
+    super(conf, c, maxFlushedTimestamp);
+  }
+
+  DefaultMemStore(final Configuration conf, final CellComparator c) {
+    this(conf, c, 0L);
   }
 
   void dump() {
@@ -134,7 +139,7 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  protected List<Segment> getSegments() throws IOException {
+  protected List<Segment> getSegments() {
     List<Segment> list = new ArrayList<Segment>(2);
     list.add(this.active);
     list.add(this.snapshot);

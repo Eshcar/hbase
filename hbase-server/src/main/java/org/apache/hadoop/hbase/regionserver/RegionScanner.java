@@ -124,4 +124,12 @@ public interface RegionScanner extends InternalScanner, Shipper {
   default void shipped() throws IOException {
     // do nothing
   }
+
+  default boolean testTSMonotonicity() {
+    return false;
+  }
+
+  default boolean recheckTSMonotonicity(InternalScan scan) {
+    return false;
+  }
 }

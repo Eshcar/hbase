@@ -244,26 +244,6 @@ public class HStore implements Store {
     // Why not just pass a HColumnDescriptor in here altogether?  Even if have
     // to clone it?
     scanInfo = new ScanInfo(conf, family, ttl, timeToPurgeDeletes, this.comparator);
-    String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
-    MemoryCompactionPolicy inMemoryCompaction = family.getInMemoryCompaction();
-    if(inMemoryCompaction == null) {
-      inMemoryCompaction = MemoryCompactionPolicy.valueOf(
-          conf.get(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-              CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT));
-    }
-    switch (inMemoryCompaction) {
-      case BASIC :
-      case EAGER :
-        className = CompactingMemStore.class.getName();
-        this.memstore = new CompactingMemStore(conf, this.comparator, this,
-            this.getHRegion().getRegionServicesForStores(), inMemoryCompaction);
-        break;
-      case NONE :
-      default:
-          this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
-          Configuration.class, CellComparator.class }, new Object[] { conf, this.comparator });
-    }
-    LOG.info("Memstore class name is " + className);
     this.offPeakHours = OffPeakHours.getInstance(conf);
 
     // Setting up cache configuration for this family
@@ -288,6 +268,31 @@ public class HStore implements Store {
 
     this.storeEngine = createStoreEngine(this, this.conf, this.comparator);
     this.storeEngine.getStoreFileManager().loadFiles(loadStoreFiles());
+
+    Long maxMemstoreTSInFiles = StoreFile.getMaxMemstoreTSInList(
+        this.storeEngine.getStoreFileManager().getStorefiles());
+
+    String className = conf.get(MEMSTORE_CLASS_NAME, DefaultMemStore.class.getName());
+    MemoryCompactionPolicy inMemoryCompaction = family.getInMemoryCompaction();
+    if(inMemoryCompaction == null) {
+      inMemoryCompaction = MemoryCompactionPolicy.valueOf(
+          conf.get(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+              CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT));
+    }
+    switch (inMemoryCompaction) {
+    case BASIC :
+    case EAGER :
+      className = CompactingMemStore.class.getName();
+      this.memstore = new CompactingMemStore(conf, this.comparator, this,
+          this.getHRegion().getRegionServicesForStores(), inMemoryCompaction, maxMemstoreTSInFiles);
+      break;
+    case NONE :
+    default:
+      this.memstore = ReflectionUtils.instantiateWithCustomCtor(className, new Class[] {
+          Configuration.class, CellComparator.class , Long.class },
+          new Object[] { conf, this.comparator, maxMemstoreTSInFiles });
+    }
+    LOG.info("Memstore class name is " + className);
 
     // Initialize checksum type from name. The names are CRC32, CRC32C, etc.
     this.checksumType = getChecksumType(conf);
@@ -2501,7 +2506,18 @@ public class HStore implements Store {
 
   @Override
   public boolean isSloppyMemstore() {
-    return this.memstore.isSloppy();
+    return memstore.isSloppy();
+  }
+
+  /**
+   * A store preserves monotonicity if all timestamps in memstore are strictly greater than all
+   * timestamps in store files.
+   * @return maximal timestamp that was flushed to disk in this store or null if monotonicity is not
+   * preserved
+   */
+  @Override
+  public Long getMaxFlushedTimestamp() {
+    return memstore.getMaxFlushedTimestamp();
   }
 
   private void clearCompactedfiles(final List<StoreFile> filesToRemove) throws IOException {

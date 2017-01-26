@@ -127,4 +127,12 @@ public interface MemStore {
 
   /* Return true if the memstore may use some extra memory space*/
   boolean isSloppy();
+
+  /**
+   * A store preserves monotonicity if all timestamps in memstore are strictly greater than all
+   * timestamps in store files.
+   * @return maximal timestamp that was flushed to disk in this store or null if monotonicity is not
+   * preserved
+   */
+  Long getMaxFlushedTimestamp();
 }

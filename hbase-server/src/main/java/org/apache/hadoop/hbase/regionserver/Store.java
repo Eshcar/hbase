@@ -535,4 +535,12 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    * @return true if the memstore may need some extra memory space
    */
   boolean isSloppyMemstore();
+
+  /**
+   * A store preserves monotonicity if all timestamps in memstore are strictly greater than all
+   * timestamps in store files.
+   * @return maximal timestamp that was flushed to disk in this store or null if monotonicity is not
+   * preserved
+   */
+  Long getMaxFlushedTimestamp();
 }

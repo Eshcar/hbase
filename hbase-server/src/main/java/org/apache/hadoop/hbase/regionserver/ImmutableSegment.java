@@ -152,6 +152,11 @@ public class ImmutableSegment extends Segment {
     return this.timeRange.getMin();
   }
 
+  @Override
+  public long getMaxTimestamp() {
+    return this.timeRange.getMax();
+  }
+
   public int getNumOfSegments() {
     return 1;
   }
