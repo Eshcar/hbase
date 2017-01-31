@@ -54,7 +54,7 @@ public abstract class MemStoreSegmentsIterator implements Iterator<Cell> {
     // create the list of scanners with the smallest read point, meaning that
     // only relevant KVs are going to be returned by the pipeline traversing
     for (Segment segment : segments) {
-      scanners.add(segment.getScanner(store.getSmallestReadPoint()));
+      scanners.add(segment.getScanner(Integer.MAX_VALUE));
     }
 
     scanner = new MemStoreScanner(comparator, scanners, true);
