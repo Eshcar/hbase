@@ -479,7 +479,7 @@ public class TestAcidGuarantees implements Tool {
     Configuration c = HBaseConfiguration.create();
     int status;
     try {
-      TestAcidGuarantees test = new TestAcidGuarantees("NONE");
+      TestAcidGuarantees test = new TestAcidGuarantees(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT);
       status = ToolRunner.run(c, test, args);
     } catch (Exception e) {
       LOG.error("Exiting due to error", e);
