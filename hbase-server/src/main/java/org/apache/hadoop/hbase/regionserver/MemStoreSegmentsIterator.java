@@ -35,29 +35,14 @@ import java.util.*;
 @InterfaceAudience.Private
 public abstract class MemStoreSegmentsIterator implements Iterator<Cell> {
 
-  // scanner for full or partial pipeline (heap of segment scanners)
-  // we need to keep those scanners in order to close them at the end
-  protected KeyValueScanner scanner;
-
   protected final ScannerContext scannerContext;
 
 
   // C-tor
-  public MemStoreSegmentsIterator(List<ImmutableSegment> segments, CellComparator comparator,
-      int compactionKVMax, Store store) throws IOException {
+  public MemStoreSegmentsIterator(int compactionKVMax) throws IOException {
 
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
 
-    // list of Scanners of segments in the pipeline, when compaction starts
-    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
-
-    // create the list of scanners to traverse over all the data
-    // no dirty reads here as these are immutable segments
-    for (ImmutableSegment segment : segments) {
-      scanners.add(segment.getScanner(Integer.MAX_VALUE));
-    }
-
-    scanner = new MemStoreScanner(comparator, scanners, true);
   }
 
   public abstract void close();

@@ -41,7 +41,6 @@ import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.IsolationLevel;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -50,7 +49,6 @@ import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.KeyValueScanner;
 import org.apache.hadoop.hbase.regionserver.ScanInfo;
@@ -242,7 +240,7 @@ public class TestCoprocessorScanPolicy {
     @Override
     public InternalScanner preFlushScannerOpen(
         final ObserverContext<RegionCoprocessorEnvironment> c,
-        Store store, KeyValueScanner memstoreScanner, InternalScanner s) throws IOException {
+        Store store, List<KeyValueScanner> memstoreScanners, InternalScanner s) throws IOException {
       Long newTtl = ttls.get(store.getTableName());
       if (newTtl != null) {
         System.out.println("PreFlush:" + newTtl);
@@ -257,7 +255,7 @@ public class TestCoprocessorScanPolicy {
           oldSI.getTimeToPurgeDeletes(), oldSI.getComparator());
       Scan scan = new Scan();
       scan.setMaxVersions(newVersions == null ? oldSI.getMaxVersions() : newVersions);
-      return new StoreScanner(store, scanInfo, scan, Collections.singletonList(memstoreScanner),
+      return new StoreScanner(store, scanInfo, scan, memstoreScanners,
           ScanType.COMPACT_RETAIN_DELETES, store.getSmallestReadPoint(),
           HConstants.OLDEST_TIMESTAMP);
     }

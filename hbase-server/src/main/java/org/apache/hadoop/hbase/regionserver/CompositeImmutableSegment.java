@@ -22,11 +22,9 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -77,8 +75,8 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * general segment scanner.
    * @return a special scanner for the MemStoreSnapshot object
    */
-  public KeyValueScanner getSnapshotScanner() {
-    return getScanner(Long.MAX_VALUE, Long.MAX_VALUE);
+  public List<KeyValueScanner> getSnapshotScanners() {
+    return getScanners(Long.MAX_VALUE, Long.MAX_VALUE);
   }
 
   /**
@@ -141,7 +139,8 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    */
   public KeyValueScanner getScanner(long readPoint) {
     // Long.MAX_VALUE is DEFAULT_SCANNER_ORDER
-    return getScanner(readPoint,Long.MAX_VALUE);
+//    return getScanner(readPoint,Long.MAX_VALUE);
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   /**
@@ -149,22 +148,33 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * @return a scanner for the given read point
    */
   public KeyValueScanner getScanner(long readPoint, long order) {
-    KeyValueScanner resultScanner;
-    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(segments.size());
-    for (ImmutableSegment s : segments) {
-      list.add(s.getScanner(readPoint, order));
-    }
-
-    try {
-      resultScanner = new MemStoreScanner(getComparator(), list);
-    } catch (IOException ie) {
-      throw new IllegalStateException(ie);
-    }
-
-    return resultScanner;
+//    KeyValueScanner resultScanner;
+//    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(segments.size());
+//    for (ImmutableSegment s : segments) {
+//      list.add(s.getScanner(readPoint, order));
+//    }
+//
+//    try {
+//      resultScanner = new MemStoreScanner(getComparator(), list);
+//    } catch (IOException ie) {
+//      throw new IllegalStateException(ie);
+//    }
+//
+//    return resultScanner;
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
-  public boolean isTagsPresent() {
+  @Override
+  public List<KeyValueScanner> getScanners(long readPoint, long order) {
+    List<KeyValueScanner> list = new ArrayList<>(segments.size());
+    for (ImmutableSegment s : segments) {
+      list.add(s.getScanner(readPoint, order));
+      order--;
+    }
+    return list;
+  }
+
+    public boolean isTagsPresent() {
     for (ImmutableSegment s : segments) {
       if (s.isTagsPresent()) return true;
     }

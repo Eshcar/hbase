@@ -24,6 +24,7 @@ import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -33,11 +34,27 @@ import java.util.List;
 @InterfaceAudience.Private
 public class MemStoreMergerSegmentsIterator extends MemStoreSegmentsIterator {
 
+  // scanner for full or partial pipeline (heap of segment scanners)
+  // we need to keep those scanners in order to close them at the end
+  protected MemStoreScanner scanner;
+
+
   // C-tor
   public MemStoreMergerSegmentsIterator(List<ImmutableSegment> segments, CellComparator comparator,
       int compactionKVMax, Store store
   ) throws IOException {
-    super(segments,comparator,compactionKVMax,store);
+    super(compactionKVMax);
+    // list of Scanners of segments in the pipeline, when compaction starts
+    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
+    // create the list of scanners to traverse over all the data
+    // no dirty reads here as these are immutable segments
+    int order = segments.size();
+    for (ImmutableSegment segment : segments) {
+      scanners.add(segment.getScanner(Integer.MAX_VALUE, order));
+      order--;
+    }
+
+    scanner = new MemStoreScanner(comparator, scanners, true);
   }
 
   @Override

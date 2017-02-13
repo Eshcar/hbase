@@ -61,7 +61,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param inmemoryCompaction true if used for inmemoryCompaction.
    *        In this case, creates a forward heap always.
    */
-  public MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners,
+  protected MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners,
       boolean inmemoryCompaction) throws IOException {
     super();
     this.comparator = comparator;
@@ -82,11 +82,6 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param comparator Cell Comparator
    * @param scanners List of scanners, from which the heap will be built
    */
-  public MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners)
-      throws IOException {
-    this(comparator, scanners, false);
-  }
-
   private void initForwardKVHeapIfNeeded(CellComparator comparator, List<KeyValueScanner> scanners)
       throws IOException {
     if (heap == null) {
@@ -100,30 +95,30 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     }
   }
 
-  private boolean initReverseKVHeapIfNeeded(Cell seekKey, CellComparator comparator,
-      List<KeyValueScanner> scanners) throws IOException {
-    boolean res = false;
-    if (heap == null) {
-      // lazy init
-      // In a normal reverse scan case, at the ReversedStoreScanner level before the
-      // ReverseKeyValueheap is
-      // created we do a seekToLastRow or backwardSeek. So that will happen
-      // on all the scanners that the ReversedStoreSCanner is
-      // made of. So when we get any of those call to this scanner we init the
-      // heap here with ReversedKVHeap.
-      if (CellUtil.matchingRow(seekKey, HConstants.EMPTY_START_ROW)) {
-        for (KeyValueScanner scanner : scanners) {
-          res |= scanner.seekToLastRow();
-        }
-      } else {
-        for (KeyValueScanner scanner : scanners) {
-          res |= scanner.backwardSeek(seekKey);
-        }
-      }
-      this.heap = new ReversedKeyValueHeap(scanners, comparator);
-    }
-    return res;
-  }
+//  private boolean initReverseKVHeapIfNeeded(Cell seekKey, CellComparator comparator,
+//      List<KeyValueScanner> scanners) throws IOException {
+//    boolean res = false;
+//    if (heap == null) {
+//      // lazy init
+//      // In a normal reverse scan case, at the ReversedStoreScanner level before the
+//      // ReverseKeyValueheap is
+//      // created we do a seekToLastRow or backwardSeek. So that will happen
+//      // on all the scanners that the ReversedStoreSCanner is
+//      // made of. So when we get any of those call to this scanner we init the
+//      // heap here with ReversedKVHeap.
+//      if (CellUtil.matchingRow(seekKey, HConstants.EMPTY_START_ROW)) {
+//        for (KeyValueScanner scanner : scanners) {
+//          res |= scanner.seekToLastRow();
+//        }
+//      } else {
+//        for (KeyValueScanner scanner : scanners) {
+//          res |= scanner.backwardSeek(seekKey);
+//        }
+//      }
+//      this.heap = new ReversedKeyValueHeap(scanners, comparator);
+//    }
+//    return res;
+//  }
 
   /**
    * Returns the cell from the top-most scanner without advancing the iterator.
@@ -173,17 +168,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public boolean seek(Cell cell) throws IOException {
-    if (closed) {
-      return false;
-    }
-    initForwardKVHeapIfNeeded(comparator, scanners);
 
-    if (cell == null) {
-      close();
-      return false;
-    }
-
-    return heap.seek(cell);
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   /**
@@ -208,11 +194,12 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
     *
     *  TODO: The above comment copied from the original MemStoreScanner
     */
-    if (closed) {
-      return false;
-    }
-    initForwardKVHeapIfNeeded(comparator, scanners);
-    return heap.reseek(cell);
+//    if (closed) {
+//      return false;
+//    }
+//    initForwardKVHeapIfNeeded(comparator, scanners);
+//    return heap.reseek(cell);
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   /**
@@ -222,7 +209,8 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public long getScannerOrder() {
-    return Long.MAX_VALUE;
+    //return Long.MAX_VALUE;
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   @Override
@@ -253,11 +241,12 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   public boolean backwardSeek(Cell cell) throws IOException {
     // The first time when this happens it sets the scanners to the seek key
     // passed by the incoming scan's start row
-    if (closed) {
-      return false;
-    }
-    initReverseKVHeapIfNeeded(cell, comparator, scanners);
-    return heap.backwardSeek(cell);
+//    if (closed) {
+//      return false;
+//    }
+//    initReverseKVHeapIfNeeded(cell, comparator, scanners);
+//    return heap.backwardSeek(cell);
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   /**
@@ -268,22 +257,24 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public boolean seekToPreviousRow(Cell cell) throws IOException {
-    if (closed) {
-      return false;
-    }
-    initReverseKVHeapIfNeeded(cell, comparator, scanners);
-    if (heap.peek() == null) {
-      restartBackwardHeap(cell);
-    }
-    return heap.seekToPreviousRow(cell);
+//    if (closed) {
+//      return false;
+//    }
+//    initReverseKVHeapIfNeeded(cell, comparator, scanners);
+//    if (heap.peek() == null) {
+//      restartBackwardHeap(cell);
+//    }
+//    return heap.seekToPreviousRow(cell);
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   @Override
   public boolean seekToLastRow() throws IOException {
-    if (closed) {
-      return false;
-    }
-    return initReverseKVHeapIfNeeded(KeyValue.LOWESTKEY, comparator, scanners);
+//    if (closed) {
+//      return false;
+//    }
+//    return initReverseKVHeapIfNeeded(KeyValue.LOWESTKEY, comparator, scanners);
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   /**
@@ -292,17 +283,18 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public boolean shouldUseScanner(Scan scan, Store store, long oldestUnexpiredTS) {
-    // TODO : Check if this can be removed.
-    if (inmemoryCompaction) {
-      return true;
-    }
-
-    for (KeyValueScanner sc : scanners) {
-      if (sc.shouldUseScanner(scan, store, oldestUnexpiredTS)) {
-        return true;
-      }
-    }
-    return false;
+//    // TODO : Check if this can be removed.
+//    if (inmemoryCompaction) {
+//      return true;
+//    }
+//
+//    for (KeyValueScanner sc : scanners) {
+//      if (sc.shouldUseScanner(scan, store, oldestUnexpiredTS)) {
+//        return true;
+//      }
+//    }
+//    return false;
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
   // debug method
@@ -322,13 +314,13 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * on each scanner
    * @return false if given Cell does not exist in any scanner
    */
-  private boolean restartBackwardHeap(Cell cell) throws IOException {
-    boolean res = false;
-    for (KeyValueScanner scan : scanners) {
-      res |= scan.seekToPreviousRow(cell);
-    }
-    this.heap =
-        new ReversedKeyValueHeap(scanners, comparator);
-    return res;
-  }
+//  private boolean restartBackwardHeap(Cell cell) throws IOException {
+//    boolean res = false;
+//    for (KeyValueScanner scan : scanners) {
+//      res |= scan.seekToPreviousRow(cell);
+//    }
+//    this.heap =
+//        new ReversedKeyValueHeap(scanners, comparator);
+//    return res;
+//  }
 }

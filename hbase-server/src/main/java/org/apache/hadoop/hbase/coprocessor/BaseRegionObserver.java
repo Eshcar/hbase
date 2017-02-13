@@ -97,16 +97,16 @@ public class BaseRegionObserver implements RegionObserver {
 
   @Override
   public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
+      final Store store, final List<KeyValueScanner> memstoreScanners, final InternalScanner s)
       throws IOException {
     return s;
   }
 
   @Override
   public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s,
+      final Store store, final List<KeyValueScanner> memstoreScanners, final InternalScanner s,
       final long readPoint) throws IOException {
-    return preFlushScannerOpen(c, store, memstoreScanner, s);
+    return preFlushScannerOpen(c, store, memstoreScanners, s);
   }
 
   @Override

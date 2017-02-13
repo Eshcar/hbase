@@ -193,7 +193,7 @@ public class ZooKeeperScanPolicyObserver extends BaseRegionObserver {
 
   @Override
   public InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      Store store, KeyValueScanner memstoreScanner, InternalScanner s) throws IOException {
+      Store store, List<KeyValueScanner> memstoreScanners, InternalScanner s) throws IOException {
     ScanInfo scanInfo = getScanInfo(store, c.getEnvironment());
     if (scanInfo == null) {
       // take default action
@@ -201,7 +201,7 @@ public class ZooKeeperScanPolicyObserver extends BaseRegionObserver {
     }
     Scan scan = new Scan();
     scan.setMaxVersions(scanInfo.getMaxVersions());
-    return new StoreScanner(store, scanInfo, scan, Collections.singletonList(memstoreScanner),
+    return new StoreScanner(store, scanInfo, scan, memstoreScanners,
         ScanType.COMPACT_RETAIN_DELETES, store.getSmallestReadPoint(), HConstants.OLDEST_TIMESTAMP);
   }
 

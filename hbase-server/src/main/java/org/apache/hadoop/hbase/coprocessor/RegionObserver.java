@@ -107,19 +107,18 @@ public interface RegionObserver extends Coprocessor {
    * stored into the new {@code StoreFile} or null to perform the default processing.
    * Calling {@link org.apache.hadoop.hbase.coprocessor.ObserverContext#bypass()} has no
    * effect in this hook.
+   * @param memstoreScanners the scanners for the memstore that is flushed
    * @param c the environment provided by the region server
    * @param store the store being flushed
-   * @param memstoreScanner the scanner for the memstore that is flushed
-   * @param s the base scanner, if not {@code null}, from previous RegionObserver in the chain
-   * @return the scanner to use during the flush.  {@code null} if the default implementation
+   * @param memstoreScanners
+   *@param s the base scanner, if not {@code null}, from previous RegionObserver in the chain  @return the scanner to use during the flush.  {@code null} if the default implementation
    * is to be used.
    * @throws IOException if an error occurred on the coprocessor
-   * @deprecated Use {@link #preFlushScannerOpen(ObserverContext, Store, KeyValueScanner,
-   *             InternalScanner, long)}
+   * @deprecated Use {@link #preFlushScannerOpen(ObserverContext, Store, List, InternalScanner, long)}
    */
   @Deprecated
   InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s)
+      final Store store, final List<KeyValueScanner> memstoreScanners, final InternalScanner s)
       throws IOException;
 
   /**
@@ -131,7 +130,7 @@ public interface RegionObserver extends Coprocessor {
    * effect in this hook.
    * @param c the environment provided by the region server
    * @param store the store being flushed
-   * @param memstoreScanner the scanner for the memstore that is flushed
+   * @param memstoreScanners the scanner for the memstore that is flushed
    * @param s the base scanner, if not {@code null}, from previous RegionObserver in the chain
    * @param readPoint the readpoint to create scanner
    * @return the scanner to use during the flush.  {@code null} if the default implementation
@@ -139,7 +138,7 @@ public interface RegionObserver extends Coprocessor {
    * @throws IOException if an error occurred on the coprocessor
    */
   InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
-      final Store store, final KeyValueScanner memstoreScanner, final InternalScanner s,
+      final Store store, final List<KeyValueScanner> memstoreScanners, final InternalScanner s,
       final long readPoint) throws IOException;
 
   /**
@@ -1086,8 +1085,7 @@ public interface RegionObserver extends Coprocessor {
    * Called before a store opens a new scanner.
    * This hook is called when a "user" scanner is opened.
    * <p>
-   * See {@link #preFlushScannerOpen(ObserverContext, Store, KeyValueScanner, InternalScanner,
-   * long)} and {@link #preCompactScannerOpen(ObserverContext,
+   * See {@link #preFlushScannerOpen(ObserverContext, Store, List, InternalScanner, long)} and {@link #preCompactScannerOpen(ObserverContext,
    *  Store, List, ScanType, long, InternalScanner, CompactionRequest, long)}
    * to override scanners created for flushes or compactions, resp.
    * <p>
@@ -1117,8 +1115,7 @@ public interface RegionObserver extends Coprocessor {
    * Called before a store opens a new scanner.
    * This hook is called when a "user" scanner is opened.
    * <p>
-   * See {@link #preFlushScannerOpen(ObserverContext, Store, KeyValueScanner, InternalScanner,
-   * long)} and {@link #preCompactScannerOpen(ObserverContext,
+   * See {@link #preFlushScannerOpen(ObserverContext, Store, List, InternalScanner, long)} and {@link #preCompactScannerOpen(ObserverContext,
    *  Store, List, ScanType, long, InternalScanner, CompactionRequest, long)}
    * to override scanners created for flushes or compactions, resp.
    * <p>

@@ -128,9 +128,10 @@ public class DefaultMemStore extends AbstractMemStore {
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(2);
     list.add(this.active.getScanner(readPt, 1));
-    list.add(this.snapshot.getScanner(readPt, 0));
-    return Collections.<KeyValueScanner> singletonList(
-      new MemStoreScanner(getComparator(), list));
+    list.addAll(this.snapshot.getScanners(readPt, 0));
+    return list;
+//    return Collections.<KeyValueScanner> singletonList(
+//      new MemStoreScanner(getComparator(), list));
   }
 
   @Override
