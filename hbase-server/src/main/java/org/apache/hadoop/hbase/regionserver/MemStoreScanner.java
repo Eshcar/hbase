@@ -169,7 +169,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   @Override
   public boolean seek(Cell cell) throws IOException {
 
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**
@@ -199,7 +199,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 //    }
 //    initForwardKVHeapIfNeeded(comparator, scanners);
 //    return heap.reseek(cell);
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**
@@ -210,7 +210,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
   @Override
   public long getScannerOrder() {
     //return Long.MAX_VALUE;
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   @Override
@@ -246,7 +246,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 //    }
 //    initReverseKVHeapIfNeeded(cell, comparator, scanners);
 //    return heap.backwardSeek(cell);
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**
@@ -265,7 +265,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 //      restartBackwardHeap(cell);
 //    }
 //    return heap.seekToPreviousRow(cell);
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   @Override
@@ -274,7 +274,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 //      return false;
 //    }
 //    return initReverseKVHeapIfNeeded(KeyValue.LOWESTKEY, comparator, scanners);
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**
@@ -294,7 +294,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 //      }
 //    }
 //    return false;
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   // debug method
