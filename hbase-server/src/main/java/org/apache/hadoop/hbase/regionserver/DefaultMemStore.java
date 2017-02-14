@@ -126,7 +126,7 @@ public class DefaultMemStore extends AbstractMemStore {
    * Scanners are ordered from 0 (oldest) to newest in increasing order.
    */
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
-    List<KeyValueScanner> list = new ArrayList<KeyValueScanner>(2);
+    List<KeyValueScanner> list = new ArrayList<>();
     list.add(this.active.getScanner(readPt, 1));
     list.addAll(this.snapshot.getScanners(readPt, 0));
     return list;

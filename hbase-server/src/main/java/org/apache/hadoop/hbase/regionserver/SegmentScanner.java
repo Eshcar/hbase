@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.SortedSet;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -287,9 +288,9 @@ public class SegmentScanner implements KeyValueScanner {
   @Override
   public boolean requestSeek(Cell c, boolean forward, boolean useBloom)
       throws IOException {
-
-    throw new IllegalStateException(
-        "requestSeek cannot be called on MutableCellSetSegmentScanner");
+    return NonLazyKeyValueScanner.doRealSeek(this, c, forward);
+//    throw new IllegalStateException(
+//        "requestSeek cannot be called on MutableCellSetSegmentScanner");
   }
 
   /**
@@ -309,8 +310,7 @@ public class SegmentScanner implements KeyValueScanner {
    */
   @Override
   public void enforceSeek() throws IOException {
-    throw new IllegalStateException(
-        "enforceSeek cannot be called on MutableCellSetSegmentScanner");
+    throw new NotImplementedException("enforceSeek must not be called on a SegmentScanner");
   }
 
   /**

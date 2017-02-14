@@ -338,10 +338,12 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     }
     List<KeyValueScanner> scanners = memstore.getScanners(Long.MAX_VALUE);
     // seek
-    scanners.get(0).seek(KeyValue.LOWESTKEY);
     int count = 0;
-    while (scanners.get(0).next() != null) {
-      count++;
+    for(int i = 0; i < scanners.size(); i++) {
+      scanners.get(i).seek(KeyValue.LOWESTKEY);
+      while (scanners.get(i).next() != null) {
+        count++;
+      }
     }
     assertEquals("the count should be ", count, 150);
     scanners.get(0).close();
