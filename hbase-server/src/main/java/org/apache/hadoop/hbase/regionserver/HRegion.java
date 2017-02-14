@@ -1601,9 +1601,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               // so we do not lose data
               throw new DroppedSnapshotException("Failed clearing memory after " +
                   flushCount + " attempts on region: " +
-                  Bytes.toStringBinary(getRegionInfo().getRegionName()) + "; the remaining size: " +
+                  Bytes.toStringBinary(getRegionInfo().getRegionName()) + "\nThe remaining size: " +
                   remainingSize + "; the initial size: " + initialSize + " and the memstore size " +
-                  "from the region: " + this.addAndGetMemstoreSize(MemstoreSize.EMPTY_SIZE));
+                  "from the region: " + this.addAndGetMemstoreSize(MemstoreSize.EMPTY_SIZE) +
+                  " number of stores for this region: " + this.getStores().size());
             }
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
