@@ -1599,12 +1599,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             if (failedfFlushCount > 5) {
               // If we failed 5 times and are unable to clear memory, abort
               // so we do not lose data
+              List<Store> listStores = this.getStores();
               throw new DroppedSnapshotException("Failed clearing memory after " +
                   flushCount + " attempts on region: " +
                   Bytes.toStringBinary(getRegionInfo().getRegionName()) + "\nThe remaining size: " +
                   remainingSize + "; the initial size: " + initialSize + " and the memstore size " +
                   "from the region: " + this.addAndGetMemstoreSize(MemstoreSize.EMPTY_SIZE) +
-                  " number of stores for this region: " + this.getStores().size());
+                  " number of stores for this region: " + listStores.size() + "; 1st store size: " +
+                  listStores.get(0).getSizeOfMemStore() + "; 2nd store size: " +
+                  listStores.get(1).getSizeOfMemStore() + "; 3d store size: " +
+                  listStores.get(2).getSizeOfMemStore());
             }
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");
