@@ -4373,8 +4373,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           flush = isFlushSize(this.addAndGetMemstoreSize(memstoreSize));
 
           if (sb != null && flush) {
+            List<Store> listStores = this.getStores();
             sb.append("<<< When decided to flush, the memstore size after replaying and before flush "
-                + this.getMemstoreSize() );
+                + this.getMemstoreSize() + " number of stores for this region: " + listStores.size()
+                + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
+                + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
+                + "; 3d store size: " + listStores.get(2).getSizeOfMemStore());
           }
 
 
