@@ -886,12 +886,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // Recover any edits if available.
 
       if (sb != null) {
-        sb.append("***The memstore size before replaying: " + this.getMemstoreSize() + ";*** ");
+        sb.append("***The memstore size before replaying: " + this.getMemstoreSize() + "\n");
       }
       maxSeqId = Math.max(maxSeqId,
-        replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status));
+        replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status, sb));
       if (sb != null) {
-        sb.append("***The memstore size after replaying: " + this.getMemstoreSize() + ";*** ");
+        sb.append("\n<<< ***The memstore size after replaying: " + this.getMemstoreSize() + ";*** ");
       }
       // Make sure mvcc is up to max.
       this.mvcc.advanceTo(maxSeqId);
@@ -4112,13 +4112,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    *
    * @param maxSeqIdInStores Any edit found in split editlogs needs to be in excess of
    * the maxSeqId for the store to be applied, else its skipped.
+   * @param sb
    * @return the sequence id of the last edit added to this region out of the
    * recovered edits log or <code>minSeqId</code> if nothing added from editlogs.
    * @throws IOException
    */
-  protected long replayRecoveredEditsIfAny(final Path regiondir,
-      Map<byte[], Long> maxSeqIdInStores,
-      final CancelableProgressable reporter, final MonitoredTask status)
+  protected long replayRecoveredEditsIfAny(final Path regiondir, Map<byte[], Long> maxSeqIdInStores,
+      final CancelableProgressable reporter, final MonitoredTask status, StringBuilder sb)
       throws IOException {
     long minSeqIdForTheRegion = -1;
     for (Long maxSeqIdInStore : maxSeqIdInStores.values()) {
@@ -4160,7 +4160,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         // replay the edits. Replay can return -1 if everything is skipped, only update
         // if seqId is greater
-        seqid = Math.max(seqid, replayRecoveredEdits(edits, maxSeqIdInStores, reporter));
+        seqid = Math.max(seqid, replayRecoveredEdits(edits, maxSeqIdInStores, reporter, sb));
       } catch (IOException e) {
         boolean skipErrors = conf.getBoolean(
             HConstants.HREGION_EDITS_REPLAY_SKIP_ERRORS,
@@ -4224,8 +4224,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * recovered edits log or <code>minSeqId</code> if nothing added from editlogs.
    * @throws IOException
    */
-  private long replayRecoveredEdits(final Path edits,
-      Map<byte[], Long> maxSeqIdInStores, final CancelableProgressable reporter)
+  private long replayRecoveredEdits(final Path edits, Map<byte[], Long> maxSeqIdInStores,
+      final CancelableProgressable reporter, StringBuilder sb)
     throws IOException {
     String msg = "Replaying edits from " + edits;
     LOG.info(msg);
@@ -4371,6 +4371,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 memstoreSize);
           }
           flush = isFlushSize(this.addAndGetMemstoreSize(memstoreSize));
+
+          if (sb != null) {
+            sb.append("<<< The memstore size after replaying and before flush "
+                + this.getMemstoreSize() + ", the decision to flush was: " + flush);
+          }
+
+
           if (flush) {
             internalFlushcache(null, currentEditSeqId, stores.values(), status, false);
           }

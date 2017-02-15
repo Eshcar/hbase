@@ -698,7 +698,7 @@ public class TestHRegion {
       for (Store store : region.getStores()) {
         maxSeqIdInStores.put(store.getColumnFamilyName().getBytes(), minSeqId - 1);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status);
+      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status, null);
       assertEquals(maxSeqId, seqId);
       region.getMVCC().advanceTo(seqId);
       Get get = new Get(row);
@@ -750,7 +750,7 @@ public class TestHRegion {
       for (Store store : region.getStores()) {
         maxSeqIdInStores.put(store.getColumnFamilyName().getBytes(), recoverSeqId - 1);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status);
+      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status, null);
       assertEquals(maxSeqId, seqId);
       region.getMVCC().advanceTo(seqId);
       Get get = new Get(row);
@@ -795,7 +795,7 @@ public class TestHRegion {
       for (Store store : region.getStores()) {
         maxSeqIdInStores.put(store.getColumnFamilyName().getBytes(), minSeqId);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, null);
+      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, null, null);
       assertEquals(minSeqId, seqId);
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(this.region);
@@ -853,7 +853,7 @@ public class TestHRegion {
       for (Store store : region.getStores()) {
         maxSeqIdInStores.put(store.getColumnFamilyName().getBytes(), recoverSeqId - 1);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status);
+      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status, null);
       assertEquals(maxSeqId, seqId);
 
       // assert that the files are flushed
