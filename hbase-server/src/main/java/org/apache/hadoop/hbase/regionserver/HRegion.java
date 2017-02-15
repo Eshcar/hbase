@@ -873,24 +873,36 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     status.setStatus("Writing region info on filesystem");
     fs.checkRegionInfoOnFilesystem();
 
+    // Initialize all the HStores
+    status.setStatus("Initializing all the Stores");
+
     if (sb != null) {
       sb.append("The memstore size before initializing stores: " + this.getMemstoreSize() + "; ");
     }
-    // Initialize all the HStores
-    status.setStatus("Initializing all the Stores");
+
     long maxSeqId = initializeStores(reporter, status, sb);
     this.mvcc.advanceTo(maxSeqId);
     if (ServerRegionReplicaUtil.shouldReplayRecoveredEdits(this)) {
       // Recover any edits if available.
+
+      if (sb != null) {
+        sb.append("***The memstore size before replaying: " + this.getMemstoreSize() + ";*** ");
+      }
       maxSeqId = Math.max(maxSeqId,
         replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status));
+      if (sb != null) {
+        sb.append("***The memstore size after replaying: " + this.getMemstoreSize() + ";*** ");
+      }
       // Make sure mvcc is up to max.
       this.mvcc.advanceTo(maxSeqId);
     }
-    this.lastReplayedOpenRegionSeqId = maxSeqId;
+
     if (sb != null) {
       sb.append("The memstore size after initializing stores: " + this.getMemstoreSize() + "; ");
     }
+
+    this.lastReplayedOpenRegionSeqId = maxSeqId;
+
     this.writestate.setReadOnly(ServerRegionReplicaUtil.isReadOnly(this));
     this.writestate.flushRequested = false;
     this.writestate.compacting.set(0);
@@ -1029,6 +1041,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         throw new IOException(e.getCause());
       } finally {
         storeOpenerThreadPool.shutdownNow();
+        if (sb != null) {
+          sb.append("|| The memstore size III: " + this.getMemstoreSize() + "|| ");
+        }
         if (!allStoresOpened) {
           // something went wrong, close all opened stores
           LOG.error("Could not initialize all stores for the region=" + this);
