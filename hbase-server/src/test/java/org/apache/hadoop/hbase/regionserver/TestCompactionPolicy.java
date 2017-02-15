@@ -105,7 +105,7 @@ public class TestCompactionPolicy {
 
     hlog = new FSHLog(fs, basedir, logName, conf);
     region = HRegion.createHRegion(info, basedir, conf, htd, hlog);
-    region.close(-1);
+    region.close(-1, null);
     Path tableDir = FSUtils.getTableDir(basedir, htd.getTableName());
     region = new HRegion(tableDir, hlog, fs, conf, info, htd, null);
 
@@ -119,7 +119,7 @@ public class TestCompactionPolicy {
   public void tearDown() throws IOException {
     IOException ex = null;
     try {
-      region.close(-1);
+      region.close(-1, null);
     } catch (IOException e) {
       LOG.warn("Caught Exception", e);
       ex = e;

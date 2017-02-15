@@ -250,7 +250,7 @@ public class TestSplitTransactionOnCluster {
     assertNotNull(cc);
     // 1, A timeout split
     // 1.1 close region
-    assertEquals(2, region.close(false, -1).get(cf).size());
+    assertEquals(2, region.close(false, -1, null).get(cf).size());
     // 1.2 rollback and Region initialize again
     region.initialize();
 

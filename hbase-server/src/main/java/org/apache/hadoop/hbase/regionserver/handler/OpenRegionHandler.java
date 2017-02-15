@@ -315,7 +315,7 @@ public class OpenRegionHandler extends EventHandler {
   void cleanupFailedOpen(final HRegion region) throws IOException {
     if (region != null) {
       this.rsServices.removeFromOnlineRegions(region, null);
-      region.close(-1);
+      region.close(-1, null);
     }
   }
 

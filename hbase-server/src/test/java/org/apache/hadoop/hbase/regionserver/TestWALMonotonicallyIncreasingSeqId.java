@@ -199,7 +199,7 @@ public class TestWALMonotonicallyIncreasingSeqId {
         reader.close();
       }
       if(region != null) {
-        region.close(-1);
+        region.close(-1, null);
       }
     }
   }

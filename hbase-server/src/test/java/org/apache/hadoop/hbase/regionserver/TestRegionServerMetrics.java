@@ -452,7 +452,7 @@ public class TestRegionServerMetrics {
       region.getTableDesc().getFamily(cf).setMobThreshold(0);
 
       // closing the region forces the compaction.discharger to archive the compacted hfiles
-      ((HRegion) region).close(-1);
+      ((HRegion) region).close(-1, null);
 
       // metrics are reset by the region initialization
       ((HRegion) region).initialize();

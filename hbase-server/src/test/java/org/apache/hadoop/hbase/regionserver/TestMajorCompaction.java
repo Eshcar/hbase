@@ -118,7 +118,7 @@ public class TestMajorCompaction {
   @After
   public void tearDown() throws Exception {
     WAL wal = ((HRegion)r).getWAL();
-    ((HRegion)r).close(-1);
+    ((HRegion)r).close(-1, null);
     wal.close();
   }
 

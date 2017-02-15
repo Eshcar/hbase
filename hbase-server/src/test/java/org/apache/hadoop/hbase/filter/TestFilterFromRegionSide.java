@@ -111,7 +111,7 @@ public class TestFilterFromRegionSide {
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    REGION.close(-1);
+    REGION.close(-1, null);
   }
 
   @Test

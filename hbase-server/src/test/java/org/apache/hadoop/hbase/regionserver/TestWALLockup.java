@@ -288,7 +288,7 @@ public class TestWALLockup {
       Mockito.when(server.isStopped()).thenReturn(true);
       if (logRoller != null) logRoller.close();
       try {
-        if (region != null) region.close(-1);
+        if (region != null) region.close(-1, null);
         if (dodgyWAL != null) dodgyWAL.close();
       } catch (Exception e) {
         LOG.info("On way out", e);
@@ -475,7 +475,7 @@ public class TestWALLockup {
       }
       try {
         if (region != null) {
-          region.close(-1);
+          region.close(-1, null);
         }
         if (dodgyWAL1 != null) {
           dodgyWAL1.close();

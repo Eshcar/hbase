@@ -89,7 +89,7 @@ public class TestRegionIncrement {
   }
 
   private void closeRegion(final HRegion region) throws IOException {
-    region.close(-1);
+    region.close(-1, null);
     region.getWAL().close();
   }
 

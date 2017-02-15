@@ -105,7 +105,7 @@ public class ClientSideRegionScanner extends AbstractClientScanner {
     if (this.region != null) {
       try {
         this.region.closeRegionOperation();
-        this.region.close(true, -1);
+        this.region.close(true, -1, null);
         this.region = null;
       } catch (IOException ex) {
         LOG.warn("Exception while closing region", ex);

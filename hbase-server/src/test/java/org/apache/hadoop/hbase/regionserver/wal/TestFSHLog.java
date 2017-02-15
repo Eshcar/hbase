@@ -203,7 +203,7 @@ public class TestFSHLog extends AbstractTestFSWAL {
       assertEquals("Found seqId for the region which is already flushed",
           HConstants.NO_SEQNUM, seqId);
 
-      region.close(-1);
+      region.close(-1, null);
     }
   }
 }

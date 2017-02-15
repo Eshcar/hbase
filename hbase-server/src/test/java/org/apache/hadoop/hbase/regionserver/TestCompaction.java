@@ -135,7 +135,7 @@ public class TestCompaction {
   @After
   public void tearDown() throws Exception {
     WAL wal = r.getWAL();
-    this.r.close(-1);
+    this.r.close(-1, null);
     wal.close();
   }
 

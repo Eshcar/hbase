@@ -3072,7 +3072,7 @@ public class HRegionServer extends HasThread implements
        Map<byte[], List<StoreFile>> hstoreFiles = null;
        Exception exceptionToThrow = null;
        try{
-         hstoreFiles = ((HRegion)regionToClose).close(false, -1);
+         hstoreFiles = ((HRegion)regionToClose).close(false, -1, null);
        } catch (Exception e) {
          exceptionToThrow = e;
        }

@@ -420,7 +420,7 @@ public abstract class AbstractTestFSWAL {
       goslow.set(false);
       assertTrue(currentSequenceId >= region.getReadPoint(null));
     } finally {
-      region.close(true, -1);
+      region.close(true, -1, null);
       wal.close();
     }
   }

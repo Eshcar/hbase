@@ -364,7 +364,7 @@ public class TestWALObserver {
         assertNotNull(cp2);
         assertTrue(cp2.isPreWALRestoreCalled());
         assertTrue(cp2.isPostWALRestoreCalled());
-        region.close(-1);
+        region.close(-1, null);
         wals2.close();
         return null;
       }

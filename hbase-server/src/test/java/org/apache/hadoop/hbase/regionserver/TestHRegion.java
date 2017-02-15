@@ -248,7 +248,7 @@ public class TestHRegion {
     assertEquals(HConstants.NO_SEQNUM, region.getMaxFlushedSeqId());
     // Weird. This returns 0 if no store files or no edits. Afraid to change it.
     assertEquals(0, (long)region.getMaxStoreSeqId().get(COLUMN_FAMILY_BYTES));
-    region.close(-1);
+    region.close(-1, null);
     assertEquals(HConstants.NO_SEQNUM, region.getMaxFlushedSeqId());
     assertEquals(0, (long)region.getMaxStoreSeqId().get(COLUMN_FAMILY_BYTES));
     // Open region again.
@@ -263,7 +263,7 @@ public class TestHRegion {
     assertEquals(0, (long)region.getMaxStoreSeqId().get(COLUMN_FAMILY_BYTES));
     region.flush(true);
     long max = region.getMaxFlushedSeqId();
-    region.close(-1);
+    region.close(-1, null);
     assertEquals(max, region.getMaxFlushedSeqId());
   }
 
@@ -294,7 +294,7 @@ public class TestHRegion {
     put.addColumn(COLUMN_FAMILY_BYTES, Bytes.toBytes("abc"), value);
     region.put(put);
     // Close with something in memstore and something in the snapshot.  Make sure all is cleared.
-    region.close(-1);
+    region.close(-1, null);
     assertEquals(0, region.getMemstoreSize());
     HBaseTestingUtility.closeRegionAndWAL(region);
   }
@@ -570,7 +570,7 @@ public class TestHRegion {
           p2.add(new KeyValue(row, COLUMN_FAMILY_BYTES, qual3, 3, (byte[])null));
           region.put(p2);
           // Now try close on top of a failing flush.
-          region.close(-1);
+          region.close(-1, null);
           fail();
         } catch (DroppedSnapshotException dse) {
           // Expected
@@ -947,7 +947,7 @@ public class TestHRegion {
       // close the region now, and reopen again
       region.getTableDesc();
       region.getRegionInfo();
-      region.close(-1);
+      region.close(-1, null);
       try {
         region = HRegion.openHRegion(region, null);
       } catch (WrongRegionException wre) {
@@ -1078,7 +1078,7 @@ public class TestHRegion {
 
 
       // close the region now, and reopen again
-      region.close(-1);
+      region.close(-1, null);
       region = HRegion.openHRegion(region, null);
 
       // now check whether we have can read back the data from region
@@ -1213,7 +1213,7 @@ public class TestHRegion {
       }
       // The WAL is hosed now. It has two edits appended. We cannot roll the log without it
       // throwing a DroppedSnapshotException to force an abort. Just clean up the mess.
-      region.close(true, -1);
+      region.close(true, -1, null);
       wal.close();
 
       // 2. Test case where START_FLUSH succeeds but COMMIT_FLUSH will throw exception
@@ -5929,7 +5929,7 @@ public class TestHRegion {
       TEST_UTIL.getConfiguration(), rss, null);
 
     // close the region
-    region.close(false, -1);
+    region.close(false, -1, null);
 
     // 2 times, one for region open, the other close region
     verify(wal, times(2)).append((HRegionInfo)any(), (WALKey)any(),

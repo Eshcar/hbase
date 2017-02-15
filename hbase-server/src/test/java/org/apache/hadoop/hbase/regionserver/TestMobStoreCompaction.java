@@ -112,7 +112,7 @@ public class TestMobStoreCompaction {
 
   @After
   public void tearDown() throws Exception {
-    region.close(-1);
+    region.close(-1, null);
     fs.delete(UTIL.getDataTestDir(), true);
   }
 

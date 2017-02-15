@@ -1591,7 +1591,7 @@ public class HBaseFsck extends Configured implements Closeable {
       return false;
     }
     meta.batchMutate(puts.toArray(new Put[puts.size()]), HConstants.NO_NONCE, HConstants.NO_NONCE);
-    meta.close(-1);
+    meta.close(-1, null);
     if (meta.getWAL() != null) {
       meta.getWAL().close();
     }

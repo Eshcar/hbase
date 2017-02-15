@@ -178,7 +178,7 @@ public class TestHRegionReplayEvents {
       string+"-"+string, 1);
     when(rss.getExecutorService()).thenReturn(es);
     primaryRegion = HRegion.createHRegion(primaryHri, rootDir, CONF, htd, walPrimary);
-    primaryRegion.close(-1);
+    primaryRegion.close(-1, null);
     List<Region> regions = new ArrayList<Region>();
     regions.add(primaryRegion);
     when(rss.getOnlineRegions()).thenReturn(regions);
@@ -238,7 +238,7 @@ public class TestHRegionReplayEvents {
     verifyData(secondaryRegion, 0, 1000, cq, families);
 
     // close the region, and inspect that it has not flushed
-    Map<byte[], List<StoreFile>> files = secondaryRegion.close(false, -1);
+    Map<byte[], List<StoreFile>> files = secondaryRegion.close(false, -1, null);
     // assert that there are no files (due to flush)
     for (List<StoreFile> f : files.values()) {
       assertTrue(f.isEmpty());
@@ -283,7 +283,7 @@ public class TestHRegionReplayEvents {
 
     assertTrue(rss.getRegionServerAccounting().getGlobalMemstoreDataSize() > 0);
     // now close the region which should not cause hold because of un-committed flush
-    secondaryRegion.close(-1);
+    secondaryRegion.close(-1, null);
 
     // verify that the memstore size is back to what it was
     assertEquals(0, rss.getRegionServerAccounting().getGlobalMemstoreDataSize());
@@ -822,7 +822,7 @@ public class TestHRegionReplayEvents {
     int numRows = 100;
 
     // close the region and open again.
-    primaryRegion.close(-1);
+    primaryRegion.close(-1, null);
     primaryRegion = HRegion.openHRegion(rootDir, primaryHri, htd, walPrimary, CONF, rss, null);
 
     // now replay the edits and the flush marker
@@ -902,7 +902,7 @@ public class TestHRegionReplayEvents {
     int numRows = 200;
 
     // close the region and open again.
-    primaryRegion.close(-1);
+    primaryRegion.close(-1, null);
     primaryRegion = HRegion.openHRegion(rootDir, primaryHri, htd, walPrimary, CONF, rss, null);
 
     // now replay the edits and the flush marker
@@ -981,7 +981,7 @@ public class TestHRegionReplayEvents {
     int numRows = 100;
 
     // close the region and open again.
-    primaryRegion.close(-1);
+    primaryRegion.close(-1, null);
     primaryRegion = HRegion.openHRegion(rootDir, primaryHri, htd, walPrimary, CONF, rss, null);
 
     // now replay the edits and the flush marker
@@ -1110,7 +1110,7 @@ public class TestHRegionReplayEvents {
 
       assertGet(region, family, row2);
     } finally {
-      region.close(-1);
+      region.close(-1, null);
     }
   }
 
@@ -1121,7 +1121,7 @@ public class TestHRegionReplayEvents {
    */
   @Test
   public void testSecondaryRegionDoesNotWriteRegionEventsToWAL() throws IOException {
-    secondaryRegion.close(-1);
+    secondaryRegion.close(-1, null);
     walSecondary = spy(walSecondary);
 
     // test for region open and close
@@ -1145,7 +1145,7 @@ public class TestHRegionReplayEvents {
     verify(walSecondary, times(0)).append((HRegionInfo)any(),
       (WALKey)any(), (WALEdit)any(), anyBoolean());
 
-    secondaryRegion.close(-1);
+    secondaryRegion.close(-1, null);
     verify(walSecondary, times(0)).append((HRegionInfo)any(),
       (WALKey)any(), (WALEdit)any(),  anyBoolean());
   }
@@ -1327,7 +1327,7 @@ public class TestHRegionReplayEvents {
     // Test case 3: Test that replaying region open event markers restores readsEnabled
     disableReads(secondaryRegion);
 
-    primaryRegion.close(-1);
+    primaryRegion.close(-1, null);
     primaryRegion = HRegion.openHRegion(rootDir, primaryHri, htd, walPrimary, CONF, rss, null);
 
     reader = createWALReaderForPrimary();
@@ -1477,7 +1477,7 @@ public class TestHRegionReplayEvents {
     putDataWithFlushes(primaryRegion, 100, 0, 100); // no flush
 
     // close the region and open again.
-    primaryRegion.close(-1);
+    primaryRegion.close(-1, null);
     primaryRegion = HRegion.openHRegion(rootDir, primaryHri, htd, walPrimary, CONF, rss, null);
 
     // bulk load a file into primary region

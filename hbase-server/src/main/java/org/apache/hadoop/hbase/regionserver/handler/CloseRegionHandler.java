@@ -99,7 +99,7 @@ public class CloseRegionHandler extends EventHandler {
 
       // Close the region
       try {
-        if (region.close(abort, -1) == null) {
+        if (region.close(abort, -1, null) == null) {
           // This region got closed.  Most likely due to a split.
           // The split message will clean up the master state.
           LOG.warn("Can't close region: was already closed during close(): " +
