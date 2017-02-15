@@ -557,7 +557,7 @@ public abstract class AbstractTestWALReplay {
             countOfRestoredEdits.incrementAndGet();
           }
         };
-        long seqid3 = region3.initialize();
+        long seqid3 = region3.initialize(null);
         Result result3 = region3.get(g);
         // Assert that count of cells is same as before crash.
         assertEquals(result2.size(), result3.size());
@@ -857,9 +857,14 @@ public abstract class AbstractTestWALReplay {
               return fs;
             }
           };
+
           s = s + "The size at the region creation: " + region.getMemstoreSize() + ", ";
+          StringBuilder sb = new StringBuilder(500);
+          sb.append("\n<<< ");
+
           // The seq id this region has opened up with
-          long seqid = region.initialize();
+          long seqid = region.initialize(sb);
+          sb.append("\n");
 
           // The mvcc readpoint of from inserting data.
           long writePoint = mvcc.getWritePoint();
@@ -874,6 +879,7 @@ public abstract class AbstractTestWALReplay {
               + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
               + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
               + "; 3d store size: " + listStores.get(2).getSizeOfMemStore();
+          s = s + sb.toString();
 
           Get get = new Get(rowName);
           Result result = region.get(get);

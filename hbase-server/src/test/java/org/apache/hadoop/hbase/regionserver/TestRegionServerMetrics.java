@@ -431,7 +431,7 @@ public class TestRegionServerMetrics {
 
       region.getTableDesc().getFamily(cf).setMobThreshold(100);
       // metrics are reset by the region initialization
-      ((HRegion) region).initialize();
+      ((HRegion) region).initialize(null);
       region.compact(true);
       metricsRegionServer.getRegionServerWrapper().forceRecompute();
       assertCounter("cellsCountCompactedFromMob", numHfiles);
@@ -455,7 +455,7 @@ public class TestRegionServerMetrics {
       ((HRegion) region).close(-1, null);
 
       // metrics are reset by the region initialization
-      ((HRegion) region).initialize();
+      ((HRegion) region).initialize(null);
       region.compact(true);
       metricsRegionServer.getRegionServerWrapper().forceRecompute();
       // metrics are reset by the region initialization

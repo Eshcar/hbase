@@ -252,7 +252,7 @@ public class TestSplitTransactionOnCluster {
     // 1.1 close region
     assertEquals(2, region.close(false, -1, null).get(cf).size());
     // 1.2 rollback and Region initialize again
-    region.initialize();
+    region.initialize(null);
 
     // 2, Run Compaction cc
     assertFalse(region.compact(cc, store, NoLimitThroughputController.INSTANCE));

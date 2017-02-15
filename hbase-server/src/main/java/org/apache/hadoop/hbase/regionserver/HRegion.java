@@ -824,20 +824,22 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * @return What the next sequence (edit) id should be.
    * @throws IOException e
    * @deprecated use HRegion.createHRegion() or HRegion.openHRegion()
+   * @param sb
    */
   @Deprecated
-  public long initialize() throws IOException {
-    return initialize(null);
+  public long initialize(StringBuilder sb) throws IOException {
+    return initialize(null, sb);
   }
 
   /**
    * Initialize this region.
    *
    * @param reporter Tickle every so often if initialize is taking a while.
+   * @param sb
    * @return What the next sequence (edit) id should be.
    * @throws IOException e
    */
-  private long initialize(final CancelableProgressable reporter) throws IOException {
+  private long initialize(final CancelableProgressable reporter, StringBuilder sb) throws IOException {
 
     //Refuse to open the region if there is no column family in the table
     if (htableDescriptor.getColumnFamilyCount() == 0) {
@@ -848,7 +850,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     MonitoredTask status = TaskMonitor.get().createStatus("Initializing region " + this);
     long nextSeqId = -1;
     try {
-      nextSeqId = initializeRegionInternals(reporter, status);
+      nextSeqId = initializeRegionInternals(reporter, status, sb);
       return nextSeqId;
     } finally {
       // nextSeqid will be -1 if the initialization fails.
@@ -861,7 +863,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   private long initializeRegionInternals(final CancelableProgressable reporter,
-      final MonitoredTask status) throws IOException {
+      final MonitoredTask status, StringBuilder sb) throws IOException {
     if (coprocessorHost != null) {
       status.setStatus("Running coprocessor pre-open hook");
       coprocessorHost.preOpen();
@@ -871,6 +873,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     status.setStatus("Writing region info on filesystem");
     fs.checkRegionInfoOnFilesystem();
 
+    sb.append("The memstore size before initializing stores: " + this.getMemstoreSize() + "; ");
     // Initialize all the HStores
     status.setStatus("Initializing all the Stores");
     long maxSeqId = initializeStores(reporter, status);
@@ -883,6 +886,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       this.mvcc.advanceTo(maxSeqId);
     }
     this.lastReplayedOpenRegionSeqId = maxSeqId;
+    sb.append("The memstore size after initializing stores: " + this.getMemstoreSize() + "; ");
 
     this.writestate.setReadOnly(ServerRegionReplicaUtil.isReadOnly(this));
     this.writestate.flushRequested = false;
@@ -6487,7 +6491,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     Path tableDir = FSUtils.getTableDir(rootDir, info.getTable());
     HRegionFileSystem.createRegionOnFileSystem(conf, fs, tableDir, info);
     HRegion region = HRegion.newHRegion(tableDir, wal, fs, conf, info, hTableDescriptor, null);
-    if (initialize) region.initialize(null);
+    if (initialize) region.initialize(null, null);
     return region;
   }
 
@@ -6703,7 +6707,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     checkEncryption();
     // Refuse to open the region if a required class cannot be loaded
     checkClassLoading();
-    this.openSeqNum = initialize(reporter);
+    this.openSeqNum = initialize(reporter, null);
     this.mvcc.advanceTo(openSeqNum);
     if (wal != null && getRegionServerServices() != null && !writestate.readOnly
         && !recovering) {

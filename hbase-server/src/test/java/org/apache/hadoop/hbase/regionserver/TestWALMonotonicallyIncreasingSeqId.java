@@ -93,7 +93,7 @@ public class TestWALMonotonicallyIncreasingSeqId {
     wals = new WALFactory(walConf, null, "log_" + replicaId);
     HRegion region = new HRegion(fs, wals.getWAL(info.getEncodedNameAsBytes(),
         info.getTable().getNamespace()), conf, htd, null);
-    region.initialize();
+    region.initialize(null);
     return region;
   }
 

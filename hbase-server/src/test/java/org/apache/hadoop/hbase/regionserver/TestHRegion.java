@@ -4192,7 +4192,7 @@ public class TestHRegion {
       Path path = new Path(dir + "testStatusSettingToAbortIfAnyExceptionDuringRegionInitilization");
       region = HRegion.newHRegion(path, null, fs, CONF, info, htd, null);
       // region initialization throws IOException and set task state to ABORTED.
-      region.initialize();
+      region.initialize(null);
       fail("Region initialization should fail due to IOException");
     } catch (IOException io) {
       List<MonitoredTask> tasks = TaskMonitor.get().getTasks();

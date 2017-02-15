@@ -189,7 +189,7 @@ public class TestCompactionArchiveIOException {
         new HRegion(fs, wals.getWAL(info.getEncodedNameAsBytes(), info.getTable().getNamespace()),
             conf, htd, null);
 
-    region.initialize();
+    region.initialize(null);
 
     return region;
   }

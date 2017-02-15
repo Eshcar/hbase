@@ -165,7 +165,7 @@ public class TestMobStoreCompaction {
         countMobCellsInMetadata());
     // Change the threshold larger than the data size
     region.getTableDesc().getFamily(COLUMN_FAMILY).setMobThreshold(500);
-    region.initialize();
+    region.initialize(null);
     region.compactStores();
 
     assertEquals("After compaction: store files", 1, countStoreFiles());
