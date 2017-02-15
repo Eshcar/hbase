@@ -4372,9 +4372,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           }
           flush = isFlushSize(this.addAndGetMemstoreSize(memstoreSize));
 
-          if (sb != null) {
-            sb.append("<<< The memstore size after replaying and before flush "
-                + this.getMemstoreSize() + ", the decision to flush was: " + flush);
+          if (sb != null && flush) {
+            sb.append("<<< When decided to flush, the memstore size after replaying and before flush "
+                + this.getMemstoreSize() );
           }
 
 
