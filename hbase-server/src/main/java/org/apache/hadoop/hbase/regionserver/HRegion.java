@@ -873,7 +873,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     status.setStatus("Writing region info on filesystem");
     fs.checkRegionInfoOnFilesystem();
 
-    sb.append("The memstore size before initializing stores: " + this.getMemstoreSize() + "; ");
+    if (sb != null) {
+      sb.append("The memstore size before initializing stores: " + this.getMemstoreSize() + "; ");
+    }
     // Initialize all the HStores
     status.setStatus("Initializing all the Stores");
     long maxSeqId = initializeStores(reporter, status);
@@ -886,8 +888,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       this.mvcc.advanceTo(maxSeqId);
     }
     this.lastReplayedOpenRegionSeqId = maxSeqId;
-    sb.append("The memstore size after initializing stores: " + this.getMemstoreSize() + "; ");
-
+    if (sb != null) {
+      sb.append("The memstore size after initializing stores: " + this.getMemstoreSize() + "; ");
+    }
     this.writestate.setReadOnly(ServerRegionReplicaUtil.isReadOnly(this));
     this.writestate.flushRequested = false;
     this.writestate.compacting.set(0);
