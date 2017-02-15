@@ -878,7 +878,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     // Initialize all the HStores
     status.setStatus("Initializing all the Stores");
-    long maxSeqId = initializeStores(reporter, status);
+    long maxSeqId = initializeStores(reporter, status, sb);
     this.mvcc.advanceTo(maxSeqId);
     if (ServerRegionReplicaUtil.shouldReplayRecoveredEdits(this)) {
       // Recover any edits if available.
@@ -955,10 +955,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * Open all Stores.
    * @param reporter
    * @param status
+   * @param sb
    * @return Highest sequenceId found out in a Store.
    * @throws IOException
    */
-  private long initializeStores(final CancelableProgressable reporter, MonitoredTask status)
+  private long initializeStores(final CancelableProgressable reporter, MonitoredTask status,
+      StringBuilder sb)
   throws IOException {
     // Load in all the HStores.
 
@@ -983,6 +985,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           }
         });
       }
+
+      if (sb != null) {
+        sb.append("|| The memstore size I: " + this.getMemstoreSize() + "|| ");
+      }
+
       boolean allStoresOpened = false;
       boolean hasSloppyStores = false;
       try {
@@ -1005,6 +1012,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             maxMemstoreTS = maxStoreMemstoreTS;
           }
         }
+
+        if (sb != null) {
+          sb.append("|| The memstore size II: " + this.getMemstoreSize() + "|| ");
+        }
+
         allStoresOpened = true;
         if(hasSloppyStores) {
           htableDescriptor.setFlushPolicyClassName(FlushNonSloppyStoresFirstPolicy.class
@@ -1038,7 +1050,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // Initialize all the HStores
     status.setStatus("Warming up all the Stores");
     try {
-      initializeStores(reporter, status);
+      initializeStores(reporter, status, null);
     } finally {
       status.markComplete("Done warming up.");
     }
