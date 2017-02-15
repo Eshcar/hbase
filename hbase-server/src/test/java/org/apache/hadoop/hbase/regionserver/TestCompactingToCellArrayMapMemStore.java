@@ -361,7 +361,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     // Just doing the cnt operation here
     MemStoreSegmentsIterator itr = new MemStoreMergerSegmentsIterator(
         ((CompactingMemStore) memstore).getImmutableSegments().getStoreSegments(),
-        CellComparator.COMPARATOR, 10, ((CompactingMemStore) memstore).getStore());
+        CellComparator.COMPARATOR, 10);
     int cnt = 0;
     try {
       while (itr.next() != null) {

@@ -75,9 +75,9 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * general segment scanner.
    * @return a special scanner for the MemStoreSnapshot object
    */
-  public List<KeyValueScanner> getSnapshotScanners() {
-    return getScanners(Long.MAX_VALUE, Long.MAX_VALUE);
-  }
+//  public List<KeyValueScanner> getSnapshotScanners() {
+//    return getScanners(Long.MAX_VALUE, Long.MAX_VALUE);
+//  }
 
   /**
    * @return whether the segment has any cells

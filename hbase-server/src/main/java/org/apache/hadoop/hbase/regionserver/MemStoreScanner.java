@@ -61,7 +61,7 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    * @param inmemoryCompaction true if used for inmemoryCompaction.
    *        In this case, creates a forward heap always.
    */
-  protected MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners,
+  private MemStoreScanner(CellComparator comparator, List<KeyValueScanner> scanners,
       boolean inmemoryCompaction) throws IOException {
     super();
     this.comparator = comparator;
@@ -126,14 +126,15 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public Cell peek() {
-    if (closed) {
-      return null;
-    }
-    if (this.heap != null) {
-      return this.heap.peek();
-    }
-    // Doing this way in case some test cases tries to peek directly to avoid NPE
-    return null;
+//    if (closed) {
+//      return null;
+//    }
+//    if (this.heap != null) {
+//      return this.heap.peek();
+//    }
+//    // Doing this way in case some test cases tries to peek directly to avoid NPE
+//    return null;
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**
@@ -141,21 +142,22 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
    */
   @Override
   public Cell next() throws IOException {
-    if (closed) {
-      return null;
-    }
-    if(this.heap != null) {
-      // loop over till the next suitable value
-      // take next value from the heap
-      for (Cell currentCell = heap.next();
-          currentCell != null;
-          currentCell = heap.next()) {
-        // all the logic of presenting cells is inside the internal KeyValueScanners
-        // located inside the heap
-        return currentCell;
-      }
-    }
-    return null;
+//    if (closed) {
+//      return null;
+//    }
+//    if(this.heap != null) {
+//      // loop over till the next suitable value
+//      // take next value from the heap
+//      for (Cell currentCell = heap.next();
+//          currentCell != null;
+//          currentCell = heap.next()) {
+//        // all the logic of presenting cells is inside the internal KeyValueScanners
+//        // located inside the heap
+//        return currentCell;
+//      }
+//    }
+//    return null;
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**
@@ -215,20 +217,21 @@ public class MemStoreScanner extends NonLazyKeyValueScanner {
 
   @Override
   public void close() {
-    if (closed) {
-      return;
-    }
-    // Ensuring that all the segment scanners are closed
-    if (heap != null) {
-      heap.close();
-      // It is safe to do close as no new calls will be made to this scanner.
-      heap = null;
-    } else {
-      for (KeyValueScanner scanner : scanners) {
-        scanner.close();
-      }
-    }
-    closed = true;
+//    if (closed) {
+//      return;
+//    }
+//    // Ensuring that all the segment scanners are closed
+//    if (heap != null) {
+//      heap.close();
+//      // It is safe to do close as no new calls will be made to this scanner.
+//      heap = null;
+//    } else {
+//      for (KeyValueScanner scanner : scanners) {
+//        scanner.close();
+//      }
+//    }
+//    closed = true;
+    throw new IllegalStateException("Not supported by MemStoreScanner");
   }
 
   /**

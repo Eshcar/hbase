@@ -42,7 +42,7 @@ public class MemStoreSnapshot {
     this.dataSize = snapshot.keySize();
     this.heapOverhead = snapshot.heapOverhead();
     this.timeRangeTracker = snapshot.getTimeRangeTracker();
-    this.scanners = snapshot.getSnapshotScanners();
+    this.scanners = snapshot.getScanners(Long.MAX_VALUE, Long.MAX_VALUE);
     this.tagsPresent = snapshot.isTagsPresent();
   }
 

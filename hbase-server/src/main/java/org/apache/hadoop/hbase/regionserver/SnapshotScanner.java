@@ -32,7 +32,7 @@ import org.apache.hadoop.hbase.client.Scan;
 @InterfaceAudience.Private
 public class SnapshotScanner extends SegmentScanner {
 
-  public SnapshotScanner(Segment immutableSegment) {
+  private SnapshotScanner(Segment immutableSegment) {
     // Snapshot scanner does not need readpoint. It should read all the cells in the
     // segment
     super(immutableSegment, Long.MAX_VALUE);

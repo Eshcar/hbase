@@ -36,16 +36,21 @@ public class MemStoreMergerSegmentsIterator extends MemStoreSegmentsIterator {
 
   // scanner for full or partial pipeline (heap of segment scanners)
   // we need to keep those scanners in order to close them at the end
-  protected MemStoreScanner scanner;
+//  protected MemStoreScanner scanner;
 
+  // heap of scanners, lazily initialized
+  private KeyValueHeap heap = null;
+  // remember the initial version of the scanners list
+  List<KeyValueScanner> scanners  = new ArrayList<KeyValueScanner>();
+
+  private boolean closed = false;
 
   // C-tor
   public MemStoreMergerSegmentsIterator(List<ImmutableSegment> segments, CellComparator comparator,
-      int compactionKVMax, Store store
-  ) throws IOException {
+      int compactionKVMax) throws IOException {
     super(compactionKVMax);
-    // list of Scanners of segments in the pipeline, when compaction starts
-    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
+//    // list of Scanners of segments in the pipeline, when compaction starts
+//    List<KeyValueScanner> scanners;
     // create the list of scanners to traverse over all the data
     // no dirty reads here as these are immutable segments
     int order = segments.size();
@@ -53,20 +58,39 @@ public class MemStoreMergerSegmentsIterator extends MemStoreSegmentsIterator {
       scanners.add(segment.getScanner(Integer.MAX_VALUE, order));
       order--;
     }
-
-    scanner = new MemStoreScanner(comparator, scanners, true);
+    heap = new KeyValueHeap(scanners, comparator);
+//    scanner = new MemStoreScanner(comparator, scanners, true);
   }
 
   @Override
   public boolean hasNext() {
-    return (scanner.peek()!=null);
+//    return (scanner.peek()!=null);
+    if (closed) {
+      return false;
+    }
+    if (this.heap != null) {
+      return (this.heap.peek() != null);
+    }
+    // Doing this way in case some test cases tries to peek directly
+    return false;
   }
 
   @Override
   public Cell next()  {
     Cell result = null;
     try {                 // try to get next
-      result = scanner.next();
+//      result = scanner.next();
+      if (!closed && heap != null) {
+        // loop over till the next suitable value
+        // take next value from the heap
+        for (Cell currentCell = heap.next();
+             currentCell != null;
+             currentCell = heap.next()) {
+          // all the logic of presenting cells is inside the internal KeyValueScanners
+          // located inside the heap
+          result = currentCell;
+        }
+      }
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
     }
@@ -74,8 +98,20 @@ public class MemStoreMergerSegmentsIterator extends MemStoreSegmentsIterator {
   }
 
   public void close() {
-    scanner.close();
-    scanner = null;
+    if (closed) {
+      return;
+    }
+    // Ensuring that all the segment scanners are closed
+    if (heap != null) {
+      heap.close();
+      // It is safe to do close as no new calls will be made to this scanner.
+      heap = null;
+    } else {
+      for (KeyValueScanner scanner : scanners) {
+        scanner.close();
+      }
+    }
+    closed = true;
   }
 
   @Override

@@ -138,9 +138,9 @@ public class ImmutableSegment extends Segment {
    * general segment scanner.
    * @return a special scanner for the MemStoreSnapshot object
    */
-  public List<KeyValueScanner> getSnapshotScanners() {
-    return Collections.singletonList(new SnapshotScanner(this));
-  }
+//  public List<KeyValueScanner> getSnapshotScanners() {
+//    return Collections.singletonList(new SegmentScanner(this, Long.MAX_VALUE));
+//  }
 
   @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
