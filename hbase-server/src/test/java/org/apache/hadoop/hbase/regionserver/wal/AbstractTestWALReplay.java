@@ -857,7 +857,7 @@ public abstract class AbstractTestWALReplay {
               return fs;
             }
           };
-          s = s + region.getMemstoreSize() + ", ";
+          s = s + "The size at the region creation: " + region.getMemstoreSize() + ", ";
           // The seq id this region has opened up with
           long seqid = region.initialize();
 
@@ -867,7 +867,14 @@ public abstract class AbstractTestWALReplay {
           // We flushed during init.
           assertTrue("Flushcount=" + flushcount.get(), flushcount.get() > 0);
           assertTrue((seqid - 1) == writePoint);
-          s = s + region.getMemstoreSize() + ", ";
+
+          List<Store> listStores = region.getStores();
+          s = s + "the size after initiation " + region.getMemstoreSize() + ", ";
+          s = s + " number of stores for this region: " + listStores.size()
+              + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
+              + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
+              + "; 3d store size: " + listStores.get(2).getSizeOfMemStore();
+
           Get get = new Get(rowName);
           Result result = region.get(get);
           // Make sure we only see the good edits
