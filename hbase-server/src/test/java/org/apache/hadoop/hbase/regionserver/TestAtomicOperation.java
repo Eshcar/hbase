@@ -105,7 +105,7 @@ public class TestAtomicOperation {
   public void teardown() throws IOException {
     if (region != null) {
       BlockCache bc = region.getStores().get(0).getCacheConfig().getBlockCache();
-      ((HRegion)region).close();
+      ((HRegion)region).close(-1);
       WAL wal = ((HRegion)region).getWAL();
       if (wal != null) wal.close();
       if (bc != null) bc.shutdown();

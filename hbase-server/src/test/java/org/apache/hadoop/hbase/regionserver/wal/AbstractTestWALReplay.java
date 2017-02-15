@@ -331,7 +331,7 @@ public abstract class AbstractTestWALReplay {
           + mvcc.getReadPoint());
 
       // TODO: Scan all.
-      region.close();
+      region.close(-1);
     } finally {
       wal3.close();
     }
@@ -394,7 +394,7 @@ public abstract class AbstractTestWALReplay {
         assertEquals(rowsInsertedCount, getScannedCount(region2.getScanner(new Scan())));
 
         // I can't close wal1.  Its been appropriated when we split.
-        region2.close();
+        region2.close(-1);
         wal2.close();
         return null;
       }
@@ -465,7 +465,7 @@ public abstract class AbstractTestWALReplay {
         assertEquals(rowsInsertedCount, getScannedCount(region2.getScanner(new Scan())));
 
         // I can't close wal1.  Its been appropriated when we split.
-        region2.close();
+        region2.close(-1);
         wal2.close();
         return null;
       }
@@ -519,7 +519,7 @@ public abstract class AbstractTestWALReplay {
     // Now close the region (without flush), split the log, reopen the region and assert that
     // replay of log has the correct effect, that our seqids are calculated correctly so
     // all edits in logs are seen as 'stale'/old.
-    region.close(true);
+    region.close(true, -1);
     wal.shutdown();
     runWALSplit(this.conf);
     WAL wal2 = createWAL(this.conf, hbaseRootDir, logName);
@@ -565,7 +565,7 @@ public abstract class AbstractTestWALReplay {
           countOfRestoredEdits.get());
 
         // I can't close wal1.  Its been appropriated when we split.
-        region3.close();
+        region3.close(-1);
         wal3.close();
         return null;
       }
@@ -622,7 +622,7 @@ public abstract class AbstractTestWALReplay {
 
     // Let us flush the region
     region.flush(true);
-    region.close(true);
+    region.close(true, -1);
     wal.shutdown();
 
     // delete the store files in the second column family to simulate a failure
@@ -743,7 +743,7 @@ public abstract class AbstractTestWALReplay {
           + t.getMessage());
     }
 
-    region.close(true);
+    region.close(true, -1);
     wal.shutdown();
 
     // Let us try to split and recover
@@ -871,7 +871,7 @@ public abstract class AbstractTestWALReplay {
           // Make sure we only see the good edits
           assertEquals(countPerFamily * (htd.getFamilies().size() - 1),
             result.size());
-          region.close();
+          region.close(region.getMemstoreSize());
         } finally {
           newWal.close();
         }
@@ -967,7 +967,7 @@ public abstract class AbstractTestWALReplay {
     assertEquals(countPerFamily * htd.getFamilies().size(), result.size());
     // Now close the region (without flush), split the log, reopen the region and assert that
     // replay of log has the correct effect.
-    region.close(true);
+    region.close(true, -1);
     wal.shutdown();
 
     runWALSplit(this.conf);

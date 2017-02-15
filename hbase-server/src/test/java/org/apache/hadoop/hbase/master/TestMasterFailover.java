@@ -386,7 +386,7 @@ public class TestMasterFailover {
       rs.getServerName(), State.PENDING_OPEN);
     Region meta = rs.getFromOnlineRegions(HRegionInfo.FIRST_META_REGIONINFO.getEncodedName());
     rs.removeFromOnlineRegions(meta, null);
-    ((HRegion)meta).close();
+    ((HRegion)meta).close(-1);
 
     log("Aborting master");
     activeMaster.abort("test-kill");

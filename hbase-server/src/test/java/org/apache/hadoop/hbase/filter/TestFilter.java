@@ -1529,7 +1529,7 @@ public class TestFilter {
     scanner.close();
 
     WAL wal = ((HRegion)testRegion).getWAL();
-    ((HRegion)testRegion).close();
+    ((HRegion)testRegion).close(-1);
     wal.close();
   }
 
@@ -2139,7 +2139,7 @@ public class TestFilter {
     }
     assertFalse(scanner.next(results));
     WAL wal = ((HRegion)testRegion).getWAL();
-    ((HRegion)testRegion).close();
+    ((HRegion)testRegion).close(-1);
     wal.close();
   }
 }

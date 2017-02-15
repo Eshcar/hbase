@@ -91,7 +91,7 @@ public class TestMinorCompaction {
   @After
   public void tearDown() throws Exception {
     WAL wal = ((HRegion)r).getWAL();
-    ((HRegion)r).close();
+    ((HRegion)r).close(-1);
     wal.close();
   }
 

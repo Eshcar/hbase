@@ -375,7 +375,7 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    */
   public static void closeRegionAndWAL(final HRegion r) throws IOException {
     if (r == null) return;
-    r.close();
+    r.close(-1);
     if (r.getWAL() == null) return;
     r.getWAL().close();
   }

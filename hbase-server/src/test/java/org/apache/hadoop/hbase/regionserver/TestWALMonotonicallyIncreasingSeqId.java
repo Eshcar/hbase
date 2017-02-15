@@ -40,9 +40,7 @@ import org.junit.experimental.categories.Category;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadFactory;
 
 /**
  * Test for HBASE-17471
@@ -201,7 +199,7 @@ public class TestWALMonotonicallyIncreasingSeqId {
         reader.close();
       }
       if(region != null) {
-        region.close();
+        region.close(-1);
       }
     }
   }

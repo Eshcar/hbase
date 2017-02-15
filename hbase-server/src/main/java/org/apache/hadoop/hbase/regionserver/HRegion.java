@@ -1437,9 +1437,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * @throws DroppedSnapshotException Thrown when replay of wal is required
    * because a Snapshot was not properly persisted. The region is put in closing mode, and the
    * caller MUST abort after this.
+   * @param memstoreSize
    */
-  public Map<byte[], List<StoreFile>> close() throws IOException {
-    return close(false);
+  public Map<byte[], List<StoreFile>> close(long memstoreSize) throws IOException {
+    return close(false, memstoreSize);
   }
 
   private final Object closeLock = new Object();
@@ -1470,6 +1471,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * time-sensitive thread.
    *
    * @param abort true if server is aborting (only during testing)
+   * @param memstoreSize
    * @return Vector of all the storage files that the HRegion's component
    * HStores make use of.  It's a list of HStoreFile objects.  Can be null if
    * we are not to close at this time or we are already closed.
@@ -1479,7 +1481,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * because a Snapshot was not properly persisted. The region is put in closing mode, and the
    * caller MUST abort after this.
    */
-  public Map<byte[], List<StoreFile>> close(final boolean abort) throws IOException {
+  public Map<byte[], List<StoreFile>> close(final boolean abort, long memstoreSize) throws IOException {
     // Only allow one thread to close at a time. Serialize them so dual
     // threads attempting to close will run up against each other.
     MonitoredTask status = TaskMonitor.get().createStatus(
@@ -1489,7 +1491,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     status.setStatus("Waiting for close lock");
     try {
       synchronized (closeLock) {
-        return doClose(abort, status);
+        return doClose(abort, status, memstoreSize);
       }
     } finally {
       status.cleanup();
@@ -1517,7 +1519,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="UL_UNRELEASED_LOCK_EXCEPTION_PATH",
       justification="I think FindBugs is confused")
-  private Map<byte[], List<StoreFile>> doClose(final boolean abort, MonitoredTask status)
+  private Map<byte[], List<StoreFile>> doClose(final boolean abort, MonitoredTask status,
+      long memstoreSize)
       throws IOException {
     if (isClosed()) {
       LOG.warn("Region " + this + " already closed");
@@ -1600,15 +1603,17 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               // If we failed 5 times and are unable to clear memory, abort
               // so we do not lose data
               List<Store> listStores = this.getStores();
-              throw new DroppedSnapshotException("Failed clearing memory after " +
-                  flushCount + " attempts on region: " +
-                  Bytes.toStringBinary(getRegionInfo().getRegionName()) + "\nThe remaining size: " +
-                  remainingSize + "; the initial size: " + initialSize + " and the memstore size " +
-                  "from the region: " + this.addAndGetMemstoreSize(MemstoreSize.EMPTY_SIZE) +
-                  " number of stores for this region: " + listStores.size() + "; 1st store size: " +
-                  listStores.get(0).getSizeOfMemStore() + "; 2nd store size: " +
-                  listStores.get(1).getSizeOfMemStore() + "; 3d store size: " +
-                  listStores.get(2).getSizeOfMemStore());
+              throw new DroppedSnapshotException("\n<<< Failed clearing memory after "
+                  + flushCount + " attempts on region: "
+                  + Bytes.toStringBinary(getRegionInfo().getRegionName())
+                  + "\n<<< The remaining size: " + remainingSize + "; the initial size: "
+                  + initialSize + " and the memstore size " + "from the region: "
+                  + this.addAndGetMemstoreSize(MemstoreSize.EMPTY_SIZE)
+                  + " number of stores for this region: " + listStores.size()
+                  + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
+                  + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
+                  + "; 3d store size: " + listStores.get(2).getSizeOfMemStore()
+                  + "\n<<< The initial total memstores' size: " + memstoreSize);
             }
           } catch (IOException ioe) {
             status.setStatus("Failed flush " + this + ", putting online again");

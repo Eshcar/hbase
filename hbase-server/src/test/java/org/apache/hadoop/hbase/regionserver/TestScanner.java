@@ -274,7 +274,7 @@ public class TestScanner {
 
       // Close and re-open
 
-      ((HRegion)region).close();
+      ((HRegion)region).close(-1);
       region = HRegion.openHRegion(region, null);
       table = new RegionAsTable(region);
 
@@ -311,7 +311,7 @@ public class TestScanner {
 
       // Close and reopen
 
-      ((HRegion)region).close();
+      ((HRegion)region).close(-1);
       region = HRegion.openHRegion(region,null);
       table = new RegionAsTable(region);
 
@@ -345,7 +345,7 @@ public class TestScanner {
 
       // Close and reopen
 
-      ((HRegion)this.region).close();
+      ((HRegion)this.region).close(-1);
       this.region = HRegion.openHRegion(region, null);
       table = new RegionAsTable(this.region);
 

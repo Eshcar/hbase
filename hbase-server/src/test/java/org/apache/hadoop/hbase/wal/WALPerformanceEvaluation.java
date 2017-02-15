@@ -537,7 +537,7 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
 
   private void closeRegion(final HRegion region) throws IOException {
     if (region != null) {
-      region.close();
+      region.close(-1);
       WAL wal = region.getWAL();
       if (wal != null) {
         wal.shutdown();

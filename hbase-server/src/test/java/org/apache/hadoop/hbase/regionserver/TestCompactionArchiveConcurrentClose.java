@@ -136,7 +136,7 @@ public class TestCompactionArchiveConcurrentClose {
       public void run() {
         // wait for the chore to complete and call close
         try {
-          ((HRegion) region).close();
+          ((HRegion) region).close(-1);
         } catch (IOException e) {
           closeException.set(e);
         }

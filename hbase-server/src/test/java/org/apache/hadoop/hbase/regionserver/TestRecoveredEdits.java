@@ -121,7 +121,7 @@ public class TestRecoveredEdits {
     List<String> storeFiles = region.getStoreFileList(columnFamilyAsByteArray);
     // There should be no store files.
     assertTrue(storeFiles.isEmpty());
-    region.close();
+    region.close(-1);
     Path regionDir = region.getRegionDir(hbaseRootDir, hri);
     Path recoveredEditsDir = WALSplitter.getRegionDirRecoveredEditsDir(regionDir);
     // This is a little fragile getting this path to a file of 10M of edits.

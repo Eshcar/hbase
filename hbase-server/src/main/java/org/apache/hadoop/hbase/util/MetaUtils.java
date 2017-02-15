@@ -116,7 +116,7 @@ public class MetaUtils {
   public synchronized void shutdown() {
     if (this.metaRegion != null) {
       try {
-        this.metaRegion.close();
+        this.metaRegion.close(-1);
       } catch (IOException e) {
         LOG.error("closing meta region", e);
       } finally {
@@ -126,7 +126,7 @@ public class MetaUtils {
     try {
       for (HRegion r: metaRegions.values()) {
         LOG.info("CLOSING hbase:meta " + r.toString());
-        r.close();
+        r.close(-1);
       }
     } catch (IOException e) {
       LOG.error("closing meta region", e);

@@ -95,7 +95,7 @@ public class TestMobFileCache extends TestCase {
 
   @Override
   protected void tearDown() throws Exception {
-    region.close();
+    region.close(-1);
     region.getFilesystem().delete(UTIL.getDataTestDir(), true);
   }
 

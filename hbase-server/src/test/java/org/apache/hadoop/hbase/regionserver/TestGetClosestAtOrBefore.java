@@ -292,7 +292,7 @@ public class TestGetClosestAtOrBefore  {
       if (region != null) {
         try {
           WAL wal = ((HRegion)region).getWAL();
-          ((HRegion)region).close();
+          ((HRegion)region).close(-1);
           wal.close();
         } catch (Exception e) {
           e.printStackTrace();
@@ -350,7 +350,7 @@ public class TestGetClosestAtOrBefore  {
       if (region != null) {
         try {
           WAL wal = ((HRegion)region).getWAL();
-          ((HRegion)region).close();
+          ((HRegion)region).close(-1);
           wal.close();
         } catch (Exception e) {
           e.printStackTrace();

@@ -158,7 +158,7 @@ public class TestCompactionArchiveIOException {
 
     // close the region
     try {
-      region.close();
+      region.close(-1);
     } catch (FailedArchiveException e) {
       // expected due to errorfile
       assertEquals(1, e.getFailedFiles().size());

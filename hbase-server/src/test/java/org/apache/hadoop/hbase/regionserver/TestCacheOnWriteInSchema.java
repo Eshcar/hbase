@@ -182,7 +182,7 @@ public class TestCacheOnWriteInSchema {
   public void tearDown() throws IOException {
     IOException ex = null;
     try {
-      region.close();
+      region.close(-1);
     } catch (IOException e) {
       LOG.warn("Caught Exception", e);
       ex = e;

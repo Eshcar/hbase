@@ -26,7 +26,6 @@ import org.apache.hadoop.hbase.test.MetricsAssertHelper;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.JVMClusterUtil.RegionServerThread;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -453,7 +452,7 @@ public class TestRegionServerMetrics {
       region.getTableDesc().getFamily(cf).setMobThreshold(0);
 
       // closing the region forces the compaction.discharger to archive the compacted hfiles
-      ((HRegion) region).close();
+      ((HRegion) region).close(-1);
 
       // metrics are reset by the region initialization
       ((HRegion) region).initialize();

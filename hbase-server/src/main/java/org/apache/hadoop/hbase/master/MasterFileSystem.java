@@ -391,7 +391,7 @@ public class MasterFileSystem {
       setInfoFamilyCachingForMeta(metaDescriptor, false);
       HRegion meta = HRegion.createHRegion(metaHRI, rd, c, metaDescriptor, null);
       setInfoFamilyCachingForMeta(metaDescriptor, true);
-      meta.close();
+      meta.close(-1);
     } catch (IOException e) {
         e = e instanceof RemoteException ?
                 ((RemoteException)e).unwrapRemoteException() : e;

@@ -92,7 +92,7 @@ public class TestParallelPut {
   @After
   public void tearDown() throws Exception {
     EnvironmentEdgeManagerTestHelper.reset();
-    if (region != null) region.close(true);
+    if (region != null) region.close(true, -1);
   }
   
   public String getName() {

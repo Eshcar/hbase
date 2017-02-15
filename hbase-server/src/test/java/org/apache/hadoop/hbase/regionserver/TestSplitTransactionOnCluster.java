@@ -39,7 +39,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.CoordinatedStateManager;
 import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
@@ -251,7 +250,7 @@ public class TestSplitTransactionOnCluster {
     assertNotNull(cc);
     // 1, A timeout split
     // 1.1 close region
-    assertEquals(2, region.close(false).get(cf).size());
+    assertEquals(2, region.close(false, -1).get(cf).size());
     // 1.2 rollback and Region initialize again
     region.initialize();
 

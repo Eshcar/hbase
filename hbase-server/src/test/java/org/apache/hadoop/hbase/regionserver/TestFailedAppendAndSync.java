@@ -248,7 +248,7 @@ public class TestFailedAppendAndSync {
       if (logRoller != null) logRoller.close();
       if (region != null) {
         try {
-          region.close(true);
+          region.close(true, -1);
         } catch (DroppedSnapshotException e) {
           LOG.info("On way out; expected!", e);
         }

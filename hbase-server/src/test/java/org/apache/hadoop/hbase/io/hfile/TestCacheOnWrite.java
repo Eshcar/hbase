@@ -456,7 +456,7 @@ public class TestCacheOnWrite {
       assertNotEquals(BlockType.ENCODED_DATA, block.getBlockType());
       assertNotEquals(BlockType.DATA, block.getBlockType());
     }
-    ((HRegion)region).close();
+    ((HRegion)region).close(-1);
   }
 
   @Test

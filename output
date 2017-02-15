@@ -1,0 +1,1465 @@
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] Apache HBase
+[INFO] Apache HBase - Checkstyle
+[INFO] Apache HBase - Resource Bundle
+[INFO] Apache HBase - Annotations
+[INFO] Apache HBase - Protocol
+[INFO] Apache HBase - Common
+[INFO] Apache HBase - Procedure
+[INFO] Apache HBase - Client
+[INFO] Apache HBase - Hadoop Compatibility
+[INFO] Apache HBase - Hadoop Two Compatibility
+[INFO] Apache HBase - Prefix Tree
+[INFO] Apache HBase - Server
+[INFO] Apache HBase - Testing Util
+[INFO] Apache HBase - Thrift
+[INFO] Apache HBase - Shell
+[INFO] Apache HBase - Integration Tests
+[INFO] Apache HBase - Examples
+[INFO] Apache HBase - Rest
+[INFO] Apache HBase - External Block Cache
+[INFO] Apache HBase - Spark
+[INFO] Apache HBase - Assembly
+[INFO] Apache HBase - Shaded
+[INFO] Apache HBase - Shaded - Client
+[INFO] Apache HBase - Shaded - Server
+[INFO] Apache HBase - Archetypes
+[INFO] Apache HBase - Exemplar for hbase-client archetype
+[INFO] Apache HBase - Exemplar for hbase-shaded-client archetype
+[INFO] Apache HBase - Archetype builder
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase ---
+[INFO] 
+[INFO] --- findbugs-maven-plugin:3.0.0:findbugs (default) @ hbase ---
+[INFO] 
+[INFO] --- maven-site-plugin:3.4:attach-descriptor (attach-descriptor) @ hbase ---
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Checkstyle 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-checkstyle ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-checkstyle ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-checkstyle ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-checkstyle ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-checkstyle ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-checkstyle ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-checkstyle/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-checkstyle ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-checkstyle ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-checkstyle ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-checkstyle ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-checkstyle/target/hbase-checkstyle-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-checkstyle ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-checkstyle/target/hbase-checkstyle-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Resource Bundle 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-resource-bundle ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-resource-bundle ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-resource-bundle ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:bundle (build-hbase-resource-bundle) @ hbase-resource-bundle ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-resource-bundle ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 3 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-resource-bundle ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-resource-bundle ---
+[INFO] Not copying test resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-resource-bundle ---
+[INFO] Not compiling test sources
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-resource-bundle ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-resource-bundle ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-resource-bundle ---
+[INFO] Skipping packaging of the test-jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-resource-bundle ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-resource-bundle/target/hbase-resource-bundle-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Annotations 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-annotations ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-annotations ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-annotations ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-annotations ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-annotations/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-annotations ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-annotations ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-annotations/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-annotations ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-annotations ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-annotations ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-annotations ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-annotations/target/hbase-annotations-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-annotations ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-annotations/target/hbase-annotations-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Protocol 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-protocol ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-protocol ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-protocol ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-protocol ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-protocol/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-protocol ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-protocol ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-protocol/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-protocol ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-protocol ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-protocol ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-protocol ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-protocol/target/hbase-protocol-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-protocol ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-protocol/target/hbase-protocol-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-protocol ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-protocol/target/hbase-protocol-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Common 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-common ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-common ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (generate) @ hbase-common ---
+[INFO] Executing tasks
+
+main:
+     [exec] ~/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common ~/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common
+     [exec] ~/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (versionInfo-source) @ hbase-common ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/generated-sources/java added.
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-common ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-common ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (default) @ hbase-common ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-common ---
+[INFO] Compiling 2 source files to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/classes
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-common ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-common ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource to META-INF/
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-common ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-common ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-common ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-common ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/hbase-common-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-common ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/hbase-common-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-common ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/hbase-common-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Procedure 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-procedure ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-procedure ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-procedure ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-procedure ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-procedure/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-procedure ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-procedure ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-procedure ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-procedure ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-procedure ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-procedure ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-procedure/target/hbase-procedure-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-procedure ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-procedure/target/hbase-procedure-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-procedure ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-procedure/target/hbase-procedure-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Client 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-client ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-client ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-client ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-client ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-client ---
+[INFO] Compiling 3 source files to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-client/target/classes
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-client ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-client ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-client ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-client ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-client ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-client/target/hbase-client-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-client ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-client/target/hbase-client-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-client ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-client/target/hbase-client-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Hadoop Compatibility 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-hadoop-compat ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-hadoop-compat ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-hadoop-compat ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-hadoop-compat ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop-compat/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-hadoop-compat ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-hadoop-compat ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-hadoop-compat ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-hadoop-compat ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-hadoop-compat ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-hadoop-compat ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop-compat/target/hbase-hadoop-compat-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-hadoop-compat ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop-compat/target/hbase-hadoop-compat-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-hadoop-compat ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop-compat/target/hbase-hadoop-compat-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Hadoop Two Compatibility 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-hadoop2-compat ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-hadoop2-compat ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-hadoop2-compat ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-hadoop2-compat ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 17 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-hadoop2-compat ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.4:build-classpath (create-mrapp-generated-classpath) @ hbase-hadoop2-compat ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop2-compat/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-hadoop2-compat ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-hadoop2-compat ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-hadoop2-compat ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-hadoop2-compat ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-hadoop2-compat ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop2-compat/target/hbase-hadoop2-compat-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-hadoop2-compat ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop2-compat/target/hbase-hadoop2-compat-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-hadoop2-compat ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop2-compat/target/hbase-hadoop2-compat-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Prefix Tree 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-prefix-tree ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-prefix-tree ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-prefix-tree ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-prefix-tree ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-prefix-tree/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-prefix-tree ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-prefix-tree ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-prefix-tree ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-prefix-tree ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-prefix-tree ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-prefix-tree ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-prefix-tree/target/hbase-prefix-tree-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-prefix-tree ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-prefix-tree/target/hbase-prefix-tree-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-prefix-tree ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-prefix-tree/target/hbase-prefix-tree-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Server 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-server ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-server ---
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (jspcSource-packageInfo-source) @ hbase-server ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/generated-jamon added.
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/generated-sources/java added.
+[INFO] 
+[INFO] --- jamon-maven-plugin:2.4.1:translate (default) @ hbase-server ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (generate) @ hbase-server ---
+[INFO] Executing tasks
+
+main:
+[INFO] Logging to org.slf4j.impl.SimpleLogger(org.mortbay.log) via org.mortbay.log.Slf4jLog
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-server ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-server ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 22 resources
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-server ---
+[INFO] Compiling 7 source files to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/classes
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-server ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-server ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource to META-INF/
+[INFO] Copying 16 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-server ---
+[INFO] Compiling 1 source file to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/test-classes
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-server ---
+
+-------------------------------------------------------
+ T E S T S
+-------------------------------------------------------
+Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=256m; support was removed in 8.0
+Running org.apache.hadoop.hbase.regionserver.TestCompactingToCellArrayMapMemStore
+Tests run: 29, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 14.903 sec - in org.apache.hadoop.hbase.regionserver.TestCompactingToCellArrayMapMemStore
+
+Results :
+
+Tests run: 29, Failures: 0, Errors: 0, Skipped: 0
+
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-server ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-server ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-server ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-server ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.2.1:jar (default) > generate-sources @ hbase-server >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-server ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-server ---
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (jspcSource-packageInfo-source) @ hbase-server ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/generated-jamon added.
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/generated-sources/java added.
+[INFO] 
+[INFO] --- jamon-maven-plugin:2.4.1:translate (default) @ hbase-server ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (generate) @ hbase-server ---
+[INFO] Executing tasks
+
+main:
+[INFO] Logging to org.slf4j.impl.SimpleLogger(org.mortbay.log) via org.mortbay.log.Slf4jLog
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.2.1:jar (default) < generate-sources @ hbase-server <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar (default) @ hbase-server ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.2.1:test-jar (default) > generate-sources @ hbase-server >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-server ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-server ---
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (jspcSource-packageInfo-source) @ hbase-server ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/generated-jamon added.
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/generated-sources/java added.
+[INFO] 
+[INFO] --- jamon-maven-plugin:2.4.1:translate (default) @ hbase-server ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (generate) @ hbase-server ---
+[INFO] Executing tasks
+
+main:
+[INFO] Logging to org.slf4j.impl.SimpleLogger(org.mortbay.log) via org.mortbay.log.Slf4jLog
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.2.1:test-jar (default) < generate-sources @ hbase-server <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:test-jar (default) @ hbase-server ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT-test-sources.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Testing Util 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-testing-util ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-testing-util ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-testing-util ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-testing-util ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-testing-util/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-testing-util ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-testing-util ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-testing-util/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-testing-util ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-testing-util ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-testing-util ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-testing-util ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-testing-util/target/hbase-testing-util-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-testing-util ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-testing-util/target/hbase-testing-util-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Thrift 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-thrift ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-thrift ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (generate) @ hbase-thrift ---
+[INFO] Executing tasks
+
+main:
+[INFO] Logging to org.slf4j.impl.SimpleLogger(org.mortbay.log) via org.mortbay.log.Slf4jLog
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (jspcSource-packageInfo-source) @ hbase-thrift ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-thrift/target/generated-sources/java added.
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-thrift ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-thrift ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 18 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-thrift ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-thrift ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-thrift/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-thrift ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources to META-INF/
+[INFO] Copying 3 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-thrift ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-thrift ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-thrift ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-thrift ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-thrift/target/hbase-thrift-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-thrift ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-thrift/target/hbase-thrift-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-thrift ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-thrift/target/hbase-thrift-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Shell 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-shell ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-shell ---
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (jspcSource-packageInfo-source) @ hbase-shell ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/generated-jamon added.
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/generated-sources/java added.
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-shell ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-shell ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-shell ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-shell ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-shell ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-shell ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-shell ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-shell ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-shell ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/hbase-shell-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-shell ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/hbase-shell-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-shell ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/hbase-shell-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Integration Tests 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-it ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-it ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-it ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-it/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-it ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-it ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-it/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 14 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-it ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-it ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-it ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-it ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-it/target/hbase-it-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-it ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-it/target/hbase-it-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Examples 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-examples ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-examples ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-examples ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-examples ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-examples/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-examples ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-examples ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-examples/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-examples ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-examples ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-examples ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-examples ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-examples ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-examples/target/hbase-examples-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-examples ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-examples/target/hbase-examples-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-examples ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-examples/target/hbase-examples-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Rest 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-rest ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-rest ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (generate) @ hbase-rest ---
+[INFO] Executing tasks
+
+main:
+[INFO] Logging to org.slf4j.impl.SimpleLogger(org.mortbay.log) via org.mortbay.log.Slf4jLog
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (jspcSource-packageInfo-source) @ hbase-rest ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-rest/target/generated-sources/java added.
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-rest ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-rest ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-rest ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-rest ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 5 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-rest ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-rest ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-rest ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-rest ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-rest/target/hbase-rest-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-rest ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-rest/target/hbase-rest-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-rest ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-rest/target/hbase-rest-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - External Block Cache 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-external-blockcache ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-external-blockcache ---
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (versionInfo-source) @ hbase-external-blockcache ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/target/generated-sources/java added.
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-external-blockcache ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-external-blockcache ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-external-blockcache ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-mrapp-generated-classpath) @ hbase-external-blockcache ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/target/test-classes/mrapp-generated-classpath'.  No changes found.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-external-blockcache ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-external-blockcache ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-external-blockcache ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-external-blockcache ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-source-plugin:2.2.1:jar-no-fork (attach-sources) @ hbase-external-blockcache ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/target/hbase-external-blockcache-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-external-blockcache ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/target/hbase-external-blockcache-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-external-blockcache ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/target/hbase-external-blockcache-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Spark 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-spark ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-spark ---
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-source (add-source) @ hbase-spark ---
+[INFO] Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-spark/src/main/scala added.
+[INFO] 
+[INFO] --- build-helper-maven-plugin:1.9.1:add-test-source (add-test-source) @ hbase-spark ---
+[INFO] Test Source directory: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-spark/src/test/scala added.
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-spark ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-spark ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-spark/src/main/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- scala-maven-plugin:3.2.0:add-source (scala-compile-first) @ hbase-spark ---
+[INFO] 
+[INFO] --- scala-maven-plugin:3.2.0:compile (scala-compile-first) @ hbase-spark ---
+[WARNING]  Expected all dependencies to require Scala version: 2.10.4
+[WARNING]  org.apache.hbase:hbase-spark:2.0.0-SNAPSHOT requires scala version: 2.10.4
+[WARNING]  org.apache.spark:spark-streaming_2.10:1.6.0 requires scala version: 2.10.5
+[WARNING] Multiple versions of scala libraries detected!
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-spark ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-spark ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 2 resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- scala-maven-plugin:3.2.0:testCompile (scala-test-compile) @ hbase-spark ---
+[WARNING]  Expected all dependencies to require Scala version: 2.10.4
+[WARNING]  org.apache.hbase:hbase-spark:2.0.0-SNAPSHOT requires scala version: 2.10.4
+[WARNING]  org.apache.spark:spark-streaming_2.10:1.6.0 requires scala version: 2.10.5
+[WARNING] Multiple versions of scala libraries detected!
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-spark ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-spark ---
+[INFO] 
+[INFO] --- scalatest-maven-plugin:1.0:test (test) @ hbase-spark ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-spark ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-spark ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-spark/target/hbase-spark-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-spark ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-spark/target/hbase-spark-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Assembly 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-assembly ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-assembly ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-assembly ---
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:build-classpath (create-hbase-generated-classpath) @ hbase-assembly ---
+[INFO] Skipped writing classpath file '/Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/target/cached_classpath.txt'.  No changes found.
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:unpack-dependencies (unpack-dependency-notices) @ hbase-assembly ---
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-client/target/hbase-client-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-client-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop-compat/target/hbase-hadoop-compat-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-hadoop-compat-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT-tests.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-server-2.0.0-SNAPSHOT-tests-test-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop2-compat/target/hbase-hadoop2-compat-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-hadoop2-compat-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-server/target/hbase-server-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-server-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-rest/target/hbase-rest-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-rest-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop2-compat/target/hbase-hadoop2-compat-2.0.0-SNAPSHOT-tests.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-hadoop2-compat-2.0.0-SNAPSHOT-tests-test-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-hadoop-compat/target/hbase-hadoop-compat-2.0.0-SNAPSHOT-tests.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-hadoop-compat-2.0.0-SNAPSHOT-tests-test-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-prefix-tree/target/hbase-prefix-tree-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-prefix-tree-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-testing-util/target/hbase-testing-util-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-testing-util-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-it/target/hbase-it-2.0.0-SNAPSHOT-tests.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-it-2.0.0-SNAPSHOT-tests-test-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-procedure/target/hbase-procedure-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-procedure-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shell/target/hbase-shell-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-shell-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-external-blockcache/target/hbase-external-blockcache-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-external-blockcache-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/hbase-common-2.0.0-SNAPSHOT-tests.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-common-2.0.0-SNAPSHOT-tests-test-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-protocol/target/hbase-protocol-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-protocol-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-common/target/hbase-common-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-common-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-thrift/target/hbase-thrift-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-thrift-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-annotations/target/hbase-annotations-2.0.0-SNAPSHOT-tests.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-annotations-2.0.0-SNAPSHOT-tests-test-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-resource-bundle/target/hbase-resource-bundle-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-resource-bundle-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-annotations/target/hbase-annotations-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-annotations-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] Unpacking /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-spark/target/hbase-spark-2.0.0-SNAPSHOT.jar to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-assembly/target/dependency/hbase-spark-2.0.0-SNAPSHOT-jar with includes "**\/NOTICE,**\/NOTICE.txt" and excludes ""
+[INFO] commons-el-1.0.jar already exists in destination.
+[INFO] metrics-core-3.1.2.jar already exists in destination.
+[INFO] htrace-core-3.1.0-incubating.jar already exists in destination.
+[INFO] protobuf-java-2.5.0.jar already exists in destination.
+[INFO] aopalliance-1.0.jar already exists in destination.
+[INFO] jasper-compiler-5.5.23.jar already exists in destination.
+[INFO] commons-beanutils-core-1.7.0.jar already exists in destination.
+[INFO] jersey-json-1.9.jar already exists in destination.
+[INFO] commons-fileupload-1.2.jar already exists in destination.
+[INFO] jamon-runtime-2.4.1.jar already exists in destination.
+[INFO] joni-2.1.2.jar already exists in destination.
+[INFO] xml-apis-ext-1.3.04.jar already exists in destination.
+[INFO] leveldbjni-all-1.8.jar already exists in destination.
+[INFO] commons-math-2.2.jar already exists in destination.
+[INFO] xom-1.2.5.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-app-2.7.1.jar already exists in destination.
+[INFO] hadoop-yarn-server-tests-2.7.1-tests.jar already exists in destination.
+[INFO] guice-3.0.jar already exists in destination.
+[INFO] commons-io-2.4.jar already exists in destination.
+[INFO] hadoop-yarn-server-nodemanager-2.7.1.jar already exists in destination.
+[INFO] commons-codec-1.9.jar already exists in destination.
+[INFO] hadoop-annotations-2.7.1.jar already exists in destination.
+[INFO] jersey-core-1.9.jar already exists in destination.
+[INFO] jackson-jaxrs-1.9.13.jar already exists in destination.
+[INFO] commons-logging-1.2.jar already exists in destination.
+[INFO] hadoop-yarn-api-2.7.1.jar already exists in destination.
+[INFO] jackson-core-asl-1.9.13.jar already exists in destination.
+[INFO] jersey-guice-1.9.jar already exists in destination.
+[INFO] jersey-client-1.9.jar already exists in destination.
+[INFO] tools.jar already exists in destination.
+[INFO] hadoop-hdfs-2.7.1.jar already exists in destination.
+[INFO] jsr305-1.3.9.jar already exists in destination.
+[INFO] commons-net-3.1.jar already exists in destination.
+[INFO] libthrift-0.9.3.jar already exists in destination.
+[INFO] jaxb-api-2.2.2.jar already exists in destination.
+[INFO] batik-css-1.7.jar already exists in destination.
+[INFO] commons-lang-2.6.jar already exists in destination.
+[INFO] activation-1.1.jar already exists in destination.
+[INFO] jetty-sslengine-6.1.26.jar already exists in destination.
+[INFO] antisamy-1.4.3.jar already exists in destination.
+[INFO] zookeeper-3.4.6.jar already exists in destination.
+[INFO] xml-apis-1.3.03.jar already exists in destination.
+[INFO] xz-1.0.jar already exists in destination.
+[INFO] asm-3.1.jar already exists in destination.
+[INFO] hadoop-hdfs-2.7.1-tests.jar already exists in destination.
+[INFO] hadoop-yarn-server-resourcemanager-2.7.1.jar already exists in destination.
+[INFO] httpcore-4.4.1.jar already exists in destination.
+[INFO] javax.inject-1.jar already exists in destination.
+[INFO] java-xmlbuilder-0.4.jar already exists in destination.
+[INFO] mockito-all-1.10.8.jar already exists in destination.
+[INFO] jetty-6.1.26.jar already exists in destination.
+[INFO] jackson-xc-1.9.13.jar already exists in destination.
+[INFO] servlet-api-2.5-6.1.14.jar already exists in destination.
+[INFO] hadoop-minicluster-2.7.1.jar already exists in destination.
+[INFO] servlet-api-2.5.jar already exists in destination.
+[INFO] jsch-0.1.42.jar already exists in destination.
+[INFO] zookeeper-3.4.6-tests.jar already exists in destination.
+[INFO] hadoop-client-2.7.1.jar already exists in destination.
+[INFO] jets3t-0.9.0.jar already exists in destination.
+[INFO] snappy-java-1.0.4.1.jar already exists in destination.
+[INFO] batik-ext-1.7.jar already exists in destination.
+[INFO] slf4j-api-1.7.7.jar already exists in destination.
+[INFO] jcodings-1.0.8.jar already exists in destination.
+[INFO] jsp-api-2.1-6.1.14.jar already exists in destination.
+[INFO] nekohtml-1.9.12.jar already exists in destination.
+[INFO] log4j-1.2.17.jar already exists in destination.
+[INFO] commons-daemon-1.0.13.jar already exists in destination.
+[INFO] xalan-2.7.0.jar already exists in destination.
+[INFO] hadoop-yarn-server-web-proxy-2.7.1.jar already exists in destination.
+[INFO] hadoop-common-2.7.1.jar already exists in destination.
+[INFO] curator-framework-2.7.1.jar already exists in destination.
+[INFO] curator-recipes-2.7.1.jar already exists in destination.
+[INFO] batik-util-1.7.jar already exists in destination.
+[INFO] commons-compress-1.4.1.jar already exists in destination.
+[INFO] apacheds-kerberos-codec-2.0.0-M15.jar already exists in destination.
+[INFO] jaxb-impl-2.2.3-1.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-common-2.7.1.jar already exists in destination.
+[INFO] commons-math3-3.1.1.jar already exists in destination.
+[INFO] jsp-2.1-6.1.14.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-jobclient-2.7.1.jar already exists in destination.
+[INFO] hadoop-yarn-client-2.7.1.jar already exists in destination.
+[INFO] jetty-util-6.1.26.jar already exists in destination.
+[INFO] jruby-complete-1.6.8.jar already exists in destination.
+[INFO] disruptor-3.3.0.jar already exists in destination.
+[INFO] findbugs-annotations-1.3.9-1.jar already exists in destination.
+[INFO] hadoop-yarn-server-applicationhistoryservice-2.7.1.jar already exists in destination.
+[INFO] hamcrest-core-1.3.jar already exists in destination.
+[INFO] jackson-mapper-asl-1.9.13.jar already exists in destination.
+[INFO] jersey-server-1.9.jar already exists in destination.
+[INFO] xmlenc-0.52.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-hs-2.7.1.jar already exists in destination.
+[INFO] paranamer-2.3.jar already exists in destination.
+[INFO] jasper-runtime-5.5.23.jar already exists in destination.
+[INFO] api-util-1.0.0-M20.jar already exists in destination.
+[INFO] bsh-core-2.0b4.jar already exists in destination.
+[INFO] gson-2.2.4.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-jobclient-2.7.1-tests.jar already exists in destination.
+[INFO] api-asn1-api-1.0.0-M20.jar already exists in destination.
+[INFO] netty-all-4.0.30.Final.jar already exists in destination.
+[INFO] commons-configuration-1.6.jar already exists in destination.
+[INFO] commons-digester-1.8.jar already exists in destination.
+[INFO] hadoop-yarn-common-2.7.1.jar already exists in destination.
+[INFO] apacheds-i18n-2.0.0-M15.jar already exists in destination.
+[INFO] commons-beanutils-1.7.0.jar already exists in destination.
+[INFO] hadoop-auth-2.7.1.jar already exists in destination.
+[INFO] curator-client-2.7.1.jar already exists in destination.
+[INFO] esapi-2.1.0.jar already exists in destination.
+[INFO] commons-cli-1.2.jar already exists in destination.
+[INFO] hadoop-yarn-server-common-2.7.1.jar already exists in destination.
+[INFO] xercesImpl-2.9.1.jar already exists in destination.
+[INFO] httpclient-4.2.5.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-shuffle-2.7.1.jar already exists in destination.
+[INFO] commons-collections-3.2.2.jar already exists in destination.
+[INFO] junit-4.12.jar already exists in destination.
+[INFO] slf4j-log4j12-1.7.7.jar already exists in destination.
+[INFO] guice-servlet-3.0.jar already exists in destination.
+[INFO] hadoop-common-2.7.1-tests.jar already exists in destination.
+[INFO] hadoop-mapreduce-client-core-2.7.1.jar already exists in destination.
+[INFO] jettison-1.3.3.jar already exists in destination.
+[INFO] guava-12.0.1.jar already exists in destination.
+[INFO] avro-1.7.4.jar already exists in destination.
+[INFO] commons-httpclient-3.1.jar already exists in destination.
+[INFO] 
+[INFO] --- exec-maven-plugin:1.4.0:exec (concat-NOTICE-files) @ hbase-assembly ---
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Shaded 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-shaded ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-shaded ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-shaded ---
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Shaded - Client 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-shaded-client ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-shaded-client ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-shaded-client ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-shaded-client ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shaded/hbase-shaded-client/src/main/resources
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-shaded-client ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-shaded-client ---
+[INFO] Not copying test resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-shaded-client ---
+[INFO] Not compiling test sources
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-shaded-client ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-shaded-client ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-shaded-client ---
+[INFO] Skipping packaging of the test-jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-shaded-client ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shaded/hbase-shaded-client/target/hbase-shaded-client-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Shaded - Server 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-shaded-server ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-shaded-server ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-shaded-server ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-shaded-server ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shaded/hbase-shaded-server/src/main/resources
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-shaded-server ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-shaded-server ---
+[INFO] Not copying test resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-shaded-server ---
+[INFO] Not compiling test sources
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ hbase-shaded-server ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (secondPartTestsExecution) @ hbase-shaded-server ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-shaded-server ---
+[INFO] Skipping packaging of the test-jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-shaded-server ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-shaded/hbase-shaded-server/target/hbase-shaded-server-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Archetypes 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-archetypes ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-archetypes ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-archetypes ---
+[INFO] 
+[INFO] --- findbugs-maven-plugin:3.0.0:findbugs (default) @ hbase-archetypes ---
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Exemplar for hbase-client archetype 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-client-project ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-client-project ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-client-project ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-client-project ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-client-project ---
+[INFO] Compiling 1 source file to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-client-project/target/classes
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-client-project ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-client-project/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-client-project ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19:test (default-test) @ hbase-client-project ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19:test (secondPartTestsExecution) @ hbase-client-project ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-client-project ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-client-project/target/hbase-client-project-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-client-project ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-client-project/target/hbase-client-project-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Exemplar for hbase-shaded-client archetype 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-shaded-client-project ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-shaded-client-project ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-shaded-client-project ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ hbase-shaded-client-project ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ hbase-shaded-client-project ---
+[INFO] Compiling 1 source file to /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-shaded-client-project/target/classes
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ hbase-shaded-client-project ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-shaded-client-project/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ hbase-shaded-client-project ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19:test (default-test) @ hbase-shaded-client-project ---
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19:test (secondPartTestsExecution) @ hbase-shaded-client-project ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:test-jar (default) @ hbase-shaded-client-project ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-shaded-client-project/target/hbase-shaded-client-project-2.0.0-SNAPSHOT-tests.jar
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ hbase-shaded-client-project ---
+[INFO] Building jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-shaded-client-project/target/hbase-shaded-client-project-2.0.0-SNAPSHOT.jar
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Archetype builder 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0.1:enforce (enforce) @ hbase-archetype-builder ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create-timestamp (default) @ hbase-archetype-builder ---
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ hbase-archetype-builder ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:copy-resources (hbase-client__copy-src-to-build-archetype-subdir) @ hbase-archetype-builder ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 4 resources
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:copy-resources (hbase-client__copy-pom-to-temp-for-xslt-processing) @ hbase-archetype-builder ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:copy-resources (hbase-shaded-client__copy-src-to-build-archetype-subdir) @ hbase-archetype-builder ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 4 resources
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:copy-resources (hbase-shaded-client__copy-pom-to-temp-for-xslt-processing) @ hbase-archetype-builder ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- xml-maven-plugin:1.0.1:transform (modify-exemplar-pom-files-via-xslt) @ hbase-archetype-builder ---
+[INFO] Transforming file: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-archetype-builder/../hbase-client-project/target/temp/pom.xml
+[INFO] Transformed 1 file(s).
+[INFO] Transforming file: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-archetype-builder/../hbase-shaded-client-project/target/temp/pom.xml
+[INFO] Transformed 1 file(s).
+[INFO] 
+[INFO] --- exec-maven-plugin:1.4.0:exec (make-scripts-executable) @ hbase-archetype-builder ---
+[INFO] 
+[INFO] --- exec-maven-plugin:1.4.0:exec (run-createArchetypes-script) @ hbase-archetype-builder ---
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Exemplar for hbase-client archetype 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] >>> maven-archetype-plugin:2.4:create-from-project (default-cli) > generate-sources @ hbase-client-project >>>
+[INFO] 
+[INFO] <<< maven-archetype-plugin:2.4:create-from-project (default-cli) < generate-sources @ hbase-client-project <<<
+[INFO] 
+[INFO] --- maven-archetype-plugin:2.4:create-from-project (default-cli) @ hbase-client-project ---
+[INFO] Setting default groupId: org.apache.hbase
+[INFO] Setting default artifactId: hbase-client-project
+[INFO] Setting default version: 2.0.0-SNAPSHOT
+[INFO] Setting default package: org.apache.hbase.archetypes.exemplars.client
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building hbase-client-project-archetype 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ hbase-client-project-archetype ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 6 resources
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ hbase-client-project-archetype ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- maven-archetype-plugin:2.4:jar (default-jar) @ hbase-client-project-archetype ---
+[INFO] Building archetype jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-client-project/target/build-archetype/target/generated-sources/archetype/target/hbase-client-project-archetype-2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 0.653 s
+[INFO] Finished at: 2016-04-14T12:02:39+03:00
+[INFO] Final Memory: 13M/309M
+[INFO] ------------------------------------------------------------------------
+[INFO] Archetype project created in /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-client-project/target/build-archetype/target/generated-sources/archetype
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 2.276 s
+[INFO] Finished at: 2016-04-14T12:02:39+03:00
+[INFO] Final Memory: 16M/309M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Apache HBase - Exemplar for hbase-shaded-client archetype 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] >>> maven-archetype-plugin:2.4:create-from-project (default-cli) > generate-sources @ hbase-shaded-client-project >>>
+[INFO] 
+[INFO] <<< maven-archetype-plugin:2.4:create-from-project (default-cli) < generate-sources @ hbase-shaded-client-project <<<
+[INFO] 
+[INFO] --- maven-archetype-plugin:2.4:create-from-project (default-cli) @ hbase-shaded-client-project ---
+[INFO] Setting default groupId: org.apache.hbase
+[INFO] Setting default artifactId: hbase-shaded-client-project
+[INFO] Setting default version: 2.0.0-SNAPSHOT
+[INFO] Setting default package: org.apache.hbase.archetypes.exemplars.shaded_client
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building hbase-shaded-client-project-archetype 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ hbase-shaded-client-project-archetype ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 6 resources
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ hbase-shaded-client-project-archetype ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- maven-archetype-plugin:2.4:jar (default-jar) @ hbase-shaded-client-project-archetype ---
+[INFO] Building archetype jar: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-shaded-client-project/target/build-archetype/target/generated-sources/archetype/target/hbase-shaded-client-project-archetype-2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 0.665 s
+[INFO] Finished at: 2016-04-14T12:02:42+03:00
+[INFO] Final Memory: 13M/309M
+[INFO] ------------------------------------------------------------------------
+[INFO] Archetype project created in /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-shaded-client-project/target/build-archetype/target/generated-sources/archetype
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 2.348 s
+[INFO] Finished at: 2016-04-14T12:02:42+03:00
+[INFO] Final Memory: 16M/309M
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:copy-resources (hbase-client-ARCHETYPE__copy-pom-to-temp-for-xslt-processing) @ hbase-archetype-builder ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:copy-resources (hbase-shaded-client-ARCHETYPE__copy-pom-to-temp-for-xslt-processing) @ hbase-archetype-builder ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- xml-maven-plugin:1.0.1:transform (modify-archetype-pom-files-via-xslt) @ hbase-archetype-builder ---
+[INFO] Transforming file: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-archetype-builder/../hbase-client-project/target/temp-arch/pom.xml
+[INFO] Transformed 1 file(s).
+[INFO] Transforming file: /Users/anastas/WorkDesk/HbaseMemStore/hbase-renewed/hbase-trunk/hbase/hbase-archetypes/hbase-archetype-builder/../hbase-shaded-client-project/target/temp-arch/pom.xml
+[INFO] Transformed 1 file(s).
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary:
+[INFO] 
+[INFO] Apache HBase ....................................... SUCCESS [  1.233 s]
+[INFO] Apache HBase - Checkstyle .......................... SUCCESS [  0.295 s]
+[INFO] Apache HBase - Resource Bundle ..................... SUCCESS [  0.078 s]
+[INFO] Apache HBase - Annotations ......................... SUCCESS [  0.099 s]
+[INFO] Apache HBase - Protocol ............................ SUCCESS [  1.196 s]
+[INFO] Apache HBase - Common .............................. SUCCESS [  2.122 s]
+[INFO] Apache HBase - Procedure ........................... SUCCESS [  0.647 s]
+[INFO] Apache HBase - Client .............................. SUCCESS [  1.311 s]
+[INFO] Apache HBase - Hadoop Compatibility ................ SUCCESS [  0.150 s]
+[INFO] Apache HBase - Hadoop Two Compatibility ............ SUCCESS [  1.008 s]
+[INFO] Apache HBase - Prefix Tree ......................... SUCCESS [  0.836 s]
+[INFO] Apache HBase - Server .............................. SUCCESS [ 24.687 s]
+[INFO] Apache HBase - Testing Util ........................ SUCCESS [  1.810 s]
+[INFO] Apache HBase - Thrift .............................. SUCCESS [  4.055 s]
+[INFO] Apache HBase - Shell ............................... SUCCESS [  2.699 s]
+[INFO] Apache HBase - Integration Tests ................... SUCCESS [  2.893 s]
+[INFO] Apache HBase - Examples ............................ SUCCESS [  2.532 s]
+[INFO] Apache HBase - Rest ................................ SUCCESS [  2.282 s]
+[INFO] Apache HBase - External Block Cache ................ SUCCESS [  1.228 s]
+[INFO] Apache HBase - Spark ............................... SUCCESS [  3.425 s]
+[INFO] Apache HBase - Assembly ............................ SUCCESS [  3.537 s]
+[INFO] Apache HBase - Shaded .............................. SUCCESS [  0.039 s]
+[INFO] Apache HBase - Shaded - Client ..................... SUCCESS [  0.584 s]
+[INFO] Apache HBase - Shaded - Server ..................... SUCCESS [  1.242 s]
+[INFO] Apache HBase - Archetypes .......................... SUCCESS [  0.013 s]
+[INFO] Apache HBase - Exemplar for hbase-client archetype . SUCCESS [  1.805 s]
+[INFO] Apache HBase - Exemplar for hbase-shaded-client archetype SUCCESS [  1.769 s]
+[INFO] Apache HBase - Archetype builder ................... SUCCESS [  6.735 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 01:11 min
+[INFO] Finished at: 2016-04-14T12:02:42+03:00
+[INFO] Final Memory: 150M/1480M
+[INFO] ------------------------------------------------------------------------
