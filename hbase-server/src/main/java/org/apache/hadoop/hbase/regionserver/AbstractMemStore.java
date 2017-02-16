@@ -303,7 +303,7 @@ public abstract class AbstractMemStore implements MemStore {
    * Check whether anything need to be done based on the current active set size
    */
   protected abstract void checkActiveSize();
-
+  public abstract long getInmemoryFlushSize();
   /**
    * @return an ordered list of segments from most recent to oldest in memstore
    */

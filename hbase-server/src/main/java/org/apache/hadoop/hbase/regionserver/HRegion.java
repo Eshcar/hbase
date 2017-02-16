@@ -4375,9 +4375,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           List<Store> listStores = this.getStores();
           accumulatedMemSize += memstoreSize.getDataSize();
           if (sb != null) {
-            sb.append("<<< Ongoing memstore region size: " + this.getMemstoreSize() + ". Number of stores for this region: " + listStores.size()
+            sb.append("<<< Ongoing memstore region size: " + this.getMemstoreSize() /*+ ". Number of stores for this region: " + listStores.size()
                 + "; 1st store size: " + listStores.get(0).getSizeOfMemStore() + "; 2nd store size: " + listStores.get(1)
-                .getSizeOfMemStore() + "; 3d store size: " + listStores.get(2).getSizeOfMemStore() + ", sum of dataSizes: "
+                .getSizeOfMemStore() + "; 3d store size: " + listStores.get(2).getSizeOfMemStore() */+ ", sum of dataSizes: "
                 + (listStores.get(0).getSizeOfMemStore().getDataSize() + listStores.get(1).getSizeOfMemStore().getDataSize())
                 + "\n");
           }
@@ -4388,7 +4388,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 + accumulatedMemSize + "\n<<< Number of stores for this region: " + listStores.size()
                 + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
                 + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
-                + "; 3d store size: " + listStores.get(2).getSizeOfMemStore());
+                + "; 3d store size: " + listStores.get(2).getSizeOfMemStore()
+                + ". Region flush size: " + this.memstoreFlushSize
+                + ". Store in-memory flush size: " + ((HStore)listStores.get(0)).getInmemoryFlushSize());
           }
 
           if (flush) {

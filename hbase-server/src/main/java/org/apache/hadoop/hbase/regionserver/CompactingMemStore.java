@@ -283,7 +283,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public Store getStore() {
     return store;
   }
-
+  public long getInmemoryFlushSize() {return inmemoryFlushSize;}
   public String getFamilyName() {
     return Bytes.toString(getFamilyNameInBytes());
   }

@@ -2056,6 +2056,8 @@ public class HStore implements Store {
     return size.getDataSize() + size.getHeapOverhead();
   }
 
+  public long getInmemoryFlushSize() {return this.memstore.getInmemoryFlushSize();}
+
   @Override
   public MemstoreSize getSizeOfMemStore() {
     return this.memstore.size();

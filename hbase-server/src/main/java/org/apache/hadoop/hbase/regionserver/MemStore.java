@@ -86,6 +86,7 @@ public interface MemStore {
    */
   long timeOfOldestEdit();
 
+  long getInmemoryFlushSize();
   /**
    * Update or insert the specified cells.
    * <p>
