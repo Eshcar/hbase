@@ -886,7 +886,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // Recover any edits if available.
 
       if (sb != null) {
-        sb.append("***The memstore size before replaying: " + this.getMemstoreSize() + "\n");
+        sb.append("\n<<< ***The memstore size before replaying: " + this.getMemstoreSize() + "\n");
       }
       maxSeqId = Math.max(maxSeqId,
         replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status, sb));
@@ -4371,11 +4371,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
                 memstoreSize);
           }
           flush = isFlushSize(this.addAndGetMemstoreSize(memstoreSize));
-
+          List<Store> listStores = this.getStores();
           if (sb != null && flush) {
-            List<Store> listStores = this.getStores();
             sb.append("<<< When decided to flush, the memstore size after replaying and before flush "
-                + this.getMemstoreSize() + " number of stores for this region: " + listStores.size()
+                + this.getMemstoreSize() + "\n<<< Number of stores for this region: " + listStores.size()
                 + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
                 + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
                 + "; 3d store size: " + listStores.get(2).getSizeOfMemStore());
@@ -4384,6 +4383,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
           if (flush) {
             internalFlushcache(null, currentEditSeqId, stores.values(), status, false);
+            sb.append("\n<<< And just after the flush, the memstore size after replaying and before flush "
+                + this.getMemstoreSize() + "\n<<< Number of stores for this region: " + listStores.size()
+                + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
+                + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
+                + "; 3d store size: " + listStores.get(2).getSizeOfMemStore());
           }
 
           if (coprocessorHost != null) {
