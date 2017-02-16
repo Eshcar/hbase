@@ -4373,15 +4373,15 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           }
           flush = isFlushSize(this.addAndGetMemstoreSize(memstoreSize));
           List<Store> listStores = this.getStores();
-          sb.append("<<< Ongoing memstore region size: "
-              + this.getMemstoreSize() + ". Number of stores for this region: " + listStores.size()
-              + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
-              + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
-              + "; 3d store size: " + listStores.get(2).getSizeOfMemStore()
-              + ", sum of dataSizes: "
-              + (listStores.get(0).getSizeOfMemStore().getDataSize()+listStores.get(1).getSizeOfMemStore().getDataSize())
-              + "\n");
           accumulatedMemSize += memstoreSize.getDataSize();
+          if (sb != null) {
+            sb.append("<<< Ongoing memstore region size: " + this.getMemstoreSize() + ". Number of stores for this region: " + listStores.size()
+                + "; 1st store size: " + listStores.get(0).getSizeOfMemStore() + "; 2nd store size: " + listStores.get(1)
+                .getSizeOfMemStore() + "; 3d store size: " + listStores.get(2).getSizeOfMemStore() + ", sum of dataSizes: "
+                + (listStores.get(0).getSizeOfMemStore().getDataSize() + listStores.get(1).getSizeOfMemStore().getDataSize())
+                + "\n");
+          }
+
           if (sb != null && flush) {
             sb.append("<<< When decided to flush, the memstore size after replaying and before flush "
                 + this.getMemstoreSize() + ". The memstore size returned when restored from stores: "
