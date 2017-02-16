@@ -18,7 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
@@ -115,9 +115,7 @@ public abstract class Segment {
   }
 
   public List<KeyValueScanner> getScanners(long readPoint, long order) {
-    List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>(1);
-    scanners.add(getScanner(readPoint, order));
-    return scanners;
+    return Collections.singletonList(new SegmentScanner(this, readPoint, order));
   }
 
   /**
