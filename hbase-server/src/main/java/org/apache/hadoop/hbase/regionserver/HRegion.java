@@ -4231,6 +4231,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     LOG.info(msg);
     MonitoredTask status = TaskMonitor.get().createStatus(msg);
     FileSystem fs = this.fs.getFileSystem();
+    int accumulatedMemSize = 0;
 
     status.setStatus("Opening recovered edits");
     WAL.Reader reader = null;
@@ -4372,10 +4373,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           }
           flush = isFlushSize(this.addAndGetMemstoreSize(memstoreSize));
           List<Store> listStores = this.getStores();
+          accumulatedMemSize += memstoreSize.getDataSize();
           if (sb != null && flush) {
             sb.append("<<< When decided to flush, the memstore size after replaying and before flush "
                 + this.getMemstoreSize() + ". The memstore size returned when restored from stores: "
-                + memstoreSize + "\n<<< Number of stores for this region: " + listStores.size()
+                + accumulatedMemSize + "\n<<< Number of stores for this region: " + listStores.size()
                 + "; 1st store size: " + listStores.get(0).getSizeOfMemStore()
                 + "; 2nd store size: " + listStores.get(1).getSizeOfMemStore()
                 + "; 3d store size: " + listStores.get(2).getSizeOfMemStore());
