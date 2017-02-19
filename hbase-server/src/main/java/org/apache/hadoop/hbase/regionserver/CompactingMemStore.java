@@ -393,6 +393,7 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
+    if (inReplay) return false;
     if (this.active.keySize() > inmemoryFlushSize) { // size above flush threshold
         // the inMemoryFlushInProgress is CASed to be true here in order to mutual exclude
         // the insert of the active into the compaction pipeline
