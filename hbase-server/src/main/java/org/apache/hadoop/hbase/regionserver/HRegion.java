@@ -4157,6 +4157,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         continue;
       }
 
+      //*******************************
+      List<Store> listStores = this.getStores();
+      for(Store store : listStores){
+        ((HStore)store).getInmemoryFlushSize();
+      }
+
       try {
         // replay the edits. Replay can return -1 if everything is skipped, only update
         // if seqId is greater
@@ -4180,6 +4186,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         } else {
           throw e;
         }
+      }
+
+      for(Store store : listStores){
+        ((HStore)store).getInmemoryFlushSize();
       }
     }
     // The edits size added into rsAccounting during this replaying will not

@@ -74,6 +74,7 @@ public class CompactingMemStore extends AbstractMemStore {
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
   private boolean compositeSnapshot = true;
+  private boolean inReplay = false;
 
   public static final long DEEP_OVERHEAD = AbstractMemStore.DEEP_OVERHEAD
       + 6 * ClassSize.REFERENCE // Store, RegionServicesForStores, CompactionPipeline,
@@ -283,7 +284,12 @@ public class CompactingMemStore extends AbstractMemStore {
   public Store getStore() {
     return store;
   }
-  public long getInmemoryFlushSize() {return inmemoryFlushSize;}
+
+  public long getInmemoryFlushSize() {
+    inReplay = !inReplay;
+    return inmemoryFlushSize;
+  }
+
   public String getFamilyName() {
     return Bytes.toString(getFamilyNameInBytes());
   }
