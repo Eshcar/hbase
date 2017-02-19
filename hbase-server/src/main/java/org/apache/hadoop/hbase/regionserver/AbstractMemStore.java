@@ -80,6 +80,19 @@ public abstract class AbstractMemStore implements MemStore {
    */
   public abstract void updateLowestUnflushedSequenceIdInWAL(boolean onlyIfMoreRecent);
 
+  /**
+   * This message intends to inform the MemStore that next coming updates
+   * are going to be part of the replaying edits from WAL
+   */
+  public abstract void startReplayingFromWAL();
+
+  /**
+   * This message intends to inform the MemStore that the replaying edits from WAL
+   * are done
+   */
+  public abstract void stopReplayingFromWAL();
+
+
   @Override
   public void add(Iterable<Cell> cells, MemstoreSize memstoreSize) {
     for (Cell cell : cells) {

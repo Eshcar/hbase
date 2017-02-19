@@ -155,6 +155,14 @@ public class DefaultMemStore extends AbstractMemStore {
   @Override public void updateLowestUnflushedSequenceIdInWAL(boolean onlyIfMoreRecent) {
   }
 
+  @Override public void startReplayingFromWAL() {
+    return;
+  }
+
+  @Override public void stopReplayingFromWAL() {
+    return;
+  }
+
   @Override
   public MemstoreSize size() {
     return new MemstoreSize(this.active.keySize(), this.active.heapOverhead());

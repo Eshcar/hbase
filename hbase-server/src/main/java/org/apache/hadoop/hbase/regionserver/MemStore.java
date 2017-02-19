@@ -127,4 +127,16 @@ public interface MemStore {
 
   /* Return true if the memstore may use some extra memory space*/
   boolean isSloppy();
+
+  /**
+   * This message intends to inform the MemStore that next coming updates
+   * are going to be part of the replaying edits from WAL
+   */
+  void startReplayingFromWAL();
+
+  /**
+   * This message intends to inform the MemStore that the replaying edits from WAL
+   * are done
+   */
+  void stopReplayingFromWAL();
 }
