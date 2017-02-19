@@ -132,11 +132,11 @@ public interface MemStore {
    * This message intends to inform the MemStore that next coming updates
    * are going to be part of the replaying edits from WAL
    */
-  void startReplayingFromWAL();
+  default void startReplayingFromWAL(){return;}
 
   /**
    * This message intends to inform the MemStore that the replaying edits from WAL
    * are done
    */
-  void stopReplayingFromWAL();
+  default void stopReplayingFromWAL(){return;}
 }

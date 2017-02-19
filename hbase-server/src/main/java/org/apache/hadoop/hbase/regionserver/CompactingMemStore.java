@@ -237,11 +237,21 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
-  @Override public void startReplayingFromWAL() {
+  /**
+   * This message intends to inform the MemStore that next coming updates
+   * are going to be part of the replaying edits from WAL
+   */
+  @Override
+  public void startReplayingFromWAL() {
     inWalReplay.compareAndSet(false,true);
   }
 
-  @Override public void stopReplayingFromWAL() {
+  /**
+   * This message intends to inform the MemStore that the replaying edits from WAL
+   * are done
+   */
+  @Override
+  public void stopReplayingFromWAL() {
     inWalReplay.compareAndSet(true, false);
   }
 
