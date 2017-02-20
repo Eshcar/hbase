@@ -114,7 +114,7 @@ public abstract class AbstractTestWALReplay {
   private Path oldLogDir;
   private Path logDir;
   private FileSystem fs;
-  private Configuration conf;
+  protected Configuration conf;
   private RecoveryMode mode;
   private WALFactory wals;
 
