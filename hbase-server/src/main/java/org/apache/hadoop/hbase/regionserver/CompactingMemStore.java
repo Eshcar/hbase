@@ -68,7 +68,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private RegionServicesForStores regionServices;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
-
+  private boolean compositeSnapshot = true;
   private long inmemoryFlushSize;       // the threshold on active size for in-memory flush
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
 
@@ -77,15 +77,16 @@ public class CompactingMemStore extends AbstractMemStore {
 
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
-  private boolean compositeSnapshot = true;
 
-  public static final long DEEP_OVERHEAD = AbstractMemStore.DEEP_OVERHEAD
-      + 7 * ClassSize.REFERENCE // Store, RegionServicesForStores, CompactionPipeline,
-                                // MemStoreCompactor, inMemoryFlushInProgress, allowCompaction,
-                                // inWalReplay
-      + Bytes.SIZEOF_LONG // inmemoryFlushSize
+
+  public static final long DEEP_OVERHEAD = ClassSize.align( AbstractMemStore.DEEP_OVERHEAD
+      + 7 * ClassSize.REFERENCE     // Store, RegionServicesForStores, CompactionPipeline,
+                                    // MemStoreCompactor, inMemoryFlushInProgress, allowCompaction,
+                                    // inWalReplay
+      + Bytes.SIZEOF_LONG           // inmemoryFlushSize
+      + Bytes.SIZEOF_BOOLEAN        // compositeSnapshot
       + 3 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress, inWalReplay and allowCompaction
-      + CompactionPipeline.DEEP_OVERHEAD + MemStoreCompactor.DEEP_OVERHEAD;
+      + CompactionPipeline.DEEP_OVERHEAD + MemStoreCompactor.DEEP_OVERHEAD);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
       HStore store, RegionServicesForStores regionServices,
