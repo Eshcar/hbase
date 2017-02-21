@@ -185,7 +185,7 @@ public abstract class AbstractTestWALReplay {
    *
    * @throws Exception
    */
-  @Test(timeout = 300000)
+  @Test(timeout = 1000000)
   public void testReplayEditsAfterRegionMovedWithMultiCF() throws Exception {
     final TableName tableName =
         TableName.valueOf("testReplayEditsAfterRegionMovedWithMultiCF" + s);
