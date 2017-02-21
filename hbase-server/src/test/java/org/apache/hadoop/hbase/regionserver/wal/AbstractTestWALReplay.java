@@ -121,6 +121,11 @@ public abstract class AbstractTestWALReplay {
   @Rule
   public final TestName currentTest = new TestName();
 
+  protected AbstractTestWALReplay(){
+    Configuration conf = TEST_UTIL.getConfiguration();
+    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+        String.valueOf(MemoryCompactionPolicy.NONE));
+  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
