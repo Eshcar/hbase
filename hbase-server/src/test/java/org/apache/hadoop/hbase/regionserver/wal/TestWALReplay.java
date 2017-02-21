@@ -43,9 +43,9 @@ public class TestWALReplay extends AbstractTestWALReplay {
     return new Object[] { "NONE", "BASIC", "EAGER" };
   }
 
-  public TestWALReplay() {
-    super();
-  }
+//  public TestWALReplay() {
+//    super();
+//  }
 
   public TestWALReplay(String compType) {
     super();

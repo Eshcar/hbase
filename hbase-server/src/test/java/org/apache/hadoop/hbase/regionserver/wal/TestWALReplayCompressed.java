@@ -23,12 +23,20 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * Enables compression and runs the TestWALReplay tests.
  */
 @Category({ RegionServerTests.class, MediumTests.class })
+@RunWith(Parameterized.class)
 public class TestWALReplayCompressed extends TestWALReplay {
+
+  @Parameterized.Parameters
+  public static Object[] data() {
+    return new Object[] { "NONE", "BASIC", "EAGER" };
+  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
