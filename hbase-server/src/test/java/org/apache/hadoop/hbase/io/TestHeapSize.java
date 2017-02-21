@@ -320,14 +320,15 @@ public class TestHeapSize  {
     // CompactingMemStore Deep Overhead
     cl = CompactingMemStore.class;
     actual = CompactingMemStore.DEEP_OVERHEAD;
-    expected = ClassSize.estimateBase(cl, false);
+    expected  = ClassSize.estimateBase(cl,false);
     expected += ClassSize.estimateBase(AtomicBoolean.class, false);
     expected += ClassSize.estimateBase(AtomicBoolean.class, false);
     expected += ClassSize.estimateBase(CompactionPipeline.class, false);
-    expected += ClassSize.estimateBase(LinkedList.class, false);
-    expected += ClassSize.estimateBase(LinkedList.class, false);
+    expected += ClassSize.estimateBase(LinkedList.class, false); //inside CompactionPipeline
+    expected += ClassSize.estimateBase(LinkedList.class, false); //inside CompactionPipeline
     expected += ClassSize.estimateBase(MemStoreCompactor.class, false);
     expected += ClassSize.estimateBase(AtomicBoolean.class, false);
+    expected += ClassSize.estimateBase(AtomicBoolean.class, false); // in
     if (expected != actual) {
       ClassSize.estimateBase(cl, true);
       ClassSize.estimateBase(AtomicBoolean.class, true);
@@ -336,7 +337,8 @@ public class TestHeapSize  {
       ClassSize.estimateBase(LinkedList.class, true);
       ClassSize.estimateBase(LinkedList.class, true);
       ClassSize.estimateBase(MemStoreCompactor.class, true);
-      ClassSize.estimateBase(AtomicBoolean.class, true);
+      //ClassSize.estimateBase(AtomicBoolean.class, true);
+      //ClassSize.estimateBase(AtomicBoolean.class, true);
       assertEquals(expected, actual);
     }
 
