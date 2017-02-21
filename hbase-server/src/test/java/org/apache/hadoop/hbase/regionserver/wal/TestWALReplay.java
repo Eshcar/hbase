@@ -45,7 +45,7 @@ public class TestWALReplay extends AbstractTestWALReplay {
 
   public TestWALReplay(String compType) {
     super();
-    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, compType);
+    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, "NONE");
   }
 
   @BeforeClass
