@@ -889,7 +889,8 @@ public abstract class AbstractTestWALReplay {
   @Test
   // the following test is for HBASE-6065
   public void testSequentialEditLogSeqNum() throws IOException {
-    final TableName tableName = TableName.valueOf(currentTest.getMethodName());
+    final TableName tableName =
+        TableName.valueOf(currentTest.getMethodName().replace('[','i').replace(']','i') );
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
     final Path basedir =
         FSUtils.getTableDir(this.hbaseRootDir, tableName);
