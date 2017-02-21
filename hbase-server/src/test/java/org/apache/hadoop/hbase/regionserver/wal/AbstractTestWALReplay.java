@@ -115,6 +115,7 @@ public abstract class AbstractTestWALReplay {
   private Path logDir;
   private FileSystem fs;
   protected Configuration conf;
+  protected String s = "";
   private RecoveryMode mode;
   private WALFactory wals;
 
@@ -187,7 +188,7 @@ public abstract class AbstractTestWALReplay {
   @Test(timeout = 300000)
   public void testReplayEditsAfterRegionMovedWithMultiCF() throws Exception {
     final TableName tableName =
-        TableName.valueOf(currentTest.getMethodName().replace('[','i').replace(']','i') );
+        TableName.valueOf("testReplayEditsAfterRegionMovedWithMultiCF" + s);
     byte[] family1 = Bytes.toBytes("cf1");
     byte[] family2 = Bytes.toBytes("cf2");
     byte[] qualifier = Bytes.toBytes("q");

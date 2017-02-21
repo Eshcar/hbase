@@ -40,7 +40,7 @@ public class TestWALReplay extends AbstractTestWALReplay {
 
   @Parameterized.Parameters
   public static Object[] data() {
-    return new Object[] { "BASIC"/*, "NONE", "EAGER" */};
+    return new Object[] { "BASIC", "NONE"/*, "EAGER" */};
   }
 
 //  public TestWALReplay() {
@@ -50,6 +50,7 @@ public class TestWALReplay extends AbstractTestWALReplay {
   public TestWALReplay(String compType) {
     super();
     conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, compType);
+    s = compType;
   }
 
   @BeforeClass
