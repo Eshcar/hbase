@@ -38,6 +38,10 @@ public class TestWALReplayCompressed extends TestWALReplay {
     return new Object[] { "NONE", "BASIC", "EAGER" };
   }
 
+  public TestWALReplayCompressed(String compType) {
+    super(compType);
+  }
+
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     Configuration conf = AbstractTestWALReplay.TEST_UTIL.getConfiguration();
