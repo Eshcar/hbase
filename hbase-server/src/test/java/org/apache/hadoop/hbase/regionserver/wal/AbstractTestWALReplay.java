@@ -114,25 +114,19 @@ public abstract class AbstractTestWALReplay {
   private Path oldLogDir;
   private Path logDir;
   private FileSystem fs;
-  protected Configuration conf;
-  protected String s = "";
+  private Configuration conf;
   private RecoveryMode mode;
   private WALFactory wals;
 
   @Rule
   public final TestName currentTest = new TestName();
 
-  protected AbstractTestWALReplay(){
-    this.conf = HBaseConfiguration.create(TEST_UTIL.getConfiguration());
-  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     Configuration conf = TEST_UTIL.getConfiguration();
     // The below config supported by 0.20-append and CDH3b2
     conf.setInt("dfs.client.block.recovery.retries", 2);
-    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(MemoryCompactionPolicy.NONE));
     TEST_UTIL.startMiniCluster(3);
     Path hbaseRootDir =
       TEST_UTIL.getDFSCluster().getFileSystem().makeQualified(new Path("/hbase"));
@@ -185,10 +179,10 @@ public abstract class AbstractTestWALReplay {
    *
    * @throws Exception
    */
-  @Test(timeout = 1000000)
+  @Test
   public void testReplayEditsAfterRegionMovedWithMultiCF() throws Exception {
     final TableName tableName =
-        TableName.valueOf("testReplayEditsAfterRegionMovedWithMultiCF" + s);
+        TableName.valueOf("testReplayEditsAfterRegionMovedWithMultiCF");
     byte[] family1 = Bytes.toBytes("cf1");
     byte[] family2 = Bytes.toBytes("cf2");
     byte[] qualifier = Bytes.toBytes("q");
@@ -284,7 +278,7 @@ public abstract class AbstractTestWALReplay {
    * @throws Exception
    * @see <a href="https://issues.apache.org/jira/browse/HBASE-2727">HBASE-2727</a>
    */
-  @Test(timeout = 300000)
+  @Test
   public void test2727() throws Exception {
     // Test being able to have > 1 set of edits in the recovered.edits directory.
     // Ensure edits are replayed properly.
@@ -353,7 +347,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test(timeout = 300000)
+  @Test
   public void testRegionMadeOfBulkLoadedFilesOnly()
   throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -419,7 +413,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test(timeout = 300000)
+  @Test
   public void testCompactedBulkLoadedFiles()
       throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -489,7 +483,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test(timeout = 300000)
+  @Test
   public void testReplayEditsWrittenViaHRegion()
   throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -597,7 +591,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test(timeout = 300000)
+  @Test
   public void testReplayEditsAfterPartialFlush()
   throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -683,7 +677,7 @@ public abstract class AbstractTestWALReplay {
    * and flush again, at last verify the data.
    * @throws IOException
    */
-  @Test(timeout = 300000)
+  @Test
   public void testReplayEditsAfterAbortingFlush() throws IOException {
     final TableName tableName =
         TableName.valueOf("testReplayEditsAfterAbortingFlush");
@@ -782,7 +776,7 @@ public abstract class AbstractTestWALReplay {
    * good edits
    * @throws Exception
    */
-  @Test(timeout = 300000)
+  @Test
   public void testReplayEditsWrittenIntoWAL() throws Exception {
     final TableName tableName =
         TableName.valueOf("testReplayEditsWrittenIntoWAL");
@@ -887,11 +881,10 @@ public abstract class AbstractTestWALReplay {
     });
   }
 
-  @Test(timeout = 300000)
+  @Test
   // the following test is for HBASE-6065
   public void testSequentialEditLogSeqNum() throws IOException {
-    final TableName tableName =
-        TableName.valueOf(currentTest.getMethodName().replace('[','i').replace(']','i') );
+    final TableName tableName = TableName.valueOf(currentTest.getMethodName());
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
     final Path basedir =
         FSUtils.getTableDir(this.hbaseRootDir, tableName);
@@ -950,7 +943,7 @@ public abstract class AbstractTestWALReplay {
   /**
    * testcase for https://issues.apache.org/jira/browse/HBASE-15252
    */
-  @Test(timeout = 300000)
+  @Test
   public void testDatalossWhenInputError() throws IOException, InstantiationException,
       IllegalAccessException {
     final TableName tableName = TableName.valueOf("testDatalossWhenInputError");
@@ -1088,12 +1081,12 @@ public abstract class AbstractTestWALReplay {
     assertEquals(2, region.get(new Get(rowName)).size());
   }
 
-  @Test(timeout = 300000)
+  @Test
   public void testNameConflictWhenSplit0() throws IOException {
     testNameConflictWhenSplit(true);
   }
 
-  @Test(timeout = 300000)
+  @Test
   public void testNameConflictWhenSplit1() throws IOException {
     testNameConflictWhenSplit(false);
   }

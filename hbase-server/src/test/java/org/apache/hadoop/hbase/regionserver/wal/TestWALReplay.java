@@ -23,35 +23,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.MemoryCompactionPolicy;
-import org.apache.hadoop.hbase.regionserver.CompactingMemStore;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.apache.hadoop.hbase.wal.WALFactory;
 import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 @Category({ RegionServerTests.class, MediumTests.class })
-@RunWith(Parameterized.class)
 public class TestWALReplay extends AbstractTestWALReplay {
-
-  @Parameterized.Parameters
-  public static Object[] data() {
-    return new Object[] { "BASIC", "NONE"/*, "EAGER" */};
-  }
-
-//  public TestWALReplay() {
-//    super();
-//  }
-
-  public TestWALReplay(String compType) {
-    super();
-    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, compType);
-    s = compType;
-  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
