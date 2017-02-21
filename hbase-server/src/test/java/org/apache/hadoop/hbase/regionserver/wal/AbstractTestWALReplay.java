@@ -122,9 +122,7 @@ public abstract class AbstractTestWALReplay {
   public final TestName currentTest = new TestName();
 
   protected AbstractTestWALReplay(){
-    Configuration conf = TEST_UTIL.getConfiguration();
-    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(MemoryCompactionPolicy.NONE));
+    this.conf = HBaseConfiguration.create(TEST_UTIL.getConfiguration());
   }
 
   @BeforeClass
