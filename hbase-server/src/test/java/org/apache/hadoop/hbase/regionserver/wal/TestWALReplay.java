@@ -40,7 +40,7 @@ public class TestWALReplay extends AbstractTestWALReplay {
 
   @Parameterized.Parameters
   public static Object[] data() {
-    return new Object[] { "NONE", "BASIC", "EAGER" };
+    return new Object[] { "NONE"/*, "BASIC", "EAGER" */};
   }
 
 //  public TestWALReplay() {

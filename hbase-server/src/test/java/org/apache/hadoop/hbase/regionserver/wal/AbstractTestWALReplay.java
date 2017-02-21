@@ -184,7 +184,7 @@ public abstract class AbstractTestWALReplay {
    *
    * @throws Exception
    */
-  @Test
+  @Test(timeout = 300000)
   public void testReplayEditsAfterRegionMovedWithMultiCF() throws Exception {
     final TableName tableName =
         TableName.valueOf(currentTest.getMethodName().replace('[','i').replace(']','i') );
@@ -283,7 +283,7 @@ public abstract class AbstractTestWALReplay {
    * @throws Exception
    * @see <a href="https://issues.apache.org/jira/browse/HBASE-2727">HBASE-2727</a>
    */
-  @Test
+  @Test(timeout = 300000)
   public void test2727() throws Exception {
     // Test being able to have > 1 set of edits in the recovered.edits directory.
     // Ensure edits are replayed properly.
@@ -352,7 +352,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test
+  @Test(timeout = 300000)
   public void testRegionMadeOfBulkLoadedFilesOnly()
   throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -418,7 +418,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test
+  @Test(timeout = 300000)
   public void testCompactedBulkLoadedFiles()
       throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -488,7 +488,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test
+  @Test(timeout = 300000)
   public void testReplayEditsWrittenViaHRegion()
   throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -596,7 +596,7 @@ public abstract class AbstractTestWALReplay {
    * @throws IllegalArgumentException
    * @throws SecurityException
    */
-  @Test
+  @Test(timeout = 300000)
   public void testReplayEditsAfterPartialFlush()
   throws IOException, SecurityException, IllegalArgumentException,
       NoSuchFieldException, IllegalAccessException, InterruptedException {
@@ -682,7 +682,7 @@ public abstract class AbstractTestWALReplay {
    * and flush again, at last verify the data.
    * @throws IOException
    */
-  @Test
+  @Test(timeout = 300000)
   public void testReplayEditsAfterAbortingFlush() throws IOException {
     final TableName tableName =
         TableName.valueOf("testReplayEditsAfterAbortingFlush");
@@ -781,7 +781,7 @@ public abstract class AbstractTestWALReplay {
    * good edits
    * @throws Exception
    */
-  @Test
+  @Test(timeout = 300000)
   public void testReplayEditsWrittenIntoWAL() throws Exception {
     final TableName tableName =
         TableName.valueOf("testReplayEditsWrittenIntoWAL");
@@ -886,7 +886,7 @@ public abstract class AbstractTestWALReplay {
     });
   }
 
-  @Test
+  @Test(timeout = 300000)
   // the following test is for HBASE-6065
   public void testSequentialEditLogSeqNum() throws IOException {
     final TableName tableName =
@@ -949,7 +949,7 @@ public abstract class AbstractTestWALReplay {
   /**
    * testcase for https://issues.apache.org/jira/browse/HBASE-15252
    */
-  @Test
+  @Test(timeout = 300000)
   public void testDatalossWhenInputError() throws IOException, InstantiationException,
       IllegalAccessException {
     final TableName tableName = TableName.valueOf("testDatalossWhenInputError");
@@ -1087,12 +1087,12 @@ public abstract class AbstractTestWALReplay {
     assertEquals(2, region.get(new Get(rowName)).size());
   }
 
-  @Test
+  @Test(timeout = 300000)
   public void testNameConflictWhenSplit0() throws IOException {
     testNameConflictWhenSplit(true);
   }
 
-  @Test
+  @Test(timeout = 300000)
   public void testNameConflictWhenSplit1() throws IOException {
     testNameConflictWhenSplit(false);
   }
