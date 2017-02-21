@@ -43,6 +43,10 @@ public class TestWALReplay extends AbstractTestWALReplay {
     return new Object[] { "NONE", "BASIC", "EAGER" };
   }
 
+  public TestWALReplay() {
+    super();
+  }
+
   public TestWALReplay(String compType) {
     super();
     conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, compType);
