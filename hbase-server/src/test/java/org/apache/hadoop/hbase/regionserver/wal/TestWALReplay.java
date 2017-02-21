@@ -43,10 +43,10 @@ public class TestWALReplay extends AbstractTestWALReplay {
     return new Object[] { "NONE", "BASIC", "EAGER" };
   }
 
-  public TestWALReplay(String compType) {
-    super();
-    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, compType);
-  }
+//  public TestWALReplay(String compType) {
+//    super();
+//    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, compType);
+//  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
