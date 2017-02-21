@@ -26,9 +26,21 @@ import org.apache.hadoop.hbase.wal.WAL.Reader;
 import org.apache.hadoop.hbase.wal.WALProvider.Writer;
 import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 @Category({ RegionServerTests.class, MediumTests.class })
+@RunWith(Parameterized.class)
 public class TestSecureWALReplay extends TestWALReplay {
+
+  @Parameterized.Parameters
+  public static Object[] data() {
+    return new Object[] { "NONE", "BASIC", "EAGER" };
+  }
+
+  public TestSecureWALReplay(String compType) {
+    super(compType);
+  }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
