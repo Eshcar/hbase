@@ -35,13 +35,13 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @Category({ RegionServerTests.class, MediumTests.class })
-@RunWith(Parameterized.class)
+//@RunWith(Parameterized.class)
 public class TestWALReplay extends AbstractTestWALReplay {
 
-  @Parameterized.Parameters
-  public static Object[] data() {
-    return new Object[] { "NONE", "BASIC", "EAGER" };
-  }
+//  @Parameterized.Parameters
+//  public static Object[] data() {
+//    return new Object[] { "NONE", "BASIC", "EAGER" };
+//  }
 
 //  public TestWALReplay(String compType) {
 //    super();
