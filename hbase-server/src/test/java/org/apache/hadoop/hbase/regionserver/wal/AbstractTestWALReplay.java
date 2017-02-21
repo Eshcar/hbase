@@ -187,7 +187,7 @@ public abstract class AbstractTestWALReplay {
   @Test
   public void testReplayEditsAfterRegionMovedWithMultiCF() throws Exception {
     final TableName tableName =
-        TableName.valueOf("testReplayEditsAfterRegionMovedWithMultiCF");
+        TableName.valueOf(currentTest.getMethodName().replace('[','i').replace(']','i') );
     byte[] family1 = Bytes.toBytes("cf1");
     byte[] family2 = Bytes.toBytes("cf2");
     byte[] qualifier = Bytes.toBytes("q");
