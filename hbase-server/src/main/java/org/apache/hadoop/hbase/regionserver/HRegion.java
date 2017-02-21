@@ -877,17 +877,21 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.mvcc.advanceTo(maxSeqId);
     if (ServerRegionReplicaUtil.shouldReplayRecoveredEdits(this)) {
       List<Store> stores = this.getStores();  // update the stores that we are replaying
-      for (Store store : stores) {
-        ((HStore)store).startReplayingFromWAL();
+      try {
+        for (Store store : stores) {
+          ((HStore) store).startReplayingFromWAL();
+        }
+        // Recover any edits if available.
+        maxSeqId = Math.max(maxSeqId,
+            replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status));
+        // Make sure mvcc is up to max.
+        this.mvcc.advanceTo(maxSeqId);
+      } finally {
+        for (Store store : stores) {            // update the stores that we are done replaying
+          ((HStore)store).stopReplayingFromWAL();
+        }
       }
-      // Recover any edits if available.
-      maxSeqId = Math.max(maxSeqId,
-        replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status));
-      // Make sure mvcc is up to max.
-      this.mvcc.advanceTo(maxSeqId);
-      for (Store store : stores) {            // update the stores that we are done replaying
-        ((HStore)store).stopReplayingFromWAL();
-      }
+
     }
     this.lastReplayedOpenRegionSeqId = maxSeqId;
 
