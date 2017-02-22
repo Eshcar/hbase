@@ -411,13 +411,14 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-    if (inWalReplay.get()) {  // when replaying edits from WAL there is no need in in-memory flush
-      return false;           // regardless the size
-    }
+
     if (this.active.keySize() > inmemoryFlushSize) { // size above flush threshold
-        // the inMemoryFlushInProgress is CASed to be true here in order to mutual exclude
-        // the insert of the active into the compaction pipeline
-        return (inMemoryFlushInProgress.compareAndSet(false,true));
+      if (inWalReplay.get()) {  // when replaying edits from WAL there is no need in in-memory flush
+        return false;           // regardless the size
+      }
+      // the inMemoryFlushInProgress is CASed to be true here in order to mutual exclude
+      // the insert of the active into the compaction pipeline
+      return (inMemoryFlushInProgress.compareAndSet(false,true));
     }
     return false;
   }
