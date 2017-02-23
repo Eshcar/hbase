@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.io.hfile.LruCachedBlock;
 import org.apache.hadoop.hbase.regionserver.*;
 import org.apache.hadoop.hbase.testclassification.IOTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -343,7 +344,7 @@ public class TestHeapSize  {
           + ", calculated expected Memstore compactor overhead "
           + (ClassSize.estimateBase(MemStoreCompactor.class, false)+ClassSize.estimateBase(AtomicBoolean.class, true))
           + "; atomic boolean automatically calculated: " + ClassSize.estimateBase(AtomicBoolean.class, false)
-          + ", atomic boolean manually calculated: " + ClassSize.ATOMIC_BOOLEAN
+          + ", atomic boolean manually calculated: " + ClassSize.ATOMIC_BOOLEAN + "; size of boolean " + Bytes.SIZEOF_BOOLEAN
           + "\n<<< Calculated expected of CompactingMemStore only: "
           + ClassSize.estimateBase(cl,false)
           + ", deep overhead of CompactingMemStore only: "
