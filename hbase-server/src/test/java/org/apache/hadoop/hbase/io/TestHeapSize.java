@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.io.hfile.LruCachedBlock;
 import org.apache.hadoop.hbase.regionserver.*;
 import org.apache.hadoop.hbase.testclassification.IOTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -320,14 +321,14 @@ public class TestHeapSize  {
     // CompactingMemStore Deep Overhead
     cl = CompactingMemStore.class;
     actual = CompactingMemStore.DEEP_OVERHEAD;
-    expected = ClassSize.estimateBase(cl, false);
+    expected  = ClassSize.estimateBase(cl,false);
     expected += ClassSize.estimateBase(AtomicBoolean.class, false);
     expected += ClassSize.estimateBase(AtomicBoolean.class, false);
     expected += ClassSize.estimateBase(CompactionPipeline.class, false);
-    expected += ClassSize.estimateBase(LinkedList.class, false);
-    expected += ClassSize.estimateBase(LinkedList.class, false);
+    expected += ClassSize.estimateBase(LinkedList.class, false); //inside CompactionPipeline
+    expected += ClassSize.estimateBase(LinkedList.class, false); //inside CompactionPipeline
     expected += ClassSize.estimateBase(MemStoreCompactor.class, false);
-    expected += ClassSize.estimateBase(AtomicBoolean.class, false);
+    expected += ClassSize.estimateBase(AtomicBoolean.class, false);// inside MemStoreCompactor
     if (expected != actual) {
       ClassSize.estimateBase(cl, true);
       ClassSize.estimateBase(AtomicBoolean.class, true);
