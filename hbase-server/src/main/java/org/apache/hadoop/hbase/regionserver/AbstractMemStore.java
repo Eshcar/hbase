@@ -55,7 +55,7 @@ public abstract class AbstractMemStore implements MemStore {
   private volatile long timeOfOldestEdit;
 
   public final static long FIXED_OVERHEAD = ClassSize
-      .align(ClassSize.OBJECT + (4 * ClassSize.REFERENCE)
+      .align(ClassSize.OBJECT + (2 * ClassSize.REFERENCE)
           + (2 * Bytes.SIZEOF_LONG)); // snapshotId, timeOfOldestEdit
 
   public final static long DEEP_OVERHEAD = FIXED_OVERHEAD;
