@@ -346,6 +346,9 @@ public class TestHeapSize  {
           + ClassSize.estimateBase(cl,false)
           + ", deep overhead of CompactingMemStore only: "
           + (CompactingMemStore.DEEP_OVERHEAD-MemStoreCompactor.DEEP_OVERHEAD-CompactionPipeline.DEEP_OVERHEAD-2 * ClassSize.ATOMIC_BOOLEAN)
+          + ", Compaction Pipeline overhead: " + CompactionPipeline.DEEP_OVERHEAD
+          + ", calculated expected Compaction Pipeline overhead "
+          + (ClassSize.estimateBase(CompactionPipeline.class, false)+2*ClassSize.estimateBase(LinkedList.class, false))
           + "\n",expected, actual);
     }
 
