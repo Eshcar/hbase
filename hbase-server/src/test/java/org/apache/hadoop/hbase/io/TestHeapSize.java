@@ -327,7 +327,7 @@ public class TestHeapSize  {
     expected += ClassSize.estimateBase(LinkedList.class, false); //inside CompactionPipeline
     expected += ClassSize.estimateBase(LinkedList.class, false); //inside CompactionPipeline
     expected += ClassSize.estimateBase(MemStoreCompactor.class, false);
-    expected += ClassSize.estimateBase(AtomicBoolean.class, false);
+    expected += ClassSize.estimateBase(AtomicBoolean.class, false);// inside MemStoreCompactor
     if (expected != actual) {
       ClassSize.estimateBase(cl, true);
       ClassSize.estimateBase(AtomicBoolean.class, true);
@@ -337,7 +337,10 @@ public class TestHeapSize  {
       ClassSize.estimateBase(LinkedList.class, true);
       ClassSize.estimateBase(MemStoreCompactor.class, true);
       ClassSize.estimateBase(AtomicBoolean.class, true);
-      assertEquals(expected, actual);
+      assertEquals("\n<<<Compacting Memstore overhead: " + actual
+          + ", calculated expected overhead: " + expected
+          + ", memstore compactor overhead: " + MemStoreCompactor.DEEP_OVERHEAD
+          + "\n",expected, actual);
     }
 
     // Segment Deep overhead
