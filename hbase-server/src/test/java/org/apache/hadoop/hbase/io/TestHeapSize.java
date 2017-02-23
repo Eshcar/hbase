@@ -342,6 +342,8 @@ public class TestHeapSize  {
           + ", Memstore compactor overhead: " + MemStoreCompactor.DEEP_OVERHEAD
           + ", calculated expected Memstore compactor overhead "
           + (ClassSize.estimateBase(MemStoreCompactor.class, false)+ClassSize.estimateBase(AtomicBoolean.class, true))
+          + "; atomic boolean automatically calculated: " + ClassSize.estimateBase(AtomicBoolean.class, false)
+          + ", atomic boolean manually calculated: " + ClassSize.ATOMIC_BOOLEAN
           + "\n<<< Calculated expected of CompactingMemStore only: "
           + ClassSize.estimateBase(cl,false)
           + ", deep overhead of CompactingMemStore only: "
