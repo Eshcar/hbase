@@ -83,7 +83,7 @@ public class CompactingMemStore extends AbstractMemStore {
       + 6 * ClassSize.REFERENCE     // Store, RegionServicesForStores, CompactionPipeline,
                                     // MemStoreCompactor, inMemoryFlushInProgress, allowCompaction
       + Bytes.SIZEOF_LONG           // inmemoryFlushSize
-      + 2 * Bytes.SIZEOF_BOOLEAN    // compositeSnapshot and inWalReplay
+      + 1 * Bytes.SIZEOF_BOOLEAN    // compositeSnapshot and inWalReplay
       + 2 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress and allowCompaction
       + CompactionPipeline.DEEP_OVERHEAD + MemStoreCompactor.DEEP_OVERHEAD);
 
