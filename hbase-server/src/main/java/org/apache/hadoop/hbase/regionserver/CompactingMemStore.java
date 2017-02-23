@@ -57,7 +57,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public static final String COMPACTING_MEMSTORE_TYPE_KEY =
       "hbase.hregion.compacting.memstore.type";
   public static final String COMPACTING_MEMSTORE_TYPE_DEFAULT =
-      String.valueOf(MemoryCompactionPolicy.BASIC); //*************
+      String.valueOf(MemoryCompactionPolicy.NONE);
   // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
   public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
       "hbase.memstore.inmemoryflush.threshold.factor";
@@ -73,19 +73,18 @@ public class CompactingMemStore extends AbstractMemStore {
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
 
   // inWalReplay is true while we are synchronously replaying the edits from WAL
-  private final AtomicBoolean inWalReplay = new AtomicBoolean(false);
+  private boolean inWalReplay = false;
 
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
 
 
   public static final long DEEP_OVERHEAD = ClassSize.align( AbstractMemStore.DEEP_OVERHEAD
-      + 7 * ClassSize.REFERENCE     // Store, RegionServicesForStores, CompactionPipeline,
+      + 6 * ClassSize.REFERENCE     // Store, RegionServicesForStores, CompactionPipeline,
                                     // MemStoreCompactor, inMemoryFlushInProgress, allowCompaction,
-                                    // inWalReplay
       + Bytes.SIZEOF_LONG           // inmemoryFlushSize
-      + Bytes.SIZEOF_BOOLEAN        // compositeSnapshot
-      + 3 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress, inWalReplay and allowCompaction
+      + 2 * Bytes.SIZEOF_BOOLEAN    // compositeSnapshot and inWalReplay
+      + 2 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress and allowCompaction
       + CompactionPipeline.DEEP_OVERHEAD + MemStoreCompactor.DEEP_OVERHEAD);
 
   public CompactingMemStore(Configuration conf, CellComparator c,
@@ -244,7 +243,7 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   @Override
   public void startReplayingFromWAL() {
-    inWalReplay.compareAndSet(false,true);
+    inWalReplay = true;
   }
 
   /**
@@ -253,7 +252,7 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   @Override
   public void stopReplayingFromWAL() {
-    inWalReplay.compareAndSet(true, false);
+    inWalReplay = false;
   }
 
   // the getSegments() method is used for tests only
@@ -413,8 +412,8 @@ public class CompactingMemStore extends AbstractMemStore {
   private boolean shouldFlushInMemory() {
 
     if (this.active.keySize() > inmemoryFlushSize) { // size above flush threshold
-      if (inWalReplay.get()) {  // when replaying edits from WAL there is no need in in-memory flush
-        return false;           // regardless the size
+      if (inWalReplay) {  // when replaying edits from WAL there is no need in in-memory flush
+        return false;     // regardless the size
       }
       // the inMemoryFlushInProgress is CASed to be true here in order to mutual exclude
       // the insert of the active into the compaction pipeline
