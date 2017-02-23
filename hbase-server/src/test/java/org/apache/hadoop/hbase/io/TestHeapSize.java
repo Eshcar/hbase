@@ -338,8 +338,14 @@ public class TestHeapSize  {
       ClassSize.estimateBase(MemStoreCompactor.class, true);
       ClassSize.estimateBase(AtomicBoolean.class, true);
       assertEquals("\n<<<Compacting Memstore overhead: " + actual
-          + ", calculated expected overhead: " + expected
-          + ", memstore compactor overhead: " + MemStoreCompactor.DEEP_OVERHEAD
+          + ", calculated expected Compacting Memstore overhead: " + expected
+          + ", Memstore compactor overhead: " + MemStoreCompactor.DEEP_OVERHEAD
+          + ", calculated expected Memstore compactor overhead "
+          + (ClassSize.estimateBase(MemStoreCompactor.class, false)+ClassSize.estimateBase(AtomicBoolean.class, true))
+          + "\n<<< Calculated expected of CompactingMemStore only: "
+          + ClassSize.estimateBase(cl,false)
+          + ", deep overhead of CompactingMemStore only: "
+          + (CompactingMemStore.DEEP_OVERHEAD-MemStoreCompactor.DEEP_OVERHEAD-CompactionPipeline.DEEP_OVERHEAD-2 * ClassSize.ATOMIC_BOOLEAN)
           + "\n",expected, actual);
     }
 
