@@ -81,8 +81,8 @@ public class CompactingMemStore extends AbstractMemStore {
 
 
   public static final long DEEP_OVERHEAD = ClassSize.align( AbstractMemStore.DEEP_OVERHEAD
-      + 5 * ClassSize.REFERENCE     // Store, RegionServicesForStores, CompactionPipeline,
-                                    // MemStoreCompactor, inMemoryFlushInProgress, allowCompaction
+      + 4 * ClassSize.REFERENCE     // Store, RegionServicesForStores, CompactionPipeline,
+                                    // MemStoreCompactor
       + Bytes.SIZEOF_LONG           // inmemoryFlushSize
       + 2 * Bytes.SIZEOF_BOOLEAN    // compositeSnapshot and inWalReplay
       + 2 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress and allowCompaction
