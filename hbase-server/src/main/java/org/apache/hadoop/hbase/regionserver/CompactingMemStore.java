@@ -68,7 +68,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private RegionServicesForStores regionServices;
   private CompactionPipeline pipeline;
   private MemStoreCompactor compactor;
-  private boolean compositeSnapshot = true;
+
   private long inmemoryFlushSize;       // the threshold on active size for in-memory flush
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
 
@@ -77,6 +77,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   @VisibleForTesting
   private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
+  private boolean compositeSnapshot = true;
 
 
   public static final long DEEP_OVERHEAD = ClassSize.align( AbstractMemStore.DEEP_OVERHEAD
@@ -410,7 +411,6 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   private boolean shouldFlushInMemory() {
-
     if (this.active.keySize() > inmemoryFlushSize) { // size above flush threshold
       if (inWalReplay) {  // when replaying edits from WAL there is no need in in-memory flush
         return false;     // regardless the size
