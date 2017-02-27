@@ -293,13 +293,14 @@ public class CompactingMemStore extends AbstractMemStore {
    */
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
     List<? extends Segment> pipelineList = pipeline.getSegments();
-    long order = pipelineList.size() + snapshot.getNumOfSegments() + 1;
+    List<? extends Segment> snapshotList = snapshot.getAllSegments();
+    long order = 1 + pipelineList.size() + snapshotList.size();
     // The list of elements in pipeline + the active element + the snapshot segment
     // The order is the Segment ordinal
     List<KeyValueScanner> list = new ArrayList<KeyValueScanner>((int) order);
     order = addToScanners(active, readPt, order, list);
     order = addToScanners(pipelineList, readPt, order, list);
-    order = addToScanners(snapshot.getAllSegments(), readPt, order, list);
+    addToScanners(snapshotList, readPt, order, list);
     return list;
   }
 
