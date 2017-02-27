@@ -152,10 +152,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   @Override
   public List<KeyValueScanner> getScanners(long readPoint, long order) {
     List<KeyValueScanner> list = new ArrayList<>(segments.size());
-    for (ImmutableSegment s : segments) {
-      list.add(s.getScanner(readPoint, order));
-      order--;
-    }
+    AbstractMemStore.addToScanners(segments, readPoint, order, list);
     return list;
   }
 
