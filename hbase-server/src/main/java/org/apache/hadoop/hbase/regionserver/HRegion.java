@@ -879,6 +879,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.mvcc.advanceTo(maxSeqId);
     if (ServerRegionReplicaUtil.shouldReplayRecoveredEdits(this)) {
       List<Store> stores = this.getStores();  // update the stores that we are replaying
+      assert false;
       try {
         for (Store store : stores) {
           ((HStore) store).startReplayingFromWAL();
