@@ -129,9 +129,10 @@ public interface RegionObserver extends Coprocessor {
    * @param c the environment provided by the region server
    * @param store the store being flushed
    * @param scanners the scanners for the memstore that is flushed
-   *@param s the base scanner, if not {@code null}, from previous RegionObserver in the chain  @return the scanner to use during the flush.  {@code null} if the default implementation
+   * @param s the base scanner, if not {@code null}, from previous RegionObserver in the chain
+   * @return the scanner to use during the flush.  {@code null} if the default implementation
    * is to be used.
-   * @deprecated Use {@link #preFlushScannerOpen(ObserverContext, Store, KeyValueScanner,
+   * @deprecated Use {@link #preFlushScannerOpen(ObserverContext, Store, List,
    *             InternalScanner, long)}
    */
   @Deprecated

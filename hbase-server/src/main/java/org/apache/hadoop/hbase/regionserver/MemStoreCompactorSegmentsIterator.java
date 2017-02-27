@@ -27,7 +27,6 @@ import org.apache.hadoop.hbase.client.Scan;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -56,10 +55,7 @@ public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator 
     // create the list of scanners to traverse over all the data
     // no dirty reads here as these are immutable segments
     int order = segments.size();
-    for (ImmutableSegment segment : segments) {
-      scanners.add(segment.getScanner(Integer.MAX_VALUE, order));
-      order--;
-    }
+    AbstractMemStore.addToScanners(segments, Integer.MAX_VALUE, order, scanners);
     // build the scanner based on Query Matcher
     // reinitialize the compacting scanner for each instance of iterator
     compactingScanner = createScanner(store, scanners);

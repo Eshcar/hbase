@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.logging.Log;
@@ -70,10 +69,6 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   public DefaultMemStore(final Configuration conf, final CellComparator c) {
     super(conf, c);
-  }
-
-  void dump() {
-    super.dump(LOG);
   }
 
   /**
@@ -127,8 +122,9 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   public List<KeyValueScanner> getScanners(long readPt) throws IOException {
     List<KeyValueScanner> list = new ArrayList<>();
-    list.add(this.active.getScanner(readPt, 1));
-    list.addAll(this.snapshot.getScanners(readPt, 0));
+    long order = snapshot.getNumOfSegments();
+    order = addToScanners(active, readPt, order, list);
+    order = addToScanners(snapshot.getAllSegments(), readPt, order, list);
     return list;
   }
 
