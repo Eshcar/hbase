@@ -269,8 +269,8 @@ public class TestDefaultMemStore {
     final KeyValueScanner scanner1 = memstorescanners.get(1);
     scanner0.seek(KeyValueUtil.createFirstOnRow(HConstants.EMPTY_START_ROW));
     scanner1.seek(KeyValueUtil.createFirstOnRow(HConstants.EMPTY_START_ROW));
-    KeyValue n0 = (KeyValue) scanner0.next();
-    KeyValue n1 = (KeyValue) scanner1.next();
+    Cell n0 = scanner0.next();
+    Cell n1 = scanner1.next();
     assertTrue(kv1.equals(n0) || kv1.equals(n1));
     assertTrue(kv2.equals(n0)
         || kv2.equals(n1)
