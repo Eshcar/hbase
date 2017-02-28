@@ -71,7 +71,7 @@ public abstract class AbstractMemStore implements MemStore {
   protected static long addToScanners(Segment segment, long readPt, long order,
       List<KeyValueScanner> scanners) {
     scanners.add(segment.getScanner(readPt, order));
-    return order-1;
+    return order - 1;
   }
 
   protected AbstractMemStore(final Configuration conf, final CellComparator c) {

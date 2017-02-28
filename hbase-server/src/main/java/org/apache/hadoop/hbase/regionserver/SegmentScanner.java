@@ -281,10 +281,7 @@ public class SegmentScanner implements KeyValueScanner {
   public boolean shouldUseScanner(Scan scan, Store store, long oldestUnexpiredTS) {
     return getSegment().shouldSeek(scan,oldestUnexpiredTS);
   }
-  /**
-   * This scanner is working solely on the in-memory MemStore therefore this
-   * interface is not relevant.
-   */
+
   @Override
   public boolean requestSeek(Cell c, boolean forward, boolean useBloom)
       throws IOException {

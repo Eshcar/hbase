@@ -44,10 +44,10 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.coprocessor.RegionObserver;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.KeyValueScanner;
 import org.apache.hadoop.hbase.regionserver.ScanInfo;
@@ -208,9 +208,9 @@ public class TestCoprocessorScanPolicy {
     EnvironmentEdgeManager.reset();
   }
 
-  public static class ScanObserver extends BaseRegionObserver {
-    private Map<TableName, Long> ttls = new HashMap<TableName, Long>();
-    private Map<TableName, Integer> versions = new HashMap<TableName, Integer>();
+  public static class ScanObserver implements RegionObserver {
+    private Map<TableName, Long> ttls = new HashMap<>();
+    private Map<TableName, Integer> versions = new HashMap<>();
 
     // lame way to communicate with the coprocessor,
     // since it is loaded by a different class loader
