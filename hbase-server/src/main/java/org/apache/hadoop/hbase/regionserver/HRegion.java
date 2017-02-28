@@ -4127,6 +4127,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         // replay the edits. Replay can return -1 if everything is skipped, only update
         // if seqId is greater
+        assert false;
         seqid = Math.max(seqid, replayRecoveredEdits(edits, maxSeqIdInStores, reporter));
       } catch (IOException e) {
         boolean skipErrors = conf.getBoolean(
