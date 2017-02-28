@@ -4103,7 +4103,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
 
     if (files == null || files.isEmpty()) return seqid;
-    assert false;
+
     for (Path edits: files) {
       if (edits == null || !fs.exists(edits)) {
         LOG.warn("Null or non-existent edits file: " + edits);
@@ -4127,6 +4127,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         // replay the edits. Replay can return -1 if everything is skipped, only update
         // if seqId is greater
+        assert false;
         seqid = Math.max(seqid, replayRecoveredEdits(edits, maxSeqIdInStores, reporter));
       } catch (IOException e) {
         boolean skipErrors = conf.getBoolean(
