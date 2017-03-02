@@ -22,6 +22,7 @@ package org.apache.hadoop.hbase.coprocessor;
 import com.google.common.collect.ImmutableList;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -161,6 +162,22 @@ public interface RegionObserver extends Coprocessor {
       final Store store, final List<KeyValueScanner> scanners, final InternalScanner s,
       final long readPoint) throws IOException {
     return preFlushScannerOpen(c, store, scanners, s);
+  }
+
+  /**
+   * Maintain backward compatibility.
+   * @param c the environment provided by the region server
+   * @param store the store being flushed
+   * @param scanner the scanner for the memstore that is flushed
+   * @param s the base scanner, if not {@code null}, from previous RegionObserver in the chain
+   * @param readPoint the readpoint to create scanner
+   * @return the scanner to use during the flush.  {@code null} if the default implementation
+   * is to be used.
+   */
+  default InternalScanner preFlushScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c,
+      final Store store, final KeyValueScanner scanner, final InternalScanner s,
+      final long readPoint) throws IOException {
+    return preFlushScannerOpen(c, store, Collections.singletonList(scanner), s, readPoint);
   }
 
   /**

@@ -102,7 +102,7 @@ public abstract class Segment {
    * Creates the scanner for the given read point
    * @return a scanner for the given read point
    */
-  public KeyValueScanner getScanner(long readPoint) {
+  protected KeyValueScanner getScanner(long readPoint) {
     return new SegmentScanner(this, readPoint);
   }
 
