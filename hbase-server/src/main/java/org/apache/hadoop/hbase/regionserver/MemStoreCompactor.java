@@ -44,6 +44,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @InterfaceAudience.Private
 public class MemStoreCompactor {
 
+  // The external setting of the compacting MemStore behaviour
+  public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
+      "hbase.hregion.compacting.memstore.threshold";
+  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 1;
+
   public static final long DEEP_OVERHEAD = ClassSize
       .align(ClassSize.OBJECT
           + 4 * ClassSize.REFERENCE
@@ -158,12 +163,17 @@ public class MemStoreCompactor {
       return Action.COMPACT;
     }
 
+    int pipelineThreshold =         // get the limit on the number of the segments in the pipeline
+        compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY,
+        COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
+
     // compaction shouldn't happen or doesn't worth it
     // limit the number of the segments in the pipeline
     int numOfSegments = versionedList.getNumOfSegments();
-    if (numOfSegments > THRESHOLD_PIPELINE_SEGMENTS) {
+    if (numOfSegments > pipelineThreshold) {
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
           + " is going to be merged, as there are " + numOfSegments + " segments");
+      action = Action.MERGE;
       return Action.MERGE;          // to avoid too many segments, merge now
     }
 
