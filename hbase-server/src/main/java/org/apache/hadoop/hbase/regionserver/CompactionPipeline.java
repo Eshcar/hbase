@@ -135,7 +135,7 @@ public class CompactionPipeline {
       readOnlyCopy = new LinkedList<>(pipeline);
       version++;
     }
-    if (closeSuffix && region != null) {
+    if (region != null) {
       // update the global memstore size counter
       long suffixDataSize = getSegmentsKeySize(suffix);
       long newDataSize = 0;
