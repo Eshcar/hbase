@@ -44,10 +44,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @InterfaceAudience.Private
 public class MemStoreCompactor {
 
+  // The upper bound for the number of segments we store in the pipeline prior to merging.
+  // This constant is subject to further experimentation.
   // The external setting of the compacting MemStore behaviour
   public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
       "hbase.hregion.compacting.memstore.threshold";
-  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 1;
+  // remaining with the same ("infinity") but configurable default for now
+  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 30;
 
   public static final long DEEP_OVERHEAD = ClassSize
       .align(ClassSize.OBJECT
@@ -58,10 +61,6 @@ public class MemStoreCompactor {
           + Bytes.SIZEOF_INT            // compactionKVMax
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
-
-  // The upper bound for the number of segments we store in the pipeline prior to merging.
-  // This constant is subject to further experimentation.
-  private static final int THRESHOLD_PIPELINE_SEGMENTS = 30; // stands here for infinity
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
