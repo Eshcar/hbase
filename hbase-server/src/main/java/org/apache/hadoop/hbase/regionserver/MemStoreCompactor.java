@@ -44,6 +44,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @InterfaceAudience.Private
 public class MemStoreCompactor {
 
+  // The upper bound for the number of segments we store in the pipeline prior to merging.
+  // This constant is subject to further experimentation.
+  // The external setting of the compacting MemStore behaviour
+  public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
+      "hbase.hregion.compacting.memstore.threshold";
+  // remaining with the same ("infinity") but configurable default for now
+  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 30;
+
   public static final long DEEP_OVERHEAD = ClassSize
       .align(ClassSize.OBJECT
           + 4 * ClassSize.REFERENCE
@@ -53,10 +61,6 @@ public class MemStoreCompactor {
           + Bytes.SIZEOF_INT            // compactionKVMax
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
-
-  // The upper bound for the number of segments we store in the pipeline prior to merging.
-  // This constant is subject to further experimentation.
-  private static final int THRESHOLD_PIPELINE_SEGMENTS = 30; // stands here for infinity
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
 
@@ -158,10 +162,14 @@ public class MemStoreCompactor {
       return Action.COMPACT;
     }
 
+    int pipelineThreshold =         // get the limit on the number of the segments in the pipeline
+        compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY,
+        COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
+
     // compaction shouldn't happen or doesn't worth it
     // limit the number of the segments in the pipeline
     int numOfSegments = versionedList.getNumOfSegments();
-    if (numOfSegments > THRESHOLD_PIPELINE_SEGMENTS) {
+    if (numOfSegments > pipelineThreshold) {
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
           + " is going to be merged, as there are " + numOfSegments + " segments");
       return Action.MERGE;          // to avoid too many segments, merge now
