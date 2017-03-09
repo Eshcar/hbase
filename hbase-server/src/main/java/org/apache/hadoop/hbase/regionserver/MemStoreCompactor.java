@@ -173,7 +173,6 @@ public class MemStoreCompactor {
     if (numOfSegments > pipelineThreshold) {
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
           + " is going to be merged, as there are " + numOfSegments + " segments");
-      action = Action.MERGE;
       return Action.MERGE;          // to avoid too many segments, merge now
     }
 

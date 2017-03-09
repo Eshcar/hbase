@@ -106,12 +106,13 @@ public class CompactionPipeline {
    *                removed.
    * @param closeSuffix whether to close the suffix (to release memory), as part of swapping it out
    *        During index merge op this will be false and for compaction it will be true.
+   * @param updateRegionSize
    * @return true iff swapped tail with new segment
    */
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="VO_VOLATILE_INCREMENT",
       justification="Increment is done under a synchronize block so safe")
   public boolean swap(VersionedSegmentsList versionedList, ImmutableSegment segment,
-      boolean closeSuffix) {
+      boolean closeSuffix, boolean updateRegionSize) {
     if (versionedList.getVersion() != version) {
       return false;
     }
@@ -135,7 +136,7 @@ public class CompactionPipeline {
       readOnlyCopy = new LinkedList<>(pipeline);
       version++;
     }
-    if (region != null) {
+    if (updateRegionSize && region != null) {
       // update the global memstore size counter
       long suffixDataSize = getSegmentsKeySize(suffix);
       long newDataSize = 0;
