@@ -774,6 +774,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         ? DEFAULT_DURABILITY
         : htd.getDurability();
     this.memoryScanOptimization = htd.getMemoryScanOptimization();
+    LOG.info("ESHCAR memoryScanOptimization="
+        + memoryScanOptimization);
     if (rsServices != null) {
       this.rsAccounting = this.rsServices.getRegionServerAccounting();
       // don't initialize coprocessors if not running within a regionserver
