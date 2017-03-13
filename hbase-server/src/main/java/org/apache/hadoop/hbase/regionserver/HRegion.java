@@ -773,7 +773,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.durability = htd.getDurability() == Durability.USE_DEFAULT
         ? DEFAULT_DURABILITY
         : htd.getDurability();
-    this.memoryScanOptimization = htd.getMemoryScanOptimization();
+    String opt = conf.get("hbase.test.memory.scan.optimization");
+    if (opt != null) {
+      this.memoryScanOptimization = Boolean.valueOf(opt);
+    } else {
+      this.memoryScanOptimization = htd.getMemoryScanOptimization();
+    }
     LOG.info("ESHCAR memoryScanOptimization=" + memoryScanOptimization);
     if (rsServices != null) {
       this.rsAccounting = this.rsServices.getRegionServerAccounting();
