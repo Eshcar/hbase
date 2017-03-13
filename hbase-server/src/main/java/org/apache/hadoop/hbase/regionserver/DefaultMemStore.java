@@ -142,13 +142,8 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-<<<<<<< HEAD
   protected List<Segment> getSegments() throws IOException {
     List<Segment> list = new ArrayList<>(2);
-=======
-  protected List<Segment> getSegments() {
-    List<Segment> list = new ArrayList<Segment>(2);
->>>>>>> HBASE-17339: Scan-Memory-First Optimization for Get Operations
     list.add(this.active);
     list.add(this.snapshot);
     return list;

@@ -137,14 +137,11 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
-<<<<<<< HEAD
   @Override
   public long getMinTimestamp(){
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
-=======
->>>>>>> HBASE-17339: Scan-Memory-First Optimization for Get Operations
   /**
    * Creates the scanner for the given read point
    * @return a scanner for the given read point
