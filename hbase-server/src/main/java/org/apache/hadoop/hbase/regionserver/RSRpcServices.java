@@ -1795,6 +1795,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           if (htd == null) {
             throw new IOException("Missing table descriptor for " + region.getEncodedName());
           }
+          LOG.info("ESHCAR Opening region: " + region + ", htd.memoryScanOptimization="
+              + htd.getMemoryScanOptimization());
           // If there is no action in progress, we can submit a specific handler.
           // Need to pass the expected version in the constructor.
           if (region.isMetaRegion()) {
