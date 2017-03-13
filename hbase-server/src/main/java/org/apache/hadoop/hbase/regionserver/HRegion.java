@@ -5848,22 +5848,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) {
           Store store = stores.get(entry.getKey());
-<<<<<<< HEAD
-          KeyValueScanner scanner = null;
-=======
-          KeyValueScanner scanner;
->>>>>>> HBASE-17339: Scan-Memory-First Optimization for Get Operations
-          try {
-            // This is the first collect of max flushed ts of stores
-            // It is later validated by a second collect if a scan memory optimization is applied
-            // It is VERY IMPORTANT that the order of the next two lines is not changed
-            // 1. collect max flushed timestamp
-            // 2. create scanner
-            storesMaxFlushedTimestamp.put(entry.getKey(), store.getMaxFlushedTimestamp());
-            scanner = store.getScanner(scan, entry.getValue(), this.readPt);
-          } catch (FileNotFoundException e) {
-            handleFileNotFound(e);
-          }
+          // This is the first collect of max flushed ts of stores
+          // It is later validated by a second collect if a scan memory optimization is applied
+          // It is VERY IMPORTANT that the order of the next two lines is not changed
+          // 1. collect max flushed timestamp
+          // 2. create scanner
+          storesMaxFlushedTimestamp.put(entry.getKey(), store.getMaxFlushedTimestamp());
+          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt);
           instantiatedScanners.add(scanner);
           if (this.filter == null || !scan.doLoadColumnFamiliesOnDemand()
               || this.filter.isFamilyEssential(entry.getKey())) {

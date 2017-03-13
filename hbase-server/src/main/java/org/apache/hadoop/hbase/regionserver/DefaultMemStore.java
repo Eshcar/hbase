@@ -142,7 +142,6 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-<<<<<<< HEAD
   protected List<Segment> getSegments() {
     List<Segment> list = new ArrayList<Segment>(2);
     list.add(this.active);
