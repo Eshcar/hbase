@@ -142,7 +142,7 @@ public class DefaultMemStore extends AbstractMemStore {
   }
 
   @Override
-  protected List<Segment> getSegments() throws IOException {
+  protected List<Segment> getSegments() {
     List<Segment> list = new ArrayList<>(2);
     list.add(this.active);
     list.add(this.snapshot);

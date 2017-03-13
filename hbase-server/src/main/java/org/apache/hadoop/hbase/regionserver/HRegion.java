@@ -773,7 +773,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.durability = htd.getDurability() == Durability.USE_DEFAULT
         ? DEFAULT_DURABILITY
         : htd.getDurability();
-<<<<<<< HEAD
     String opt = conf.get("hbase.test.memory.scan.optimization");
     if (opt != null) {
       this.memoryScanOptimization = Boolean.valueOf(opt);
@@ -781,11 +780,6 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       this.memoryScanOptimization = htd.getMemoryScanOptimization();
     }
     LOG.info("ESHCAR memoryScanOptimization=" + memoryScanOptimization);
-=======
-    this.memoryScanOptimization = htd.getMemoryScanOptimization();
-    LOG.info("ESHCAR memoryScanOptimization="
-        + memoryScanOptimization);
->>>>>>> dfbc93a902c61b93ca6b2b3191594d482a950f4a
     if (rsServices != null) {
       this.rsAccounting = this.rsServices.getRegionServerAccounting();
       // don't initialize coprocessors if not running within a regionserver
@@ -5854,18 +5848,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       try {
         for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) {
           Store store = stores.get(entry.getKey());
-          KeyValueScanner scanner;
-          try {
-            // This is the first collect of max flushed ts of stores
-            // It is later validated by a second collect if a scan memory optimization is applied
-            // It is VERY IMPORTANT that the order of the next two lines is not changed
-            // 1. collect max flushed timestamp
-            // 2. create scanner
-            storesMaxFlushedTimestamp.put(entry.getKey(), store.getMaxFlushedTimestamp());
-            scanner = store.getScanner(scan, entry.getValue(), this.readPt);
-          } catch (FileNotFoundException e) {
-            throw handleFileNotFound(e);
-          }
+          // This is the first collect of max flushed ts of stores
+          // It is later validated by a second collect if a scan memory optimization is applied
+          // It is VERY IMPORTANT that the order of the next two lines is not changed
+          // 1. collect max flushed timestamp
+          // 2. create scanner
+          storesMaxFlushedTimestamp.put(entry.getKey(), store.getMaxFlushedTimestamp());
+          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt);
           instantiatedScanners.add(scanner);
           if (this.filter == null || !scan.doLoadColumnFamiliesOnDemand()
               || this.filter.isFamilyEssential(entry.getKey())) {
