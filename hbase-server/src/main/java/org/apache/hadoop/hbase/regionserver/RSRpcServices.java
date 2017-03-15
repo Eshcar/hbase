@@ -2306,8 +2306,10 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
   }
 
-  private static AtomicInteger MEMORY_SCANS = new AtomicInteger(0);
-  private static AtomicInteger FULL_SCANS = new AtomicInteger(0);
+  private static AtomicInteger ONLY_MEMORY_SCANS = new AtomicInteger(0);
+  private static AtomicInteger ONLY_FULL_SCANS = new AtomicInteger(0);
+  private static AtomicInteger BOTH_SCANS = new AtomicInteger(0);
+  private static AtomicInteger NOT_MONOTONIC = new AtomicInteger(0);
 
 
   private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,
@@ -2330,6 +2332,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     RegionScanner internalScanner = null;
     boolean monotonic = false;
     List<Cell> fullScanResults = new ArrayList<>(results);
+    boolean doneMemoryScan = false;
+    boolean doneFullScan = false;
     try {
       if(shouldApplyMemoryScanOptimization) {
         InternalScan internalScan = new InternalScan(get);
@@ -2342,13 +2346,16 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         // a null ts indicates the store does not maintain monotonicity
         if(internalScanner.testTSMonotonicity()) {
           internalScanner.next(results);
-          MEMORY_SCANS.incrementAndGet();
+          doneMemoryScan = true;
           // double-collect on max flushed timestamps
           // if one of the max flushed ts in any of the stores have changed the view of the
           // memory scanners might be inconsistent or include data of non-monotonic store
           // but if all max flushed ts have not changed since we last read them then the view is
           // consistent and all stores are monotonic.
           monotonic = internalScanner.recheckTSMonotonicity(internalScan);
+          if(!monotonic) {
+            NOT_MONOTONIC.incrementAndGet();
+          }
         }
       }
       if(!shouldApplyMemoryScanOptimization
@@ -2360,16 +2367,26 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         }
         scanner = region.getScanner(scan);
         scanner.next(fullScanResults);
-        if(memoryScanOptimization) {
-          int fullScansCount = FULL_SCANS.incrementAndGet();
-          int memScansCount = MEMORY_SCANS.get();
-          if (fullScansCount % 20000 == 0) {
-            LOG.info("ESHCAR memScansCount="
-                + memScansCount + " fullScansCount=" + fullScansCount);
-          }
-        }
+        doneFullScan = true;
       }
     } finally {
+      if(doneMemoryScan && doneFullScan){
+        BOTH_SCANS.incrementAndGet();
+      } else if(doneMemoryScan) {
+        ONLY_MEMORY_SCANS.incrementAndGet();
+      } else if(doneFullScan) {
+        ONLY_FULL_SCANS.incrementAndGet();
+      } else {
+        throw new RuntimeException("impossible - no scan");
+      }
+      int memScansCount = ONLY_MEMORY_SCANS.get();
+      int fullScansCount = ONLY_FULL_SCANS.get();
+      int bothScansCount = BOTH_SCANS.get();
+      int notMonotonic = NOT_MONOTONIC.get();
+      if (fullScansCount % 50000 == 0 || bothScansCount % 50000 == 0) {
+      LOG.info("ESHCAR bothScansCount=" + bothScansCount + " memScansCount=" + memScansCount
+          + " notMonotonic=" + notMonotonic + " fullScansCount=" + fullScansCount);
+      }
       if (scanner != null) {
         // Executed a full scan:
         results = fullScanResults;
