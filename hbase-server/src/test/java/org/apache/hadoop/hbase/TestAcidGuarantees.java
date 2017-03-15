@@ -71,10 +71,11 @@ public class TestAcidGuarantees implements Tool {
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return Arrays.asList(new Object[][] {
-        { CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT, Boolean.FALSE },
+//        { CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT, Boolean.FALSE },
         { CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT, Boolean.TRUE },
-        { "BASIC", HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION },
-        { "EAGER", HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION } });
+//        { "BASIC", HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION },
+//        { "EAGER", HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION }
+    });
   }
 
   protected static final Log LOG = LogFactory.getLog(TestAcidGuarantees.class);
