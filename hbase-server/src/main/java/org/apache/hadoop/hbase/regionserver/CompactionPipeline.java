@@ -106,7 +106,10 @@ public class CompactionPipeline {
    *                removed.
    * @param closeSuffix whether to close the suffix (to release memory), as part of swapping it out
    *        During index merge op this will be false and for compaction it will be true.
-   * @param updateRegionSize
+   * @param updateRegionSize whether to update the region size. Update the region size,
+   *                         when the pipeline is swapped as part of in-memory-flush and
+   *                         further merge/compaction. Don't update the region size when the
+   *                         swap is result of the snapshot (flush-to-disk).
    * @return true iff swapped tail with new segment
    */
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="VO_VOLATILE_INCREMENT",
