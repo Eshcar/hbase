@@ -24,6 +24,7 @@ import java.util.NavigableSet;
 import java.util.SortedSet;
 
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
@@ -40,6 +41,7 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 @InterfaceAudience.Private
 public abstract class AbstractMemStore implements MemStore {
 
+  protected static final Log LOG = LogFactory.getLog(AbstractMemStore.class);
   private static final long NO_SNAPSHOT_ID = -1;
 
   private final Configuration conf;
@@ -136,6 +138,8 @@ public abstract class AbstractMemStore implements MemStore {
     for(Segment segment : segments) {
       if(segment.getMinTimestamp() < maxFlushedTimestamp) {
         // timestamp overlap -- not monotonic
+        LOG.info("segment "+segment + " timestamp "+segment.getMinTimestamp()+
+            " is lower than maxFlushedTimestamp "+maxFlushedTimestamp);
         return null;
       }
     }

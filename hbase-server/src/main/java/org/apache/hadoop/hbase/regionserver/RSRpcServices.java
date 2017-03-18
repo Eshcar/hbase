@@ -2306,6 +2306,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
   }
 
+  // These counters are just to collect statistics during benchmarks
+  // will be removed in the final version
   private static AtomicInteger ONLY_MEMORY_SCANS = new AtomicInteger(0);
   private static AtomicInteger ONLY_FULL_SCANS = new AtomicInteger(0);
   private static AtomicInteger BOTH_SCANS = new AtomicInteger(0);
@@ -2332,6 +2334,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     RegionScanner internalScanner = null;
     boolean monotonic = false;
     List<Cell> fullScanResults = new ArrayList<>(results);
+    // doneMemoryScan and doneFullScan are just to collect statistics during benchmarks
+    // will be removed in final version
     boolean doneMemoryScan = false;
     boolean doneFullScan = false;
     try {
