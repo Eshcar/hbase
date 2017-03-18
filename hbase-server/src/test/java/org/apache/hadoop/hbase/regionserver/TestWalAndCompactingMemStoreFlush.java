@@ -768,7 +768,8 @@ public class TestWalAndCompactingMemStoreFlush {
     // set memstore to do index compaction with merge
     conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(MemoryCompactionPolicy.BASIC));
-    conf.setInt(MemStoreCompactor.COMPACTING_MEMSTORE_THRESHOLD_KEY, 1); // length of pipeline
+    // length of pipeline that requires merge
+    conf.setInt(MemStoreCompactor.COMPACTING_MEMSTORE_THRESHOLD_KEY, 1);
 
     // Intialize the HRegion
     HRegion region = initHRegion("testSelectiveFlushWithBasicAndMerge", conf);
@@ -820,16 +821,17 @@ public class TestWalAndCompactingMemStoreFlush {
     // Flush-to-disk! CF2 only should be flushed
     region.flush(false);
 
-//    MemstoreSize cf2MemstoreSizePhaseII = region.getStore(FAMILY2).getSizeOfMemStore();
-//
-//    long smallestSeqInRegionCurrentMemstorePhaseII = region.getWAL()
-//        .getEarliestMemstoreSeqNum(region.getRegionInfo().getEncodedNameAsBytes());
-//    long smallestSeqCF1PhaseII = region.getOldestSeqIdOfStore(FAMILY1);
-//    long smallestSeqCF2PhaseII = region.getOldestSeqIdOfStore(FAMILY2);
-//    long smallestSeqCF3PhaseII = region.getOldestSeqIdOfStore(FAMILY3);
-//
-//    // CF2 should have been cleared
-//    assertEquals(MemstoreSize.EMPTY_SIZE, cf2MemstoreSizePhaseII);
+    MemstoreSize cf1MemstoreSizePhaseII = region.getStore(FAMILY1).getSizeOfMemStore();
+    MemstoreSize cf2MemstoreSizePhaseII = region.getStore(FAMILY2).getSizeOfMemStore();
+    MemstoreSize cf3MemstoreSizePhaseII = region.getStore(FAMILY3).getSizeOfMemStore();
+
+    long smallestSeqCF2PhaseII = region.getOldestSeqIdOfStore(FAMILY2);
+    long smallestSeqCF3PhaseII = region.getOldestSeqIdOfStore(FAMILY3);
+
+    // CF1 should be flushed in memory and just flattened, CF2 should have been cleared
+    assertTrue(cf1MemstoreSizePhaseI.getHeapSize() > cf1MemstoreSizePhaseII.getHeapSize());
+    assertEquals(cf1MemstoreSizePhaseI.getDataSize(), cf1MemstoreSizePhaseII.getDataSize());
+    assertEquals(MemstoreSize.EMPTY_SIZE, cf2MemstoreSizePhaseII);
 //
 //    // Add same entries to compact them later
 //    for (int i = 1; i <= 1200; i++) {
