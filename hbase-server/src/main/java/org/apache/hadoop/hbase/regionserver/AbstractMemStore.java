@@ -136,7 +136,7 @@ public abstract class AbstractMemStore implements MemStore {
   public Long getMaxFlushedTimestamp() {
     List<Segment> segments = getSegments();
     for(Segment segment : segments) {
-      if(segment.getMinTimestamp() < maxFlushedTimestamp) {
+      if(!segment.isEmpty() && segment.getMinTimestamp() < maxFlushedTimestamp) {
         // timestamp overlap -- not monotonic
         LOG.info("segment "+segment + " timestamp "+segment.getMinTimestamp()+
             " is lower than maxFlushedTimestamp "+maxFlushedTimestamp);
