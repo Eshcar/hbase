@@ -2531,7 +2531,11 @@ public class HStore implements Store {
    */
   @Override
   public Long getMaxFlushedTimestamp() {
-    return memstore.getMaxFlushedTimestamp();
+    Long res = memstore.getMaxFlushedTimestamp();
+    if(res == null) {
+      LOG.info("store "+getColumnFamilyName()+" is not monotonic");
+    }
+    return res;
   }
 
   private void clearCompactedfiles(final List<StoreFile> filesToRemove) throws IOException {
