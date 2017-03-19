@@ -2312,6 +2312,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
   private static AtomicInteger ONLY_FULL_SCANS = new AtomicInteger(0);
   private static AtomicInteger BOTH_SCANS = new AtomicInteger(0);
   private static AtomicInteger NOT_MONOTONIC = new AtomicInteger(0);
+  private static AtomicInteger NOT_SATISFIED = new AtomicInteger(0);
 
 
   private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,
@@ -2333,6 +2334,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     RegionScanner scanner = null;
     RegionScanner internalScanner = null;
     boolean monotonic = false;
+    boolean satisfied = false;
     List<Cell> fullScanResults = new ArrayList<>(results);
     // doneMemoryScan and doneFullScan are just to collect statistics during benchmarks
     // will be removed in final version
@@ -2364,7 +2366,10 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
       if(!shouldApplyMemoryScanOptimization
           || !monotonic // failed monotonicity test
-          || !get.satisfiedWith(results) ) {
+          || !(satisfied = get.satisfiedWith(results)) ) {
+        if(!satisfied) {
+          NOT_SATISFIED.incrementAndGet();
+        }
         Scan scan = new Scan(get);
         if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
           scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
@@ -2387,12 +2392,16 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       int onlyFullScansCount = ONLY_FULL_SCANS.get();
       int bothScansCount = BOTH_SCANS.get();
       int notMonotonic = NOT_MONOTONIC.get();
+      int notSatisfied = NOT_SATISFIED.get();
       if ((onlyFullScansCount % 50000 == 0 && onlyFullScansCount > 0) ||
           (bothScansCount % 50000 == 0 && bothScansCount > 0) ) {
-        LOG.info("ESHCAR bothScansCount=" + bothScansCount
-            + " onlyMemScansCount=" + onlyMemScansCount
-            + " notMonotonic=" + notMonotonic
-            + " onlyFullScansCount=" + onlyFullScansCount);
+        LOG.info(
+            "ESHCAR bothScansCount=" + bothScansCount
+                + " onlyMemScansCount=" + onlyMemScansCount
+                + " onlyFullScansCount=" + onlyFullScansCount
+                + " notMonotonic=" + notMonotonic
+                + " notSatisfied="+ notSatisfied
+        );
       }
       if (scanner != null) {
         // Executed a full scan:
