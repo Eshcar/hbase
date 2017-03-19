@@ -2376,20 +2376,23 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     } finally {
       if(doneMemoryScan && doneFullScan){
         BOTH_SCANS.incrementAndGet();
-      } else if(doneMemoryScan) {
-        ONLY_MEMORY_SCANS.incrementAndGet();
-      } else if(doneFullScan) {
-        ONLY_FULL_SCANS.incrementAndGet();
-      } else {
-        throw new RuntimeException("impossible - no scan");
       }
-      int memScansCount = ONLY_MEMORY_SCANS.get();
-      int fullScansCount = ONLY_FULL_SCANS.get();
+      if(doneMemoryScan && !doneFullScan) {
+        ONLY_MEMORY_SCANS.incrementAndGet();
+      }
+      if(doneFullScan && !doneMemoryScan) {
+        ONLY_FULL_SCANS.incrementAndGet();
+      }
+      int onlyMemScansCount = ONLY_MEMORY_SCANS.get();
+      int onlyFullScansCount = ONLY_FULL_SCANS.get();
       int bothScansCount = BOTH_SCANS.get();
       int notMonotonic = NOT_MONOTONIC.get();
-      if (fullScansCount % 50000 == 0 || bothScansCount % 50000 == 0) {
-      LOG.info("ESHCAR bothScansCount=" + bothScansCount + " memScansCount=" + memScansCount
-          + " notMonotonic=" + notMonotonic + " fullScansCount=" + fullScansCount);
+      if ((onlyFullScansCount % 50000 == 0 && onlyFullScansCount > 0) ||
+          (bothScansCount % 50000 == 0 && bothScansCount > 0) ) {
+        LOG.info("ESHCAR bothScansCount=" + bothScansCount
+            + " onlyMemScansCount=" + onlyMemScansCount
+            + " notMonotonic=" + notMonotonic
+            + " onlyFullScansCount=" + onlyFullScansCount);
       }
       if (scanner != null) {
         // Executed a full scan:
