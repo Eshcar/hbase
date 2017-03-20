@@ -305,7 +305,7 @@ public class SegmentScanner implements KeyValueScanner {
    */
   @Override
   public void enforceSeek() throws IOException {
-    throw new NotImplementedException("enforceSeek must not be called on a SegmentScanner");
+    throw new NotImplementedException("enforceSeek cannot be called on a SegmentScanner");
   }
 
   /**

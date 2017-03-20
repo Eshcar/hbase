@@ -36,7 +36,6 @@ public abstract class MemStoreSegmentsIterator implements Iterator<Cell> {
 
   protected final ScannerContext scannerContext;
 
-
   // C-tor
   public MemStoreSegmentsIterator(int compactionKVMax) throws IOException {
     this.scannerContext = ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
