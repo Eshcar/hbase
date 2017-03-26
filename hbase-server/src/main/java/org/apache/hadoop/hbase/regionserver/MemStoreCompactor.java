@@ -48,7 +48,7 @@ public class MemStoreCompactor {
   // This constant is subject to further experimentation.
   // The external setting of the compacting MemStore behaviour
   public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
-      "hbase.hregion.compacting.memstore.threshold";
+      "hbase.hregion.compacting.pipeline.segments.limit";
   // remaining with the same ("infinity") but configurable default for now
   public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 30;
 
@@ -63,7 +63,7 @@ public class MemStoreCompactor {
       );
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
-
+  private final int pipelineThreshold; // the limit on the number of the segments in the pipeline
   private CompactingMemStore compactingMemStore;
 
   // a static version of the segment list from the pipeline
@@ -95,6 +95,9 @@ public class MemStoreCompactor {
     this.compactionKVMax = compactingMemStore.getConfiguration()
         .getInt(HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
     initiateAction(compactionPolicy);
+    pipelineThreshold =         // get the limit on the number of the segments in the pipeline
+        compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY,
+            COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
   }
 
   /**----------------------------------------------------------------------
@@ -161,10 +164,6 @@ public class MemStoreCompactor {
           + " cells before compaction is " + versionedList.getNumOfCells());
       return Action.COMPACT;
     }
-
-    int pipelineThreshold =         // get the limit on the number of the segments in the pipeline
-        compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY,
-        COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
 
     // compaction shouldn't happen or doesn't worth it
     // limit the number of the segments in the pipeline
