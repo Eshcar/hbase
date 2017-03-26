@@ -76,7 +76,7 @@ public class IntegrationTestAcidGuarantees extends IntegrationTestBase {
 
     // replace the HBaseTestingUtility in the unit test with the integration test's
     // IntegrationTestingUtility
-    tag = new TestAcidGuarantees(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT);
+    tag = new TestAcidGuarantees(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT, false);
     tag.setHBaseTestingUtil(util);
   }
 

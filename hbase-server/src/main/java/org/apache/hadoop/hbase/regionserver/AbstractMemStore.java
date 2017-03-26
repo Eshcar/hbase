@@ -19,12 +19,12 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import com.google.common.annotations.VisibleForTesting;
-import java.io.IOException;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
 
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
@@ -41,6 +41,7 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 @InterfaceAudience.Private
 public abstract class AbstractMemStore implements MemStore {
 
+  protected static final Log LOG = LogFactory.getLog(AbstractMemStore.class);
   private static final long NO_SNAPSHOT_ID = -1;
 
   private final Configuration conf;
@@ -53,10 +54,12 @@ public abstract class AbstractMemStore implements MemStore {
   protected volatile long snapshotId;
   // Used to track when to flush
   private volatile long timeOfOldestEdit;
+  // used to check if all timestamps in memstore are strictly greater than timestamps in files
+  private volatile long maxFlushedTimestamp;
 
   public final static long FIXED_OVERHEAD = ClassSize.OBJECT
           + (4 * ClassSize.REFERENCE)
-          + (2 * Bytes.SIZEOF_LONG); // snapshotId, timeOfOldestEdit
+          + (3 * Bytes.SIZEOF_LONG); // snapshotId, timeOfOldestEdit
 
   public final static long DEEP_OVERHEAD = FIXED_OVERHEAD;
 
@@ -74,18 +77,20 @@ public abstract class AbstractMemStore implements MemStore {
     return order - 1;
   }
 
-  protected AbstractMemStore(final Configuration conf, final CellComparator c) {
+  protected AbstractMemStore(final Configuration conf, final CellComparator c,
+      final Long maxFlushedTimestamp) {
     this.conf = conf;
     this.comparator = c;
     resetActive();
     this.snapshot = SegmentFactory.instance().createImmutableSegment(c);
     this.snapshotId = NO_SNAPSHOT_ID;
+    this.maxFlushedTimestamp = maxFlushedTimestamp;
   }
 
   protected void resetActive() {
     // Reset heap to not include any keys
-    this.active = SegmentFactory.instance().createMutableSegment(conf, comparator);
-    this.timeOfOldestEdit = Long.MAX_VALUE;
+    active = SegmentFactory.instance().createMutableSegment(conf, comparator);
+    timeOfOldestEdit = Long.MAX_VALUE;
   }
 
   /**
@@ -136,6 +141,26 @@ public abstract class AbstractMemStore implements MemStore {
   }
 
   /**
+   * A store preserves monotonicity if all timestamps in memstore are strictly greater than all
+   * timestamps in store files.
+   * @return maximal timestamp that was flushed to disk in this store or null if monotonicity is not
+   * preserved
+   */
+  @Override
+  public Long getMaxFlushedTimestamp() {
+    List<Segment> segments = getSegments();
+    for(Segment segment : segments) {
+      if(!segment.isEmpty() && segment.getMinTimestamp() < maxFlushedTimestamp) {
+        // timestamp overlap -- not monotonic
+        LOG.info("segment "+segment + " timestamp "+segment.getMinTimestamp()+
+            " is lower than maxFlushedTimestamp "+maxFlushedTimestamp);
+        return null;
+      }
+    }
+    return maxFlushedTimestamp;
+  }
+
+  /**
    * @return Oldest timestamp of all the Cells in the MemStore
    */
   @Override
@@ -150,18 +175,23 @@ public abstract class AbstractMemStore implements MemStore {
    */
   @Override
   public void clearSnapshot(long id) throws UnexpectedStateException {
-    if (this.snapshotId == -1) return;  // already cleared
-    if (this.snapshotId != id) {
-      throw new UnexpectedStateException("Current snapshot id is " + this.snapshotId + ",passed "
-          + id);
+    if (snapshotId == -1) return;  // already cleared
+    if (snapshotId != id) {
+      throw new UnexpectedStateException("Current snapshot id is " + snapshotId + ",passed " + id);
     }
     // OK. Passed in snapshot is same as current snapshot. If not-empty,
     // create a new snapshot and let the old one go.
     Segment oldSnapshot = this.snapshot;
-    if (!this.snapshot.isEmpty()) {
-      this.snapshot = SegmentFactory.instance().createImmutableSegment(this.comparator);
+    if (!snapshot.isEmpty()) {
+      // The magic moment to maintain the maximal flushed ts property
+      // To ensure the double-collect mechanism in the memory scan optimization is correct
+      // it is VERY IMPORTANT that the order of the next two lines is not changed
+      // 1. update max flushed ts
+      // 2. clear snapshot segment
+      maxFlushedTimestamp = Math.max(maxFlushedTimestamp, snapshot.getMaxTimestamp());
+      snapshot = SegmentFactory.instance().createImmutableSegment(comparator);
     }
-    this.snapshotId = NO_SNAPSHOT_ID;
+    snapshotId = NO_SNAPSHOT_ID;
     oldSnapshot.close();
   }
 
@@ -174,13 +204,9 @@ public abstract class AbstractMemStore implements MemStore {
   public String toString() {
     StringBuffer buf = new StringBuffer();
     int i = 1;
-    try {
-      for (Segment segment : getSegments()) {
-        buf.append("Segment (" + i + ") " + segment.toString() + "; ");
-        i++;
-      }
-    } catch (IOException e){
-      return e.toString();
+    for (Segment segment : getSegments()) {
+      buf.append("Segment (" + i + ") " + segment.toString() + "; ");
+      i++;
     }
     return buf.toString();
   }
@@ -322,6 +348,6 @@ public abstract class AbstractMemStore implements MemStore {
   /**
    * @return an ordered list of segments from most recent to oldest in memstore
    */
-  protected abstract List<Segment> getSegments() throws IOException;
+  protected abstract List<Segment> getSegments();
 
 }

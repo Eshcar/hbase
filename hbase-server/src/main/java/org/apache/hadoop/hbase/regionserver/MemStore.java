@@ -139,4 +139,12 @@ public interface MemStore {
    * are done
    */
   default void stopReplayingFromWAL(){return;}
+
+  /**
+   * A store preserves monotonicity if all timestamps in memstore are strictly greater than all
+   * timestamps in store files.
+   * @return maximal timestamp that was flushed to disk in this store or null if monotonicity is not
+   * preserved
+   */
+  Long getMaxFlushedTimestamp();
 }

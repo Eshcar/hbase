@@ -87,15 +87,22 @@ public class CompactingMemStore extends AbstractMemStore {
       + 2 * ClassSize.ATOMIC_BOOLEAN// inMemoryFlushInProgress and allowCompaction
       + CompactionPipeline.DEEP_OVERHEAD + MemStoreCompactor.DEEP_OVERHEAD);
 
-  public CompactingMemStore(Configuration conf, CellComparator c,
+  public CompactingMemStore(final Configuration conf, final CellComparator c,
       HStore store, RegionServicesForStores regionServices,
-      MemoryCompactionPolicy compactionPolicy) throws IOException {
-    super(conf, c);
+      final MemoryCompactionPolicy compactionPolicy,
+      final Long maxFlushedTimestamp) throws IOException {
+    super(conf, c, maxFlushedTimestamp);
     this.store = store;
     this.regionServices = regionServices;
     this.pipeline = new CompactionPipeline(getRegionServices());
     this.compactor = new MemStoreCompactor(this, compactionPolicy);
     initInmemoryFlushSize(conf);
+  }
+
+  CompactingMemStore(final Configuration conf, final CellComparator c,
+      HStore store, RegionServicesForStores regionServices,
+      final MemoryCompactionPolicy compactionPolicy) throws IOException {
+    this(conf, c, store, regionServices, compactionPolicy, 0L);
   }
 
   private void initInmemoryFlushSize(Configuration conf) {

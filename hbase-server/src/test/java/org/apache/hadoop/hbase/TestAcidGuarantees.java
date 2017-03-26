@@ -19,6 +19,8 @@
 package org.apache.hadoop.hbase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -71,13 +73,20 @@ import org.junit.runners.Parameterized;
 @Category({FlakeyTests.class, MediumTests.class})
 @RunWith(Parameterized.class)
 public class TestAcidGuarantees implements Tool {
+
   @Parameterized.Parameters
-  public static Object[] data() {
-    return new Object[] { "NONE", "BASIC", "EAGER" };
+  public static Collection<Object[]> data() {
+    return Arrays.asList(new Object[][] {
+//        { CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT, Boolean.FALSE },
+        { CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT, Boolean.TRUE },
+//        { "BASIC", HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION },
+//        { "EAGER", HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION }
+    });
   }
+
   protected static final Log LOG = LogFactory.getLog(TestAcidGuarantees.class);
   public static final TableName TABLE_NAME = TableName.valueOf("TestAcidGuarantees");
-  public static final byte [] FAMILY_A = Bytes.toBytes("A");
+  public static final byte[] FAMILY_A = Bytes.toBytes("A");
   public static final byte [] FAMILY_B = Bytes.toBytes("B");
   public static final byte [] FAMILY_C = Bytes.toBytes("C");
   public static final byte [] QUALIFIER_NAME = Bytes.toBytes("data");
@@ -110,7 +119,7 @@ public class TestAcidGuarantees implements Tool {
     }
   }
 
-  public TestAcidGuarantees(String compType) {
+  public TestAcidGuarantees(String compType, Boolean memoryScanOptimization) throws Exception {
     // Set small flush size for minicluster so we exercise reseeking scanners
     Configuration conf = HBaseConfiguration.create();
     conf.set(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, String.valueOf(128 * 1024));
@@ -123,6 +132,8 @@ public class TestAcidGuarantees implements Tool {
       conf.setBoolean(MemStoreLAB.USEMSLAB_KEY, false);
       conf.setDouble(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 0.9);
     }
+    conf.set(HBaseTestingUtility.TESTING_MEMORY_SCAN_OPTIMIZATION,
+        String.valueOf(memoryScanOptimization));
     util = new HBaseTestingUtility(conf);
     sharedPool = createThreadPool();
   }
@@ -225,6 +236,13 @@ public class TestAcidGuarantees implements Tool {
 
     public void doAnAction() throws Exception {
       Get g = new Get(targetRow);
+      // specify list of all columns so we can test scan-memory-first optimization
+      for (byte[] family : targetFamilies) {
+        for (int i = 0; i < NUM_COLS_TO_CHECK; i++) {
+          byte qualifier[] = Bytes.toBytes("col" + i);
+          g.addColumn(family, qualifier);
+        }
+      }
       Result res = table.get(g);
       byte[] gotValue = null;
       if (res.getRow() == null) {
@@ -514,8 +532,10 @@ public class TestAcidGuarantees implements Tool {
     Configuration c = HBaseConfiguration.create();
     int status;
     try {
-      TestAcidGuarantees test = new TestAcidGuarantees(CompactingMemStore
-          .COMPACTING_MEMSTORE_TYPE_DEFAULT);
+      TestAcidGuarantees test =
+          new TestAcidGuarantees(
+              CompactingMemStore.COMPACTING_MEMSTORE_TYPE_DEFAULT,
+              HTableDescriptor.DEFAULT_MEMORY_SCAN_OPTIMIZATION);
       status = ToolRunner.run(c, test, args);
     } catch (Exception e) {
       LOG.error("Exiting due to error", e);

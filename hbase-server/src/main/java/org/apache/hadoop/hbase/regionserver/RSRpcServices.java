@@ -38,6 +38,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -603,7 +604,6 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
    * Execute an append mutation.
    *
    * @param region
-   * @param m
    * @param cellScanner
    * @return result to return to client if default operation should be
    * bypassed as indicated by RegionObserver, null otherwise
@@ -1086,18 +1086,14 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           "' configuration property.", be.getCause() != null ? be.getCause() : be);
     }
 
-    scannerLeaseTimeoutPeriod = rs.conf.getInt(
-      HConstants.HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD,
-      HConstants.DEFAULT_HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD);
-    maxScannerResultSize = rs.conf.getLong(
-      HConstants.HBASE_SERVER_SCANNER_MAX_RESULT_SIZE_KEY,
-      HConstants.DEFAULT_HBASE_SERVER_SCANNER_MAX_RESULT_SIZE);
-    rpcTimeout = rs.conf.getInt(
-      HConstants.HBASE_RPC_TIMEOUT_KEY,
-      HConstants.DEFAULT_HBASE_RPC_TIMEOUT);
-    minimumScanTimeLimitDelta = rs.conf.getLong(
-      REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA,
-      DEFAULT_REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA);
+    scannerLeaseTimeoutPeriod = rs.conf.getInt(HConstants.HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD,
+        HConstants.DEFAULT_HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD);
+    maxScannerResultSize = rs.conf.getLong(HConstants.HBASE_SERVER_SCANNER_MAX_RESULT_SIZE_KEY,
+        HConstants.DEFAULT_HBASE_SERVER_SCANNER_MAX_RESULT_SIZE);
+    rpcTimeout = rs.conf.getInt(HConstants.HBASE_RPC_TIMEOUT_KEY,
+        HConstants.DEFAULT_HBASE_RPC_TIMEOUT);
+    minimumScanTimeLimitDelta = rs.conf.getLong(REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA,
+        DEFAULT_REGION_SERVER_RPC_MINIMUM_SCAN_TIME_LIMIT_DELTA);
 
     InetSocketAddress address = rpcServer.getListenerAddress();
     if (address == null) {
@@ -2312,9 +2308,21 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
   }
 
+  // These counters are just to collect statistics during benchmarks
+  // will be removed in the final version
+  private static AtomicInteger ONLY_MEMORY_SCANS = new AtomicInteger(0);
+  private static AtomicInteger ONLY_FULL_SCANS = new AtomicInteger(0);
+  private static AtomicInteger BOTH_SCANS = new AtomicInteger(0);
+  private static AtomicInteger NOT_MONOTONIC = new AtomicInteger(0);
+  private static AtomicInteger NOT_SATISFIED = new AtomicInteger(0);
+
+
   private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,
       RpcCallContext context) throws IOException {
+    boolean memoryScanOptimization = region.getMemoryScanOptimization();
     region.prepareGet(get);
+    boolean shouldApplyMemoryScanOptimization =
+        memoryScanOptimization && get.shouldApplyMemoryScanOptimization();
     List<Cell> results = new ArrayList<>();
     boolean stale = region.getRegionInfo().getReplicaId() != 0;
     // pre-get CP hook
@@ -2325,30 +2333,92 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
     }
     long before = EnvironmentEdgeManager.currentTime();
-    Scan scan = new Scan(get);
-    if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
-      scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
-    }
     RegionScanner scanner = null;
+    RegionScanner internalScanner = null;
+    boolean monotonic = false;
+    boolean satisfied = false;
+    List<Cell> fullScanResults = new ArrayList<>(results);
+    // doneMemoryScan and doneFullScan are just to collect statistics during benchmarks
+    // will be removed in final version
+    boolean doneMemoryScan = false;
+    boolean doneFullScan = false;
     try {
-      scanner = region.getScanner(scan);
-      scanner.next(results);
-    } finally {
-      if (scanner != null) {
-        if (closeCallBack == null) {
-          // If there is a context then the scanner can be added to the current
-          // RpcCallContext. The rpc callback will take care of closing the
-          // scanner, for eg in case
-          // of get()
-          assert scanner instanceof org.apache.hadoop.hbase.ipc.RpcCallback;
-          context.setCallBack((RegionScannerImpl) scanner);
-        } else {
-          // The call is from multi() where the results from the get() are
-          // aggregated and then send out to the
-          // rpc. The rpccall back will close all such scanners created as part
-          // of multi().
-          closeCallBack.addScanner(scanner);
+      if(shouldApplyMemoryScanOptimization) {
+        InternalScan internalScan = new InternalScan(get);
+        internalScan.checkOnlyMemStore();
+        if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
+          internalScan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
         }
+        internalScanner = region.getScanner(internalScan);
+        // here internalScanner collected max flushed timestamps from all scanned stores
+        // a null ts indicates the store does not maintain monotonicity
+        if(internalScanner.testTSMonotonicity()) {
+          internalScanner.next(results);
+          doneMemoryScan = true;
+          // double-collect on max flushed timestamps
+          // if one of the max flushed ts in any of the stores have changed the view of the
+          // memory scanners might be inconsistent or include data of non-monotonic store
+          // but if all max flushed ts have not changed since we last read them then the view is
+          // consistent and all stores are monotonic.
+          monotonic = internalScanner.recheckTSMonotonicity(internalScan);
+          if(!monotonic) {
+            NOT_MONOTONIC.incrementAndGet();
+          }
+        }
+      }
+      if(!shouldApplyMemoryScanOptimization
+          || !monotonic // failed monotonicity test
+          || !(satisfied = get.satisfiedWith(results)) ) {
+        if(!satisfied) {
+          NOT_SATISFIED.incrementAndGet();
+        }
+        Scan scan = new Scan(get);
+        if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
+          scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
+        }
+        scanner = region.getScanner(scan);
+        scanner.next(fullScanResults);
+        doneFullScan = true;
+      }
+    } finally {
+      if(doneMemoryScan && doneFullScan){
+        BOTH_SCANS.incrementAndGet();
+      }
+      if(doneMemoryScan && !doneFullScan) {
+        ONLY_MEMORY_SCANS.incrementAndGet();
+      }
+      if(doneFullScan && !doneMemoryScan) {
+        ONLY_FULL_SCANS.incrementAndGet();
+      }
+      int onlyMemScansCount = ONLY_MEMORY_SCANS.get();
+      int onlyFullScansCount = ONLY_FULL_SCANS.get();
+      int bothScansCount = BOTH_SCANS.get();
+      int notMonotonic = NOT_MONOTONIC.get();
+      int notSatisfied = NOT_SATISFIED.get();
+      if ((onlyFullScansCount % 50000 == 0 && onlyFullScansCount > 0) ||
+          (bothScansCount % 50000 == 0 && bothScansCount > 0) ) {
+        LOG.info(
+            "ESHCAR bothScansCount=" + bothScansCount
+                + " onlyMemScansCount=" + onlyMemScansCount
+                + " onlyFullScansCount=" + onlyFullScansCount
+                + " notMonotonic=" + notMonotonic
+                + " notSatisfied="+ notSatisfied
+        );
+      }
+      if (scanner != null) {
+        // Executed a full scan:
+        results = fullScanResults;
+        // (1) add the full scan to call back context
+        // (2) close memory scan
+        addScannerToCallBackContext(closeCallBack, context, scanner);
+        if (internalScanner != null) {
+          internalScanner.close();
+        }
+      }
+      // Only executed a memory scan:
+      //  add the memory scan to call back context; there it is closed
+      else if (internalScanner != null) {
+        addScannerToCallBackContext(closeCallBack, context, internalScanner);
       }
     }
 
@@ -2358,6 +2428,24 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
     region.metricsUpdateForGet(results, before);
     return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);
+  }
+
+  private void addScannerToCallBackContext(RegionScannersCloseCallBack closeCallBack,
+      RpcCallContext context, RegionScanner scanner) {
+    if (closeCallBack == null) {
+      // If there is a context then the scanner can be added to the current
+      // RpcCallContext. The rpc callback will take care of closing the
+      // scanner, for eg in case
+      // of get()
+      assert scanner instanceof RpcCallback;
+      context.setCallBack((RegionScannerImpl) scanner);
+    } else {
+      // The call is from multi() where the results from the get() are
+      // aggregated and then send out to the
+      // rpc. The rpccall back will close all such scanners created as part
+      // of multi().
+      closeCallBack.addScanner(scanner);
+    }
   }
 
   /**
