@@ -58,7 +58,7 @@ public class MemStoreCompactor {
           // compactingMemStore, versionedList, action, isInterrupted (the reference)
           // "action" is an enum and thus it is a class with static final constants,
           // so counting only the size of the reference to it and not the size of the internals
-          + Bytes.SIZEOF_INT            // compactionKVMax
+          + 2 * Bytes.SIZEOF_INT        // compactionKVMax, pipelineThreshold
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
 
