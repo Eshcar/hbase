@@ -2396,6 +2396,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       int notMonotonic = NOT_MONOTONIC.get();
       int notSatisfied = NOT_SATISFIED.get();
       if ((onlyFullScansCount % 50000 == 0 && onlyFullScansCount > 0) ||
+          (onlyMemScansCount % 50000 == 0 && onlyMemScansCount > 0) ||
           (bothScansCount % 50000 == 0 && bothScansCount > 0) ) {
         LOG.info(
             "ESHCAR bothScansCount=" + bothScansCount
