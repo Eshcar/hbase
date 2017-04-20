@@ -200,4 +200,9 @@ public class TestCellFlatSet extends TestCase {
     }
     assertEquals(NUM_OF_CELLS, count);
   }
+
+  private void setUpCellChunkMap() {
+    // create a chunk with four cells inside
+
+  }
 }
