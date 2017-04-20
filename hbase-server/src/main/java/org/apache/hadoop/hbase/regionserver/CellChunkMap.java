@@ -99,6 +99,7 @@ public class CellChunkMap extends CellFlatMap {
     // find the chunk holding the data of the cell, the chunkID is stored first
     int chunkId = ByteBufferUtils.toInt(block, offsetInBytes);
     Chunk chunk = ChunkCreator.getInstance().getChunk(chunkId);
+
     if (chunk == null) {
       // this should not happen
       throw new IllegalArgumentException("In CellChunkMap, cell must be associated with chunk."
@@ -115,6 +116,7 @@ public class CellChunkMap extends CellFlatMap {
     long cellSeqID = ByteBufferUtils.toLong(block, offsetInBytes + 3*Bytes.SIZEOF_INT);
 
     ByteBuffer buf = chunk.getData();   // get the ByteBuffer where the cell data is stored
+
     if (buf == null) {
       // this should not happen
       throw new IllegalArgumentException("In CellChunkMap, chunk must be associated with ByteBuffer."
