@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.nio.ByteBuffer;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -77,7 +76,6 @@ public class CellChunkMap extends CellFlatMap {
     this.chunks = chunks;
     this.numOfCellsInsideChunk = // each chunk starts with its own ID following the cells data
         (ChunkCreator.getInstance().getChunkSize() - Bytes.SIZEOF_INT) / SIZEOF_CELL_REP;
-
   }
 
   /* To be used by base (CellFlatMap) class only to create a sub-CellFlatMap
@@ -93,6 +91,7 @@ public class CellChunkMap extends CellFlatMap {
     // get the index of the relevant chunk inside chunk array
     int chunkIndex = (i / numOfCellsInsideChunk);
     ByteBuffer block = chunks[chunkIndex].getData();// get the ByteBuffer of the relevant chunk
+
     int j = i - chunkIndex * numOfCellsInsideChunk; // get the index of the cell-representation
 
     // find inside the offset inside the chunk holding the index, skip bytes for chunk id
@@ -102,6 +101,7 @@ public class CellChunkMap extends CellFlatMap {
     // find the chunk holding the data of the cell, the chunkID is stored first
     int chunkId = ByteBufferUtils.toInt(block, offsetInBytes);
     Chunk chunk = ChunkCreator.getInstance().getChunk(chunkId);
+
     if (chunk == null) {
       // this should not happen, putting an assertion here at least for the testing period
       assert false;
@@ -117,6 +117,7 @@ public class CellChunkMap extends CellFlatMap {
     long cellSeqID = ByteBufferUtils.toLong(block, offsetInBytes + 3*Bytes.SIZEOF_INT);
 
     ByteBuffer buf = chunk.getData();   // get the ByteBuffer where the cell data is stored
+
     if (buf == null) {
       // this should not happen, putting an assertion here at least for the testing period
       assert false;
