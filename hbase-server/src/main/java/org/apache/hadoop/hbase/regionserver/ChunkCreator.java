@@ -148,7 +148,7 @@ public class ChunkCreator {
       c = new OnheapChunk(chunkSize, id, pool);
     }
     // write the chunk id as the first thing on the chunk's buffer
-    ByteBufferUtils.putInt(c.getData(),id);
+    //ByteBufferUtils.putInt(c.getData(),id);
     return c;
   }
 
