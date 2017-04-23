@@ -18,7 +18,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+
 import java.lang.management.ManagementFactory;
+
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
@@ -31,7 +33,10 @@ import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
+
 import org.apache.hadoop.hbase.io.util.MemorySizeUtil;
+
+
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.ByteBufferUtils;
@@ -52,8 +57,10 @@ public class TestCellFlatSet extends TestCase {
   private KeyValue lowerOuterCell;
   private KeyValue upperOuterCell;
 
+
   private CellChunkMap ccm;   // for testing CellChunkMap
   private static ChunkCreator chunkCreator;
+
 
   @Override
   protected void setUp() throws Exception {
@@ -83,6 +90,7 @@ public class TestCellFlatSet extends TestCase {
     CONF.setBoolean(MemStoreLAB.USEMSLAB_KEY, true);
     CONF.setFloat(MemStoreLAB.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
     ChunkCreator.chunkPoolDisabled = false;
+
 
     long globalMemStoreLimit = (long) (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage()
         .getMax() * MemorySizeUtil.getGlobalMemStoreHeapPercent(CONF, false));
@@ -231,10 +239,12 @@ public class TestCellFlatSet extends TestCase {
 
   /* Create CellChunkMap with four cells inside the index chunk */
   private CellChunkMap setUpCellChunkMap() {
+
     Chunk idxChunk = chunkCreator.getChunk();
     ByteBuffer idxBuffer = idxChunk.getData();  // index chunk buffer for cell-representations
     // allocate new chunk and use its buffer to hold the full data of the cells
     Chunk dataChunk = chunkCreator.getChunk();
+
     ByteBuffer dataBuffer = dataChunk.getData();
     int offset = Bytes.SIZEOF_INT;              // skip the space for chunk ID
     int pos = offset;
