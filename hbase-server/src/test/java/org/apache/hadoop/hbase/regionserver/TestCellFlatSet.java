@@ -228,6 +228,6 @@ public class TestCellFlatSet extends TestCase {
       offset += KeyValueUtil.length(kv);
     }
     Chunk [] chunkArray = {idxChunk};
-    return new CellChunkMap(CellComparator.COMPARATOR,chunkArray,0,NUM_OF_CELLS,false)
+    return new CellChunkMap(CellComparator.COMPARATOR,chunkArray,0,NUM_OF_CELLS,false);
   }
 }
