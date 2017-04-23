@@ -125,6 +125,8 @@ public class ChunkCreator {
     // now we need to actually do the expensive memory allocation step in case of a new chunk,
     // else only the offset is set to the beginning of the chunk to accept allocations
     chunk.init();
+    // add chunk ID as first bytes on the chunk
+    ByteBufferUtils.putInt(chunk.getData(),0,chunk.getId());
     return chunk;
   }
 
@@ -139,17 +141,13 @@ public class ChunkCreator {
    */
   private Chunk createChunk(boolean pool) {
     int id = chunkID.getAndIncrement();
-    Chunk c;
     assert id > 0;
     // do not create offheap chunk on demand
     if (pool && this.offheap) {
-      c = new OffheapChunk(chunkSize, id, pool);
+      return new OffheapChunk(chunkSize, id, pool);
     } else {
-      c = new OnheapChunk(chunkSize, id, pool);
+      return new OnheapChunk(chunkSize, id, pool);
     }
-    // write the chunk id as the first thing on the chunk's buffer
-    //ByteBufferUtils.putInt(c.getData(),id);
-    return c;
   }
 
   @VisibleForTesting
