@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
@@ -28,8 +29,10 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.util.ByteBufferUtils;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -46,6 +49,8 @@ public class TestCellFlatSet extends TestCase {
   private final static Configuration CONF = new Configuration();
   private KeyValue lowerOuterCell;
   private KeyValue upperOuterCell;
+
+  private CellChunkMap ccm;   //for testing CellChunkMap
 
   @Override
   protected void setUp() throws Exception {
@@ -74,9 +79,11 @@ public class TestCellFlatSet extends TestCase {
     CONF.setBoolean(MemStoreLAB.USEMSLAB_KEY, true);
     CONF.setFloat(MemStoreLAB.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
     ChunkCreator.chunkPoolDisabled = false;
+    ccm = setUpCellChunkMap();
   }
 
   /* Create and test CellSet based on CellArrayMap */
+  @Test
   public void testCellBlocksOnHeap() throws Exception {
     CellSet cs = new CellSet(ascCbOnHeap);
     testCellBlocks(cs);
@@ -201,8 +208,26 @@ public class TestCellFlatSet extends TestCase {
     assertEquals(NUM_OF_CELLS, count);
   }
 
-  private void setUpCellChunkMap() {
-    // create a chunk with four cells inside
+  /* Create CellChunkMap with four cells inside the index chunk */
+  private CellChunkMap setUpCellChunkMap() {
+    Chunk idxChunk = (ChunkCreator.getInstance()).getChunk();
+    ByteBuffer idxBuffer = idxChunk.getData();  // index chunk buffer for cell-representations
+    // allocate new chunk and use its buffer to hold the full data of the cells
+    Chunk dataChunk = (ChunkCreator.getInstance()).getChunk();
+    ByteBuffer dataBuffer = dataChunk.getData();
+    int offset = Bytes.SIZEOF_INT;              // skip the space for chunk ID
+    int pos = offset;
 
+    for (Cell kv: ascCells) {
+      KeyValueUtil.appendTo(kv, dataBuffer, offset, false);            // write deep cell data
+
+      pos = ByteBufferUtils.putInt(idxBuffer, pos, dataChunk.getId()); // write data chunk index
+      pos = ByteBufferUtils.putInt(idxBuffer, pos, offset);            // offset
+      pos = ByteBufferUtils.putInt(idxBuffer, pos, KeyValueUtil.length(kv));  // length
+      pos = ByteBufferUtils.putLong(idxBuffer, pos, kv.getSequenceId());      // length
+      offset += KeyValueUtil.length(kv);
+    }
+    Chunk [] chunkArray = {idxChunk};
+    return new CellChunkMap(CellComparator.COMPARATOR,chunkArray,0,NUM_OF_CELLS,false)
   }
 }
