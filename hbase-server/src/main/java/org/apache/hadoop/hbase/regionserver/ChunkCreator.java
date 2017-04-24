@@ -35,7 +35,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.regionserver.HeapMemoryManager.HeapMemoryTuneObserver;
-import org.apache.hadoop.hbase.util.ByteBufferUtils;
 import org.apache.hadoop.util.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -139,17 +138,13 @@ public class ChunkCreator {
    */
   private Chunk createChunk(boolean pool) {
     int id = chunkID.getAndIncrement();
-    Chunk c;
     assert id > 0;
     // do not create offheap chunk on demand
     if (pool && this.offheap) {
-      c = new OffheapChunk(chunkSize, id, pool);
+      return new OffheapChunk(chunkSize, id, pool);
     } else {
-      c = new OnheapChunk(chunkSize, id, pool);
+      return new OnheapChunk(chunkSize, id, pool);
     }
-    // write the chunk id as the first thing on the chunk's buffer
-    ByteBufferUtils.putInt(c.getData(),id);
-    return c;
   }
 
   @VisibleForTesting
