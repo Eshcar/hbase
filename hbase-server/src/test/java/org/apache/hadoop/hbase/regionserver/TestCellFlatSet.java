@@ -18,6 +18,10 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+
+import java.lang.management.ManagementFactory;
+
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
@@ -28,13 +32,19 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
+
+import org.apache.hadoop.hbase.io.util.MemorySizeUtil;
+
+
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.util.ByteBufferUtils;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-
+import static org.junit.Assert.assertTrue;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestCellFlatSet extends TestCase {
@@ -46,6 +56,11 @@ public class TestCellFlatSet extends TestCase {
   private final static Configuration CONF = new Configuration();
   private KeyValue lowerOuterCell;
   private KeyValue upperOuterCell;
+
+
+  private CellChunkMap ccm;   // for testing CellChunkMap
+  private static ChunkCreator chunkCreator;
+
 
   @Override
   protected void setUp() throws Exception {
@@ -71,17 +86,38 @@ public class TestCellFlatSet extends TestCase {
     ascCbOnHeap = new CellArrayMap(CellComparator.COMPARATOR,ascCells,0,NUM_OF_CELLS,false);
     descCells = new Cell[] {kv4,kv3,kv2,kv1};
     descCbOnHeap = new CellArrayMap(CellComparator.COMPARATOR,descCells,0,NUM_OF_CELLS,true);
+
     CONF.setBoolean(MemStoreLAB.USEMSLAB_KEY, true);
     CONF.setFloat(MemStoreLAB.CHUNK_POOL_MAXSIZE_KEY, 0.2f);
     ChunkCreator.chunkPoolDisabled = false;
+
+
+    long globalMemStoreLimit = (long) (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage()
+        .getMax() * MemorySizeUtil.getGlobalMemStoreHeapPercent(CONF, false));
+    chunkCreator = ChunkCreator.initialize(MemStoreLABImpl.CHUNK_SIZE_DEFAULT, false,
+        globalMemStoreLimit, 0.2f, MemStoreLAB.POOL_INITIAL_SIZE_DEFAULT, null);
+    assertTrue(chunkCreator != null);
+
+    ccm = setUpCellChunkMap();
   }
 
-  /* Create and test CellSet based on CellArrayMap */
-  public void testCellBlocksOnHeap() throws Exception {
+  /* Create and test ascending CellSet based on CellArrayMap */
+  @Test
+  public void testCellArrayMapAsc() throws Exception {
     CellSet cs = new CellSet(ascCbOnHeap);
     testCellBlocks(cs);
     testIterators(cs);
   }
+
+  /* Create and test ascending CellSet based on CellChunkMap */
+  @Test
+  public void testCellChunkMapAsc() throws Exception {
+    CellSet cs = new CellSet(ccm);
+    testCellBlocks(cs);
+    testIterators(cs);
+    testSubSet(cs);
+  }
+
   @Test
   public void testAsc() throws Exception {
     CellSet ascCs = new CellSet(ascCbOnHeap);
@@ -199,5 +235,30 @@ public class TestCellFlatSet extends TestCase {
       count++;
     }
     assertEquals(NUM_OF_CELLS, count);
+  }
+
+  /* Create CellChunkMap with four cells inside the index chunk */
+  private CellChunkMap setUpCellChunkMap() {
+
+    Chunk idxChunk = chunkCreator.getChunk();
+    ByteBuffer idxBuffer = idxChunk.getData();  // index chunk buffer for cell-representations
+    // allocate new chunk and use its buffer to hold the full data of the cells
+    Chunk dataChunk = chunkCreator.getChunk();
+
+    ByteBuffer dataBuffer = dataChunk.getData();
+    int offset = Bytes.SIZEOF_INT;              // skip the space for chunk ID
+    int pos = offset;
+
+    for (Cell kv: ascCells) {
+      KeyValueUtil.appendTo(kv, dataBuffer, offset, false);            // write deep cell data
+
+      pos = ByteBufferUtils.putInt(idxBuffer, pos, dataChunk.getId()); // write data chunk index
+      pos = ByteBufferUtils.putInt(idxBuffer, pos, offset);            // offset
+      pos = ByteBufferUtils.putInt(idxBuffer, pos, KeyValueUtil.length(kv));  // length
+      pos = ByteBufferUtils.putLong(idxBuffer, pos, kv.getSequenceId());      // length
+      offset += KeyValueUtil.length(kv);
+    }
+    Chunk [] chunkArray = {idxChunk};
+    return new CellChunkMap(CellComparator.COMPARATOR,chunkArray,0,NUM_OF_CELLS,false);
   }
 }
