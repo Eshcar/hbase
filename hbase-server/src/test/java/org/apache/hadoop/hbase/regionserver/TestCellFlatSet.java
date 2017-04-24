@@ -246,7 +246,8 @@ public class TestCellFlatSet extends TestCase {
     Chunk dataChunk = chunkCreator.getChunk();
 
     ByteBuffer dataBuffer = dataChunk.getData();
-    int offset = Bytes.SIZEOF_INT;              // skip the space for chunk ID
+    //TODO: change to int when the chunk ID size bug is fixed
+    int offset = Bytes.SIZEOF_LONG;              // skip the space for chunk ID
     int pos = offset;
 
     for (Cell kv: ascCells) {
