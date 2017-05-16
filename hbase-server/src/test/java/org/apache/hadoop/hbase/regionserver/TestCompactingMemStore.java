@@ -98,7 +98,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     long globalMemStoreLimit = (long) (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage()
         .getMax() * MemorySizeUtil.getGlobalMemStoreHeapPercent(conf, false));
     chunkCreator = ChunkCreator.initialize(MemStoreLABImpl.CHUNK_SIZE_DEFAULT, false,
-      globalMemStoreLimit, 0.2f, MemStoreLAB.POOL_INITIAL_SIZE_DEFAULT, null);
+        globalMemStoreLimit, 0.2f, MemStoreLAB.POOL_INITIAL_SIZE_DEFAULT, null);
     assertTrue(chunkCreator != null);
   }
 
@@ -561,6 +561,43 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     }
     memstore.clearSnapshot(snapshot.getId());
     assertTrue(chunkCreator.getPoolSize() > 0);
+  }
+
+  @Test
+  public void testFlatteningToCellChunkMap() throws IOException {
+
+    // set memstore to flat into CellChunkMap
+    memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_CHUNK_MAP_KEY,
+        String.valueOf(true));
+
+    String[] keys1 = { "A", "A", "B", "C" }; //A1, A2, B3, C4
+
+    // test 1 bucket
+    int totalCellsLen = addRowsByKeys(memstore, keys1);
+    int oneCellOnCSLMHeapSize = 120;
+    int oneCellOnCAHeapSize = 88;
+    long totalHeapSize = 4 * oneCellOnCSLMHeapSize;
+    assertEquals(totalCellsLen, regionServicesForStores.getMemstoreSize());
+    assertEquals(totalHeapSize, ((CompactingMemStore)memstore).heapSize());
+
+    MemstoreSize size = memstore.getFlushableSize();
+    ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline and compact
+    assertEquals(0, memstore.getSnapshot().getCellsCount());
+    // One cell is duplicated and the compaction will remove it. All cells of same size so adjusting
+    // totalCellsLen
+    totalCellsLen = (totalCellsLen * 3) / 4;
+    totalHeapSize = 3 * oneCellOnCAHeapSize;
+    assertEquals(totalCellsLen, regionServicesForStores.getMemstoreSize());
+    assertEquals(totalHeapSize, ((CompactingMemStore)memstore).heapSize());
+
+    size = memstore.getFlushableSize();
+    MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
+    region.decrMemstoreSize(size);  // simulate flusher
+    ImmutableSegment s = memstore.getSnapshot();
+    assertEquals(3, s.getCellsCount());
+    assertEquals(0, regionServicesForStores.getMemstoreSize());
+
+    memstore.clearSnapshot(snapshot.getId());
   }
 
   //////////////////////////////////////////////////////////////////////////////

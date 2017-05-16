@@ -286,8 +286,8 @@ public class TestCellFlatSet extends TestCase {
 
     ByteBuffer idxBuffer = idxChunk.getData();  // the buffers of the chunks
     ByteBuffer dataBuffer = dataChunk.getData();
-    int dataOffset = Bytes.SIZEOF_INT;          // offset inside data buffer
-    int idxOffset = Bytes.SIZEOF_INT;           // skip the space for chunk ID
+    int dataOffset = ChunkCreator.SIZEOF_CHUNK_HEADER;          // offset inside data buffer
+    int idxOffset = ChunkCreator.SIZEOF_CHUNK_HEADER;           // skip the space for chunk ID
 
     Cell[] cellArray = asc ? ascCells : descCells;
 
@@ -296,7 +296,7 @@ public class TestCellFlatSet extends TestCase {
       if (dataOffset + KeyValueUtil.length(kv) > chunkCreator.getChunkSize()) {
         dataChunk = chunkCreator.getChunk();    // allocate more data chunks if needed
         dataBuffer = dataChunk.getData();
-        dataOffset = Bytes.SIZEOF_INT;
+        dataOffset = ChunkCreator.SIZEOF_CHUNK_HEADER;
       }
       int dataStartOfset = dataOffset;
       dataOffset = KeyValueUtil.appendTo(kv, dataBuffer, dataOffset, false); // write deep cell data
@@ -305,7 +305,7 @@ public class TestCellFlatSet extends TestCase {
       if (idxOffset + CellChunkMap.SIZEOF_CELL_REP > chunkCreator.getChunkSize()) {
         idxChunk = chunkCreator.getChunk();    // allocate more index chunks if needed
         idxBuffer = idxChunk.getData();
-        idxOffset = Bytes.SIZEOF_INT;
+        idxOffset = ChunkCreator.SIZEOF_CHUNK_HEADER;
         chunkArray[chunkArrayIdx++] = idxChunk;
       }
       idxOffset = ByteBufferUtils.putInt(idxBuffer, idxOffset, dataChunk.getId()); // write data chunk id

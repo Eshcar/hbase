@@ -183,7 +183,7 @@ public class CompactionPipeline {
    *
    * @return true iff a segment was successfully flattened
    */
-  public boolean flattenYoungestSegment(long requesterVersion) {
+  public boolean flattenYoungestSegment(long requesterVersion, boolean toCellChunkMap) {
 
     if(requesterVersion != version) {
       LOG.warn("Segment flattening failed, because versions do not match. Requester version: "
@@ -200,7 +200,7 @@ public class CompactionPipeline {
       for (ImmutableSegment s : pipeline) {
         // remember the old size in case this segment is going to be flatten
         MemstoreSize memstoreSize = new MemstoreSize();
-        if (s.flatten(memstoreSize)) {
+        if (s.flatten(memstoreSize, toCellChunkMap)) {
           if(region != null) {
             region.addMemstoreSize(memstoreSize);
           }
@@ -276,7 +276,7 @@ public class CompactionPipeline {
     if(localCopy.isEmpty()) {
       return null;
     }
-    return localCopy.get(localCopy.size()-1);
+    return localCopy.get(localCopy.size() - 1);
   }
 
   private boolean addFirst(ImmutableSegment segment) {

@@ -35,6 +35,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.regionserver.HeapMemoryManager.HeapMemoryTuneObserver;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.util.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -52,6 +53,11 @@ public class ChunkCreator {
   // maps the chunk against the monotonically increasing chunk id. We need to preserve the
   // natural ordering of the key
   // CellChunkMap creation should convert the soft ref to hard reference
+
+  // chunk id of each chunk is the first integer written on each chunk,
+  // the header size need to be changed in case chunk id size is changed
+  public static final int SIZEOF_CHUNK_HEADER = Bytes.SIZEOF_INT;
+
   private Map<Integer, SoftReference<Chunk>> chunkIdMap =
       new ConcurrentHashMap<Integer, SoftReference<Chunk>>();
   private final int chunkSize;
