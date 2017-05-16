@@ -194,12 +194,21 @@ public class StoreFileReader {
   /**
    * Check if this storeFile may contain keys within the TimeRange that
    * have not expired (i.e. not older than oldestUnexpiredTS).
-   * @param timeRange the timeRange to restrict
+   * @param tr the timeRange to restrict
    * @param oldestUnexpiredTS the oldest timestamp that is not expired, as
    *          determined by the column family's TTL
    * @return false if queried keys definitely don't exist in this StoreFile
    */
   boolean passesTimerangeFilter(TimeRange tr, long oldestUnexpiredTS) {
+    if(timeRange == null) {
+      LOG.info("StoreFileReader "+this.toString()+" timerange is null");
+    } else {
+      LOG.info("StoreFileReader "+this.toString()+" includes timerange "
+          +timeRange.includesTimeRange(tr));
+      LOG.info("StoreFileReader "+this.toString()+" max in range geq than "
+          +oldestUnexpiredTS+" "+(timeRange.getMax() >= oldestUnexpiredTS));
+
+    }
     return this.timeRange == null? true:
       this.timeRange.includesTimeRange(tr) && this.timeRange.getMax() >= oldestUnexpiredTS;
   }
@@ -337,6 +346,7 @@ public class StoreFileReader {
         bloom = null;
         shouldCheckBloom = true;
       } else {
+        LOG.info("StoreFileReader "+this.toString()+" reading meta block");
         bloomBlock = reader.getMetaBlock(HFile.BLOOM_FILTER_DATA_KEY, true);
         bloom = bloomBlock.getBufferWithoutHeader();
         shouldCheckBloom = bloom != null;
@@ -379,6 +389,7 @@ public class StoreFileReader {
           exists = !keyIsAfterLast
               && bloomFilter.contains(key, 0, key.length, bloom);
         }
+        LOG.info("StoreFileReader "+this.toString()+" exists in bloom filter "+exists);
 
         return exists;
       }
@@ -404,10 +415,12 @@ public class StoreFileReader {
   public boolean passesKeyRangeFilter(Scan scan) {
     if (this.getFirstKey() == null || this.getLastKey() == null) {
       // the file is empty
+      LOG.info("StoreFileReader "+this.toString()+" file is empty");
       return false;
     }
     if (Bytes.equals(scan.getStartRow(), HConstants.EMPTY_START_ROW)
         && Bytes.equals(scan.getStopRow(), HConstants.EMPTY_END_ROW)) {
+      LOG.info("StoreFileReader "+this.toString()+" nothing to scan");
       return true;
     }
     byte[] smallestScanRow = scan.isReversed() ? scan.getStopRow() : scan.getStartRow();
@@ -420,6 +433,7 @@ public class StoreFileReader {
         .equals(scan.isReversed() ? scan.getStartRow() : scan.getStopRow(),
             HConstants.EMPTY_END_ROW))
         || getComparator().compareRows(lastKeyKV, smallestScanRow, 0, smallestScanRow.length) < 0;
+    LOG.info("StoreFileReader "+this.toString()+" file key range overlaps with scan "+!nonOverLapping);
     return !nonOverLapping;
   }
 

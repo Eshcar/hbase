@@ -271,12 +271,6 @@ public class SegmentScanner implements KeyValueScanner {
     closed = true;
   }
 
-  /**
-   * This functionality should be resolved in the higher level which is
-   * MemStoreScanner, currently returns true as default. Doesn't throw
-   * IllegalStateException in order not to change the signature of the
-   * overridden method
-   */
   @Override
   public boolean shouldUseScanner(Scan scan, Store store, long oldestUnexpiredTS) {
     return getSegment().shouldSeek(scan,oldestUnexpiredTS);

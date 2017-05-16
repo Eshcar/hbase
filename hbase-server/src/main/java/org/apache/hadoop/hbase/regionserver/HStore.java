@@ -1186,7 +1186,7 @@ public class HStore implements Store {
     // actually more correct, since memstore get put at the end.
     List<StoreFileScanner> sfScanners = StoreFileScanner.getScannersForStoreFiles(storeFilesToScan,
       cacheBlocks, usePread, isCompaction, false, matcher, readPt, isPrimaryReplicaStore());
-    List<KeyValueScanner> scanners = new ArrayList<>(sfScanners.size() + 1);
+    List<KeyValueScanner> scanners = new ArrayList<>(sfScanners.size() + memStoreScanners.size());
     scanners.addAll(sfScanners);
     // Then the memstore scanners
     scanners.addAll(memStoreScanners);

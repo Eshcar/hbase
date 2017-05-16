@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.metrics.impl.FastLongHistogram;
 
@@ -31,6 +33,7 @@ import org.apache.hadoop.hbase.metrics.impl.FastLongHistogram;
  */
 @InterfaceAudience.Private
 public class CacheStats {
+  private static final Log LOG = LogFactory.getLog(CacheStats.class.getName());
 
   /** Sliding window statistics. The number of metric periods to include in
    * sliding window hit ratio calculations.
@@ -160,33 +163,43 @@ public class CacheStats {
       case DATA:
       case ENCODED_DATA:
         dataMissCount.increment();
+        LOG.info("CacheStats "+" dataMissCount"+ dataMissCount.longValue());
         break;
       case LEAF_INDEX:
         leafIndexMissCount.increment();
+        LOG.info("CacheStats " + " leafIndexMissCount" + leafIndexMissCount.longValue());
         break;
       case BLOOM_CHUNK:
         bloomChunkMissCount.increment();
+        LOG.info("CacheStats " + " bloomChunkMissCount" + bloomChunkMissCount.longValue());
         break;
       case META:
         metaMissCount.increment();
+        LOG.info("CacheStats " + " metaMissCount" + metaMissCount.longValue());
         break;
       case INTERMEDIATE_INDEX:
         intermediateIndexMissCount.increment();
+        LOG.info("CacheStats " + " intermediateIndexMissCount" + intermediateIndexMissCount.longValue());
         break;
       case ROOT_INDEX:
         rootIndexMissCount.increment();
+        LOG.info("CacheStats " + " rootIndexMissCount" + rootIndexMissCount.longValue());
         break;
       case FILE_INFO:
         fileInfoMissCount.increment();
+        LOG.info("CacheStats " + " fileInfoMissCount" + fileInfoMissCount.longValue());
         break;
       case GENERAL_BLOOM_META:
         generalBloomMetaMissCount.increment();
+        LOG.info("CacheStats " + " generalBloomMetaMissCount" + generalBloomMetaMissCount.longValue());
         break;
       case DELETE_FAMILY_BLOOM_META:
         deleteFamilyBloomMissCount.increment();
+        LOG.info("CacheStats " + " deleteFamilyBloomMissCount" + deleteFamilyBloomMissCount.longValue());
         break;
-      case TRAILER:
+    case TRAILER:
         trailerMissCount.increment();
+        LOG.info("CacheStats "+" trailerMissCount"+ trailerMissCount.longValue());
         break;
       default:
         // If there's a new type that's fine
@@ -208,33 +221,43 @@ public class CacheStats {
       case DATA:
       case ENCODED_DATA:
         dataHitCount.increment();
+        LOG.info("CacheStats " + " dataHitCount" + dataHitCount.longValue());
         break;
       case LEAF_INDEX:
         leafIndexHitCount.increment();
+        LOG.info("CacheStats " + " leafIndexHitCount" + leafIndexHitCount.longValue());
         break;
       case BLOOM_CHUNK:
         bloomChunkHitCount.increment();
+        LOG.info("CacheStats " + " bloomChunkHitCount" + bloomChunkHitCount.longValue());
         break;
       case META:
         metaHitCount.increment();
+        LOG.info("CacheStats " + " metaHitCount" + metaHitCount.longValue());
         break;
       case INTERMEDIATE_INDEX:
         intermediateIndexHitCount.increment();
+        LOG.info("CacheStats " + " intermediateIndexHitCount" + intermediateIndexHitCount.longValue());
         break;
       case ROOT_INDEX:
         rootIndexHitCount.increment();
+        LOG.info("CacheStats " + " rootIndexHitCount" + rootIndexHitCount.longValue());
         break;
       case FILE_INFO:
         fileInfoHitCount.increment();
+        LOG.info("CacheStats " + " fileInfoHitCount" + fileInfoHitCount.longValue());
         break;
       case GENERAL_BLOOM_META:
         generalBloomMetaHitCount.increment();
+        LOG.info("CacheStats " + " generalBloomMetaHitCount" + generalBloomMetaHitCount.longValue());
         break;
       case DELETE_FAMILY_BLOOM_META:
         deleteFamilyBloomHitCount.increment();
+        LOG.info("CacheStats " + " deleteFamilyBloomHitCount" + deleteFamilyBloomHitCount.longValue());
         break;
       case TRAILER:
         trailerHitCount.increment();
+        LOG.info("CacheStats " + " trailerHitCount" + trailerHitCount.longValue());
         break;
       default:
         // If there's a new type that's fine
