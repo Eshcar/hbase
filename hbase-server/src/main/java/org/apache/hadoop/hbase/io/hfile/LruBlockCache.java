@@ -474,7 +474,9 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
   @Override
   public Cacheable getBlock(BlockCacheKey cacheKey, boolean caching, boolean repeat,
       boolean updateCacheMetrics) {
-    LOG.info("LruBlockCache::getBlock "+cacheKey);
+    if(caching) {
+      LOG.info("LruBlockCache::getBlock " + cacheKey);
+    }
     LruCachedBlock cb = map.get(cacheKey);
     if (cb == null) {
       if (!repeat && updateCacheMetrics) {
