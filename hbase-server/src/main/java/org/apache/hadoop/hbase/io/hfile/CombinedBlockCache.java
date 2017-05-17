@@ -20,6 +20,8 @@ package org.apache.hadoop.hbase.io.hfile;
 
 import java.util.Iterator;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.io.HeapSize;
 import org.apache.hadoop.hbase.io.hfile.BlockType.BlockCategory;
@@ -40,6 +42,7 @@ import com.google.common.annotations.VisibleForTesting;
  */
 @InterfaceAudience.Private
 public class CombinedBlockCache implements ResizableBlockCache, HeapSize {
+  private static final Log LOG = LogFactory.getLog(CombinedBlockCache.class);
   protected final LruBlockCache lruCache;
   protected final BlockCache l2Cache;
   protected final CombinedCacheStats combinedCacheStats;
@@ -79,11 +82,19 @@ public class CombinedBlockCache implements ResizableBlockCache, HeapSize {
   @Override
   public Cacheable getBlock(BlockCacheKey cacheKey, boolean caching,
       boolean repeat, boolean updateCacheMetrics) {
+    LOG.info("CombinedBlockCache::getBlock "+cacheKey);
     // TODO: is there a hole here, or just awkwardness since in the lruCache getBlock
     // we end up calling l2Cache.getBlock.
-    return lruCache.containsBlock(cacheKey)?
-        lruCache.getBlock(cacheKey, caching, repeat, updateCacheMetrics):
-        l2Cache.getBlock(cacheKey, caching, repeat, updateCacheMetrics);
+    if(lruCache.containsBlock(cacheKey)) {
+      LOG.info("getBlock from LRU cache" + cacheKey);
+      return lruCache.getBlock(cacheKey, caching, repeat, updateCacheMetrics);
+    } else {
+      LOG.info("getBlock from L2 cache" + cacheKey);
+      return l2Cache.getBlock(cacheKey, caching, repeat, updateCacheMetrics);
+    }
+//    return lruCache.containsBlock(cacheKey)?
+//        lruCache.getBlock(cacheKey, caching, repeat, updateCacheMetrics):
+//        l2Cache.getBlock(cacheKey, caching, repeat, updateCacheMetrics);
   }
 
   @Override

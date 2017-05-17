@@ -415,6 +415,7 @@ public class BucketCache implements BlockCache, HeapSize {
   @Override
   public Cacheable getBlock(BlockCacheKey key, boolean caching, boolean repeat,
       boolean updateCacheMetrics) {
+    LOG.info("BucketCache::getBlock "+key);
     if (!cacheEnabled) {
       return null;
     }
