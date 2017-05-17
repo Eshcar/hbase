@@ -303,6 +303,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     scanners = selectScannersFrom(scanners);
 
     // Seek all scanners to the initial key
+    LOG.info("StoreScanner::StoreScanner seekScanners in parallel "+parallelSeekEnabled);
     seekScanners(scanners, matcher.getStartKey(), false, parallelSeekEnabled);
     addCurrentScanners(scanners);
     // Combine all seeked scanners with a heap
@@ -393,6 +394,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
             throw new RowTooBigException("Max row size allowed: " + maxRowSize
               + ", but row is bigger than that");
           }
+          LOG.info("StoreScanner::seekScanners seek "+seekKey.toString());
           scanner.seek(seekKey);
           Cell c = scanner.peek();
           if (c != null) {
@@ -443,6 +445,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       }
 
       if (kvs.shouldUseScanner(scan, store, expiredTimestampCutoff)) {
+        LOG.info("StoreScanner::selectScannersFrom Should use scanner");
         scanners.add(kvs);
       } else {
         kvs.close();
@@ -937,6 +940,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
    */
   private void parallelSeek(final List<? extends KeyValueScanner>
       scanners, final Cell kv) throws IOException {
+    LOG.info("StoreScanner::parallelSeek");
     if (scanners.isEmpty()) return;
     int storeFileScannerCount = scanners.size();
     CountDownLatch latch = new CountDownLatch(storeFileScannerCount);

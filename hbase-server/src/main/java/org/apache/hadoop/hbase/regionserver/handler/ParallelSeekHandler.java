@@ -53,6 +53,7 @@ public class ParallelSeekHandler extends EventHandler {
   @Override
   public void process() {
     try {
+      LOG.info("ParallelSeekHandler::process seek "+keyValue.toString());
       scanner.seek(keyValue);
     } catch (IOException e) {
       LOG.error("", e);
