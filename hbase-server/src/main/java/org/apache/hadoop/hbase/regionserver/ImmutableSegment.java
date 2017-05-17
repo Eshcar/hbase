@@ -281,8 +281,8 @@ public class ImmutableSegment extends Segment {
 
     // all index Chunks are allocated from ChunkCreator
     Chunk[] chunks = new Chunk[numberOfChunks];
-    for (Chunk c : chunks) {
-      c = ChunkCreator.getInstance().getChunk();
+    for (int i=0; i<numberOfChunks; i++) {
+      chunks[i] = ChunkCreator.getInstance().getChunk();
     }
 
     int currentChunkIdx = 0;
