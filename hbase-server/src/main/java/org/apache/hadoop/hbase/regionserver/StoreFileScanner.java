@@ -27,6 +27,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
@@ -45,6 +47,7 @@ import org.apache.hadoop.hbase.regionserver.querymatcher.ScanQueryMatcher;
  */
 @InterfaceAudience.LimitedPrivate("Coprocessor")
 public class StoreFileScanner implements KeyValueScanner {
+  private static final Log LOG = LogFactory.getLog(StoreFileScanner.class);
   // the reader it comes from:
   private final StoreFileReader reader;
   private final HFileScanner hfs;
@@ -349,12 +352,16 @@ public class StoreFileScanner implements KeyValueScanner {
       // check ROWCOL Bloom filter first.
       if (reader.getBloomFilterType() == BloomType.ROWCOL) {
         haveToSeek = reader.passesGeneralRowColBloomFilter(kv);
+        LOG.info("StoreFileScanner::requestSeek rowcol bloom filter " + kv.toString()
+        +" haveToSeek "+haveToSeek);
       } else if (canOptimizeForNonNullColumn
           && ((CellUtil.isDeleteFamily(kv) || CellUtil.isDeleteFamilyVersion(kv)))) {
         // if there is no such delete family kv in the store file,
         // then no need to seek.
         haveToSeek = reader.passesDeleteFamilyBloomFilter(kv.getRowArray(), kv.getRowOffset(),
           kv.getRowLength());
+        LOG.info("StoreFileScanner::requestSeek delete family bloom filter " + kv.toString()
+            +" haveToSeek "+haveToSeek);
       }
     }
 
@@ -380,6 +387,7 @@ public class StoreFileScanner implements KeyValueScanner {
         // row/column, and we don't know exactly what they are, so we set the
         // seek key's timestamp to OLDEST_TIMESTAMP to skip the rest of this
         // row/column.
+        LOG.info("StoreFileScanner::requestSeek enforce seek " + kv.toString());
         enforceSeek();
       }
       return cur != null;

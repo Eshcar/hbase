@@ -227,6 +227,8 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       // key does not exist, then to the start of the next matching Row).
       // Always check bloom filter to optimize the top row seek for delete
       // family marker.
+      LOG.info("StoreScanner::StoreScanner3 seekScanners in parallel "+parallelSeekEnabled
+          +" is lazy "+(explicitColumnQuery && lazySeekEnabledGlobally));
       seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally,
         parallelSeekEnabled);
 
@@ -303,7 +305,8 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     scanners = selectScannersFrom(scanners);
 
     // Seek all scanners to the initial key
-    LOG.info("StoreScanner::StoreScanner seekScanners in parallel "+parallelSeekEnabled);
+    LOG.info("StoreScanner::StoreScanner2 seekScanners in parallel "+parallelSeekEnabled
+        +" not lazy");
     seekScanners(scanners, matcher.getStartKey(), false, parallelSeekEnabled);
     addCurrentScanners(scanners);
     // Combine all seeked scanners with a heap
@@ -353,6 +356,8 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     }
 
     // Seek all scanners to the initial key
+    LOG.info("StoreScanner::StoreScanner1 seekScanners in parallel "+parallelSeekEnabled
+        +" not lazy");
     seekScanners(scanners, matcher.getStartKey(), false, parallelSeekEnabled);
     addCurrentScanners(scanners);
     resetKVHeap(scanners, scanInfo.getComparator());
@@ -384,6 +389,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     // family marker.
     if (isLazy) {
       for (KeyValueScanner scanner : scanners) {
+        LOG.info("StoreScanner::seekScanners request seek "+seekKey.toString());
         scanner.requestSeek(seekKey, false, true);
       }
     } else {
