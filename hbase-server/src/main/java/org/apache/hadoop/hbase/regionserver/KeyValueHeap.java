@@ -89,9 +89,11 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
       KVScannerComparator comparator) throws IOException {
     this.comparator = comparator;
     this.scannersForDelayedClose = new ArrayList<>(scanners.size());
+    LOG.info("KeyValueHeap::KeyValueHeap num scanners "+scanners.size());
     if (!scanners.isEmpty()) {
       this.heap = new PriorityQueue<>(scanners.size(), this.comparator);
       for (KeyValueScanner scanner : scanners) {
+        LOG.info("KeyValueHeap::KeyValueHeap peek scanner "+scanner.toString());
         if (scanner.peek() != null) {
           this.heap.add(scanner);
         } else {

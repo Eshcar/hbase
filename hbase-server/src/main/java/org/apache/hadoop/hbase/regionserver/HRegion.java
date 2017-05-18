@@ -5863,6 +5863,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             joinedScanners.add(scanner);
           }
         }
+        LOG.info("HRegion::initializeScanners initializeKVHeap ");
         initializeKVHeap(scanners, joinedScanners, region);
       } catch (Throwable t) {
         throw handleException(instantiatedScanners, t);
@@ -5872,6 +5873,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     protected void initializeKVHeap(List<KeyValueScanner> scanners,
         List<KeyValueScanner> joinedScanners, HRegion region)
         throws IOException {
+      LOG.info("HRegion::initializeKVHeap ");
       this.storeHeap = new KeyValueHeap(scanners, comparator);
       if (!joinedScanners.isEmpty()) {
         this.joinedHeap = new KeyValueHeap(joinedScanners, comparator);
