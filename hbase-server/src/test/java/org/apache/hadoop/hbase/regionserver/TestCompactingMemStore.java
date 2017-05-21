@@ -590,9 +590,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
         ClassSize.align(
             ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY + KeyValue.FIXED_OVERHEAD + KeyValueUtil
                 .length(kv));
-    long oneCellOnCAHeapSize =
-        ClassSize.align(ClassSize.CELL_ARRAY_MAP_ENTRY + KeyValue.FIXED_OVERHEAD +
-            KeyValueUtil.length(kv));
+
     long totalHeapSize = numOfCells * oneCellOnCSLMHeapSize;
     assertEquals(totalCellsLen, regionServicesForStores.getMemstoreSize());
     assertEquals(totalHeapSize, ((CompactingMemStore)memstore).heapSize());

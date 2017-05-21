@@ -100,13 +100,15 @@ public class ImmutableSegment extends Segment {
    * are going to be introduced.
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge, boolean toCellChunkMap) {
 
     super(null, // initiailize the CellSet with NULL
         comparator, memStoreLAB);
     this.type = type;
     // build the new CellSet based on CellArrayMap
-    CellSet cs = createCellArrayMapSet(numOfCells, iterator, merge);
+    CellSet cs = toCellChunkMap ?
+        createCellChunkMapSet(numOfCells, iterator, merge) :
+        createCellArrayMapSet(numOfCells, iterator, merge);
 
     this.setCellSet(null, cs);            // update the CellSet of the new Segment
     this.timeRange = this.timeRangeTracker == null ? null : this.timeRangeTracker.toTimeRange();
@@ -206,7 +208,9 @@ public class ImmutableSegment extends Segment {
       case ARRAY_MAP_BASED:
         return ClassSize.align(ClassSize.CELL_ARRAY_MAP_ENTRY + CellUtil.estimatedHeapSizeOf(cell));
       case CHUNK_MAP_BASED:
-        return ClassSize.align(CellChunkMap.SIZEOF_CELL_REP + CellUtil.estimatedHeapSizeOf(cell));
+        return ClassSize.align( // no Cell object is created so subtracting KeyValue.FIXED_OVERHEAD
+            CellChunkMap.SIZEOF_CELL_REP + CellUtil.estimatedHeapSizeOf(cell)
+                - KeyValue.FIXED_OVERHEAD);
       }
     }
     return 0;
@@ -269,7 +273,7 @@ public class ImmutableSegment extends Segment {
 
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from compacting iterator
-  private CellSet createCellChunkyMapSet(int numOfCells, MemStoreSegmentsIterator iterator,
+  private CellSet createCellChunkMapSet(int numOfCells, MemStoreSegmentsIterator iterator,
       boolean merge) {
 
     // calculate how many chunks we will need for index

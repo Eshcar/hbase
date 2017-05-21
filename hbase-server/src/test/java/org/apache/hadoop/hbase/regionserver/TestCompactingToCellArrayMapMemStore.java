@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.Threads;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -61,6 +62,9 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     conf.set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(MemoryCompactionPolicy.EAGER));
 
+    // set memstore to flat into CellChunkMap
+    conf.set(CompactingMemStore.COMPACTING_MEMSTORE_CHUNK_MAP_KEY, String.valueOf(true));
+
     this.memstore =
         new CompactingMemStore(conf, CellComparator.COMPARATOR, store,
             regionServicesForStores, MemoryCompactionPolicy.EAGER);
@@ -73,9 +77,16 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     int counter = 0;
     String[] keys1 = { "A", "A", "B", "C" }; //A1, A2, B3, C4
 
+    // make one cell
+    byte[] row = Bytes.toBytes(keys1[0]);
+    byte[] val = Bytes.toBytes(keys1[0] + 0);
+    KeyValue kv =
+        new KeyValue(row, Bytes.toBytes("testfamily"), Bytes.toBytes("testqualifier"),
+            System.currentTimeMillis(), val);
     // test 1 bucket
     long totalCellsLen = addRowsByKeys(memstore, keys1);
-    int oneCellOnCSLMHeapSize = 120;
+    long oneCellOnCSLMHeapSize = ClassSize.align(
+        ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY + KeyValue.FIXED_OVERHEAD + KeyValueUtil.length(kv));;
     int oneCellOnCAHeapSize = 88;
     long totalHeapSize = 4 * oneCellOnCSLMHeapSize;
     assertEquals(totalCellsLen, regionServicesForStores.getMemstoreSize());
@@ -160,317 +171,317 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     memstore.clearSnapshot(snapshot.getId());
   }
 
-  public void testCompaction3Buckets() throws IOException {
-
-    String[] keys1 = { "A", "A", "B", "C" };
-    String[] keys2 = { "A", "B", "D" };
-    String[] keys3 = { "D", "B", "B" };
-
-    long totalCellsLen1 = addRowsByKeys(memstore, keys1);
-    int oneCellOnCSLMHeapSize = 120;
-    int oneCellOnCAHeapSize = 88;
-    long totalHeapSize1 = 4 * oneCellOnCSLMHeapSize;
-    assertEquals(totalCellsLen1, region.getMemstoreSize());
-    assertEquals(totalHeapSize1, ((CompactingMemStore) memstore).heapSize());
-
-    MemstoreSize size = memstore.getFlushableSize();
-    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
-
-    assertEquals(0, memstore.getSnapshot().getCellsCount());
-    // One cell is duplicated and the compaction will remove it. All cells of same size so adjusting
-    // totalCellsLen
-    totalCellsLen1 = (totalCellsLen1 * 3) / 4;
-    totalHeapSize1 = 3 * oneCellOnCAHeapSize;
-    assertEquals(totalCellsLen1, regionServicesForStores.getMemstoreSize());
-    assertEquals(totalHeapSize1, ((CompactingMemStore) memstore).heapSize());
-
-    long totalCellsLen2 = addRowsByKeys(memstore, keys2);
-    long totalHeapSize2 = 3 * oneCellOnCSLMHeapSize;
-
-    assertEquals(totalCellsLen1 + totalCellsLen2, regionServicesForStores.getMemstoreSize());
-    assertEquals(totalHeapSize1 + totalHeapSize2, ((CompactingMemStore) memstore).heapSize());
-
-    ((CompactingMemStore) memstore).disableCompaction();
-    size = memstore.getFlushableSize();
-    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline without compaction
-    assertEquals(0, memstore.getSnapshot().getCellsCount());
-    assertEquals(totalCellsLen1 + totalCellsLen2, regionServicesForStores.getMemstoreSize());
-    assertEquals(totalHeapSize1 + totalHeapSize2, ((CompactingMemStore) memstore).heapSize());
-
-    long totalCellsLen3 = addRowsByKeys(memstore, keys3);
-    long totalHeapSize3 = 3 * oneCellOnCSLMHeapSize;
-    assertEquals(totalCellsLen1 + totalCellsLen2 + totalCellsLen3,
-        regionServicesForStores.getMemstoreSize());
-    assertEquals(totalHeapSize1 + totalHeapSize2 + totalHeapSize3,
-        ((CompactingMemStore) memstore).heapSize());
-
-    ((CompactingMemStore) memstore).enableCompaction();
-    size = memstore.getFlushableSize();
-    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
-    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
-      Threads.sleep(10);
-    }
-    assertEquals(0, memstore.getSnapshot().getCellsCount());
-    // active flushed to pipeline and all 3 segments compacted. Will get rid of duplicated cells.
-    // Out of total 10, only 4 cells are unique
-    totalCellsLen2 = totalCellsLen2 / 3;// 2 out of 3 cells are duplicated
-    totalCellsLen3 = 0;// All duplicated cells.
-    assertEquals(totalCellsLen1 + totalCellsLen2 + totalCellsLen3,
-        regionServicesForStores.getMemstoreSize());
-    // Only 4 unique cells left
-    assertEquals(4 * oneCellOnCAHeapSize, ((CompactingMemStore) memstore).heapSize());
-
-    size = memstore.getFlushableSize();
-    MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
-    region.decrMemstoreSize(size);  // simulate flusher
-    ImmutableSegment s = memstore.getSnapshot();
-    assertEquals(4, s.getCellsCount());
-    assertEquals(0, regionServicesForStores.getMemstoreSize());
-
-    memstore.clearSnapshot(snapshot.getId());
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Merging tests
-  //////////////////////////////////////////////////////////////////////////////
-  @Test
-  public void testMerging() throws IOException {
-
-    String[] keys1 = { "A", "A", "B", "C", "F", "H"};
-    String[] keys2 = { "A", "B", "D", "G", "I", "J"};
-    String[] keys3 = { "D", "B", "B", "E" };
-
-    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
-    memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
-        String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType);
-    addRowsByKeys(memstore, keys1);
-
-    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact
-
-    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
-      Threads.sleep(10);
-    }
-    assertEquals(0, memstore.getSnapshot().getCellsCount());
-
-    addRowsByKeys(memstore, keys2); // also should only flatten
-
-    int counter2 = 0;
-    for ( Segment s : memstore.getSegments()) {
-      counter2 += s.getCellsCount();
-    }
-    assertEquals(12, counter2);
-
-    ((CompactingMemStore) memstore).disableCompaction();
-
-    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline without flattening
-    assertEquals(0, memstore.getSnapshot().getCellsCount());
-
-    int counter3 = 0;
-    for ( Segment s : memstore.getSegments()) {
-      counter3 += s.getCellsCount();
-    }
-    assertEquals(12, counter3);
-
-    addRowsByKeys(memstore, keys3);
-
-    int counter4 = 0;
-    for ( Segment s : memstore.getSegments()) {
-      counter4 += s.getCellsCount();
-    }
-    assertEquals(16, counter4);
-
-    ((CompactingMemStore) memstore).enableCompaction();
-
-
-    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
-    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
-      Threads.sleep(10);
-    }
-    assertEquals(0, memstore.getSnapshot().getCellsCount());
-
-    int counter = 0;
-    for ( Segment s : memstore.getSegments()) {
-      counter += s.getCellsCount();
-    }
-    assertEquals(16,counter);
-
-    MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
-    ImmutableSegment s = memstore.getSnapshot();
-    memstore.clearSnapshot(snapshot.getId());
-  }
-
-  @Test
-  public void testCountOfCellsAfterFlatteningByScan() throws IOException {
-    String[] keys1 = { "A", "B", "C" }; // A, B, C
-    addRowsByKeysWith50Cols(memstore, keys1);
-    // this should only flatten as there are no duplicates
-    ((CompactingMemStore) memstore).flushInMemory();
-    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
-      Threads.sleep(10);
-    }
-    List<KeyValueScanner> scanners = memstore.getScanners(Long.MAX_VALUE);
-    // seek
-    int count = 0;
-    for(int i = 0; i < scanners.size(); i++) {
-      scanners.get(i).seek(KeyValue.LOWESTKEY);
-      while (scanners.get(i).next() != null) {
-        count++;
-      }
-    }
-    assertEquals("the count should be ", count, 150);
-    for(int i = 0; i < scanners.size(); i++) {
-      scanners.get(i).close();
-    }
-  }
-
-  @Test
-  public void testCountOfCellsAfterFlatteningByIterator() throws IOException {
-    String[] keys1 = { "A", "B", "C" }; // A, B, C
-    addRowsByKeysWith50Cols(memstore, keys1);
-    // this should only flatten as there are no duplicates
-    ((CompactingMemStore) memstore).flushInMemory();
-    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
-      Threads.sleep(10);
-    }
-    // Just doing the cnt operation here
-    MemStoreSegmentsIterator itr = new MemStoreMergerSegmentsIterator(
-        ((CompactingMemStore) memstore).getImmutableSegments().getStoreSegments(),
-        CellComparator.COMPARATOR, 10);
-    int cnt = 0;
-    try {
-      while (itr.next() != null) {
-        cnt++;
-      }
-    } finally {
-      itr.close();
-    }
-    assertEquals("the count should be ", cnt, 150);
-  }
-
-
-  private void addRowsByKeysWith50Cols(AbstractMemStore hmc, String[] keys) {
-    byte[] fam = Bytes.toBytes("testfamily");
-    for (int i = 0; i < keys.length; i++) {
-      long timestamp = System.currentTimeMillis();
-      Threads.sleep(1); // to make sure each kv gets a different ts
-      byte[] row = Bytes.toBytes(keys[i]);
-      for(int  j =0 ;j < 50; j++) {
-        byte[] qf = Bytes.toBytes("testqualifier"+j);
-        byte[] val = Bytes.toBytes(keys[i] + j);
-        KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
-        hmc.add(kv, null);
-      }
-    }
-  }
-
-  @Override
-  @Test
-  public void testPuttingBackChunksWithOpeningScanner() throws IOException {
-    byte[] row = Bytes.toBytes("testrow");
-    byte[] fam = Bytes.toBytes("testfamily");
-    byte[] qf1 = Bytes.toBytes("testqualifier1");
-    byte[] qf2 = Bytes.toBytes("testqualifier2");
-    byte[] qf3 = Bytes.toBytes("testqualifier3");
-    byte[] qf4 = Bytes.toBytes("testqualifier4");
-    byte[] qf5 = Bytes.toBytes("testqualifier5");
-    byte[] qf6 = Bytes.toBytes("testqualifier6");
-    byte[] qf7 = Bytes.toBytes("testqualifier7");
-    byte[] val = Bytes.toBytes("testval");
-
-    // Setting up memstore
-    memstore.add(new KeyValue(row, fam, qf1, val), null);
-    memstore.add(new KeyValue(row, fam, qf2, val), null);
-    memstore.add(new KeyValue(row, fam, qf3, val), null);
-
-    // Creating a snapshot
-    MemStoreSnapshot snapshot = memstore.snapshot();
-    assertEquals(3, memstore.getSnapshot().getCellsCount());
-
-    // Adding value to "new" memstore
-    assertEquals(0, memstore.getActive().getCellsCount());
-    memstore.add(new KeyValue(row, fam, qf4, val), null);
-    memstore.add(new KeyValue(row, fam, qf5, val), null);
-    assertEquals(2, memstore.getActive().getCellsCount());
-
-    // opening scanner before clear the snapshot
-    List<KeyValueScanner> scanners = memstore.getScanners(0);
-    // Shouldn't putting back the chunks to pool,since some scanners are opening
-    // based on their data
-    // close the scanners
-    for(KeyValueScanner scanner : snapshot.getScanners()) {
-      scanner.close();
-    }
-    memstore.clearSnapshot(snapshot.getId());
-
-    assertTrue(chunkCreator.getPoolSize() == 0);
-
-    // Chunks will be put back to pool after close scanners;
-    for (KeyValueScanner scanner : scanners) {
-      scanner.close();
-    }
-    assertTrue(chunkCreator.getPoolSize() > 0);
-
-    // clear chunks
-    chunkCreator.clearChunksInPool();
-
-    // Creating another snapshot
-
-    snapshot = memstore.snapshot();
-    // Adding more value
-    memstore.add(new KeyValue(row, fam, qf6, val), null);
-    memstore.add(new KeyValue(row, fam, qf7, val), null);
-    // opening scanners
-    scanners = memstore.getScanners(0);
-    // close scanners before clear the snapshot
-    for (KeyValueScanner scanner : scanners) {
-      scanner.close();
-    }
-    // Since no opening scanner, the chunks of snapshot should be put back to
-    // pool
-    // close the scanners
-    for(KeyValueScanner scanner : snapshot.getScanners()) {
-      scanner.close();
-    }
-    memstore.clearSnapshot(snapshot.getId());
-    assertTrue(chunkCreator.getPoolSize() > 0);
-  }
-
-  @Test
-  public void testPuttingBackChunksAfterFlushing() throws IOException {
-    byte[] row = Bytes.toBytes("testrow");
-    byte[] fam = Bytes.toBytes("testfamily");
-    byte[] qf1 = Bytes.toBytes("testqualifier1");
-    byte[] qf2 = Bytes.toBytes("testqualifier2");
-    byte[] qf3 = Bytes.toBytes("testqualifier3");
-    byte[] qf4 = Bytes.toBytes("testqualifier4");
-    byte[] qf5 = Bytes.toBytes("testqualifier5");
-    byte[] val = Bytes.toBytes("testval");
-
-    // Setting up memstore
-    memstore.add(new KeyValue(row, fam, qf1, val), null);
-    memstore.add(new KeyValue(row, fam, qf2, val), null);
-    memstore.add(new KeyValue(row, fam, qf3, val), null);
-
-    // Creating a snapshot
-    MemStoreSnapshot snapshot = memstore.snapshot();
-    assertEquals(3, memstore.getSnapshot().getCellsCount());
-
-    // Adding value to "new" memstore
-    assertEquals(0, memstore.getActive().getCellsCount());
-    memstore.add(new KeyValue(row, fam, qf4, val), null);
-    memstore.add(new KeyValue(row, fam, qf5, val), null);
-    assertEquals(2, memstore.getActive().getCellsCount());
-    // close the scanners
-    for(KeyValueScanner scanner : snapshot.getScanners()) {
-      scanner.close();
-    }
-    memstore.clearSnapshot(snapshot.getId());
-
-    int chunkCount = chunkCreator.getPoolSize();
-    assertTrue(chunkCount > 0);
-  }
+//  public void testCompaction3Buckets() throws IOException {
+//
+//    String[] keys1 = { "A", "A", "B", "C" };
+//    String[] keys2 = { "A", "B", "D" };
+//    String[] keys3 = { "D", "B", "B" };
+//
+//    long totalCellsLen1 = addRowsByKeys(memstore, keys1);
+//    int oneCellOnCSLMHeapSize = 120;
+//    int oneCellOnCAHeapSize = 88;
+//    long totalHeapSize1 = 4 * oneCellOnCSLMHeapSize;
+//    assertEquals(totalCellsLen1, region.getMemstoreSize());
+//    assertEquals(totalHeapSize1, ((CompactingMemStore) memstore).heapSize());
+//
+//    MemstoreSize size = memstore.getFlushableSize();
+//    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
+//
+//    assertEquals(0, memstore.getSnapshot().getCellsCount());
+//    // One cell is duplicated and the compaction will remove it. All cells of same size so adjusting
+//    // totalCellsLen
+//    totalCellsLen1 = (totalCellsLen1 * 3) / 4;
+//    totalHeapSize1 = 3 * oneCellOnCAHeapSize;
+//    assertEquals(totalCellsLen1, regionServicesForStores.getMemstoreSize());
+//    assertEquals(totalHeapSize1, ((CompactingMemStore) memstore).heapSize());
+//
+//    long totalCellsLen2 = addRowsByKeys(memstore, keys2);
+//    long totalHeapSize2 = 3 * oneCellOnCSLMHeapSize;
+//
+//    assertEquals(totalCellsLen1 + totalCellsLen2, regionServicesForStores.getMemstoreSize());
+//    assertEquals(totalHeapSize1 + totalHeapSize2, ((CompactingMemStore) memstore).heapSize());
+//
+//    ((CompactingMemStore) memstore).disableCompaction();
+//    size = memstore.getFlushableSize();
+//    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline without compaction
+//    assertEquals(0, memstore.getSnapshot().getCellsCount());
+//    assertEquals(totalCellsLen1 + totalCellsLen2, regionServicesForStores.getMemstoreSize());
+//    assertEquals(totalHeapSize1 + totalHeapSize2, ((CompactingMemStore) memstore).heapSize());
+//
+//    long totalCellsLen3 = addRowsByKeys(memstore, keys3);
+//    long totalHeapSize3 = 3 * oneCellOnCSLMHeapSize;
+//    assertEquals(totalCellsLen1 + totalCellsLen2 + totalCellsLen3,
+//        regionServicesForStores.getMemstoreSize());
+//    assertEquals(totalHeapSize1 + totalHeapSize2 + totalHeapSize3,
+//        ((CompactingMemStore) memstore).heapSize());
+//
+//    ((CompactingMemStore) memstore).enableCompaction();
+//    size = memstore.getFlushableSize();
+//    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
+//    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+//      Threads.sleep(10);
+//    }
+//    assertEquals(0, memstore.getSnapshot().getCellsCount());
+//    // active flushed to pipeline and all 3 segments compacted. Will get rid of duplicated cells.
+//    // Out of total 10, only 4 cells are unique
+//    totalCellsLen2 = totalCellsLen2 / 3;// 2 out of 3 cells are duplicated
+//    totalCellsLen3 = 0;// All duplicated cells.
+//    assertEquals(totalCellsLen1 + totalCellsLen2 + totalCellsLen3,
+//        regionServicesForStores.getMemstoreSize());
+//    // Only 4 unique cells left
+//    assertEquals(4 * oneCellOnCAHeapSize, ((CompactingMemStore) memstore).heapSize());
+//
+//    size = memstore.getFlushableSize();
+//    MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
+//    region.decrMemstoreSize(size);  // simulate flusher
+//    ImmutableSegment s = memstore.getSnapshot();
+//    assertEquals(4, s.getCellsCount());
+//    assertEquals(0, regionServicesForStores.getMemstoreSize());
+//
+//    memstore.clearSnapshot(snapshot.getId());
+//
+//  }
+//
+//  //////////////////////////////////////////////////////////////////////////////
+//  // Merging tests
+//  //////////////////////////////////////////////////////////////////////////////
+//  @Test
+//  public void testMerging() throws IOException {
+//
+//    String[] keys1 = { "A", "A", "B", "C", "F", "H"};
+//    String[] keys2 = { "A", "B", "D", "G", "I", "J"};
+//    String[] keys3 = { "D", "B", "B", "E" };
+//
+//    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
+//    memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+//        String.valueOf(compactionType));
+//    ((CompactingMemStore)memstore).initiateType(compactionType);
+//    addRowsByKeys(memstore, keys1);
+//
+//    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact
+//
+//    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+//      Threads.sleep(10);
+//    }
+//    assertEquals(0, memstore.getSnapshot().getCellsCount());
+//
+//    addRowsByKeys(memstore, keys2); // also should only flatten
+//
+//    int counter2 = 0;
+//    for ( Segment s : memstore.getSegments()) {
+//      counter2 += s.getCellsCount();
+//    }
+//    assertEquals(12, counter2);
+//
+//    ((CompactingMemStore) memstore).disableCompaction();
+//
+//    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline without flattening
+//    assertEquals(0, memstore.getSnapshot().getCellsCount());
+//
+//    int counter3 = 0;
+//    for ( Segment s : memstore.getSegments()) {
+//      counter3 += s.getCellsCount();
+//    }
+//    assertEquals(12, counter3);
+//
+//    addRowsByKeys(memstore, keys3);
+//
+//    int counter4 = 0;
+//    for ( Segment s : memstore.getSegments()) {
+//      counter4 += s.getCellsCount();
+//    }
+//    assertEquals(16, counter4);
+//
+//    ((CompactingMemStore) memstore).enableCompaction();
+//
+//
+//    ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline and compact
+//    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+//      Threads.sleep(10);
+//    }
+//    assertEquals(0, memstore.getSnapshot().getCellsCount());
+//
+//    int counter = 0;
+//    for ( Segment s : memstore.getSegments()) {
+//      counter += s.getCellsCount();
+//    }
+//    assertEquals(16,counter);
+//
+//    MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
+//    ImmutableSegment s = memstore.getSnapshot();
+//    memstore.clearSnapshot(snapshot.getId());
+//  }
+//
+//  @Test
+//  public void testCountOfCellsAfterFlatteningByScan() throws IOException {
+//    String[] keys1 = { "A", "B", "C" }; // A, B, C
+//    addRowsByKeysWith50Cols(memstore, keys1);
+//    // this should only flatten as there are no duplicates
+//    ((CompactingMemStore) memstore).flushInMemory();
+//    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+//      Threads.sleep(10);
+//    }
+//    List<KeyValueScanner> scanners = memstore.getScanners(Long.MAX_VALUE);
+//    // seek
+//    int count = 0;
+//    for(int i = 0; i < scanners.size(); i++) {
+//      scanners.get(i).seek(KeyValue.LOWESTKEY);
+//      while (scanners.get(i).next() != null) {
+//        count++;
+//      }
+//    }
+//    assertEquals("the count should be ", count, 150);
+//    for(int i = 0; i < scanners.size(); i++) {
+//      scanners.get(i).close();
+//    }
+//  }
+//
+//  @Test
+//  public void testCountOfCellsAfterFlatteningByIterator() throws IOException {
+//    String[] keys1 = { "A", "B", "C" }; // A, B, C
+//    addRowsByKeysWith50Cols(memstore, keys1);
+//    // this should only flatten as there are no duplicates
+//    ((CompactingMemStore) memstore).flushInMemory();
+//    while (((CompactingMemStore) memstore).isMemStoreFlushingInMemory()) {
+//      Threads.sleep(10);
+//    }
+//    // Just doing the cnt operation here
+//    MemStoreSegmentsIterator itr = new MemStoreMergerSegmentsIterator(
+//        ((CompactingMemStore) memstore).getImmutableSegments().getStoreSegments(),
+//        CellComparator.COMPARATOR, 10);
+//    int cnt = 0;
+//    try {
+//      while (itr.next() != null) {
+//        cnt++;
+//      }
+//    } finally {
+//      itr.close();
+//    }
+//    assertEquals("the count should be ", cnt, 150);
+//  }
+//
+//
+//  private void addRowsByKeysWith50Cols(AbstractMemStore hmc, String[] keys) {
+//    byte[] fam = Bytes.toBytes("testfamily");
+//    for (int i = 0; i < keys.length; i++) {
+//      long timestamp = System.currentTimeMillis();
+//      Threads.sleep(1); // to make sure each kv gets a different ts
+//      byte[] row = Bytes.toBytes(keys[i]);
+//      for(int  j =0 ;j < 50; j++) {
+//        byte[] qf = Bytes.toBytes("testqualifier"+j);
+//        byte[] val = Bytes.toBytes(keys[i] + j);
+//        KeyValue kv = new KeyValue(row, fam, qf, timestamp, val);
+//        hmc.add(kv, null);
+//      }
+//    }
+//  }
+//
+//  @Override
+//  @Test
+//  public void testPuttingBackChunksWithOpeningScanner() throws IOException {
+//    byte[] row = Bytes.toBytes("testrow");
+//    byte[] fam = Bytes.toBytes("testfamily");
+//    byte[] qf1 = Bytes.toBytes("testqualifier1");
+//    byte[] qf2 = Bytes.toBytes("testqualifier2");
+//    byte[] qf3 = Bytes.toBytes("testqualifier3");
+//    byte[] qf4 = Bytes.toBytes("testqualifier4");
+//    byte[] qf5 = Bytes.toBytes("testqualifier5");
+//    byte[] qf6 = Bytes.toBytes("testqualifier6");
+//    byte[] qf7 = Bytes.toBytes("testqualifier7");
+//    byte[] val = Bytes.toBytes("testval");
+//
+//    // Setting up memstore
+//    memstore.add(new KeyValue(row, fam, qf1, val), null);
+//    memstore.add(new KeyValue(row, fam, qf2, val), null);
+//    memstore.add(new KeyValue(row, fam, qf3, val), null);
+//
+//    // Creating a snapshot
+//    MemStoreSnapshot snapshot = memstore.snapshot();
+//    assertEquals(3, memstore.getSnapshot().getCellsCount());
+//
+//    // Adding value to "new" memstore
+//    assertEquals(0, memstore.getActive().getCellsCount());
+//    memstore.add(new KeyValue(row, fam, qf4, val), null);
+//    memstore.add(new KeyValue(row, fam, qf5, val), null);
+//    assertEquals(2, memstore.getActive().getCellsCount());
+//
+//    // opening scanner before clear the snapshot
+//    List<KeyValueScanner> scanners = memstore.getScanners(0);
+//    // Shouldn't putting back the chunks to pool,since some scanners are opening
+//    // based on their data
+//    // close the scanners
+//    for(KeyValueScanner scanner : snapshot.getScanners()) {
+//      scanner.close();
+//    }
+//    memstore.clearSnapshot(snapshot.getId());
+//
+//    assertTrue(chunkCreator.getPoolSize() == 0);
+//
+//    // Chunks will be put back to pool after close scanners;
+//    for (KeyValueScanner scanner : scanners) {
+//      scanner.close();
+//    }
+//    assertTrue(chunkCreator.getPoolSize() > 0);
+//
+//    // clear chunks
+//    chunkCreator.clearChunksInPool();
+//
+//    // Creating another snapshot
+//
+//    snapshot = memstore.snapshot();
+//    // Adding more value
+//    memstore.add(new KeyValue(row, fam, qf6, val), null);
+//    memstore.add(new KeyValue(row, fam, qf7, val), null);
+//    // opening scanners
+//    scanners = memstore.getScanners(0);
+//    // close scanners before clear the snapshot
+//    for (KeyValueScanner scanner : scanners) {
+//      scanner.close();
+//    }
+//    // Since no opening scanner, the chunks of snapshot should be put back to
+//    // pool
+//    // close the scanners
+//    for(KeyValueScanner scanner : snapshot.getScanners()) {
+//      scanner.close();
+//    }
+//    memstore.clearSnapshot(snapshot.getId());
+//    assertTrue(chunkCreator.getPoolSize() > 0);
+//  }
+//
+//  @Test
+//  public void testPuttingBackChunksAfterFlushing() throws IOException {
+//    byte[] row = Bytes.toBytes("testrow");
+//    byte[] fam = Bytes.toBytes("testfamily");
+//    byte[] qf1 = Bytes.toBytes("testqualifier1");
+//    byte[] qf2 = Bytes.toBytes("testqualifier2");
+//    byte[] qf3 = Bytes.toBytes("testqualifier3");
+//    byte[] qf4 = Bytes.toBytes("testqualifier4");
+//    byte[] qf5 = Bytes.toBytes("testqualifier5");
+//    byte[] val = Bytes.toBytes("testval");
+//
+//    // Setting up memstore
+//    memstore.add(new KeyValue(row, fam, qf1, val), null);
+//    memstore.add(new KeyValue(row, fam, qf2, val), null);
+//    memstore.add(new KeyValue(row, fam, qf3, val), null);
+//
+//    // Creating a snapshot
+//    MemStoreSnapshot snapshot = memstore.snapshot();
+//    assertEquals(3, memstore.getSnapshot().getCellsCount());
+//
+//    // Adding value to "new" memstore
+//    assertEquals(0, memstore.getActive().getCellsCount());
+//    memstore.add(new KeyValue(row, fam, qf4, val), null);
+//    memstore.add(new KeyValue(row, fam, qf5, val), null);
+//    assertEquals(2, memstore.getActive().getCellsCount());
+//    // close the scanners
+//    for(KeyValueScanner scanner : snapshot.getScanners()) {
+//      scanner.close();
+//    }
+//    memstore.clearSnapshot(snapshot.getId());
+//
+//    int chunkCount = chunkCreator.getPoolSize();
+//    assertTrue(chunkCount > 0);
+//  }
 
 
   private long addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
