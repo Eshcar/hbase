@@ -1510,9 +1510,6 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         return unpacked;
       }
     } finally {
-      if(cacheBlock) {
-        LOG.info(traceScope.toString());
-      }
       traceScope.close();
       if (lockEntry != null) {
         offsetLock.releaseLockEntry(lockEntry);
