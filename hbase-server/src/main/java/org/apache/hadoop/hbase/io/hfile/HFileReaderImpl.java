@@ -1339,10 +1339,16 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
              cache.returnBlock(cacheKey, cachedBlock);
              cache.evictBlock(cacheKey);
            }
+           if(cacheBlock) {
+             LOG.info("HFileReaderImpl::getCachedBlock cached block is null1" + cacheKey);
+           }
            return null;
          }
          return cachedBlock;
        }
+     }
+     if(cacheBlock) {
+       LOG.info("HFileReaderImpl::getCachedBlock cached block is null" + cacheKey);
      }
      return null;
    }
@@ -1480,6 +1486,10 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
           traceScope.getSpan().addTimelineAnnotation("blockCacheMiss");
         }
         // Load block from filesystem.
+        if(cacheBlock) {
+          LOG.info("HFileReaderImpl::readBlock Load block from filesystem" + cacheKey
+              +" block type "+ expectedBlockType);
+        }
         HFileBlock hfileBlock =
             fsBlockReader.readBlockData(dataBlockOffset, onDiskBlockSize, pread);
         validateBlockType(hfileBlock, expectedBlockType);
@@ -1500,6 +1510,9 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         return unpacked;
       }
     } finally {
+      if(cacheBlock) {
+        LOG.info(traceScope.toString());
+      }
       traceScope.close();
       if (lockEntry != null) {
         offsetLock.releaseLockEntry(lockEntry);

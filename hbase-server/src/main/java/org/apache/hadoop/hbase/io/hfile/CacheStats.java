@@ -155,7 +155,10 @@ public class CacheStats {
   public void miss(boolean caching, boolean primary, BlockType type) {
     missCount.increment();
     if (primary) primaryMissCount.increment();
-    if (caching) missCachingCount.increment();
+    if (caching) {
+      missCachingCount.increment();
+      LOG.info("CacheStats " + " missCachingCount" + missCachingCount.longValue());
+    }
     if (type == null) {
       return;
     }
@@ -211,8 +214,10 @@ public class CacheStats {
   public void hit(boolean caching, boolean primary, BlockType type) {
     hitCount.increment();
     if (primary) primaryHitCount.increment();
-    if (caching) hitCachingCount.increment();
-
+    if (caching) {
+      hitCachingCount.increment();
+      LOG.info("CacheStats " + " hitCachingCount" + hitCachingCount.longValue());
+    }
 
     if (type == null) {
       return;
