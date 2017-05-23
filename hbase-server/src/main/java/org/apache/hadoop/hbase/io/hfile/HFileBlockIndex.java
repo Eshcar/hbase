@@ -334,6 +334,10 @@ public class HFileBlockIndex {
               // this also accounts for ENCODED_DATA
               expectedBlockType = BlockType.DATA;
             }
+            if(!isCompaction) {
+              LOG.info("HFileBlockIndex::loadDataBlockWithScanInfo read block for key "
+                  + key.toString()+ " type "+expectedBlockType);
+            }
             block =
                 cachingBlockReader.readBlock(currentOffset, currentOnDiskSize, shouldCache, pread,
                   isCompaction, true, expectedBlockType, expectedDataBlockEncoding);
@@ -572,6 +576,9 @@ public class HFileBlockIndex {
     public HFileBlock seekToDataBlock(final Cell key, HFileBlock currentBlock, boolean cacheBlocks,
         boolean pread, boolean isCompaction, DataBlockEncoding expectedDataBlockEncoding)
         throws IOException {
+      if(!isCompaction) {
+        LOG.info("HFileBlockIndex::seekToDataBlock loadDataBlockWithScanInfo key " + key.toString());
+      }
       BlockWithScanInfo blockWithScanInfo = loadDataBlockWithScanInfo(key, currentBlock,
           cacheBlocks,
           pread, isCompaction, expectedDataBlockEncoding);

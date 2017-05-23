@@ -822,6 +822,9 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
       }
       // Don't rewind on a reseek operation, because reseek implies that we are
       // always going forward in the file.
+      if(!isCompaction) {
+        LOG.info("HFileReaderImpl::reseekTo seekTo key " + key.toString());
+      }
       return seekTo(key, false);
     }
 
@@ -841,6 +844,10 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
      */
     public int seekTo(Cell key, boolean rewind) throws IOException {
       HFileBlockIndex.BlockIndexReader indexReader = reader.getDataBlockIndexReader();
+      if(!isCompaction) {
+        LOG.info("HFileReaderImpl::seekTo loadDataBlockWithScanInfo key "
+            + key.toString()+ " rewind "+ rewind);
+      }
       BlockWithScanInfo blockWithScanInfo = indexReader.loadDataBlockWithScanInfo(key, curBlock,
           cacheBlocks, pread, isCompaction, getEffectiveDataBlockEncoding());
       if (blockWithScanInfo == null || blockWithScanInfo.getHFileBlock() == null) {
@@ -854,6 +861,7 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
 
     @Override
     public boolean seekBefore(Cell key) throws IOException {
+      LOG.info("HFileReaderImpl::seekBefore seek key seekToDataBlock "+key.toString());
       HFileBlock seekToBlock = reader.getDataBlockIndexReader().seekToDataBlock(key, curBlock,
           cacheBlocks, pread, isCompaction, reader.getEffectiveEncodingInCache(isCompaction));
       if (seekToBlock == null) {
@@ -879,6 +887,7 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         // correctly in the general case however.
         // TODO: See https://issues.apache.org/jira/browse/HBASE-14576
         int prevBlockSize = -1;
+        LOG.info("HFileReaderImpl::seekBefore read data block "+key.toString());
         seekToBlock = reader.readBlock(previousBlockOffset,
             prevBlockSize, cacheBlocks,
             pread, isCompaction, true, BlockType.DATA, getEffectiveDataBlockEncoding());

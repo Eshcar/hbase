@@ -180,6 +180,7 @@ public class StoreFileScanner implements KeyValueScanner {
   public boolean seek(Cell key) throws IOException {
     if (seekCount != null) seekCount.increment();
 
+    LOG.info("StoreFileScanner::seek key " + key.toString());
     try {
       try {
         if(!seekAtOrAfter(hfs, key)) {
@@ -279,6 +280,8 @@ public class StoreFileScanner implements KeyValueScanner {
    */
   public static boolean seekAtOrAfter(HFileScanner s, Cell k)
   throws IOException {
+    LOG.info("StoreFileScanner::seekAtOrAfter seekTo key " + k.toString()
+        + " file scanner "+s);
     int result = s.seekTo(k);
     if(result < 0) {
       if (result == HConstants.INDEX_KEY_MAGIC) {
@@ -286,6 +289,8 @@ public class StoreFileScanner implements KeyValueScanner {
         return true;
       }
       // Passed KV is smaller than first KV in file, work from start of file
+      LOG.info("StoreFileScanner::seekAtOrAfter seekTo key " + k.toString()
+          + " file scanner "+s);
       return s.seekTo();
     } else if(result > 0) {
       // Passed KV is larger than current KV in file, if there is a next
@@ -299,6 +304,8 @@ public class StoreFileScanner implements KeyValueScanner {
   static boolean reseekAtOrAfter(HFileScanner s, Cell k)
   throws IOException {
     //This function is similar to seekAtOrAfter function
+    LOG.info("StoreFileScanner::reseekAtOrAfter reseekTo key " + k.toString()
+    + " file scanner "+s);
     int result = s.reseekTo(k);
     if (result <= 0) {
       if (result == HConstants.INDEX_KEY_MAGIC) {
@@ -309,6 +316,8 @@ public class StoreFileScanner implements KeyValueScanner {
       // than first KV in file, and it is the first time we seek on this file.
       // So we also need to work from the start of file.
       if (!s.isSeeked()) {
+        LOG.info("StoreFileScanner::reseekAtOrAfter seekTo key " + k.toString()
+            + " file scanner "+s);
         return  s.seekTo();
       }
       return true;
@@ -466,6 +475,7 @@ public class StoreFileScanner implements KeyValueScanner {
         do {
           Cell seekKey = CellUtil.createFirstOnRow(key);
           if (seekCount != null) seekCount.increment();
+          LOG.info("StoreFileScanner::seekToPreviousRow key " + seekKey+" originalKey "+ originalKey);
           if (!hfs.seekBefore(seekKey)) {
             this.cur = null;
             return false;
