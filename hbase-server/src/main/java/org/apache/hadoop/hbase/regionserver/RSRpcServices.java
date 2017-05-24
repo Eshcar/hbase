@@ -2319,6 +2319,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
 
   private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,
       RpcCallContext context) throws IOException {
+    LOG.info("ESHCAR Get operation key=" + Bytes.toString(get.getRow()));
     boolean memoryScanOptimization = region.getMemoryScanOptimization();
     region.prepareGet(get);
     boolean shouldApplyMemoryScanOptimization =
