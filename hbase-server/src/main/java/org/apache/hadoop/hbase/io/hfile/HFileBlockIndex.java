@@ -335,8 +335,9 @@ public class HFileBlockIndex {
               expectedBlockType = BlockType.DATA;
             }
             if(!isCompaction) {
-              LOG.info("HFileBlockIndex::loadDataBlockWithScanInfo read block for key "
-                  + key.toString()+ " type "+expectedBlockType);
+              LOG.info("ESHCAR CellBasedKeyBlockIndexReader::loadDataBlockWithScanInfo read block "
+                  + "for key @"
+                  +Bytes.toString(CellUtil.copyRow(key)) + " type "+expectedBlockType);
             }
             block =
                 cachingBlockReader.readBlock(currentOffset, currentOnDiskSize, shouldCache, pread,
