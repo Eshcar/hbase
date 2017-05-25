@@ -51,6 +51,7 @@ import org.apache.hadoop.hbase.regionserver.querymatcher.LegacyScanQueryMatcher;
 import org.apache.hadoop.hbase.regionserver.querymatcher.ScanQueryMatcher;
 import org.apache.hadoop.hbase.regionserver.querymatcher.ScanQueryMatcher.MatchCode;
 import org.apache.hadoop.hbase.regionserver.querymatcher.UserScanQueryMatcher;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
 /**
@@ -227,7 +228,9 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       // key does not exist, then to the start of the next matching Row).
       // Always check bloom filter to optimize the top row seek for delete
       // family marker.
-      LOG.info("StoreScanner::StoreScanner3 seekScanners in parallel "+parallelSeekEnabled
+      LOG.info("ESHCAR StoreScanner::StoreScanner3 seekScanners key "
+          + Bytes.toString(this.scan.getStartRow())+" in parallel "
+          +parallelSeekEnabled
           +" is lazy "+(explicitColumnQuery && lazySeekEnabledGlobally));
       seekScanners(scanners, matcher.getStartKey(), explicitColumnQuery && lazySeekEnabledGlobally,
         parallelSeekEnabled);
@@ -389,7 +392,9 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     // family marker.
     if (isLazy) {
       for (KeyValueScanner scanner : scanners) {
-        LOG.info("StoreScanner::seekScanners request seek "+seekKey.toString());
+        LOG.info("ESHCAR StoreScanner::seekScanners start row"
+            + Bytes.toString(this.scan.getStartRow())
+            +" request seek key"+Bytes.toString(CellUtil.copyRow(seekKey)));
         scanner.requestSeek(seekKey, false, true);
       }
     } else {

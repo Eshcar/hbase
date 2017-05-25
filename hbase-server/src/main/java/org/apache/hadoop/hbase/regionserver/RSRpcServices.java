@@ -2345,6 +2345,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     boolean doneFullScan = false;
     try {
       if(shouldApplyMemoryScanOptimization) {
+        LOG.info("ESHCAR applies optimization key=" + Bytes.toString(get.getRow()));
         InternalScan internalScan = new InternalScan(get);
         internalScan.checkOnlyMemStore();
         if (internalScan.getLoadColumnFamiliesOnDemandValue() == null) {
@@ -2370,6 +2371,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       if(!shouldApplyMemoryScanOptimization
           || !monotonic // failed monotonicity test
           || !(satisfied = get.satisfiedWith(results)) ) {
+        LOG.info("ESHCAR do not apply optimization key=" + Bytes.toString(get.getRow()));
         if(!satisfied) {
           NOT_SATISFIED.incrementAndGet();
         }
@@ -2381,6 +2383,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         scanner.next(fullScanResults);
         doneFullScan = true;
       }
+      LOG.info("ESHCAR finished get key=" + Bytes.toString(get.getRow()));
     } finally {
       if(doneMemoryScan && doneFullScan){
         BOTH_SCANS.incrementAndGet();

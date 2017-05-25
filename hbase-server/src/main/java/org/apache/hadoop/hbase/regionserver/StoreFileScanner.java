@@ -40,6 +40,7 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.io.hfile.HFileScanner;
 import org.apache.hadoop.hbase.regionserver.querymatcher.ScanQueryMatcher;
+import org.apache.hadoop.hbase.util.Bytes;
 
 /**
  * KeyValueScanner adaptor over the Reader.  It also provides hooks into
@@ -374,6 +375,9 @@ public class StoreFileScanner implements KeyValueScanner {
       }
     }
 
+    LOG.info("ESHCAR StoreFileScanner::requestSeek key"
+        +Bytes.toString(CellUtil.copyRow(kv))
+        +" haveToSeek "+haveToSeek);
     delayedReseek = forward;
     delayedSeekKV = kv;
 
@@ -396,7 +400,8 @@ public class StoreFileScanner implements KeyValueScanner {
         // row/column, and we don't know exactly what they are, so we set the
         // seek key's timestamp to OLDEST_TIMESTAMP to skip the rest of this
         // row/column.
-        LOG.info("StoreFileScanner::requestSeek enforce seek " + kv.toString());
+        LOG.info("ESHCAR StoreFileScanner::requestSeek enforce seek key"
+            +Bytes.toString(CellUtil.copyRow(kv)));
         enforceSeek();
       }
       return cur != null;

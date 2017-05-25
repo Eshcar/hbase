@@ -823,7 +823,8 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
       // Don't rewind on a reseek operation, because reseek implies that we are
       // always going forward in the file.
       if(!isCompaction) {
-        LOG.info("HFileReaderImpl::reseekTo seekTo key " + key.toString());
+        LOG.info("ESHCAR HFileReaderImpl::reseekTo seekTo key "
+            + Bytes.toString(CellUtil.copyRow(key)));
       }
       return seekTo(key, false);
     }
@@ -845,8 +846,9 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
     public int seekTo(Cell key, boolean rewind) throws IOException {
       HFileBlockIndex.BlockIndexReader indexReader = reader.getDataBlockIndexReader();
       if(!isCompaction) {
-        LOG.info("HFileReaderImpl::seekTo loadDataBlockWithScanInfo key "
-            + key.toString()+ " rewind "+ rewind);
+        LOG.info("ESHCAR HFileReaderImpl::seekTo loadDataBlockWithScanInfo key "
+            + Bytes.toString(CellUtil.copyRow(key))
+            + " rewind "+ rewind);
       }
       BlockWithScanInfo blockWithScanInfo = indexReader.loadDataBlockWithScanInfo(key, curBlock,
           cacheBlocks, pread, isCompaction, getEffectiveDataBlockEncoding());
@@ -861,7 +863,8 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
 
     @Override
     public boolean seekBefore(Cell key) throws IOException {
-      LOG.info("HFileReaderImpl::seekBefore seek key seekToDataBlock "+key.toString());
+      LOG.info("ESHCAR HFileReaderImpl::seekBefore seek key seekToDataBlock "
+          + Bytes.toString(CellUtil.copyRow(key)));
       HFileBlock seekToBlock = reader.getDataBlockIndexReader().seekToDataBlock(key, curBlock,
           cacheBlocks, pread, isCompaction, reader.getEffectiveEncodingInCache(isCompaction));
       if (seekToBlock == null) {
@@ -887,7 +890,8 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         // correctly in the general case however.
         // TODO: See https://issues.apache.org/jira/browse/HBASE-14576
         int prevBlockSize = -1;
-        LOG.info("HFileReaderImpl::seekBefore read data block "+key.toString());
+        LOG.info("ESHCAR HFileReaderImpl::seekBefore read data block "
+            + Bytes.toString(CellUtil.copyRow(key)));
         seekToBlock = reader.readBlock(previousBlockOffset,
             prevBlockSize, cacheBlocks,
             pread, isCompaction, true, BlockType.DATA, getEffectiveDataBlockEncoding());
@@ -1349,7 +1353,7 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
              cache.evictBlock(cacheKey);
            }
            if(cacheBlock) {
-             LOG.info("HFileReaderImpl::getCachedBlock cached block is null1" + cacheKey);
+             LOG.info("ESHCAR HFileReaderImpl::getCachedBlock cached block is null1" + cacheKey);
            }
            return null;
          }
@@ -1357,7 +1361,7 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
        }
      }
      if(cacheBlock) {
-       LOG.info("HFileReaderImpl::getCachedBlock cached block is null" + cacheKey);
+       LOG.info("ESHCAR HFileReaderImpl::getCachedBlock cached block is null" + cacheKey);
      }
      return null;
    }
@@ -1496,7 +1500,7 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         }
         // Load block from filesystem.
         if(cacheBlock) {
-          LOG.info("HFileReaderImpl::readBlock Load block from filesystem" + cacheKey
+          LOG.info("ESHCAR HFileReaderImpl::readBlock Load block from filesystem" + cacheKey
               +" block type "+ expectedBlockType);
         }
         HFileBlock hfileBlock =
