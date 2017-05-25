@@ -391,10 +391,11 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     // Always check bloom filter to optimize the top row seek for delete
     // family marker.
     if (isLazy) {
+      LOG.info("ESHCAR StoreScanner::seekScanners, SEEKING "
+          + scanners.size() + " scanners, start row "
+          + Bytes.toString(this.scan.getStartRow())
+          +" request seek key "+Bytes.toString(CellUtil.copyRow(seekKey)));
       for (KeyValueScanner scanner : scanners) {
-        LOG.info("ESHCAR StoreScanner::seekScanners start row"
-            + Bytes.toString(this.scan.getStartRow())
-            +" request seek key"+Bytes.toString(CellUtil.copyRow(seekKey)));
         scanner.requestSeek(seekKey, false, true);
       }
     } else {
@@ -405,7 +406,8 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
             throw new RowTooBigException("Max row size allowed: " + maxRowSize
               + ", but row is bigger than that");
           }
-          LOG.info("StoreScanner::seekScanners seek "+seekKey.toString());
+          LOG.info("StoreScanner::seekScanners seek "
+              +Bytes.toString(CellUtil.copyRow(seekKey)));
           scanner.seek(seekKey);
           Cell c = scanner.peek();
           if (c != null) {

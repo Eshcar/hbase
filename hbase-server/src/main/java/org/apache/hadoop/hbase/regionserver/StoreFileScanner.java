@@ -362,7 +362,8 @@ public class StoreFileScanner implements KeyValueScanner {
       // check ROWCOL Bloom filter first.
       if (reader.getBloomFilterType() == BloomType.ROWCOL) {
         haveToSeek = reader.passesGeneralRowColBloomFilter(kv);
-        LOG.info("StoreFileScanner::requestSeek rowcol bloom filter " + kv.toString()
+        LOG.info("StoreFileScanner::requestSeek rowcol bloom filter "
+            +Bytes.toString(CellUtil.copyRow(kv))
         +" haveToSeek "+haveToSeek);
       } else if (canOptimizeForNonNullColumn
           && ((CellUtil.isDeleteFamily(kv) || CellUtil.isDeleteFamilyVersion(kv)))) {
@@ -370,7 +371,8 @@ public class StoreFileScanner implements KeyValueScanner {
         // then no need to seek.
         haveToSeek = reader.passesDeleteFamilyBloomFilter(kv.getRowArray(), kv.getRowOffset(),
           kv.getRowLength());
-        LOG.info("StoreFileScanner::requestSeek delete family bloom filter " + kv.toString()
+        LOG.info("StoreFileScanner::requestSeek delete family bloom filter "
+            +Bytes.toString(CellUtil.copyRow(kv))
             +" haveToSeek "+haveToSeek);
       }
     }

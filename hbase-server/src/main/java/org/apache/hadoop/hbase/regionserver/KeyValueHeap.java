@@ -302,6 +302,9 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
     KeyValueScanner scanner = current;
     try {
       while (scanner != null) {
+        LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
+            + Bytes.toString(CellUtil.copyRow(seekKey))
+        + " 1) peek scanner "+ scanner.toString());
         Cell topKey = scanner.peek();
         if (comparator.getComparator().compare(seekKey, topKey) <= 0) {
           // Top KeyValue is at-or-after Seek KeyValue. We only know that all
@@ -313,6 +316,9 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
           // keys.
           heap.add(scanner);
           scanner = null;
+          LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
+              + Bytes.toString(CellUtil.copyRow(seekKey))
+              + " 1.1) pollRealKV ");
           current = pollRealKV();
           return current != null;
         }
@@ -320,8 +326,14 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
         boolean seekResult;
         if (isLazy && heap.size() > 0) {
           // If there is only one scanner left, we don't do lazy seek.
+          LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
+              + Bytes.toString(CellUtil.copyRow(seekKey))
+              + " 2) requestSeek scanner "+ scanner.toString());
           seekResult = scanner.requestSeek(seekKey, forward, useBloom);
         } else {
+          LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
+              + Bytes.toString(CellUtil.copyRow(seekKey))
+              + " 3) doRealSeak scanner "+ scanner.toString());
           seekResult = NonLazyKeyValueScanner.doRealSeek(scanner, seekKey,
               forward);
         }
