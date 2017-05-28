@@ -293,9 +293,13 @@ public class CompactingMemStore extends AbstractMemStore {
    *           The flattening happens only if versions match.
    */
   public void flattenOneSegment(long requesterVersion) {
-    boolean toCellChunkMap =  getConfiguration().getBoolean(COMPACTING_MEMSTORE_CHUNK_MAP_KEY,
-        COMPACTING_MEMSTORE_CHUNK_MAP_DEFAULT);
+    boolean toCellChunkMap =  isToCellChunkMap();
     pipeline.flattenYoungestSegment(requesterVersion, toCellChunkMap);
+  }
+
+  public boolean isToCellChunkMap() {
+    return getConfiguration().getBoolean(COMPACTING_MEMSTORE_CHUNK_MAP_KEY,
+        COMPACTING_MEMSTORE_CHUNK_MAP_DEFAULT);
   }
 
   public boolean hasImmutableSegments() {

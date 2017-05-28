@@ -743,7 +743,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     assertEquals(totalCellsLen1, regionServicesForStores.getMemstoreSize());
     // In memory flush to make a CellArrayMap instead of CSLM. See the overhead diff.
     totalHeapSize = 3 * oneCellOnCAHeapSize;
-    assertEquals(totalHeapSize, ((CompactingMemStore)memstore).heapSize());
+    assertEquals("\n<<< FAILURE on chunk map? " + ((CompactingMemStore)memstore).isToCellChunkMap()
+        + " \n", totalHeapSize, ((CompactingMemStore)memstore).heapSize());
 
     int totalCellsLen2 = addRowsByKeys(memstore, keys2);// Adding 3 more cells.
     long totalHeapSize2 = 3 * oneCellOnCSLMHeapSize;

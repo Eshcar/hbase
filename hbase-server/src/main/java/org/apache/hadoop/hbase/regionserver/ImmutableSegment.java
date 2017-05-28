@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 
+import org.apache.hadoop.hbase.ByteBufferKeyValue;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
@@ -280,7 +281,7 @@ public class ImmutableSegment extends Segment {
     int chunkSize = ChunkCreator.getInstance().getChunkSize();
     int numOfCellsInChunk = CellChunkMap.NUM_OF_CELL_REPS_IN_CHUNK;
     int numberOfChunks = numOfCells/numOfCellsInChunk + 1;
-
+    int numOfCellsAfterCompaction = 0;
     int currentChunkIdx = 0;
     int offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
 
@@ -292,7 +293,7 @@ public class ImmutableSegment extends Segment {
 
     while (iterator.hasNext()) {        // the iterator hides the elimination logic for compaction
       Cell c = iterator.next();
-
+      numOfCellsAfterCompaction++;
       if (!(c instanceof ExtendedCell)) // we shouldn't get here anything but ExtendedCell
         assert false;
 
@@ -306,7 +307,7 @@ public class ImmutableSegment extends Segment {
       }
 
       offsetInCurentChunk = // add the Cell reference to the index chunk
-          createCellReference((ExtendedCell)c, chunks[currentChunkIdx].getData(),
+          createCellReference((ByteBufferKeyValue)c, chunks[currentChunkIdx].getData(),
               offsetInCurentChunk);
 
       boolean useMSLAB = (getMemStoreLAB()!=null);
@@ -317,7 +318,8 @@ public class ImmutableSegment extends Segment {
       updateMetaInfo(c, true, useMSLAB, null); // updates the size per cell
     }
     // build the immutable CellSet
-    CellChunkMap ccm = new CellChunkMap(CellComparator.COMPARATOR,chunks,0,numOfCells,false);
+    CellChunkMap ccm =
+        new CellChunkMap(CellComparator.COMPARATOR,chunks,0,numOfCellsAfterCompaction,false);
     return new CellSet(ccm);
   }
 
@@ -354,7 +356,7 @@ public class ImmutableSegment extends Segment {
           offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
         }
         offsetInCurentChunk =
-            createCellReference((ExtendedCell) curCell, chunks[currentChunkIdx].getData(),
+            createCellReference((ByteBufferKeyValue) curCell, chunks[currentChunkIdx].getData(),
                 offsetInCurentChunk);
       }
     } catch (IOException ie) {
@@ -369,11 +371,11 @@ public class ImmutableSegment extends Segment {
 
   /*------------------------------------------------------------------------*/
   // for a given cell, write the cell representation on the index chunk
-  private int createCellReference(ExtendedCell cell, ByteBuffer idxBuffer, int idxOffset) {
+  private int createCellReference(ByteBufferKeyValue cell, ByteBuffer idxBuffer, int idxOffset) {
     int offset = idxOffset;
 
     offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getChunkId());    // write data chunk id
-    offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getRowOffset());          // offset
+    offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getOffset());          // offset
     offset = ByteBufferUtils.putInt(idxBuffer, offset, KeyValueUtil.length(cell)); // length
     offset = ByteBufferUtils.putLong(idxBuffer, offset, cell.getSequenceId());     // seqId
 
