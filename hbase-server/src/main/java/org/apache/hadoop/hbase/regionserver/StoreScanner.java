@@ -464,6 +464,8 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
         kvs.close();
       }
     }
+    LOG.info("ESHCAR StoreScanner::selectScannersFrom list of scanners "+scanners.toString()
+        + Bytes.toString(this.scan.getStartRow()));
     return scanners;
   }
 
