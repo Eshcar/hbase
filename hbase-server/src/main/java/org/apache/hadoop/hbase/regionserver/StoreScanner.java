@@ -242,6 +242,9 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       this.storeOffset = scan.getRowOffsetPerColumnFamily();
       addCurrentScanners(scanners);
       // Combine all seeked scanners with a heap
+      LOG.info("ESHCAR StoreScanner::StoreScanner3 resetKVHeap key "
+          + Bytes.toString(this.scan.getStartRow())
+      + "list of scanners "+scanners);
       resetKVHeap(scanners, store.getComparator());
     } catch (IOException e) {
       // remove us from the HStore#changedReaderObservers here or we'll have no chance to
@@ -424,6 +427,9 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       CellComparator comparator) throws IOException {
     // Combine all seeked scanners with a heap
     heap = new KeyValueHeap(scanners, comparator);
+    LOG.info("ESHCAR StoreScanner::resetKVHeap Combine all seeked scanners with a KeyValueHeap key "
+        + Bytes.toString(this.scan.getStartRow())
+    +" heap "+heap.toString());
   }
 
   /**

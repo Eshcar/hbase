@@ -91,11 +91,11 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
       KVScannerComparator comparator) throws IOException {
     this.comparator = comparator;
     this.scannersForDelayedClose = new ArrayList<>(scanners.size());
-    LOG.info("KeyValueHeap::KeyValueHeap num scanners "+scanners.size());
+    LOG.info("ESHCAR KeyValueHeap::KeyValueHeap num scanners "+scanners.size());
     if (!scanners.isEmpty()) {
       this.heap = new PriorityQueue<>(scanners.size(), this.comparator);
       for (KeyValueScanner scanner : scanners) {
-        LOG.info("KeyValueHeap::KeyValueHeap peek scanner "+scanner.toString());
+        LOG.info("ESHCAR KeyValueHeap::KeyValueHeap peek scanner "+scanner.toString());
         if (scanner.peek() != null) {
           this.heap.add(scanner);
         } else {
@@ -179,6 +179,14 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
       moreCells = scannerContext.setScannerState(NextState.NO_MORE_VALUES).hasMoreValues();
     }
     return moreCells;
+  }
+
+  @Override public String toString() {
+    return "KeyValueHeap{" +
+        "current=" + current +
+        ", heap=" + heap +
+        ", scannersForDelayedClose=" + scannersForDelayedClose +
+        '}';
   }
 
   protected static class KVScannerComparator implements Comparator<KeyValueScanner> {
@@ -334,8 +342,7 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
           LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
               + Bytes.toString(CellUtil.copyRow(seekKey))
               + " 3) doRealSeak scanner "+ scanner.toString());
-          seekResult = NonLazyKeyValueScanner.doRealSeek(scanner, seekKey,
-              forward);
+          seekResult = NonLazyKeyValueScanner.doRealSeek(scanner, seekKey, forward);
         }
 
         if (!seekResult) {

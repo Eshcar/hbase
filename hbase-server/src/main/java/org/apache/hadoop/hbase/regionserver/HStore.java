@@ -1190,8 +1190,6 @@ public class HStore implements Store {
     scanners.addAll(sfScanners);
     // Then the memstore scanners
     scanners.addAll(memStoreScanners);
-    LOG.info("ESHCAR HStore::getScanners list of scanners "+scanners
-        + Bytes.toString(startRow));
     return scanners;
   }
 
