@@ -814,6 +814,10 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
             // smaller than
             // the next indexed key or the current data block is the last data
             // block.
+            if(!isCompaction) {
+              LOG.info("ESHCAR HFileReaderImpl::reseekTo (I) loadBlockAndSeekToKey key "
+                  + Bytes.toString(CellUtil.copyRow(key)));
+            }
             return loadBlockAndSeekToKey(this.curBlock, nextIndexedKey, false, key,
                 false);
           }
@@ -823,7 +827,7 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
       // Don't rewind on a reseek operation, because reseek implies that we are
       // always going forward in the file.
       if(!isCompaction) {
-        LOG.info("ESHCAR HFileReaderImpl::reseekTo seekTo key "
+        LOG.info("ESHCAR HFileReaderImpl::reseekTo (II) seekTo key "
             + Bytes.toString(CellUtil.copyRow(key)));
       }
       return seekTo(key, false);
@@ -890,13 +894,19 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         // correctly in the general case however.
         // TODO: See https://issues.apache.org/jira/browse/HBASE-14576
         int prevBlockSize = -1;
-        LOG.info("ESHCAR HFileReaderImpl::seekBefore read data block "
-            + Bytes.toString(CellUtil.copyRow(key)));
+        if(!isCompaction) {
+          LOG.info("ESHCAR HFileReaderImpl::seekBefore read data block " + Bytes
+              .toString(CellUtil.copyRow(key)));
+        }
         seekToBlock = reader.readBlock(previousBlockOffset,
             prevBlockSize, cacheBlocks,
             pread, isCompaction, true, BlockType.DATA, getEffectiveDataBlockEncoding());
         // TODO shortcut: seek forward in this block to the last key of the
         // block.
+      }
+      if(!isCompaction) {
+        LOG.info("ESHCAR HFileReaderImpl::seekBefore loadBlockAndSeekToKey " + Bytes
+            .toString(CellUtil.copyRow(key)));
       }
       loadBlockAndSeekToKey(seekToBlock, firstKey, true, key, true);
       return true;
@@ -1146,6 +1156,10 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
         boolean rewind, Cell key, boolean seekBefore) throws IOException {
       if (this.curBlock == null
           || this.curBlock.getOffset() != seekToBlock.getOffset()) {
+        if(!isCompaction) {
+          LOG.info("ESHCAR HFileReaderImpl::loadBlockAndSeekToKey updateCurrentBlock " + Bytes
+              .toString(CellUtil.copyRow(key)));
+        }
         updateCurrentBlock(seekToBlock);
       } else if (rewind) {
         blockBuffer.rewind();
@@ -1153,6 +1167,10 @@ public class HFileReaderImpl implements HFile.Reader, Configurable {
 
       // Update the nextIndexedKey
       this.nextIndexedKey = nextIndexedKey;
+      if(!isCompaction) {
+        LOG.info("ESHCAR HFileReaderImpl::loadBlockAndSeekToKey blockSeek " + Bytes
+            .toString(CellUtil.copyRow(key)));
+      }
       return blockSeek(key, seekBefore);
     }
 

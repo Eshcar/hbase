@@ -181,7 +181,8 @@ public class StoreFileScanner implements KeyValueScanner {
   public boolean seek(Cell key) throws IOException {
     if (seekCount != null) seekCount.increment();
 
-    LOG.info("StoreFileScanner::seek key " + key.toString());
+    LOG.info("StoreFileScanner::seek key "
+    +Bytes.toString(CellUtil.copyRow(key)));
     try {
       try {
         if(!seekAtOrAfter(hfs, key)) {
@@ -209,6 +210,8 @@ public class StoreFileScanner implements KeyValueScanner {
   public boolean reseek(Cell key) throws IOException {
     if (seekCount != null) seekCount.increment();
 
+    LOG.info("ESHCAR StoreFileScanner::reseek key "
+        +Bytes.toString(CellUtil.copyRow(key)));
     try {
       try {
         if (!reseekAtOrAfter(hfs, key)) {
@@ -281,7 +284,8 @@ public class StoreFileScanner implements KeyValueScanner {
    */
   public static boolean seekAtOrAfter(HFileScanner s, Cell k)
   throws IOException {
-    LOG.info("StoreFileScanner::seekAtOrAfter seekTo key " + k.toString()
+    LOG.info("StoreFileScanner::seekAtOrAfter seekTo key "
+        +Bytes.toString(CellUtil.copyRow(k))
         + " file scanner "+s);
     int result = s.seekTo(k);
     if(result < 0) {
@@ -290,7 +294,8 @@ public class StoreFileScanner implements KeyValueScanner {
         return true;
       }
       // Passed KV is smaller than first KV in file, work from start of file
-      LOG.info("StoreFileScanner::seekAtOrAfter seekTo key " + k.toString()
+      LOG.info("StoreFileScanner::seekAtOrAfter seekTo key "
+          +Bytes.toString(CellUtil.copyRow(k))
           + " file scanner "+s);
       return s.seekTo();
     } else if(result > 0) {
@@ -305,7 +310,8 @@ public class StoreFileScanner implements KeyValueScanner {
   static boolean reseekAtOrAfter(HFileScanner s, Cell k)
   throws IOException {
     //This function is similar to seekAtOrAfter function
-    LOG.info("StoreFileScanner::reseekAtOrAfter reseekTo key " + k.toString()
+    LOG.info("StoreFileScanner::reseekAtOrAfter reseekTo key "
+        +Bytes.toString(CellUtil.copyRow(k))
     + " file scanner "+s);
     int result = s.reseekTo(k);
     if (result <= 0) {
@@ -317,7 +323,8 @@ public class StoreFileScanner implements KeyValueScanner {
       // than first KV in file, and it is the first time we seek on this file.
       // So we also need to work from the start of file.
       if (!s.isSeeked()) {
-        LOG.info("StoreFileScanner::reseekAtOrAfter seekTo key " + k.toString()
+        LOG.info("StoreFileScanner::reseekAtOrAfter seekTo key "
+            +Bytes.toString(CellUtil.copyRow(k))
             + " file scanner "+s);
         return  s.seekTo();
       }
