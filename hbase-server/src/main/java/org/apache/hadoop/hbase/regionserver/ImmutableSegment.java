@@ -373,7 +373,8 @@ public class ImmutableSegment extends Segment {
   // for a given cell, write the cell representation on the index chunk
   private int createCellReference(ByteBufferKeyValue cell, ByteBuffer idxBuffer, int idxOffset) {
     int offset = idxOffset;
-
+    // ensure strong pointer to data chunk, as index is no longer directly points to it
+    ChunkCreator.getInstance().saveChunkFromGC(cell.getChunkId());
     offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getChunkId());    // write data chunk id
     offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getOffset());          // offset
     offset = ByteBufferUtils.putInt(idxBuffer, offset, KeyValueUtil.length(cell)); // length

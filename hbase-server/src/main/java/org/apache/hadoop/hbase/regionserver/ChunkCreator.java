@@ -18,7 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import java.lang.ref.SoftReference;
+import java.lang.ref.WeakReference;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -52,14 +52,19 @@ public class ChunkCreator {
   private AtomicInteger chunkID = new AtomicInteger(1);
   // maps the chunk against the monotonically increasing chunk id. We need to preserve the
   // natural ordering of the key
-  // CellChunkMap creation should convert the soft ref to hard reference
+  // CellChunkMap creation should convert the weak ref to hard reference
 
   // chunk id of each chunk is the first integer written on each chunk,
   // the header size need to be changed in case chunk id size is changed
   public static final int SIZEOF_CHUNK_HEADER = Bytes.SIZEOF_INT;
 
-  private Map<Integer, SoftReference<Chunk>> chunkIdMap =
-      new ConcurrentHashMap<Integer, SoftReference<Chunk>>();
+  // map that doesn't influence GC
+  private Map<Integer, WeakReference<Chunk>> weakChunkIdMap =
+      new ConcurrentHashMap<Integer, WeakReference<Chunk>>();
+
+  // map that keeps chunks from garbage collection
+  private Map<Integer, Chunk> strongChunkIdMap = new ConcurrentHashMap<Integer, Chunk>();
+
   private final int chunkSize;
   private final boolean offheap;
   @VisibleForTesting
@@ -125,8 +130,8 @@ public class ChunkCreator {
     if (chunk == null) {
       chunk = createChunk();
     }
-    // put this chunk into the chunkIdMap
-    this.chunkIdMap.put(chunk.getId(), new SoftReference<>(chunk));
+    // put this chunk initially into the weakChunkIdMap
+    this.weakChunkIdMap.put(chunk.getId(), new WeakReference<>(chunk));
     // now we need to actually do the expensive memory allocation step in case of a new chunk,
     // else only the offset is set to the beginning of the chunk to accept allocations
     chunk.init();
@@ -154,11 +159,31 @@ public class ChunkCreator {
   }
 
   @VisibleForTesting
-  // TODO : To be used by CellChunkMap
+  // Used to translate the ChunkID into a chunk ref
   Chunk getChunk(int id) {
-    SoftReference<Chunk> ref = chunkIdMap.get(id);
+    WeakReference<Chunk> ref = weakChunkIdMap.get(id);
     if (ref != null) {
       return ref.get();
+    }
+    // check also the strong mapping
+    return strongChunkIdMap.get(id);
+  }
+
+  // transfer the weak pointer to be a strong chunk pointer
+  Chunk saveChunkFromGC(int chunkID) {
+    Chunk c = strongChunkIdMap.get(chunkID); // check whether the chunk is already protected
+    if (c != null)                           // with strong pointer
+      return c;
+    WeakReference<Chunk> ref = weakChunkIdMap.get(chunkID);
+    if (ref != null) {
+      c = ref.get();
+    }
+    if (c != null) {
+      // put this strong reference to chunk into the strongChunkIdMap
+      // weakMap is always checked before the strongMap so no synchronization issues here
+      this.strongChunkIdMap.put(chunkID, c);
+      this.weakChunkIdMap.remove(chunkID);
+      return c;
     }
     return null;
   }
@@ -172,25 +197,28 @@ public class ChunkCreator {
   }
 
   private void removeChunks(Set<Integer> chunkIDs) {
-    this.chunkIdMap.keySet().removeAll(chunkIDs);
+    this.weakChunkIdMap.keySet().removeAll(chunkIDs);
+    this.strongChunkIdMap.keySet().removeAll(chunkIDs);
   }
 
   Chunk removeChunk(int chunkId) {
-    SoftReference<Chunk> ref = this.chunkIdMap.remove(chunkId);
-    if (ref != null) {
-      return ref.get();
+    WeakReference<Chunk> weak = this.weakChunkIdMap.remove(chunkId);
+    Chunk strong = this.strongChunkIdMap.remove(chunkId);
+    if (weak != null) {
+      return weak.get();
     }
-    return null;
+    return strong;
   }
 
   @VisibleForTesting
   int size() {
-    return this.chunkIdMap.size();
+    return this.weakChunkIdMap.size()+this.strongChunkIdMap.size();
   }
 
   @VisibleForTesting
   void clearChunkIds() {
-    this.chunkIdMap.clear();
+    this.strongChunkIdMap.clear();
+    this.weakChunkIdMap.clear();
   }
 
   /**
