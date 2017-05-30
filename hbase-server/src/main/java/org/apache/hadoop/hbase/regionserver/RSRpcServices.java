@@ -2379,7 +2379,9 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
           scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
         }
+        LOG.info("ESHCAR region.getScanner key=" + Bytes.toString(get.getRow()));
         scanner = region.getScanner(scan);
+        LOG.info("ESHCAR full scanner.next key=" + Bytes.toString(get.getRow()));
         scanner.next(fullScanResults);
         doneFullScan = true;
       }

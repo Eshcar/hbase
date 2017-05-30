@@ -155,6 +155,7 @@ public class StoreFileScanner implements KeyValueScanner {
   }
 
   public Cell peek() {
+    LOG.info("ESHCAR StoreFileScanner::peek this scanner "+toString());
     return cur;
   }
 
@@ -198,6 +199,8 @@ public class StoreFileScanner implements KeyValueScanner {
           return !hasMVCCInfo ? true : skipKVsNewerThanReadpoint();
         }
       } finally {
+        LOG.info("ESHCAR StoreFileScanner::seek realSeekDone=true key" + Bytes
+            .toString(CellUtil.copyRow(key)));
         realSeekDone = true;
       }
     } catch (FileNotFoundException e) {
@@ -226,6 +229,8 @@ public class StoreFileScanner implements KeyValueScanner {
           return !hasMVCCInfo ? true : skipKVsNewerThanReadpoint();
         }
       } finally {
+        LOG.info("ESHCAR StoreFileScanner::reseek realSeekDone=true key" + Bytes
+            .toString(CellUtil.copyRow(key)));
         realSeekDone = true;
       }
     } catch (FileNotFoundException e) {
@@ -403,6 +408,8 @@ public class StoreFileScanner implements KeyValueScanner {
         // a higher timestamp than the max timestamp in this file. We know that
         // the next point when we have to consider this file again is when we
         // pass the max timestamp of this file (with the same row/column).
+        LOG.info("ESHCAR StoreFileScanner::requestSeek seekTimestamp > maxTimestampInFile key"
+            +Bytes.toString(CellUtil.copyRow(kv)));
         setCurrentCell(CellUtil.createFirstOnRowColTS(kv, maxTimestampInFile));
       } else {
         // This will be the case e.g. when we need to seek to the next
@@ -425,6 +432,8 @@ public class StoreFileScanner implements KeyValueScanner {
     // this method, we want this to be propagated to ScanQueryMatcher.
     setCurrentCell(CellUtil.createLastOnRowCol(kv));
 
+    LOG.info("ESHCAR StoreFileScanner::requestSeek realSeekDone=true key" + Bytes
+        .toString(CellUtil.copyRow(kv)));
     realSeekDone = true;
     return true;
   }
@@ -444,6 +453,9 @@ public class StoreFileScanner implements KeyValueScanner {
 
   @Override
   public void enforceSeek() throws IOException {
+    LOG.info("ESHCAR StoreFileScanner::enforceSeek realSeekDone " + realSeekDone+" delayedReseek "+
+        delayedReseek+ " delayedSeekKV " +
+        (delayedSeekKV==null ? "null":Bytes.toString(CellUtil.copyRow(delayedSeekKV))));
     if (realSeekDone)
       return;
 
@@ -522,6 +534,8 @@ public class StoreFileScanner implements KeyValueScanner {
         } while (keepSeeking);
         return true;
       } finally {
+        LOG.info("ESHCAR StoreFileScanner::seekToPreviousRow realSeekDone=true key" + Bytes
+            .toString(CellUtil.copyRow(originalKey)));
         realSeekDone = true;
       }
     } catch (FileNotFoundException e) {

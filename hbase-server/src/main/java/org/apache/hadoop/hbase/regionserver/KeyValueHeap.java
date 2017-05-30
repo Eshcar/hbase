@@ -336,7 +336,11 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
           // If there is only one scanner left, we don't do lazy seek.
           LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
               + Bytes.toString(CellUtil.copyRow(seekKey))
-              + " 2) requestSeek scanner "+ scanner.toString());
+              + " 2) requestSeek"
+                  + " forward "+forward
+                  + " useBloom "+useBloom
+              + " scanner "+ scanner.toString()
+          );
           seekResult = scanner.requestSeek(seekKey, forward, useBloom);
         } else {
           LOG.info("ESHCAR KeyValueHeap::generalizedSeek key"
