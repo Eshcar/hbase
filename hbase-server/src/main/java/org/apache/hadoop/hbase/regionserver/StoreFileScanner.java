@@ -155,7 +155,6 @@ public class StoreFileScanner implements KeyValueScanner {
   }
 
   public Cell peek() {
-    LOG.info("ESHCAR StoreFileScanner::peek this scanner "+toString());
     return cur;
   }
 

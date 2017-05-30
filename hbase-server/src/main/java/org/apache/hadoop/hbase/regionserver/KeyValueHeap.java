@@ -95,10 +95,13 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
     if (!scanners.isEmpty()) {
       this.heap = new PriorityQueue<>(scanners.size(), this.comparator);
       for (KeyValueScanner scanner : scanners) {
-        LOG.info("ESHCAR KeyValueHeap::KeyValueHeap peek scanner "+scanner.toString());
         if (scanner.peek() != null) {
+          LOG.info("ESHCAR KeyValueHeap::KeyValueHeap peek, result != null, "
+              + "scanner "+scanner.toString());
           this.heap.add(scanner);
         } else {
+          LOG.info("ESHCAR KeyValueHeap::KeyValueHeap peek, result == null, "
+              + "scanner "+scanner.toString());
           this.scannersForDelayedClose.add(scanner);
         }
       }
