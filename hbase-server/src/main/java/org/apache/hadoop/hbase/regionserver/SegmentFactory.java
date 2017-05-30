@@ -56,16 +56,21 @@ public final class SegmentFactory {
 
   // create new flat immutable segment from compacting old immutable segments
   public ImmutableSegment createImmutableSegmentByCompaction(final Configuration conf,
-      final CellComparator comparator, MemStoreSegmentsIterator iterator, int numOfCells,
-      ImmutableSegment.Type segmentType)
+      final CellComparator comparator, MemStoreSegmentsIterator iterator, int numOfCells)
       throws IOException {
-    Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
-        "wrong immutable segment type");
+
     MemStoreLAB memStoreLAB = MemStoreLAB.newInstance(conf);
+    boolean toCellChunkMap =  conf.getBoolean(CompactingMemStore.COMPACTING_MEMSTORE_CHUNK_MAP_KEY,
+        CompactingMemStore.COMPACTING_MEMSTORE_CHUNK_MAP_DEFAULT);
+    ImmutableSegment.Type type =
+        toCellChunkMap ? ImmutableSegment.Type.CHUNK_MAP_BASED :
+            ImmutableSegment.Type.ARRAY_MAP_BASED;
+
     return
         // the last parameter "false" means not to merge, but to compact the pipeline
         // in order to create the new segment
-        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, false);
+        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, type, false,
+            toCellChunkMap);
   }
 
   // create empty immutable segment
@@ -93,10 +98,13 @@ public final class SegmentFactory {
     Preconditions.checkArgument(segmentType == ImmutableSegment.Type.ARRAY_MAP_BASED,
         "wrong immutable segment type");
     MemStoreLAB memStoreLAB = getMergedMemStoreLAB(conf, segments);
+    boolean toCellChunkMap =  conf.getBoolean(CompactingMemStore.COMPACTING_MEMSTORE_CHUNK_MAP_KEY,
+        CompactingMemStore.COMPACTING_MEMSTORE_CHUNK_MAP_DEFAULT);
     return
         // the last parameter "true" means to merge the compaction pipeline
         // in order to create the new segment
-        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, true);
+        new ImmutableSegment(comparator, iterator, memStoreLAB, numOfCells, segmentType, true,
+            toCellChunkMap);
   }
   //****** private methods to instantiate concrete store segments **********//
 

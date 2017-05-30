@@ -57,6 +57,10 @@ public class CompactingMemStore extends AbstractMemStore {
       "hbase.hregion.compacting.memstore.type";
   public static final String COMPACTING_MEMSTORE_TYPE_DEFAULT =
       String.valueOf(MemoryCompactionPolicy.BASIC);
+  // The external setting of the compacting MemStore behaviour
+  public static final String COMPACTING_MEMSTORE_CHUNK_MAP_KEY =
+      "hbase.hregion.compacting.memstore.ccm";
+  public static final boolean COMPACTING_MEMSTORE_CHUNK_MAP_DEFAULT = false;
   // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
   public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
       "hbase.memstore.inmemoryflush.threshold.factor";
@@ -289,7 +293,13 @@ public class CompactingMemStore extends AbstractMemStore {
    *           The flattening happens only if versions match.
    */
   public void flattenOneSegment(long requesterVersion) {
-    pipeline.flattenYoungestSegment(requesterVersion);
+    boolean toCellChunkMap =  isToCellChunkMap();
+    pipeline.flattenYoungestSegment(requesterVersion, toCellChunkMap);
+  }
+
+  public boolean isToCellChunkMap() {
+    return getConfiguration().getBoolean(COMPACTING_MEMSTORE_CHUNK_MAP_KEY,
+        COMPACTING_MEMSTORE_CHUNK_MAP_DEFAULT);
   }
 
   public boolean hasImmutableSegments() {

@@ -19,15 +19,21 @@
 package org.apache.hadoop.hbase.regionserver;
 
 
+import org.apache.hadoop.hbase.ByteBufferKeyValue;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.ExtendedCell;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.util.ByteBufferUtils;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.TimeRange;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -51,6 +57,7 @@ public class ImmutableSegment extends Segment {
   public enum Type {
     SKIPLIST_MAP_BASED,
     ARRAY_MAP_BASED,
+    CHUNK_MAP_BASED
   }
 
   /**
@@ -94,13 +101,15 @@ public class ImmutableSegment extends Segment {
    * are going to be introduced.
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge, boolean toCellChunkMap) {
 
     super(null, // initiailize the CellSet with NULL
         comparator, memStoreLAB);
     this.type = type;
     // build the new CellSet based on CellArrayMap
-    CellSet cs = createCellArrayMapSet(numOfCells, iterator, merge);
+    CellSet cs = toCellChunkMap ?
+        createCellChunkMapSet(numOfCells, iterator, merge) :
+        createCellArrayMapSet(numOfCells, iterator, merge);
 
     this.setCellSet(null, cs);            // update the CellSet of the new Segment
     this.timeRange = this.timeRangeTracker == null ? null : this.timeRangeTracker.toTimeRange();
@@ -110,6 +119,8 @@ public class ImmutableSegment extends Segment {
    * C-tor to be used when new SKIP-LIST BASED ImmutableSegment is a result of compaction of a
    * list of older ImmutableSegments.
    * The given iterator returns the Cells that "survived" the compaction.
+   *
+   * currently not in usage
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
       MemStoreLAB memStoreLAB) {
@@ -160,21 +171,25 @@ public class ImmutableSegment extends Segment {
    * thread of compaction, but to be on the safe side the initial CellSet is locally saved
    * before the flattening and then replaced using CAS instruction.
    */
-  public boolean flatten(MemstoreSize memstoreSize) {
+  public boolean flatten(MemstoreSize memstoreSize, boolean toCellChunkMap) {
     if (isFlat()) return false;
     CellSet oldCellSet = getCellSet();
     int numOfCells = getCellsCount();
 
     // build the new (CellSet CellArrayMap based)
-    CellSet  newCellSet = recreateCellArrayMapSet(numOfCells);
-    type = Type.ARRAY_MAP_BASED;
+    CellSet  newCellSet = toCellChunkMap ?
+        recreateCellChunkMapSet(numOfCells) : recreateCellArrayMapSet(numOfCells) ;
+    type = toCellChunkMap ? Type.CHUNK_MAP_BASED : Type.ARRAY_MAP_BASED;
     setCellSet(oldCellSet,newCellSet);
 
-    // arrange the meta-data size, decrease all meta-data sizes related to SkipList
+    // arrange the meta-data size, decrease all meta-data sizes related to SkipList;
+    // if flattening is to CellChunkMap decrease also Cell object sizes
     // (recreateCellArrayMapSet doesn't take the care for the sizes)
-    long newSegmentSizeDelta = -(numOfCells * ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
-    // add size of CellArrayMap and meta-data overhead per Cell
-    newSegmentSizeDelta = newSegmentSizeDelta + numOfCells * ClassSize.CELL_ARRAY_MAP_ENTRY;
+    long newSegmentSizeDelta = -(numOfCells * (ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY+
+        (toCellChunkMap ? KeyValue.FIXED_OVERHEAD : 0)));
+    // add size of CellArrayMap entry or CellChunkMap entry
+    newSegmentSizeDelta = newSegmentSizeDelta + numOfCells *
+        (toCellChunkMap ? CellChunkMap.SIZEOF_CELL_REP : ClassSize.CELL_ARRAY_MAP_ENTRY);
     incSize(0, newSegmentSizeDelta);
     if (memstoreSize != null) {
       memstoreSize.incMemstoreSize(0, newSegmentSizeDelta);
@@ -184,6 +199,24 @@ public class ImmutableSegment extends Segment {
   }
 
   /////////////////////  PRIVATE METHODS  /////////////////////
+
+  @Override
+  protected long heapSizeChange(Cell cell, boolean succ) {
+    if (succ) {
+      switch (this.type) {
+      case SKIPLIST_MAP_BASED:
+        return super.heapSizeChange(cell, succ);
+      case ARRAY_MAP_BASED:
+        return ClassSize.align(ClassSize.CELL_ARRAY_MAP_ENTRY + CellUtil.estimatedHeapSizeOf(cell));
+      case CHUNK_MAP_BASED:
+        return ClassSize.align( // no Cell object is created so subtracting KeyValue.FIXED_OVERHEAD
+            CellChunkMap.SIZEOF_CELL_REP + CellUtil.estimatedHeapSizeOf(cell)
+                - KeyValue.FIXED_OVERHEAD);
+      }
+    }
+    return 0;
+  }
+
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from compacting iterator
   private CellSet createCellArrayMapSet(int numOfCells, MemStoreSegmentsIterator iterator,
@@ -213,19 +246,6 @@ public class ImmutableSegment extends Segment {
     return new CellSet(cam);
   }
 
-  @Override
-  protected long heapSizeChange(Cell cell, boolean succ) {
-    if (succ) {
-      switch (this.type) {
-      case SKIPLIST_MAP_BASED:
-        return super.heapSizeChange(cell, succ);
-      case ARRAY_MAP_BASED:
-        return ClassSize.align(ClassSize.CELL_ARRAY_MAP_ENTRY + CellUtil.estimatedHeapSizeOf(cell));
-      }
-    }
-    return 0;
-  }
-
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from current ConcurrentSkipListMap based CellSet
   // (without compacting iterator)
@@ -251,4 +271,117 @@ public class ImmutableSegment extends Segment {
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
     return new CellSet(cam);
   }
+
+  /*------------------------------------------------------------------------*/
+  // Create CellSet based on CellArrayMap from compacting iterator
+  private CellSet createCellChunkMapSet(int numOfCells, MemStoreSegmentsIterator iterator,
+      boolean merge) {
+
+    // calculate how many chunks we will need for index
+    int chunkSize = ChunkCreator.getInstance().getChunkSize();
+    int numOfCellsInChunk = CellChunkMap.NUM_OF_CELL_REPS_IN_CHUNK;
+    int numberOfChunks = numOfCells/numOfCellsInChunk + 1;
+    int numOfCellsAfterCompaction = 0;
+    int currentChunkIdx = 0;
+    int offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
+
+    // all index Chunks are allocated from ChunkCreator
+    Chunk[] chunks = new Chunk[numberOfChunks];
+    for (int i=0; i<numberOfChunks; i++) {
+      chunks[i] = ChunkCreator.getInstance().getChunk();
+    }
+
+    while (iterator.hasNext()) {        // the iterator hides the elimination logic for compaction
+      Cell c = iterator.next();
+      numOfCellsAfterCompaction++;
+      if (!(c instanceof ExtendedCell)) // we shouldn't get here anything but ExtendedCell
+        assert false;
+
+      if (offsetInCurentChunk + CellChunkMap.SIZEOF_CELL_REP > chunkSize) {
+        currentChunkIdx++;              // continue to the next index chunk
+        offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
+      }
+
+      if (!merge) {
+        c = maybeCloneWithAllocator(c); // for compaction copy cell to the new segment (MSLAB copy)
+      }
+
+      offsetInCurentChunk = // add the Cell reference to the index chunk
+          createCellReference((ByteBufferKeyValue)c, chunks[currentChunkIdx].getData(),
+              offsetInCurentChunk);
+
+      boolean useMSLAB = (getMemStoreLAB()!=null);
+
+      // the sizes still need to be updated in the new segment
+      // second parameter true, because in compaction/merge the addition of the cell to new segment
+      // is always successful
+      updateMetaInfo(c, true, useMSLAB, null); // updates the size per cell
+    }
+    // build the immutable CellSet
+    CellChunkMap ccm =
+        new CellChunkMap(CellComparator.COMPARATOR,chunks,0,numOfCellsAfterCompaction,false);
+    return new CellSet(ccm);
+  }
+
+  /*------------------------------------------------------------------------*/
+  // Create CellSet based on CellChunkMap from current ConcurrentSkipListMap based CellSet
+  // (without compacting iterator)
+  // We do not consider cells bigger than chunks!
+  private CellSet recreateCellChunkMapSet(int numOfCells) {
+    // create this segment scanner with maximal possible read point, to go over all Cells
+    KeyValueScanner segmentScanner = this.getScanner(Long.MAX_VALUE);
+    Cell curCell;
+
+    // calculate how many chunks we will need for metadata
+    int chunkSize = ChunkCreator.getInstance().getChunkSize();
+    int numOfCellsInChunk = CellChunkMap.NUM_OF_CELL_REPS_IN_CHUNK;
+    int numberOfChunks = numOfCells/numOfCellsInChunk + 1;
+
+    // all index Chunks are allocated from ChunkCreator
+    Chunk[] chunks = new Chunk[numberOfChunks];
+    for (int i=0; i<numberOfChunks; i++) {
+      chunks[i] = ChunkCreator.getInstance().getChunk();
+    }
+
+    int currentChunkIdx = 0;
+    int offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
+
+    try {
+      while ((curCell = segmentScanner.next()) != null) {
+        if (!(curCell instanceof ExtendedCell)) // we shouldn't get here anything but ExtendedCell
+          assert false;
+        if (offsetInCurentChunk + CellChunkMap.SIZEOF_CELL_REP > chunkSize) {
+          // continue to the next metadata chunk
+          currentChunkIdx++;
+          offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
+        }
+        offsetInCurentChunk =
+            createCellReference((ByteBufferKeyValue) curCell, chunks[currentChunkIdx].getData(),
+                offsetInCurentChunk);
+      }
+    } catch (IOException ie) {
+      throw new IllegalStateException(ie);
+    } finally {
+      segmentScanner.close();
+    }
+
+    CellChunkMap ccm = new CellChunkMap(CellComparator.COMPARATOR,chunks,0,numOfCells,false);
+    return new CellSet(ccm);
+  }
+
+  /*------------------------------------------------------------------------*/
+  // for a given cell, write the cell representation on the index chunk
+  private int createCellReference(ByteBufferKeyValue cell, ByteBuffer idxBuffer, int idxOffset) {
+    int offset = idxOffset;
+    // ensure strong pointer to data chunk, as index is no longer directly points to it
+    ChunkCreator.getInstance().saveChunkFromGC(cell.getChunkId());
+    offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getChunkId());    // write data chunk id
+    offset = ByteBufferUtils.putInt(idxBuffer, offset, cell.getOffset());          // offset
+    offset = ByteBufferUtils.putInt(idxBuffer, offset, KeyValueUtil.length(cell)); // length
+    offset = ByteBufferUtils.putLong(idxBuffer, offset, cell.getSequenceId());     // seqId
+
+    return offset;
+  }
+
+
 }
