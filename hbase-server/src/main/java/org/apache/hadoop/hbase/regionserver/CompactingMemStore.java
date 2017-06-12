@@ -531,7 +531,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   @VisibleForTesting
   void initiateType(MemoryCompactionPolicy compactionType) {
-    compactor.initiateAction(compactionType);
+    compactor.initiateCompactionStrategy(compactionType);
   }
 
   /**
