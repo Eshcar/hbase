@@ -76,11 +76,6 @@ public class CellChunkMap extends CellFlatMap {
       Chunk[] chunks, int min, int max, boolean descending) {
     super(comparator, min, max, descending);
     this.chunks = chunks;
-<<<<<<< HEAD
-    this.numOfCellsInsideChunk = // each chunk starts with its own ID following the cells data
-        (ChunkCreator.getInstance().getChunkSize() - Bytes.SIZEOF_INT) / SIZEOF_CELL_REP;
-=======
->>>>>>> HBASE-18010-V02
   }
 
   /* To be used by base (CellFlatMap) class only to create a sub-CellFlatMap
@@ -96,12 +91,7 @@ public class CellChunkMap extends CellFlatMap {
     // get the index of the relevant chunk inside chunk array
     int chunkIndex = (i / NUM_OF_CELL_REPS_IN_CHUNK);
     ByteBuffer block = chunks[chunkIndex].getData();// get the ByteBuffer of the relevant chunk
-<<<<<<< HEAD
-
-    int j = i - chunkIndex * numOfCellsInsideChunk; // get the index of the cell-representation
-=======
     int j = i - chunkIndex * NUM_OF_CELL_REPS_IN_CHUNK; // get the index of the cell-representation
->>>>>>> HBASE-18010-V02
 
     // find inside the offset inside the chunk holding the index, skip bytes for chunk id
     int offsetInBytes = ChunkCreator.SIZEOF_CHUNK_HEADER + j* ClassSize.CELL_CHUNK_MAP_ENTRY;
