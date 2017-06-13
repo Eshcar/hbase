@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ByteBufferUtils;
+import org.apache.hadoop.hbase.util.ClassSize;
 
 import java.util.Comparator;
 
@@ -55,11 +56,12 @@ import java.util.Comparator;
 public class CellChunkMap extends CellFlatMap {
 
   private final Chunk[] chunks;             // the array of chunks, on which the index is based
-  private final int numOfCellsInsideChunk;  // constant number of cell-representations in a chunk
 
-  // each cell-representation requires three integers for chunkID (reference to the ByteBuffer),
-  // offset and length, and one long for seqID
-  public static final int SIZEOF_CELL_REP = 3*Bytes.SIZEOF_INT + Bytes.SIZEOF_LONG ;
+  // constant number of cell-representations in a chunk
+  // each chunk starts with its own ID following the cells data
+  public static final int NUM_OF_CELL_REPS_IN_CHUNK =
+      (ChunkCreator.getInstance().getChunkSize() - ChunkCreator.SIZEOF_CHUNK_HEADER) /
+          ClassSize.CELL_CHUNK_MAP_ENTRY;
 
   /**
    * C-tor for creating CellChunkMap from existing Chunk array, which must be ordered
@@ -74,8 +76,11 @@ public class CellChunkMap extends CellFlatMap {
       Chunk[] chunks, int min, int max, boolean descending) {
     super(comparator, min, max, descending);
     this.chunks = chunks;
+<<<<<<< HEAD
     this.numOfCellsInsideChunk = // each chunk starts with its own ID following the cells data
         (ChunkCreator.getInstance().getChunkSize() - Bytes.SIZEOF_INT) / SIZEOF_CELL_REP;
+=======
+>>>>>>> HBASE-18010-V02
   }
 
   /* To be used by base (CellFlatMap) class only to create a sub-CellFlatMap
@@ -89,14 +94,17 @@ public class CellChunkMap extends CellFlatMap {
   @Override
   protected Cell getCell(int i) {
     // get the index of the relevant chunk inside chunk array
-    int chunkIndex = (i / numOfCellsInsideChunk);
+    int chunkIndex = (i / NUM_OF_CELL_REPS_IN_CHUNK);
     ByteBuffer block = chunks[chunkIndex].getData();// get the ByteBuffer of the relevant chunk
+<<<<<<< HEAD
 
     int j = i - chunkIndex * numOfCellsInsideChunk; // get the index of the cell-representation
+=======
+    int j = i - chunkIndex * NUM_OF_CELL_REPS_IN_CHUNK; // get the index of the cell-representation
+>>>>>>> HBASE-18010-V02
 
     // find inside the offset inside the chunk holding the index, skip bytes for chunk id
-    int offsetInBytes = Bytes.SIZEOF_INT + j* SIZEOF_CELL_REP;
-
+    int offsetInBytes = ChunkCreator.SIZEOF_CHUNK_HEADER + j* ClassSize.CELL_CHUNK_MAP_ENTRY;
 
     // find the chunk holding the data of the cell, the chunkID is stored first
     int chunkId = ByteBufferUtils.toInt(block, offsetInBytes);

@@ -184,6 +184,12 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
+
+  @Override
+  protected long heapSizeChange(Cell cell, boolean succ){
+    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
+  }
+
   /**
    * @return Sum of all cell sizes.
    */

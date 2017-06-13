@@ -183,7 +183,7 @@ public class CompactionPipeline {
    *
    * @return true iff a segment was successfully flattened
    */
-  public boolean flattenYoungestSegment(long requesterVersion) {
+  public boolean flattenYoungestSegment(long requesterVersion, boolean toCellChunkMap) {
 
     if(requesterVersion != version) {
       LOG.warn("Segment flattening failed, because versions do not match. Requester version: "
@@ -196,17 +196,25 @@ public class CompactionPipeline {
         LOG.warn("Segment flattening failed, because versions do not match");
         return false;
       }
-
+      int i=0;
       for (ImmutableSegment s : pipeline) {
-        // remember the old size in case this segment is going to be flatten
-        MemstoreSize memstoreSize = new MemstoreSize();
-        if (s.flatten(memstoreSize)) {
+        if ( s instanceof ImmutableCSLMSegment) {
+          long oldHeapSize = s.heapSize();
+          MemstoreSize newMemstoreSize = new MemstoreSize(); // the size to be updated
+          ImmutableSegment newS = SegmentFactory.instance().createImmutableSegmentByFlattening(
+              (ImmutableCSLMSegment)s,toCellChunkMap,newMemstoreSize);
+          replaceAtIndex(i,newS);
           if(region != null) {
-            region.addMemstoreSize(memstoreSize);
+            // newMemstoreSize.getHeapSize() is negative, therefore "+"
+            long heapSizeDelta = oldHeapSize + newMemstoreSize.getHeapSize();
+            // update the global memstore size counter
+            // upon flattening there is no change in the data size
+            region.addMemstoreSize(new MemstoreSize(0, newMemstoreSize.getHeapSize()));
           }
           LOG.debug("Compaction pipeline segment " + s + " was flattened");
           return true;
         }
+        i++;
       }
 
     }
@@ -271,12 +279,19 @@ public class CompactionPipeline {
     if(segment != null) pipeline.addLast(segment);
   }
 
+  // replacing one segment in the pipeline with a new one exactly at the same index
+  private void replaceAtIndex(int idx, ImmutableSegment newSegment) {
+    ImmutableSegment oldSegment = pipeline.set(idx, newSegment);
+    readOnlyCopy = new LinkedList<>(pipeline);
+    version++;
+  }
+
   public Segment getTail() {
     List<? extends Segment> localCopy = getSegments();
     if(localCopy.isEmpty()) {
       return null;
     }
-    return localCopy.get(localCopy.size()-1);
+    return localCopy.get(localCopy.size() - 1);
   }
 
   private boolean addFirst(ImmutableSegment segment) {

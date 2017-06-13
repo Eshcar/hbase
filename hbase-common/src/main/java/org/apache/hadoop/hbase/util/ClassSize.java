@@ -89,6 +89,12 @@ public class ClassSize {
   /** Overhead for ConcurrentSkipListMap Entry */
   public static final int CONCURRENT_SKIPLISTMAP_ENTRY;
 
+  /** Overhead for CellChunkMap */
+  public static final int CELL_CHUNK_MAP;
+
+  /** Overhead for Cell Chunk Map Entry */
+  public static final int CELL_CHUNK_MAP_ENTRY;
+
   /** Overhead for CellArrayMap */
   public static final int CELL_ARRAY_MAP;
 
@@ -283,12 +289,27 @@ public class ClassSize {
     CELL_ARRAY_MAP = align(OBJECT + 2*Bytes.SIZEOF_INT + Bytes.SIZEOF_BOOLEAN
         + ARRAY + 2*REFERENCE);
 
+    // CELL_CHUNK_MAP is the size of an instance of CellChunkMap class, which extends
+    // CellFlatMap class. CellChunkMap object containing a ref to an Array, so
+    // OBJECT + REFERENCE + ARRAY
+    // CellFlatMap object contains two integers, one boolean and one reference to object, so
+    // 2*INT + BOOLEAN + REFERENCE
+    CELL_CHUNK_MAP = align(OBJECT + 2*Bytes.SIZEOF_INT + Bytes.SIZEOF_BOOLEAN
+        + ARRAY + 2*REFERENCE);
+
     CONCURRENT_SKIPLISTMAP_ENTRY = align(
         align(OBJECT + (3 * REFERENCE)) + /* one node per entry */
         align((OBJECT + (3 * REFERENCE))/2)); /* one index per two entries */
 
     // REFERENCE in the CellArrayMap all the rest is counted in KeyValue.heapSize()
     CELL_ARRAY_MAP_ENTRY = align(REFERENCE);
+
+    // The Cell Representation in the CellChunkMap, the Cell object size shouldn't be counted
+    // in KeyValue.heapSize()
+    // each cell-representation requires three integers for chunkID (reference to the ByteBuffer),
+    // offset and length, and one long for seqID
+//    CELL_CHUNK_MAP_ENTRY = align(3*Bytes.SIZEOF_INT + Bytes.SIZEOF_LONG);
+    CELL_CHUNK_MAP_ENTRY = 3*Bytes.SIZEOF_INT + Bytes.SIZEOF_LONG;
 
     REENTRANT_LOCK = align(OBJECT + (3 * REFERENCE));
 

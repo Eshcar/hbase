@@ -253,6 +253,12 @@ public class MemStoreLABImpl implements MemStoreLAB {
     return null;
   }
 
+  // To be used by CellChunkMap when an index chunk is allocated outside the LAB
+  @Override
+  public void addToChunksList(Chunk c) {
+    chunks.add(c.getId());
+  }
+
   @VisibleForTesting
   Chunk getCurrentChunk() {
     return this.curChunk.get();
