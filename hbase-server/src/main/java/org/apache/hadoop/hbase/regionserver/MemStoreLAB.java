@@ -83,6 +83,11 @@ public interface MemStoreLAB {
    */
   void decScannerCount();
 
+  /**
+   * Called when a chunk is allocated externally to this MemStoreLAB
+   */
+  void addToChunksList(Chunk c);
+
   public static MemStoreLAB newInstance(Configuration conf) {
     MemStoreLAB memStoreLAB = null;
     if (isEnabled(conf)) {

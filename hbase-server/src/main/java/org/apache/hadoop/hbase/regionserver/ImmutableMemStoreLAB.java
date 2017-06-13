@@ -46,6 +46,13 @@ public class ImmutableMemStoreLAB implements MemStoreLAB {
   }
 
   @Override
+  // add to first MemStoreLABImpl in the list
+  public void addToChunksList(Chunk c) {
+    MemStoreLAB mslab = this.mslabs.get(0);
+    mslab.addToChunksList(c);
+  }
+
+  @Override
   public void close() {
     // 'openScannerCount' here tracks the scanners opened on segments which directly refer to this
     // MSLAB. The individual MSLABs this refers also having its own 'openScannerCount'. The usage of

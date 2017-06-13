@@ -41,6 +41,7 @@ import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.ByteBufferUtils;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.ClassSize;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -302,7 +303,7 @@ public class TestCellFlatSet extends TestCase {
       dataOffset = KeyValueUtil.appendTo(kv, dataBuffer, dataOffset, false); // write deep cell data
 
       // do we have enough space to write the cell-representation on the index chunk?
-      if (idxOffset + CellChunkMap.SIZEOF_CELL_REP > chunkCreator.getChunkSize()) {
+      if (idxOffset + ClassSize.CELL_CHUNK_MAP_ENTRY > chunkCreator.getChunkSize()) {
         idxChunk = chunkCreator.getChunk();    // allocate more index chunks if needed
         idxBuffer = idxChunk.getData();
         idxOffset = ChunkCreator.SIZEOF_CHUNK_HEADER;
