@@ -50,9 +50,12 @@ public abstract class MemStoreCompactionStrategy {
 
   public MemStoreCompactionStrategy(Configuration conf, String cfName) {
     this.cfName = cfName;
-    pipelineThreshold =         // get the limit on the number of the segments in the pipeline
-        conf.getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY,
-            COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
+    if(conf == null) {
+      pipelineThreshold = COMPACTING_MEMSTORE_THRESHOLD_DEFAULT;
+    } else {
+      pipelineThreshold =         // get the limit on the number of the segments in the pipeline
+          conf.getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY, COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
+    }
   }
 
   // get next compaction action to apply on compaction pipeline
