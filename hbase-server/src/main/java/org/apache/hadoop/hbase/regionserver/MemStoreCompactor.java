@@ -80,7 +80,7 @@ public class MemStoreCompactor {
    * Note that every value covers the previous ones, i.e. if MERGE is the action it implies
    * that the youngest segment is going to be flatten anyway.
    */
-  private enum Action {
+  public enum Action {
     NOOP,
     FLATTEN,  // flatten the youngest segment in the pipeline
     MERGE,    // merge all the segments in the pipeline into one
@@ -252,7 +252,7 @@ public class MemStoreCompactor {
 
       result = SegmentFactory.instance().createImmutableSegmentByCompaction(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
+          versionedList.getNumOfCells(), compactingMemStore.getIndexType());
       iterator.close();
       break;
     case MERGE:
@@ -263,8 +263,8 @@ public class MemStoreCompactor {
 
       result = SegmentFactory.instance().createImmutableSegmentByMerge(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,
-          versionedList.getStoreSegments());
+          versionedList.getNumOfCells(), versionedList.getStoreSegments(),
+          compactingMemStore.getIndexType());
       iterator.close();
       break;
     default: throw new RuntimeException("Unknown action " + action); // sanity check

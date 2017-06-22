@@ -253,6 +253,15 @@ public class MemStoreLABImpl implements MemStoreLAB {
     return null;
   }
 
+  // returning a new chunk, without replacing current chunk,
+  // the space on this chunk will be allocated externally
+  @Override
+  public Chunk getNewChunk() {
+    Chunk c = this.chunkCreator.getChunk();
+    chunks.add(c.getId());
+    return c;
+  }
+
   @VisibleForTesting
   Chunk getCurrentChunk() {
     return this.curChunk.get();

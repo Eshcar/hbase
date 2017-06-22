@@ -83,6 +83,11 @@ public interface MemStoreLAB {
    */
   void decScannerCount();
 
+  /**
+   * Return a new empty chunk without considering this chunk as current
+   */
+  Chunk getNewChunk();
+
   public static MemStoreLAB newInstance(Configuration conf) {
     MemStoreLAB memStoreLAB = null;
     if (isEnabled(conf)) {

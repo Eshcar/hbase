@@ -312,9 +312,13 @@ public abstract class Segment {
   protected long heapSizeChange(Cell cell, boolean succ) {
     if (succ) {
       return ClassSize
-          .align(ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY + CellUtil.estimatedHeapSizeOf(cell));
+          .align(indexEntrySize() + CellUtil.estimatedHeapSizeOf(cell));
     }
     return 0;
+  }
+
+  protected long indexEntrySize() {
+    return ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY;
   }
 
   /**

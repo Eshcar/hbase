@@ -42,6 +42,7 @@ public class MutableSegment extends Segment {
 
   protected MutableSegment(CellSet cellSet, CellComparator comparator, MemStoreLAB memStoreLAB) {
     super(cellSet, comparator, memStoreLAB);
+    incSize(0,DEEP_OVERHEAD); // update the mutable segment metadata
   }
 
   /**
