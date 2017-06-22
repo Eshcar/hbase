@@ -22,23 +22,14 @@ import org.apache.hadoop.conf.Configuration;
 
 public class BasicCompactionStrategy extends MemStoreCompactionStrategy{
 
+  private static final String name = "BASIC";
+
   public BasicCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
   }
 
   @Override
   public Action getAction(VersionedSegmentsList versionedList) {
-    int numOfSegments = versionedList.getNumOfSegments();
-    if (numOfSegments > pipelineThreshold) {
-      // to avoid too many segments, merge now
-      LOG.debug("Basic memory compaction for store " + cfName
-          + " merging " + numOfSegments + " segments");
-      return Action.MERGE;
-    }
-
-    // just flatten the newly joined segment
-    LOG.debug("Basic memory compaction for store " + cfName
-        + "flattening the youngest segment in the pipeline");
-    return Action.FLATTEN;
+    return simpleMergeOrFlatten(versionedList, name);
   }
 }

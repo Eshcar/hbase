@@ -185,6 +185,7 @@ public class CompactingMemStore extends AbstractMemStore {
       } else {
         pushTailToSnapshot();
       }
+      compactor.resetDuplicationInfo();
     }
     return new MemStoreSnapshot(snapshotId, this.snapshot);
   }
@@ -269,7 +270,6 @@ public class CompactingMemStore extends AbstractMemStore {
     list.add(this.active);
     list.addAll(pipelineList);
     list.addAll(this.snapshot.getAllSegments());
-
     return list;
   }
 
@@ -278,14 +278,12 @@ public class CompactingMemStore extends AbstractMemStore {
     this.compositeSnapshot = useCompositeSnapshot;
   }
 
-  public boolean isCompositeSnapshot() {
-    return this.compositeSnapshot;
-  }
-
   public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
       boolean merge) {
     // last true stands for updating the region size
-    return pipeline.swap(versionedList, result, !merge, true);
+    boolean res = pipeline.swap(versionedList, result, !merge, true);
+    compactor.updateDuplicationInfo(versionedList, result);
+    return res;
   }
 
   /**
@@ -487,6 +485,11 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
+  @Override
+  protected void updateMetadata(Cell cell) {
+    compactor.updateDuplicatesInfo(cell);
+  }
+
   private RegionServicesForStores getRegionServices() {
     return regionServices;
   }
@@ -530,8 +533,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  void initiateType(MemoryCompactionPolicy compactionType) {
-    compactor.initiateCompactionStrategy(compactionType);
+  void initiateType(MemoryCompactionPolicy compactionType, Configuration conf) {
+    compactor.initiateCompactionStrategy(compactionType, conf);
   }
 
   /**

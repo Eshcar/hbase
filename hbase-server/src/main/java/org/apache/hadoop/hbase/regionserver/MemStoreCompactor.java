@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MemoryCompactionPolicy;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -46,8 +47,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MemStoreCompactor {
 
   public static final long DEEP_OVERHEAD = ClassSize
-      .align(ClassSize.OBJECT + 4 * ClassSize.REFERENCE
-          // compactingMemStore, versionedList, action, isInterrupted (the reference)
+      .align(ClassSize.OBJECT + 5 * ClassSize.REFERENCE
+          // compactingMemStore, versionedList, action, isInterrupted, strategy (the reference)
           // "action" is an enum and thus it is a class with static final constants,
           // so counting only the size of the reference to it and not the size of the internals
           + Bytes.SIZEOF_INT        // compactionKVMax
@@ -107,6 +108,18 @@ public class MemStoreCompactor {
   */
   public void stop() {
       isInterrupted.compareAndSet(false, true);
+  }
+
+  public void resetDuplicationInfo() {
+    strategy.resetDuplicationInfo();
+  }
+
+  public void updateDuplicationInfo(VersionedSegmentsList versionedList, ImmutableSegment result) {
+    strategy.updateDuplicationInfo(versionedList, result);
+  }
+
+  public void updateDuplicatesInfo(Cell cell) {
+    strategy.updateDuplicationInfo(cell);
   }
 
   /**----------------------------------------------------------------------
@@ -215,8 +228,8 @@ public class MemStoreCompactor {
   }
 
   @VisibleForTesting
-  void initiateCompactionStrategy(MemoryCompactionPolicy compType) {
-    initiateCompactionStrategy(compType, null, "test");
+  void initiateCompactionStrategy(MemoryCompactionPolicy compType, Configuration conf) {
+    initiateCompactionStrategy(compType, conf, "test");
   }
 
   private void initiateCompactionStrategy(MemoryCompactionPolicy compType,
@@ -228,6 +241,8 @@ public class MemStoreCompactor {
     case BASIC: strategy = new BasicCompactionStrategy(configuration, cfName);
       break;
     case EAGER: strategy = new EagerCompactionStrategy(configuration, cfName);
+      break;
+    case MAGIC: strategy = new MagicCompactionStrategy(configuration, cfName);
       break;
     default:
       throw new RuntimeException("Unknown memory compaction type " + compType); // sanity check

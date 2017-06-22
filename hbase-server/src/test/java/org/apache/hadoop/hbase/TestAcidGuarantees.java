@@ -73,7 +73,7 @@ import org.junit.runners.Parameterized;
 public class TestAcidGuarantees implements Tool {
   @Parameterized.Parameters
   public static Object[] data() {
-    return new Object[] { "NONE", "BASIC", "EAGER" };
+    return new Object[] { "NONE", "BASIC", "EAGER"};
   }
   protected static final Log LOG = LogFactory.getLog(TestAcidGuarantees.class);
   public static final TableName TABLE_NAME = TableName.valueOf("TestAcidGuarantees");
