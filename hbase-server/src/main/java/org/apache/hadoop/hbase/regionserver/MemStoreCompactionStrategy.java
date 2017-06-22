@@ -21,7 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-
+import org.apache.hadoop.hbase.Cell;
 
 public abstract class MemStoreCompactionStrategy {
 
@@ -30,6 +30,14 @@ public abstract class MemStoreCompactionStrategy {
   public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
       "hbase.hregion.compacting.pipeline.segments.limit";
   public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 1;
+
+  public void resetDuplicationInfo() {}
+
+  public void updateDuplicationInfo(VersionedSegmentsList versionedList, ImmutableSegment result) {
+  }
+
+  public void updateDuplicationInfo(Cell cell) {
+  }
 
   /**
    * Types of actions to be done on the pipeline upon MemStoreCompaction invocation.
@@ -60,5 +68,20 @@ public abstract class MemStoreCompactionStrategy {
 
   // get next compaction action to apply on compaction pipeline
   public abstract Action getAction(VersionedSegmentsList versionedList);
+
+  protected Action simpleMergeOrFlatten(VersionedSegmentsList versionedList, String strategy) {
+    int numOfSegments = versionedList.getNumOfSegments();
+    if (numOfSegments > pipelineThreshold) {
+      // to avoid too many segments, merge now
+      LOG.debug(strategy+" memory compaction for store " + cfName
+          + " merging " + numOfSegments + " segments");
+      return Action.MERGE;
+    }
+
+    // just flatten the newly joined segment
+    LOG.debug(strategy+" memory compaction for store " + cfName
+        + "flattening the youngest segment in the pipeline");
+    return Action.FLATTEN;
+  }
 
 }
