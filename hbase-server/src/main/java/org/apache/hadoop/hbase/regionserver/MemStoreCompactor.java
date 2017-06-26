@@ -160,7 +160,7 @@ public class MemStoreCompactor {
 
     if (action == Action.COMPACT) { // compact according to the user request
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
-          + " is going to be compacted, number of"
+          + " is going to be compacted to the " + compactingMemStore.getIndexType() + ". Number of"
           + " cells before compaction is " + versionedList.getNumOfCells());
       return Action.COMPACT;
     }
@@ -170,13 +170,15 @@ public class MemStoreCompactor {
     int numOfSegments = versionedList.getNumOfSegments();
     if (numOfSegments > pipelineThreshold) {
       LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
-          + " is going to be merged, as there are " + numOfSegments + " segments");
+          + " is going to be merged to the " + compactingMemStore.getIndexType()
+          + ", as there are " + numOfSegments + " segments");
       return Action.MERGE;          // to avoid too many segments, merge now
     }
 
     // if nothing of the above, then just flatten the newly joined segment
     LOG.debug("The youngest segment in the in-Memory Compaction Pipeline for store "
-        + compactingMemStore.getFamilyName() + " is going to be flattened");
+        + compactingMemStore.getFamilyName() + " is going to be flattened to the "
+        + compactingMemStore.getIndexType());
     return Action.FLATTEN;
   }
 
