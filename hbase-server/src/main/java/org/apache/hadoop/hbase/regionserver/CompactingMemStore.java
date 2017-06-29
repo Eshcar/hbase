@@ -439,6 +439,7 @@ public class CompactingMemStore extends AbstractMemStore {
 
   protected void pushActiveToPipeline(MutableSegment active) {
     if (!active.isEmpty()) {
+      updateMetadata(active.getCellSet());
       pipeline.pushHead(active);
       resetActive();
     }
@@ -485,9 +486,9 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
-  @Override
-  protected void updateMetadata(Cell cell) {
-    compactor.updateDuplicatesInfo(cell);
+
+  protected void updateMetadata(CellSet cellSet) {
+    compactor.updateDuplicationInfo(cellSet);
   }
 
   private RegionServicesForStores getRegionServices() {

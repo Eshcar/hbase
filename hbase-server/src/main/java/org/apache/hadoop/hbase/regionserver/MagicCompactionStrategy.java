@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HTableDescriptor;
 
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
@@ -83,7 +84,19 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   }
 
   @Override
-  public void updateDuplicationInfo(Cell cell) {
+  public void updateDuplicationInfo(CellSet cellSet) {
+    Cell cell = null;
+    int numNewDuplicates = 0;
+    for(Iterator iter = cellSet.iterator(); iter.hasNext(); cell = (Cell)iter.next()) {
+      boolean mightContainKey = updateBloomFilters(cell);
+      if(mightContainKey) {
+        numNewDuplicates++;
+      }
+    }
+    updateCounters(numNewDuplicates, cellSet.size());
+  }
+
+  private boolean updateBloomFilters(Cell cell) {
     int sizeOfKey = CellUtil.estimatedSerializedSizeOfKey(cell);
     byte[] key = new byte[sizeOfKey];
     int offset = CellUtil.copyRowTo(cell, key, 0);
@@ -91,17 +104,23 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
       offset = CellUtil.copyFamilyTo(cell, key, offset);
       CellUtil.copyQualifierTo(cell, key, offset);
       if(rowcolBF.mightContain(key)){
-        numDuplicateCells.incrementAndGet();
+        return true;
       } else {
         rowcolBF.put(key);
+        return false;
       }
     } else {
       rowBF.put(key);
       offset = CellUtil.copyFamilyTo(cell, key, offset);
       CellUtil.copyQualifierTo(cell, key, offset);
       rowcolBF.put(key);
+      return false;
     }
-    int num = numCellsInMemory.incrementAndGet();
+  }
+
+  private void updateCounters(int numNewDuplicates, int numNewCells) {
+    numDuplicateCells.addAndGet(numNewDuplicates);
+    int num = numCellsInMemory.addAndGet(numNewCells);
     if(num > maxNumCellsInMemory) {
       maxNumCellsInMemory = num;
     }

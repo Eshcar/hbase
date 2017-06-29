@@ -47,8 +47,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MemStoreCompactor {
 
   public static final long DEEP_OVERHEAD = ClassSize
-      .align(ClassSize.OBJECT + 5 * ClassSize.REFERENCE
-          // compactingMemStore, versionedList, action, isInterrupted, strategy (the reference)
+      .align(ClassSize.OBJECT + 4 * ClassSize.REFERENCE
+          // compactingMemStore, versionedList, isInterrupted, strategy (the reference)
           // "action" is an enum and thus it is a class with static final constants,
           // so counting only the size of the reference to it and not the size of the internals
           + Bytes.SIZEOF_INT        // compactionKVMax
@@ -118,8 +118,8 @@ public class MemStoreCompactor {
     strategy.updateDuplicationInfo(versionedList, result);
   }
 
-  public void updateDuplicatesInfo(Cell cell) {
-    strategy.updateDuplicationInfo(cell);
+  public void updateDuplicationInfo(CellSet cellSet) {
+    strategy.updateDuplicationInfo(cellSet);
   }
 
   /**----------------------------------------------------------------------
