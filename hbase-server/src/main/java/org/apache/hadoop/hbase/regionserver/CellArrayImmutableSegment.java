@@ -73,7 +73,7 @@ public class CellArrayImmutableSegment extends ImmutableSegment {
   }
 
   @Override
-  protected boolean canBeFlatten() {
+  protected boolean canBeFlattened() {
     return false;
   }
 

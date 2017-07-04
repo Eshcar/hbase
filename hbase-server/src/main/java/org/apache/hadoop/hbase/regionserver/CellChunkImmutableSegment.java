@@ -81,7 +81,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
   }
 
   @Override
-  protected boolean canBeFlatten() {
+  protected boolean canBeFlattened() {
     return false;
   }
 
@@ -100,7 +100,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     int offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
     // all index Chunks are allocated from ChunkCreator
     Chunk[] chunks = new Chunk[numberOfChunks];
-    for (int i=0; i<numberOfChunks; i++) {
+    for (int i=0; i < numberOfChunks; i++) {
       chunks[i] = this.getMemStoreLAB().getNewExternalChunk();
     }
     while (iterator.hasNext()) {        // the iterator hides the elimination logic for compaction
@@ -142,7 +142,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     int numberOfChunks = calculateNumberOfChunks(numOfCells,numOfCellsInChunk);
     // all index Chunks are allocated from ChunkCreator
     Chunk[] chunks = new Chunk[numberOfChunks];
-    for (int i=0; i<numberOfChunks; i++) {
+    for (int i=0; i < numberOfChunks; i++) {
       chunks[i] = this.getMemStoreLAB().getNewExternalChunk();
     }
 

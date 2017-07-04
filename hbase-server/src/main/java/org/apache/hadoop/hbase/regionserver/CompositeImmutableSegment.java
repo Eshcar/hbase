@@ -190,7 +190,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 
-  @Override protected boolean canBeFlatten() {
+  @Override protected boolean canBeFlattened() {
     return false;
   }
 

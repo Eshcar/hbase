@@ -101,8 +101,9 @@ public class CellChunkMap extends CellFlatMap {
     int chunkId = ByteBufferUtils.toInt(block, offsetInBytes);
     Chunk chunk = ChunkCreator.getInstance().getChunk(chunkId);
     if (chunk == null) {
-      // this should not happen, putting an assertion here at least for the testing period
-      assert false;
+      // this should not happen
+      throw new IllegalArgumentException("In CellChunkMap, cell must be associated with chunk."
+          + ". We were looking for a cell at index " + i);
     }
 
     // find the offset of the data of the cell, skip integer for chunkID, offset is stored second
@@ -116,8 +117,10 @@ public class CellChunkMap extends CellFlatMap {
 
     ByteBuffer buf = chunk.getData();   // get the ByteBuffer where the cell data is stored
     if (buf == null) {
-      // this should not happen, putting an assertion here at least for the testing period
-      assert false;
+      // this should not happen
+      throw new IllegalArgumentException("In CellChunkMap, chunk must be associated with ByteBuffer."
+          + " Chunk: " + chunk + " Chunk ID: " + chunk.getId() + ", is from pool: "
+          + chunk.isFromPool() + ". We were looking for a cell at index " + i);
     }
 
     return new ByteBufferChunkCell(buf, offsetOfCell, lengthOfCell, cellSeqID);

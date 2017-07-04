@@ -47,7 +47,7 @@ public abstract class ImmutableSegment extends Segment {
   private final TimeRange timeRange;
 
   // each sub-type of immutable segment knows whether it is flat or not
-  protected abstract boolean canBeFlatten();
+  protected abstract boolean canBeFlattened();
 
   /////////////////////  CONSTRUCTORS  /////////////////////
   /**------------------------------------------------------------------------

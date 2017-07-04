@@ -47,7 +47,7 @@ public class CSLMImmutableSegment extends ImmutableSegment {
     return ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY;
   }
 
-  @Override protected boolean canBeFlatten() {
+  @Override protected boolean canBeFlattened() {
     return true;
   }
 }

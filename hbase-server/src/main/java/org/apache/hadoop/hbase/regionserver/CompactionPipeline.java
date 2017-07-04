@@ -198,7 +198,7 @@ public class CompactionPipeline {
       }
       int i = 0;
       for (ImmutableSegment s : pipeline) {
-        if ( s.canBeFlatten() ) {
+        if ( s.canBeFlattened() ) {
           MemstoreSize newMemstoreSize = new MemstoreSize(); // the size to be updated
           ImmutableSegment newS = SegmentFactory.instance().createImmutableSegmentByFlattening(
               (CSLMImmutableSegment)s,idxType,newMemstoreSize);
