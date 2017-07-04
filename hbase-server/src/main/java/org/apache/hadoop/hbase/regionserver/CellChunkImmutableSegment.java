@@ -189,10 +189,10 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
   }
 
   private int calculateNumberOfChunks(int numOfCells, int numOfCellsInChunk) {
-    int numberOfChunks = numOfCells/numOfCellsInChunk + 1;
-    if(numOfCells%numOfCellsInChunk==0) { // if cells can be divided evenly between chunks
-      numberOfChunks--;                   // addition of the one in the calculation above is
-    }                                     // not needed
+    int numberOfChunks = numOfCells/numOfCellsInChunk;
+    if(numOfCells%numOfCellsInChunk!=0) { // if cells cannot be divided evenly between chunks
+      numberOfChunks++;                   // add one additional chunk
+    }
     return numberOfChunks;
   }
 }
