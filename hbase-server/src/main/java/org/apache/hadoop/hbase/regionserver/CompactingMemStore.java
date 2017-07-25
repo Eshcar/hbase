@@ -185,7 +185,6 @@ public class CompactingMemStore extends AbstractMemStore {
       } else {
         pushTailToSnapshot();
       }
-      compactor.resetDuplicationInfo();
     }
     return new MemStoreSnapshot(snapshotId, this.snapshot);
   }
@@ -281,9 +280,7 @@ public class CompactingMemStore extends AbstractMemStore {
   public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
       boolean merge) {
     // last true stands for updating the region size
-    boolean res = pipeline.swap(versionedList, result, !merge, true);
-    compactor.updateDuplicationInfo(versionedList, result);
-    return res;
+    return pipeline.swap(versionedList, result, !merge, true);
   }
 
   /**
@@ -439,7 +436,6 @@ public class CompactingMemStore extends AbstractMemStore {
 
   protected void pushActiveToPipeline(MutableSegment active) {
     if (!active.isEmpty()) {
-      updateMetadata(active.getCellSet());
       pipeline.pushHead(active);
       resetActive();
     }
@@ -484,11 +480,6 @@ public class CompactingMemStore extends AbstractMemStore {
       this.snapshot =
           SegmentFactory.instance().createCompositeImmutableSegment(getComparator(), segments);
     }
-  }
-
-
-  protected void updateMetadata(CellSet cellSet) {
-    compactor.updateDuplicationInfo(cellSet);
   }
 
   private RegionServicesForStores getRegionServices() {

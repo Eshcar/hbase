@@ -40,8 +40,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -50,23 +48,13 @@ import static org.junit.Assert.assertTrue;
  * compacted memstore test case
  */
 @Category({RegionServerTests.class, MediumTests.class})
-@RunWith(Parameterized.class)
 public class TestCompactingMemStore extends TestDefaultMemStore {
 
-  @Parameterized.Parameters
-  public static Object[] data() {
-    return new Object[] {"EAGER", "MAGIC"};
-  }
   private static final Log LOG = LogFactory.getLog(TestCompactingMemStore.class);
   protected static ChunkCreator chunkCreator;
   protected HRegion region;
   protected RegionServicesForStores regionServicesForStores;
   protected HStore store;
-  protected MemoryCompactionPolicy policy;
-
-  public TestCompactingMemStore(String compType) {
-    policy = MemoryCompactionPolicy.valueOf(compType);
-  }
 
   //////////////////////////////////////////////////////////////////////////////
   // Helpers
@@ -85,10 +73,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   @Before
   public void setUp() throws Exception {
     compactingSetUp();
-    Configuration conf = HBaseConfiguration.create();
-    conf.setDouble(MagicCompactionStrategy.MAGIC_COMPACTION_THRESHOLD_KEY, 0.2);
-    this.memstore = new CompactingMemStore(conf, CellComparator.COMPARATOR,
-        store, regionServicesForStores, policy);
+    this.memstore = new CompactingMemStore(HBaseConfiguration.create(), CellComparator.COMPARATOR,
+        store, regionServicesForStores, MemoryCompactionPolicy.EAGER);
   }
 
   protected void compactingSetUp() throws Exception {
@@ -148,7 +134,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     // use case 3: first in snapshot second in kvset
     this.memstore = new CompactingMemStore(HBaseConfiguration.create(),
         CellComparator.COMPARATOR, store, regionServicesForStores,
-        policy);
+        MemoryCompactionPolicy.EAGER);
     this.memstore.add(kv1.clone(), null);
     // As compaction is starting in the background the repetition
     // of the k1 might be removed BUT the scanners created earlier
@@ -493,7 +479,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
-    MemoryCompactionPolicy compactionType = policy;
+    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
     ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
@@ -584,7 +570,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   public void testCompaction1Bucket() throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
-    MemoryCompactionPolicy compactionType = policy;
+    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
     ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
@@ -623,7 +609,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   public void testCompaction2Buckets() throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
-    MemoryCompactionPolicy compactionType = policy;
+    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
     ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
@@ -680,7 +666,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   public void testCompaction3Buckets() throws IOException {
 
     // set memstore to do data compaction and not to use the speculative scan
-    MemoryCompactionPolicy compactionType = policy;
+    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
     ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());

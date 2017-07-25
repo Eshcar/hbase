@@ -30,14 +30,6 @@ public abstract class MemStoreCompactionStrategy {
       "hbase.hregion.compacting.pipeline.segments.limit";
   public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 1;
 
-  public void resetDuplicationInfo() {}
-
-  public void updateDuplicationInfo(VersionedSegmentsList versionedList, ImmutableSegment result) {
-  }
-
-  public void updateDuplicationInfo(CellSet cellSet) {
-  }
-
   /**
    * Types of actions to be done on the pipeline upon MemStoreCompaction invocation.
    * Note that every value covers the previous ones, i.e. if MERGE is the action it implies

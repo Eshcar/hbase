@@ -18,15 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnels;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.HTableDescriptor;
-
-import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
 
@@ -37,105 +29,20 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
 
   private double compactionThreshold;
 
-  // duplication info
-  private int maxNumCellsInMemory;
-  private AtomicInteger numCellsInMemory = new AtomicInteger(0);
-  private AtomicInteger numDuplicateCells = new AtomicInteger(0);
-  private BloomFilter rowBF;
-  private BloomFilter rowcolBF;
-
   public MagicCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
     compactionThreshold = conf.getDouble(MAGIC_COMPACTION_THRESHOLD_KEY,
         MAGIC_COMPACTION_THRESHOLD_DEFAULT);
-    maxNumCellsInMemory = (int) HTableDescriptor.DEFAULT_MEMSTORE_FLUSH_SIZE / 10000;
-    resetDuplicationInfo();
   }
 
   @Override public Action getAction(VersionedSegmentsList versionedList) {
-    if((double)numDuplicateCells.get()/numCellsInMemory.get() > compactionThreshold) {
-      return Action.COMPACT;
+    for(ImmutableSegment segment : versionedList.getStoreSegments()) {
+      if (segment.shouldCompact(compactionThreshold)) {
+        return Action.COMPACT;
+      }
     }
     return simpleMergeOrFlatten(versionedList, name);
   }
 
-  @Override
-  public void resetDuplicationInfo() {
-    rowBF = createMemstoreBloomFilter(BloomType.ROW);
-    rowcolBF = createMemstoreBloomFilter(BloomType.ROWCOL);
-  }
-
-  @Override
-  public void updateDuplicationInfo(VersionedSegmentsList versionedList, ImmutableSegment result) {
-    int numCellsBefore = versionedList.getNumOfCells();
-    int numCellsAfter = 0;
-    if(result != null) {
-      numCellsAfter = result.getCellsCount();
-    }
-    int delta = numCellsAfter - numCellsBefore;
-    int num = numCellsInMemory.addAndGet(delta);
-    if(num<0) {
-      numCellsInMemory.set(0);
-    }
-    num = numDuplicateCells.addAndGet(delta);
-    if(num<0) {
-      numDuplicateCells.set(0);
-    }
-  }
-
-  @Override
-  public void updateDuplicationInfo(CellSet cellSet) {
-    Cell cell = null;
-    int numNewDuplicates = 0;
-    for(Iterator iter = cellSet.iterator(); iter.hasNext(); cell = (Cell)iter.next()) {
-      boolean mightContainKey = updateBloomFilters(cell);
-      if(mightContainKey) {
-        numNewDuplicates++;
-      }
-    }
-    updateCounters(numNewDuplicates, cellSet.size());
-  }
-
-  private boolean updateBloomFilters(Cell cell) {
-    int sizeOfKey = CellUtil.estimatedSerializedSizeOfKey(cell);
-    byte[] key = new byte[sizeOfKey];
-    int offset = CellUtil.copyRowTo(cell, key, 0);
-    if(rowBF.mightContain(key)) {
-      offset = CellUtil.copyFamilyTo(cell, key, offset);
-      CellUtil.copyQualifierTo(cell, key, offset);
-      if(rowcolBF.mightContain(key)){
-        return true;
-      } else {
-        rowcolBF.put(key);
-        return false;
-      }
-    } else {
-      rowBF.put(key);
-      offset = CellUtil.copyFamilyTo(cell, key, offset);
-      CellUtil.copyQualifierTo(cell, key, offset);
-      rowcolBF.put(key);
-      return false;
-    }
-  }
-
-  private void updateCounters(int numNewDuplicates, int numNewCells) {
-    numDuplicateCells.addAndGet(numNewDuplicates);
-    int num = numCellsInMemory.addAndGet(numNewCells);
-    if(num > maxNumCellsInMemory) {
-      maxNumCellsInMemory = num;
-    }
-  }
-
-  private BloomFilter createMemstoreBloomFilter(BloomType bloomType) {
-    float err = 0.01f;
-    int numKeys = maxNumCellsInMemory;
-    if (bloomType == BloomType.ROW) {
-      //      err = (float) (1 - Math.sqrt(1 - err));
-      numKeys /= 10;
-    }
-    // In case of compound Bloom filters we ignore the maxKeys hint.
-    BloomFilter bloomFilter = BloomFilter.create(Funnels.byteArrayFunnel(), numKeys, err);
-    return bloomFilter;
-  }
 
 }

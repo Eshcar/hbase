@@ -222,7 +222,6 @@ public abstract class AbstractMemStore implements MemStore {
     // prevent it from getting GCed.
     cell = deepCopyIfNeeded(cell);
     this.active.upsert(cell, readpoint, memstoreSize);
-//    updateMetadata(cell);
     setOldestEditTimeToNow();
     checkActiveSize();
   }
@@ -280,14 +279,9 @@ public abstract class AbstractMemStore implements MemStore {
    */
   private void internalAdd(final Cell toAdd, final boolean mslabUsed, MemstoreSize memstoreSize) {
     active.add(toAdd, mslabUsed, memstoreSize);
-//    updateMetadata(toAdd);
     setOldestEditTimeToNow();
     checkActiveSize();
   }
-
-//  protected void updateMetadata(Cell cell) {
-//    // do nothing by default
-//  }
 
   private void setOldestEditTimeToNow() {
     if (timeOfOldestEdit == Long.MAX_VALUE) {

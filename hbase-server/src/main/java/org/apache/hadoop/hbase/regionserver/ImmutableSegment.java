@@ -61,6 +61,22 @@ public class ImmutableSegment extends Segment {
 
   private Type type = Type.SKIPLIST_MAP_BASED;
 
+  public boolean shouldCompact(double compactionThreshold) {
+    double numUniqueKeys = getNumUniqueKeys();
+    if(numUniqueKeys != CellSet.UNKNOWN_NUM_UNIQUES) {
+      double numCells = getCellsCount();
+      double numDuplicates = numCells - numUniqueKeys;
+      if(numDuplicates / numCells > compactionThreshold) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private int getNumUniqueKeys() {
+    return getCellSet().getNumUniqueKeys();
+  }
+
   // whether it is based on CellFlatMap or ConcurrentSkipListMap
   private boolean isFlat(){
     return (type != Type.SKIPLIST_MAP_BASED);
@@ -191,6 +207,8 @@ public class ImmutableSegment extends Segment {
 
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     int i = 0;
+    int numUniqueKeys=0;
+    Cell prev = null;
     while (iterator.hasNext()) {
       Cell c = iterator.next();
       // The scanner behind the iterator is doing all the elimination logic
@@ -206,11 +224,17 @@ public class ImmutableSegment extends Segment {
       // second parameter true, because in compaction/merge the addition of the cell to new segment
       // is always successful
       updateMetaInfo(c, true, useMSLAB, null); // updates the size per cell
+      //counting number of unique keys
+      if(prev != null) {
+        if(!CellUtil.matchingRowColumn(prev, c)) {
+          numUniqueKeys++;
+        }
+      }
       i++;
     }
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, i, false);
-    return new CellSet(cam);
+    return new CellSet(cam, numUniqueKeys);
   }
 
   @Override
@@ -234,6 +258,8 @@ public class ImmutableSegment extends Segment {
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     Cell curCell;
     int idx = 0;
+    int numUniqueKeys=0;
+    Cell prev = null;
     // create this segment scanner with maximal possible read point, to go over all Cells
     KeyValueScanner segmentScanner = this.getScanner(Long.MAX_VALUE);
 
@@ -249,6 +275,12 @@ public class ImmutableSegment extends Segment {
 
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
-    return new CellSet(cam);
+    //counting number of unique keys
+    if(prev != null) {
+      if(!CellUtil.matchingRowColumn(prev, curCell)) {
+        numUniqueKeys++;
+      }
+    }
+    return new CellSet(cam, numUniqueKeys);
   }
 }

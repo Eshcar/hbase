@@ -22,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MemoryCompactionPolicy;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -108,18 +107,6 @@ public class MemStoreCompactor {
   */
   public void stop() {
       isInterrupted.compareAndSet(false, true);
-  }
-
-  public void resetDuplicationInfo() {
-    strategy.resetDuplicationInfo();
-  }
-
-  public void updateDuplicationInfo(VersionedSegmentsList versionedList, ImmutableSegment result) {
-    strategy.updateDuplicationInfo(versionedList, result);
-  }
-
-  public void updateDuplicationInfo(CellSet cellSet) {
-    strategy.updateDuplicationInfo(cellSet);
   }
 
   /**----------------------------------------------------------------------

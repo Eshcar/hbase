@@ -45,10 +45,6 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
 
   private static final Log LOG = LogFactory.getLog(TestCompactingToCellArrayMapMemStore.class);
 
-  public TestCompactingToCellArrayMapMemStore(String compType) {
-    super("EAGER");
-  }
-
   //////////////////////////////////////////////////////////////////////////////
   // Helpers
   //////////////////////////////////////////////////////////////////////////////
