@@ -284,4 +284,12 @@ public class ImmutableSegment extends Segment {
     }
     return new CellSet(cam, numUniqueKeys);
   }
+
+  @Override
+  public String toString() {
+    String res = super.toString();
+    res += "Num uniques "+getNumUniqueKeys()+"; ";
+    return res;
+  }
+
 }

@@ -133,7 +133,7 @@ public class CompactionPipeline {
         LOG.debug("Swapping pipeline suffix. "
             + "Just before the swap the number of segments in pipeline is:"
             + versionedList.getStoreSegments().size()
-            + ", and the number of cells in new segment is:" + count);
+            + ", and the new segment is:" + segment);
       }
       swapSuffix(suffix, segment, closeSuffix);
       readOnlyCopy = new LinkedList<>(pipeline);
