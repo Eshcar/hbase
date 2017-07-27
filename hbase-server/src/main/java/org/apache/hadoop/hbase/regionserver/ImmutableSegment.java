@@ -226,10 +226,11 @@ public class ImmutableSegment extends Segment {
       updateMetaInfo(c, true, useMSLAB, null); // updates the size per cell
       //counting number of unique keys
       if(prev != null) {
-        if(!CellUtil.matchingRowColumn(prev, c)) {
+        if(!CellUtil.matchingRowColumnBytes(prev, c)) {
           numUniqueKeys++;
         }
       }
+      prev = c;
       i++;
     }
     // build the immutable CellSet

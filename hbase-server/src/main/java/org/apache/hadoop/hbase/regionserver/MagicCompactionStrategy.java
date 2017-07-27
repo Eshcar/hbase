@@ -38,7 +38,7 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   @Override public Action getAction(VersionedSegmentsList versionedList) {
     for(ImmutableSegment segment : versionedList.getStoreSegments()) {
       if (segment.shouldCompact(compactionThreshold)) {
-        return Action.COMPACT;
+        return compact(versionedList, name);
       }
     }
     return simpleMergeOrFlatten(versionedList, name);

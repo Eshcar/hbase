@@ -22,14 +22,13 @@ import org.apache.hadoop.conf.Configuration;
 
 public class EagerCompactionStrategy extends MemStoreCompactionStrategy{
 
+  private static final String name = "EAGER";
   public EagerCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
   }
 
   @Override
   public Action getAction(VersionedSegmentsList versionedList) {
-    LOG.debug("Eager memory compaction for store " + cfName
-        + " number of cells before compaction is " + versionedList.getNumOfCells());
-    return Action.COMPACT;
+    return compact(versionedList, name);
   }
 }

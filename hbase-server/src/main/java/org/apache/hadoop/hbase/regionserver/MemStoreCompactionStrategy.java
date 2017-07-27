@@ -69,10 +69,17 @@ public abstract class MemStoreCompactionStrategy {
       return Action.MERGE;
     }
 
-    // just flatten the newly joined segment
+    // just flatten a segment
     LOG.debug(strategy+" memory compaction for store " + cfName
-        + "flattening the youngest segment in the pipeline");
+        + " flattening a segment in the pipeline");
     return Action.FLATTEN;
+  }
+
+  protected Action compact(VersionedSegmentsList versionedList, String strategy) {
+    int numOfSegments = versionedList.getNumOfSegments();
+    LOG.debug(strategy+" memory compaction for store " + cfName
+        + " compacting " + numOfSegments + " segments");
+    return Action.COMPACT;
   }
 
 }
