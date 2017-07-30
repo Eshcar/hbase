@@ -229,6 +229,8 @@ public class ImmutableSegment extends Segment {
         if(!CellUtil.matchingRowColumnBytes(prev, c)) {
           numUniqueKeys++;
         }
+      } else {
+        numUniqueKeys++;
       }
       prev = c;
       i++;
@@ -267,6 +269,15 @@ public class ImmutableSegment extends Segment {
     try {
       while ((curCell = segmentScanner.next()) != null) {
         cells[idx++] = curCell;
+        //counting number of unique keys
+        if(prev != null) {
+          if(!CellUtil.matchingRowColumn(prev, curCell)) {
+            numUniqueKeys++;
+          }
+        } else {
+          numUniqueKeys++;
+        }
+        prev = curCell;
       }
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
@@ -276,12 +287,6 @@ public class ImmutableSegment extends Segment {
 
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
-    //counting number of unique keys
-    if(prev != null) {
-      if(!CellUtil.matchingRowColumn(prev, curCell)) {
-        numUniqueKeys++;
-      }
-    }
     return new CellSet(cam, numUniqueKeys);
   }
 

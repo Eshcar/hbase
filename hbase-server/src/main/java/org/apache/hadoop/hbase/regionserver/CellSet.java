@@ -94,7 +94,7 @@ public class CellSet implements NavigableSet<Cell>  {
 
   public NavigableSet<Cell> headSet(final Cell toElement,
       boolean inclusive) {
-    return new CellSet(this.delegatee.headMap(toElement, inclusive), numUniqueKeys);
+    return new CellSet(this.delegatee.headMap(toElement, inclusive), UNKNOWN_NUM_UNIQUES);
   }
 
   public Cell higher(Cell e) {
@@ -131,7 +131,7 @@ public class CellSet implements NavigableSet<Cell>  {
   }
 
   public NavigableSet<Cell> tailSet(Cell fromElement, boolean inclusive) {
-    return new CellSet(this.delegatee.tailMap(fromElement, inclusive), numUniqueKeys);
+    return new CellSet(this.delegatee.tailMap(fromElement, inclusive), UNKNOWN_NUM_UNIQUES);
   }
 
   public Comparator<? super Cell> comparator() {

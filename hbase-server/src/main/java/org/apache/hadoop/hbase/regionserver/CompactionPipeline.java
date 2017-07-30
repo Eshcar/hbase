@@ -48,7 +48,7 @@ import org.apache.hadoop.hbase.util.ClassSize;
  * method accesses the read-only copy more than once it makes a local copy of it
  * to ensure it accesses the same copy.
  *
- * The methods getVersionedList(), getVersionedTail(), and flattenYoungestSegment() are also
+ * The methods getVersionedList(), getVersionedTail(), and flattenOneSegment() are also
  * protected by a lock since they need to have a consistent (atomic) view of the pipeline list
  * and version number.
  */
@@ -183,7 +183,7 @@ public class CompactionPipeline {
    *
    * @return true iff a segment was successfully flattened
    */
-  public boolean flattenYoungestSegment(long requesterVersion) {
+  public boolean flattenOneSegment(long requesterVersion) {
 
     if(requesterVersion != version) {
       LOG.warn("Segment flattening failed, because versions do not match. Requester version: "

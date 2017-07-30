@@ -289,7 +289,7 @@ public class CompactingMemStore extends AbstractMemStore {
    *           The flattening happens only if versions match.
    */
   public void flattenOneSegment(long requesterVersion) {
-    pipeline.flattenYoungestSegment(requesterVersion);
+    pipeline.flattenOneSegment(requesterVersion);
   }
 
   public boolean hasImmutableSegments() {

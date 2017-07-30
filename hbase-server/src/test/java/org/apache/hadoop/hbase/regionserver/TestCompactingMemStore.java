@@ -737,6 +737,47 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.clearSnapshot(snapshot.getId());
   }
 
+  @Test
+  public void testMagicCompaction3Buckets() throws IOException {
+
+    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.MAGIC;
+    memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
+        String.valueOf(compactionType));
+    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
+    String[] keys1 = { "A", "A", "B", "C" };
+    String[] keys2 = { "A", "B", "D" };
+    String[] keys3 = { "D", "B", "B" };
+
+    int totalCellsLen1 = addRowsByKeys(memstore, keys1);// Adding 4 cells.
+    int oneCellOnCSLMHeapSize = 120;
+    assertEquals(totalCellsLen1, region.getMemstoreSize());
+    long totalHeapSize = 4 * oneCellOnCSLMHeapSize;
+    assertEquals(totalHeapSize, memstore.heapSize());
+
+    ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline - flatten
+    assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals(0, memstore.getSnapshot().getCellsCount());
+
+    addRowsByKeys(memstore, keys2);// Adding 3 more cells - merge.
+    ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
+    assertEquals(7, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals(0, memstore.getSnapshot().getCellsCount());
+
+    addRowsByKeys(memstore, keys3);// 3 more cells added
+    ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline and compact
+    assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals(0, memstore.getSnapshot().getCellsCount());
+
+    MemstoreSize size = memstore.getFlushableSize();
+    MemStoreSnapshot snapshot = memstore.snapshot(); // push keys to snapshot
+    region.decrMemstoreSize(size);  // simulate flusher
+    ImmutableSegment s = memstore.getSnapshot();
+    assertEquals(4, s.getCellsCount());
+    assertEquals(0, regionServicesForStores.getMemstoreSize());
+
+    memstore.clearSnapshot(snapshot.getId());
+  }
+
   private int addRowsByKeys(final AbstractMemStore hmc, String[] keys) {
     byte[] fam = Bytes.toBytes("testfamily");
     byte[] qf = Bytes.toBytes("testqualifier");
