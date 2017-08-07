@@ -36,13 +36,18 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   }
 
   @Override public Action getAction(VersionedSegmentsList versionedList) {
-    for(ImmutableSegment segment : versionedList.getStoreSegments()) {
-      if (segment.shouldCompact(compactionThreshold)) {
+    if (versionedList.getAvgUniquesFrac() < 1.0 - compactionThreshold) {
         return compact(versionedList, name);
       }
-    }
     return simpleMergeOrFlatten(versionedList, name);
   }
 
+  protected Action getMergingAction() {
+    return Action.MERGE_COUNT_UNIQUES;
+  }
+
+  protected Action getFlattenAction() {
+    return Action.FLATTEN_COUNT_UNIQUES;
+  }
 
 }

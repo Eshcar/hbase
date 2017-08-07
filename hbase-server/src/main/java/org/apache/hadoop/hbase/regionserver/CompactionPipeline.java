@@ -183,7 +183,8 @@ public class CompactionPipeline {
    *
    * @return true iff a segment was successfully flattened
    */
-  public boolean flattenOneSegment(long requesterVersion) {
+  public boolean flattenOneSegment(long requesterVersion, MemStoreCompactionStrategy.Action
+      action) {
 
     if(requesterVersion != version) {
       LOG.warn("Segment flattening failed, because versions do not match. Requester version: "
@@ -200,7 +201,7 @@ public class CompactionPipeline {
       for (ImmutableSegment s : pipeline) {
         // remember the old size in case this segment is going to be flatten
         MemstoreSize memstoreSize = new MemstoreSize();
-        if (s.flatten(memstoreSize)) {
+        if (s.flatten(memstoreSize, action)) {
           if(region != null) {
             region.addMemstoreSize(memstoreSize);
           }

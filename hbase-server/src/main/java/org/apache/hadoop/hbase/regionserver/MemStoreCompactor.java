@@ -131,13 +131,17 @@ public class MemStoreCompactor {
     }
 
     MemStoreCompactionStrategy.Action nextStep = strategy.getAction(versionedList);
+    boolean merge =
+        (nextStep == MemStoreCompactionStrategy.Action.MERGE ||
+            nextStep == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES);
     try {
       if (nextStep == MemStoreCompactionStrategy.Action.NOOP) {
         return;
       }
-      if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN) {
+      if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN ||
+          nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
         // Youngest Segment in the pipeline is with SkipList index, make it flat
-        compactingMemStore.flattenOneSegment(versionedList.getVersion());
+        compactingMemStore.flattenOneSegment(versionedList.getVersion(), nextStep);
         return;
       }
 
@@ -150,7 +154,7 @@ public class MemStoreCompactor {
       // Substitute the pipeline with one segment
       if (!isInterrupted.get()) {
         if (resultSwapped = compactingMemStore.swapCompactedSegments(
-            versionedList, result, (nextStep== MemStoreCompactionStrategy.Action.MERGE))) {
+            versionedList, result, merge)) {
           // update the wal so it can be truncated and not get too long
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
         }
@@ -164,10 +168,8 @@ public class MemStoreCompactor {
       // we DON'T need to close the result segment (meaning its MSLAB)!
       // Because closing the result segment means closing the chunks of all segments
       // in the compaction pipeline, which still have ongoing scans.
-      if (nextStep != MemStoreCompactionStrategy.Action.MERGE) {
-        if ((result != null) && (!resultSwapped)) {
-          result.close();
-        }
+      if (!merge && (result != null) && !resultSwapped) {
+        result.close();
       }
       releaseResources();
     }
@@ -193,10 +195,11 @@ public class MemStoreCompactor {
 
       result = SegmentFactory.instance().createImmutableSegmentByCompaction(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
+          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED, action);
       iterator.close();
       break;
     case MERGE:
+    case MERGE_COUNT_UNIQUES:
       iterator =
           new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
               compactingMemStore.getComparator(),
@@ -205,7 +208,7 @@ public class MemStoreCompactor {
       result = SegmentFactory.instance().createImmutableSegmentByMerge(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
           versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,
-          versionedList.getStoreSegments());
+          versionedList.getStoreSegments(), action);
       iterator.close();
       break;
     default: throw new RuntimeException("Unknown action " + action); // sanity check

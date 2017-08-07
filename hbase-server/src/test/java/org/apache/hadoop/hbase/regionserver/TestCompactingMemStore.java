@@ -743,29 +743,47 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.MAGIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
-    String[] keys1 = { "A", "A", "B", "C" };
-    String[] keys2 = { "A", "B", "D" };
-    String[] keys3 = { "D", "B", "B" };
+    memstore.getConfiguration().setDouble(MagicCompactionStrategy.MAGIC_COMPACTION_THRESHOLD_KEY,
+        0.25);
+    memstore.getConfiguration().setInt(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 1);
+    ((CompactingMemStore) memstore).initiateType(compactionType, memstore.getConfiguration());
+
+    String[] keys1 = { "A", "B", "D" };
+    String[] keys2 = { "A" };
+    String[] keys3 = { "A", "A", "B", "C" };
+    String[] keys4 = { "D", "B", "B" };
 
     int totalCellsLen1 = addRowsByKeys(memstore, keys1);// Adding 4 cells.
     int oneCellOnCSLMHeapSize = 120;
     assertEquals(totalCellsLen1, region.getMemstoreSize());
-    long totalHeapSize = 4 * oneCellOnCSLMHeapSize;
+    long totalHeapSize = 3 * oneCellOnCSLMHeapSize;
     assertEquals(totalHeapSize, memstore.heapSize());
 
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline - flatten
-    assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals(3, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals(1.0, ((CompactingMemStore) memstore).getImmutableSegments()
+        .getAvgUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
-    addRowsByKeys(memstore, keys2);// Adding 3 more cells - merge.
+    addRowsByKeys(memstore, keys2);// Adding 1 more cell - flatten.
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
-    assertEquals(7, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals((3.0 / 3.0),
+        ((CompactingMemStore) memstore).getImmutableSegments().getAvgUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
-    addRowsByKeys(memstore, keys3);// 3 more cells added
+    addRowsByKeys(memstore, keys3);// Adding 4 more cells - merge.
+    ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
+    assertEquals(8, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals((4.0 / 8.0),
+        ((CompactingMemStore) memstore).getImmutableSegments().getAvgUniquesFrac(), 0);
+    assertEquals(0, memstore.getSnapshot().getCellsCount());
+
+    addRowsByKeys(memstore, keys4);// 3 more cells added
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline and compact
     assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
+    assertEquals((4.0/4.0), ((CompactingMemStore) memstore).getImmutableSegments()
+        .getAvgUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
     MemstoreSize size = memstore.getFlushableSize();

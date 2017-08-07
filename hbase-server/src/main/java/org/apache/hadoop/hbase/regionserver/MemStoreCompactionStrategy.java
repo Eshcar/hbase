@@ -28,7 +28,7 @@ public abstract class MemStoreCompactionStrategy {
   // The upper bound for the number of segments we store in the pipeline prior to merging.
   public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
       "hbase.hregion.compacting.pipeline.segments.limit";
-  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 1;
+  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 2;
 
   /**
    * Types of actions to be done on the pipeline upon MemStoreCompaction invocation.
@@ -37,9 +37,11 @@ public abstract class MemStoreCompactionStrategy {
    */
   public enum Action {
     NOOP,
-    FLATTEN,  // flatten the youngest segment in the pipeline
+    FLATTEN,  // flatten a segment in the pipeline
+    FLATTEN_COUNT_UNIQUES,  // flatten a segment in the pipeline and count its unique keys
     MERGE,    // merge all the segments in the pipeline into one
-    COMPACT   // copy-compact the data of all the segments in the pipeline
+    MERGE_COUNT_UNIQUES,    // merge all pipeline segments into one and count its unique keys
+    COMPACT   // compact the data of all pipeline segments
   }
 
   protected final String cfName;
@@ -66,12 +68,20 @@ public abstract class MemStoreCompactionStrategy {
       // to avoid too many segments, merge now
       LOG.debug(strategy+" memory compaction for store " + cfName
           + " merging " + numOfSegments + " segments");
-      return Action.MERGE;
+      return getMergingAction();
     }
 
     // just flatten a segment
     LOG.debug(strategy+" memory compaction for store " + cfName
         + " flattening a segment in the pipeline");
+    return getFlattenAction();
+  }
+
+  protected Action getMergingAction() {
+    return Action.MERGE;
+  }
+
+  protected Action getFlattenAction() {
     return Action.FLATTEN;
   }
 
