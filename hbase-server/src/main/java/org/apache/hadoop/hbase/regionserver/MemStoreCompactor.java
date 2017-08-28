@@ -140,7 +140,7 @@ public class MemStoreCompactor {
       }
       if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN ||
           nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
-        // Youngest Segment in the pipeline is with SkipList index, make it flat
+        // some Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion(), nextStep);
         return;
       }
@@ -155,6 +155,8 @@ public class MemStoreCompactor {
       if (!isInterrupted.get()) {
         if (resultSwapped = compactingMemStore.swapCompactedSegments(
             versionedList, result, merge)) {
+          // update compaction strategy
+          strategy.updateStats(result);
           // update the wal so it can be truncated and not get too long
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
         }

@@ -64,28 +64,28 @@ public class VersionedSegmentsList {
   }
 
   // upper bound on number of unique keys
-  public double getAvgUniquesFrac() {
-    double[] uniques = new double[getNumOfSegments()];
+  public double getEstimatedUniquesFrac() {
+    double maxUniques = 0;
+    double minUniques = 0;
     int numCells = 0;
+
     int i = 0;
     for (ImmutableSegment s : storeSegments) {
       double segmentUniques = s.getNumUniques();
       if(segmentUniques != CellSet.UNKNOWN_NUM_UNIQUES) {
-        uniques[i] = segmentUniques;
+        maxUniques += segmentUniques;
+        minUniques = Math.max(minUniques, segmentUniques);
         numCells += s.getCellsCount();
-        i++;
       }
       // else ignore this segment specifically since if the unique number is unknown counting
       // cell can be expensive
     }
-    double avg = 0;
+    double est = 0;
     if(numCells == 0) {
       return 1.0;
     } else {
-      for (int j = i - 1; j >= 0; j--) {
-        avg += (uniques[j] / numCells);
-      }
+      est = ((minUniques + maxUniques) / (2 * numCells));
     }
-    return avg;
+    return est;
   }
 }

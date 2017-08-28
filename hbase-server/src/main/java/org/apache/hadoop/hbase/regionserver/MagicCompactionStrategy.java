@@ -20,14 +20,22 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
 
+import java.util.Random;
+
 public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
 
   private static final String name = "MAGIC";
   public static final String MAGIC_COMPACTION_THRESHOLD_KEY =
       "hbase.hregion.magic.compaction.threshold";
-  private static final double MAGIC_COMPACTION_THRESHOLD_DEFAULT = 0.3;
+  private static final double MAGIC_COMPACTION_THRESHOLD_DEFAULT = 0.5;
+  private static final double MAGIC_INITIAL_COMPACTION_PROBABILITY = 0.5;
+  private static final double MAGIC_PROBABILITY_FACTOR = 1.02;
 
   private double compactionThreshold;
+  private double compactionProbability = MAGIC_INITIAL_COMPACTION_PROBABILITY;
+  private Random rand = new Random();
+  private int numCellsInVersionedList = 0;
+  private boolean compacted = false;
 
   public MagicCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
@@ -36,10 +44,31 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   }
 
   @Override public Action getAction(VersionedSegmentsList versionedList) {
-    if (versionedList.getAvgUniquesFrac() < 1.0 - compactionThreshold) {
+    if (versionedList.getEstimatedUniquesFrac() < 1.0 - compactionThreshold) {
+      if(rand.nextDouble() < compactionProbability) {
+        numCellsInVersionedList = versionedList.getNumOfCells();
+        compacted = true;
         return compact(versionedList, name);
       }
+    }
+    compacted = false;
     return simpleMergeOrFlatten(versionedList, name);
+  }
+
+  @Override
+  public void updateStats(Segment replacement) {
+    if(compacted) {
+      if (replacement.getCellsCount() / numCellsInVersionedList < 1.0 - compactionThreshold) {
+        // compaction was a good decision - increase probability
+        compactionProbability *= MAGIC_PROBABILITY_FACTOR;
+        if(compactionProbability > 1.0) {
+          compactionProbability = 1.0;
+        }
+      } else {
+        // compaction was NOT a good decision - decrease probability
+        compactionProbability /= MAGIC_PROBABILITY_FACTOR;
+      }
+    }
   }
 
   protected Action getMergingAction() {

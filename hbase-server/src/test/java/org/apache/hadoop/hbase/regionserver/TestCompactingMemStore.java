@@ -762,28 +762,28 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline - flatten
     assertEquals(3, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
     assertEquals(1.0, ((CompactingMemStore) memstore).getImmutableSegments()
-        .getAvgUniquesFrac(), 0);
+        .getEstimatedUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
     addRowsByKeys(memstore, keys2);// Adding 1 more cell - flatten.
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
     assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
     assertEquals((3.0 / 3.0),
-        ((CompactingMemStore) memstore).getImmutableSegments().getAvgUniquesFrac(), 0);
+        ((CompactingMemStore) memstore).getImmutableSegments().getEstimatedUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
     addRowsByKeys(memstore, keys3);// Adding 4 more cells - merge.
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
     assertEquals(8, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
     assertEquals((4.0 / 8.0),
-        ((CompactingMemStore) memstore).getImmutableSegments().getAvgUniquesFrac(), 0);
+        ((CompactingMemStore) memstore).getImmutableSegments().getEstimatedUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
     addRowsByKeys(memstore, keys4);// 3 more cells added
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline and compact
     assertEquals(4, ((CompactingMemStore) memstore).getImmutableSegments().getNumOfCells());
     assertEquals((4.0/4.0), ((CompactingMemStore) memstore).getImmutableSegments()
-        .getAvgUniquesFrac(), 0);
+        .getEstimatedUniquesFrac(), 0);
     assertEquals(0, memstore.getSnapshot().getCellsCount());
 
     MemstoreSize size = memstore.getFlushableSize();
