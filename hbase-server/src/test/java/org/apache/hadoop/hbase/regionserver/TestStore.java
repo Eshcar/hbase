@@ -1231,7 +1231,7 @@ public class TestStore {
     conf.set(HStore.MEMSTORE_CLASS_NAME, MyCompactingMemStoreWithCustomCompactor.class.getName());
     conf.set(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, String.valueOf(flushSize));
     // Set the lower threshold to invoke the "MERGE" policy
-    conf.set(MemStoreCompactor.COMPACTING_MEMSTORE_THRESHOLD_KEY, String.valueOf(0));
+    conf.set(MemStoreCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY, String.valueOf(0));
     HColumnDescriptor hcd = new HColumnDescriptor(family);
     hcd.setInMemoryCompaction(MemoryCompactionPolicy.BASIC);
     init(name.getMethodName(), conf, hcd);

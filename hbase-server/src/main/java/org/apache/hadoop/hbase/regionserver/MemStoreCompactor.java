@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MemoryCompactionPolicy;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -44,26 +45,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @InterfaceAudience.Private
 public class MemStoreCompactor {
 
-  // The upper bound for the number of segments we store in the pipeline prior to merging.
-  // This constant is subject to further experimentation.
-  // The external setting of the compacting MemStore behaviour
-  public static final String COMPACTING_MEMSTORE_THRESHOLD_KEY =
-      "hbase.hregion.compacting.pipeline.segments.limit";
-  // remaining with the same ("infinity") but configurable default for now
-  public static final int COMPACTING_MEMSTORE_THRESHOLD_DEFAULT = 1;
-
   public static final long DEEP_OVERHEAD = ClassSize
-      .align(ClassSize.OBJECT
-          + 4 * ClassSize.REFERENCE
-          // compactingMemStore, versionedList, action, isInterrupted (the reference)
+      .align(ClassSize.OBJECT + 4 * ClassSize.REFERENCE
+          // compactingMemStore, versionedList, isInterrupted, strategy (the reference)
           // "action" is an enum and thus it is a class with static final constants,
           // so counting only the size of the reference to it and not the size of the internals
-          + 2 * Bytes.SIZEOF_INT        // compactionKVMax, pipelineThreshold
+          + Bytes.SIZEOF_INT        // compactionKVMax
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
 
   private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
-  private final int pipelineThreshold; // the limit on the number of the segments in the pipeline
   private CompactingMemStore compactingMemStore;
 
   // a static version of the segment list from the pipeline
@@ -75,29 +66,15 @@ public class MemStoreCompactor {
   // the limit to the size of the groups to be later provided to MemStoreSegmentsIterator
   private final int compactionKVMax;
 
-  /**
-   * Types of actions to be done on the pipeline upon MemStoreCompaction invocation.
-   * Note that every value covers the previous ones, i.e. if MERGE is the action it implies
-   * that the youngest segment is going to be flatten anyway.
-   */
-  private enum Action {
-    NOOP,
-    FLATTEN,  // flatten the youngest segment in the pipeline
-    MERGE,    // merge all the segments in the pipeline into one
-    COMPACT   // copy-compact the data of all the segments in the pipeline
-  }
-
-  private Action action = Action.FLATTEN;
+  private MemStoreCompactionStrategy strategy;
 
   public MemStoreCompactor(CompactingMemStore compactingMemStore,
       MemoryCompactionPolicy compactionPolicy) {
     this.compactingMemStore = compactingMemStore;
     this.compactionKVMax = compactingMemStore.getConfiguration()
         .getInt(HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
-    initiateAction(compactionPolicy);
-    pipelineThreshold =         // get the limit on the number of the segments in the pipeline
-        compactingMemStore.getConfiguration().getInt(COMPACTING_MEMSTORE_THRESHOLD_KEY,
-            COMPACTING_MEMSTORE_THRESHOLD_DEFAULT);
+    initiateCompactionStrategy(compactionPolicy, compactingMemStore.getConfiguration(),
+        compactingMemStore.getFamilyName());
   }
 
   /**----------------------------------------------------------------------
@@ -133,51 +110,12 @@ public class MemStoreCompactor {
   }
 
   /**----------------------------------------------------------------------
-   * The interface to check whether user requested the index-compaction
-   */
-  public boolean isIndexCompaction() {
-    return (action == Action.MERGE);
-  }
-
-  /**----------------------------------------------------------------------
   * Reset the interruption indicator and clear the pointers in order to allow good
   * garbage collection
   */
   private void releaseResources() {
     isInterrupted.set(false);
     versionedList = null;
-  }
-
-  /**----------------------------------------------------------------------
-   * Decide what to do with the new and old segments in the compaction pipeline.
-   * Implements basic in-memory compaction policy.
-   */
-  private Action policy() {
-
-    if (isInterrupted.get()) {      // if the entire process is interrupted cancel flattening
-      return Action.NOOP;           // the compaction also doesn't start when interrupted
-    }
-
-    if (action == Action.COMPACT) { // compact according to the user request
-      LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
-          + " is going to be compacted, number of"
-          + " cells before compaction is " + versionedList.getNumOfCells());
-      return Action.COMPACT;
-    }
-
-    // compaction shouldn't happen or doesn't worth it
-    // limit the number of the segments in the pipeline
-    int numOfSegments = versionedList.getNumOfSegments();
-    if (numOfSegments > pipelineThreshold) {
-      LOG.debug("In-Memory Compaction Pipeline for store " + compactingMemStore.getFamilyName()
-          + " is going to be merged, as there are " + numOfSegments + " segments");
-      return Action.MERGE;          // to avoid too many segments, merge now
-    }
-
-    // if nothing of the above, then just flatten the newly joined segment
-    LOG.debug("The youngest segment in the in-Memory Compaction Pipeline for store "
-        + compactingMemStore.getFamilyName() + " is going to be flattened");
-    return Action.FLATTEN;
   }
 
   /**----------------------------------------------------------------------
@@ -188,29 +126,37 @@ public class MemStoreCompactor {
   private void doCompaction() {
     ImmutableSegment result = null;
     boolean resultSwapped = false;
-    Action nextStep = null;
-    try {
-      nextStep = policy();
+    if (isInterrupted.get()) {      // if the entire process is interrupted cancel flattening
+      return;           // the compaction also doesn't start when interrupted
+    }
 
-      if (nextStep == Action.NOOP) {
+    MemStoreCompactionStrategy.Action nextStep = strategy.getAction(versionedList);
+    boolean merge =
+        (nextStep == MemStoreCompactionStrategy.Action.MERGE ||
+            nextStep == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES);
+    try {
+      if (nextStep == MemStoreCompactionStrategy.Action.NOOP) {
         return;
       }
-      if (nextStep == Action.FLATTEN) {
-        // Youngest Segment in the pipeline is with SkipList index, make it flat
-        compactingMemStore.flattenOneSegment(versionedList.getVersion());
+      if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN ||
+          nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
+        // some Segment in the pipeline is with SkipList index, make it flat
+        compactingMemStore.flattenOneSegment(versionedList.getVersion(), nextStep);
         return;
       }
 
       // Create one segment representing all segments in the compaction pipeline,
       // either by compaction or by merge
       if (!isInterrupted.get()) {
-        result = createSubstitution();
+        result = createSubstitution(nextStep);
       }
 
       // Substitute the pipeline with one segment
       if (!isInterrupted.get()) {
         if (resultSwapped = compactingMemStore.swapCompactedSegments(
-            versionedList, result, (action==Action.MERGE))) {
+            versionedList, result, merge)) {
+          // update compaction strategy
+          strategy.updateStats(result);
           // update the wal so it can be truncated and not get too long
           compactingMemStore.updateLowestUnflushedSequenceIdInWAL(true); // only if greater
         }
@@ -224,10 +170,8 @@ public class MemStoreCompactor {
       // we DON'T need to close the result segment (meaning its MSLAB)!
       // Because closing the result segment means closing the chunks of all segments
       // in the compaction pipeline, which still have ongoing scans.
-      if (nextStep != Action.MERGE) {
-        if ((result != null) && (!resultSwapped)) {
-          result.close();
-        }
+      if (!merge && (result != null) && !resultSwapped) {
+        result.close();
       }
       releaseResources();
     }
@@ -238,7 +182,8 @@ public class MemStoreCompactor {
    * Creation of the ImmutableSegment either by merge or copy-compact of the segments of the
    * pipeline, based on the Compactor Iterator. The new ImmutableSegment is returned.
    */
-  private ImmutableSegment createSubstitution() throws IOException {
+  private ImmutableSegment createSubstitution(MemStoreCompactionStrategy.Action action) throws
+      IOException {
 
     ImmutableSegment result = null;
     MemStoreSegmentsIterator iterator = null;
@@ -252,10 +197,11 @@ public class MemStoreCompactor {
 
       result = SegmentFactory.instance().createImmutableSegmentByCompaction(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED);
+          versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED, action);
       iterator.close();
       break;
     case MERGE:
+    case MERGE_COUNT_UNIQUES:
       iterator =
           new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
               compactingMemStore.getComparator(),
@@ -264,7 +210,7 @@ public class MemStoreCompactor {
       result = SegmentFactory.instance().createImmutableSegmentByMerge(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
           versionedList.getNumOfCells(), ImmutableSegment.Type.ARRAY_MAP_BASED,
-          versionedList.getStoreSegments());
+          versionedList.getStoreSegments(), action);
       iterator.close();
       break;
     default: throw new RuntimeException("Unknown action " + action); // sanity check
@@ -273,21 +219,25 @@ public class MemStoreCompactor {
     return result;
   }
 
-  /**----------------------------------------------------------------------
-   * Initiate the action according to user config, after its default is Action.MERGE
-   */
   @VisibleForTesting
-  void initiateAction(MemoryCompactionPolicy compType) {
+  void initiateCompactionStrategy(MemoryCompactionPolicy compType, Configuration conf) {
+    initiateCompactionStrategy(compType, conf, "test");
+  }
+
+  private void initiateCompactionStrategy(MemoryCompactionPolicy compType,
+      Configuration configuration, String cfName) {
+
+    assert (compType !=MemoryCompactionPolicy.NONE);
 
     switch (compType){
-    case NONE: action = Action.NOOP;
+    case BASIC: strategy = new BasicCompactionStrategy(configuration, cfName);
       break;
-    case BASIC: action = Action.MERGE;
+    case EAGER: strategy = new EagerCompactionStrategy(configuration, cfName);
       break;
-    case EAGER: action = Action.COMPACT;
+    case MAGIC: strategy = new MagicCompactionStrategy(configuration, cfName);
       break;
     default:
-      throw new RuntimeException("Unknown memstore type " + compType); // sanity check
+      throw new RuntimeException("Unknown memory compaction type " + compType); // sanity check
     }
   }
 }

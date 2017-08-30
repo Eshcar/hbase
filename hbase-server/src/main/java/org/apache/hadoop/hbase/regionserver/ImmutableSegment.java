@@ -61,6 +61,10 @@ public class ImmutableSegment extends Segment {
 
   private Type type = Type.SKIPLIST_MAP_BASED;
 
+  private int getNumUniqueKeys() {
+    return getCellSet().getNumUniqueKeys();
+  }
+
   // whether it is based on CellFlatMap or ConcurrentSkipListMap
   private boolean isFlat(){
     return (type != Type.SKIPLIST_MAP_BASED);
@@ -94,13 +98,14 @@ public class ImmutableSegment extends Segment {
    * are going to be introduced.
    */
   protected ImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
-      MemStoreLAB memStoreLAB, int numOfCells, Type type, boolean merge) {
+      MemStoreLAB memStoreLAB, int numOfCells, Type type,
+      MemStoreCompactionStrategy.Action action) {
 
     super(null, // initiailize the CellSet with NULL
         comparator, memStoreLAB);
     this.type = type;
     // build the new CellSet based on CellArrayMap
-    CellSet cs = createCellArrayMapSet(numOfCells, iterator, merge);
+    CellSet cs = createCellArrayMapSet(numOfCells, iterator, action);
 
     this.setCellSet(null, cs);            // update the CellSet of the new Segment
     this.timeRange = this.timeRangeTracker == null ? null : this.timeRangeTracker.toTimeRange();
@@ -149,6 +154,10 @@ public class ImmutableSegment extends Segment {
     return res;
   }
 
+  public int getNumUniques() {
+    return getCellSet().getNumUniqueKeys();
+  }
+
   /**------------------------------------------------------------------------
    * Change the CellSet of this ImmutableSegment from one based on ConcurrentSkipListMap to one
    * based on CellArrayMap.
@@ -160,13 +169,13 @@ public class ImmutableSegment extends Segment {
    * thread of compaction, but to be on the safe side the initial CellSet is locally saved
    * before the flattening and then replaced using CAS instruction.
    */
-  public boolean flatten(MemstoreSize memstoreSize) {
+  public boolean flatten(MemstoreSize memstoreSize, MemStoreCompactionStrategy.Action action) {
     if (isFlat()) return false;
     CellSet oldCellSet = getCellSet();
     int numOfCells = getCellsCount();
 
     // build the new (CellSet CellArrayMap based)
-    CellSet  newCellSet = recreateCellArrayMapSet(numOfCells);
+    CellSet  newCellSet = recreateCellArrayMapSet(numOfCells, action);
     type = Type.ARRAY_MAP_BASED;
     setCellSet(oldCellSet,newCellSet);
 
@@ -187,10 +196,13 @@ public class ImmutableSegment extends Segment {
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from compacting iterator
   private CellSet createCellArrayMapSet(int numOfCells, MemStoreSegmentsIterator iterator,
-      boolean merge) {
-
+      MemStoreCompactionStrategy.Action action) {
+    boolean merge = (action == MemStoreCompactionStrategy.Action.MERGE ||
+        action == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES);
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     int i = 0;
+    int numUniqueKeys=0;
+    Cell prev = null;
     while (iterator.hasNext()) {
       Cell c = iterator.next();
       // The scanner behind the iterator is doing all the elimination logic
@@ -206,11 +218,28 @@ public class ImmutableSegment extends Segment {
       // second parameter true, because in compaction/merge the addition of the cell to new segment
       // is always successful
       updateMetaInfo(c, true, useMSLAB, null); // updates the size per cell
+      if(action == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES) {
+        //counting number of unique keys
+        if (prev != null) {
+          if (!CellUtil.matchingRowColumnBytes(prev, c)) {
+            numUniqueKeys++;
+          }
+        } else {
+          numUniqueKeys++;
+        }
+      }
+      prev = c;
       i++;
+    }
+    if(action == MemStoreCompactionStrategy.Action.COMPACT) {
+      numUniqueKeys = numOfCells;
+    }
+    if(action != MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES) {
+      numUniqueKeys = CellSet.UNKNOWN_NUM_UNIQUES;
     }
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, i, false);
-    return new CellSet(cam);
+    return new CellSet(cam, numUniqueKeys);
   }
 
   @Override
@@ -229,17 +258,33 @@ public class ImmutableSegment extends Segment {
   /*------------------------------------------------------------------------*/
   // Create CellSet based on CellArrayMap from current ConcurrentSkipListMap based CellSet
   // (without compacting iterator)
-  private CellSet recreateCellArrayMapSet(int numOfCells) {
+  private CellSet recreateCellArrayMapSet(int numOfCells, MemStoreCompactionStrategy.Action action) {
 
     Cell[] cells = new Cell[numOfCells];   // build the Cell Array
     Cell curCell;
     int idx = 0;
+    int numUniqueKeys=0;
+    Cell prev = null;
     // create this segment scanner with maximal possible read point, to go over all Cells
     KeyValueScanner segmentScanner = this.getScanner(Long.MAX_VALUE);
 
     try {
       while ((curCell = segmentScanner.next()) != null) {
         cells[idx++] = curCell;
+        if(action == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
+          //counting number of unique keys
+          if (prev != null) {
+            if (!CellUtil.matchingRowColumn(prev, curCell)) {
+              numUniqueKeys++;
+            }
+          } else {
+            numUniqueKeys++;
+          }
+        }
+        prev = curCell;
+      }
+      if(action != MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
+        numUniqueKeys = CellSet.UNKNOWN_NUM_UNIQUES;
       }
     } catch (IOException ie) {
       throw new IllegalStateException(ie);
@@ -249,6 +294,14 @@ public class ImmutableSegment extends Segment {
 
     // build the immutable CellSet
     CellArrayMap cam = new CellArrayMap(getComparator(), cells, 0, idx, false);
-    return new CellSet(cam);
+    return new CellSet(cam, numUniqueKeys);
   }
+
+  @Override
+  public String toString() {
+    String res = super.toString();
+    res += "Num uniques "+getNumUniqueKeys()+"; ";
+    return res;
+  }
+
 }
