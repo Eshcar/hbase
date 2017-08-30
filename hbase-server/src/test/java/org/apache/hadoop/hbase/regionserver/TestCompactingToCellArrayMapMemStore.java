@@ -244,7 +244,7 @@ public class TestCompactingToCellArrayMapMemStore extends TestCompactingMemStore
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType);
+    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
     addRowsByKeys(memstore, keys1);
 
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact
