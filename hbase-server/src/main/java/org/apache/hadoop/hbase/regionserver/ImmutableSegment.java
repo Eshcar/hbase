@@ -49,6 +49,10 @@ public abstract class ImmutableSegment extends Segment {
   // each sub-type of immutable segment knows whether it is flat or not
   protected abstract boolean canBeFlattened();
 
+  private int getNumUniqueKeys() {
+    return getCellSet().getNumUniqueKeys();
+  }
+
   /////////////////////  CONSTRUCTORS  /////////////////////
   /**------------------------------------------------------------------------
    * Empty C-tor to be used only for CompositeImmutableSegment
@@ -76,8 +80,8 @@ public abstract class ImmutableSegment extends Segment {
     this.timeRange = this.timeRangeTracker == null ? null : this.timeRangeTracker.toTimeRange();
   }
 
-
   /////////////////////  PUBLIC METHODS  /////////////////////
+
   @Override
   public boolean shouldSeek(Scan scan, long oldestUnexpiredTS) {
     return this.timeRange.includesTimeRange(scan.getTimeRange()) &&
@@ -97,4 +101,16 @@ public abstract class ImmutableSegment extends Segment {
     List<Segment> res = new ArrayList<>(Arrays.asList(this));
     return res;
   }
+
+  public int getNumUniques() {
+    return getCellSet().getNumUniqueKeys();
+  }
+
+  @Override
+  public String toString() {
+    String res = super.toString();
+    res += "Num uniques "+getNumUniqueKeys()+"; ";
+    return res;
+  }
+
 }

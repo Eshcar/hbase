@@ -298,10 +298,6 @@ public class CompactingMemStore extends AbstractMemStore {
     this.compositeSnapshot = useCompositeSnapshot;
   }
 
-  public boolean isCompositeSnapshot() {
-    return this.compositeSnapshot;
-  }
-
   public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
       boolean merge) {
     // last true stands for updating the region size
@@ -313,8 +309,8 @@ public class CompactingMemStore extends AbstractMemStore {
    *           with version taken earlier. This version must be passed as a parameter here.
    *           The flattening happens only if versions match.
    */
-  public void flattenOneSegment(long requesterVersion) {
-    pipeline.flattenOneSegment(requesterVersion, indexType);
+  public void flattenOneSegment(long requesterVersion,  MemStoreCompactionStrategy.Action action) {
+    pipeline.flattenOneSegment(requesterVersion, indexType, action);
   }
 
   // setter is used only for testability
@@ -562,8 +558,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  void initiateType(MemoryCompactionPolicy compactionType) {
-    compactor.initiateAction(compactionType);
+  void initiateType(MemoryCompactionPolicy compactionType, Configuration conf) {
+    compactor.initiateCompactionStrategy(compactionType, conf);
   }
 
   /**
