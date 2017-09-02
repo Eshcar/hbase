@@ -28,11 +28,14 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   public static final String MAGIC_COMPACTION_THRESHOLD_KEY =
       "hbase.hregion.magic.compaction.threshold";
   private static final double MAGIC_COMPACTION_THRESHOLD_DEFAULT = 0.5;
-  private static final double MAGIC_INITIAL_COMPACTION_PROBABILITY = 0.5;
+  public static final String MAGIC_INITIAL_COMPACTION_PROBABILITY_KEY =
+      "hbase.hregion.magic.compaction.probability";
+  private static final double MAGIC_INITIAL_COMPACTION_PROBABILITY_DEFAULT = 0.5;
   private static final double MAGIC_PROBABILITY_FACTOR = 1.02;
 
   private double compactionThreshold;
-  private double compactionProbability = MAGIC_INITIAL_COMPACTION_PROBABILITY;
+  private double initialCompactionProbability;
+  private double compactionProbability;
   private Random rand = new Random();
   private int numCellsInVersionedList = 0;
   private boolean compacted = false;
@@ -41,6 +44,9 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
     super(conf, cfName);
     compactionThreshold = conf.getDouble(MAGIC_COMPACTION_THRESHOLD_KEY,
         MAGIC_COMPACTION_THRESHOLD_DEFAULT);
+    initialCompactionProbability = conf.getDouble(MAGIC_INITIAL_COMPACTION_PROBABILITY_KEY,
+        MAGIC_INITIAL_COMPACTION_PROBABILITY_DEFAULT);
+    compactionProbability = initialCompactionProbability;
   }
 
   @Override public Action getAction(VersionedSegmentsList versionedList) {
@@ -71,6 +77,11 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
         compactionProbability /= MAGIC_PROBABILITY_FACTOR;
       }
     }
+  }
+
+  @Override
+  public void resetStats() {
+    compactionProbability = initialCompactionProbability;
   }
 
   protected Action getMergingAction() {

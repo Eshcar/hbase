@@ -109,6 +109,11 @@ public class MemStoreCompactor {
       isInterrupted.compareAndSet(false, true);
   }
 
+
+  public void resetStats() {
+    strategy.resetStats();
+  }
+
   /**----------------------------------------------------------------------
   * Reset the interruption indicator and clear the pointers in order to allow good
   * garbage collection

@@ -64,6 +64,8 @@ public abstract class MemStoreCompactionStrategy {
   // update policy stats based on the segment that replaced previous versioned list (in
   // compaction pipeline)
   public void updateStats(Segment replacement) {}
+  // resets policy stats
+  public void resetStats() {}
 
   protected Action simpleMergeOrFlatten(VersionedSegmentsList versionedList, String strategy) {
     int numOfSegments = versionedList.getNumOfSegments();
