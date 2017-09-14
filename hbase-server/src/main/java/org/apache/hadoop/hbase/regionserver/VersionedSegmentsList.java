@@ -63,27 +63,26 @@ public class VersionedSegmentsList {
     return storeSegments.size();
   }
 
-  // upper bound on number of unique keys
+  // Estimates fraction of unique keys
   public double getEstimatedUniquesFrac() {
-    double maxUniques = 0;
-    double minUniques = 0;
-    int numCells = 0;
+    int segmentCells = 0;
+    int maxCells = 0;
+    double est = 0;
 
     for (ImmutableSegment s : storeSegments) {
       double segmentUniques = s.getNumUniques();
       if(segmentUniques != CellSet.UNKNOWN_NUM_UNIQUES) {
-        maxUniques += segmentUniques;
-        minUniques = Math.max(minUniques, segmentUniques);
-        numCells += s.getCellsCount();
+        segmentCells = s.getCellsCount();
+        if(segmentCells > maxCells) {
+          maxCells = segmentCells;
+          est = segmentUniques / segmentCells;
+        }
       }
       // else ignore this segment specifically since if the unique number is unknown counting
-      // cell can be expensive
+      // cells can be expensive
     }
-    double est = 0;
-    if(numCells == 0) {
+    if(maxCells == 0) {
       return 1.0;
-    } else {
-      est = ((minUniques + maxUniques) / (2 * numCells));
     }
     return est;
   }

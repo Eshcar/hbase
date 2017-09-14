@@ -89,7 +89,7 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   }
 
   protected Action getFlattenAction() {
-    return Action.FLATTEN_COUNT_UNIQUES;
+    return Action.FLATTEN;
   }
 
 }
