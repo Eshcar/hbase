@@ -133,7 +133,7 @@ public class CompactionPipeline {
         LOG.debug("Swapping pipeline suffix. "
             + "Just before the swap the number of segments in pipeline is:"
             + versionedList.getStoreSegments().size()
-            + ", and the number of cells in new segment is:" + count);
+            + ", and the new segment is:" + segment);
       }
       swapSuffix(suffix, segment, closeSuffix);
       readOnlyCopy = new LinkedList<>(pipeline);
@@ -183,7 +183,9 @@ public class CompactionPipeline {
    *
    * @return true iff a segment was successfully flattened
    */
-  public boolean flattenOneSegment(long requesterVersion, CompactingMemStore.IndexType idxType) {
+  public boolean flattenOneSegment(long requesterVersion,
+      CompactingMemStore.IndexType idxType,
+      MemStoreCompactionStrategy.Action action) {
 
     if(requesterVersion != version) {
       LOG.warn("Segment flattening failed, because versions do not match. Requester version: "
@@ -201,7 +203,7 @@ public class CompactionPipeline {
         if ( s.canBeFlattened() ) {
           MemStoreSizing newMemstoreAccounting = new MemStoreSizing(); // the size to be updated
           ImmutableSegment newS = SegmentFactory.instance().createImmutableSegmentByFlattening(
-              (CSLMImmutableSegment)s,idxType,newMemstoreAccounting);
+              (CSLMImmutableSegment)s,idxType,newMemstoreAccounting,action);
           replaceAtIndex(i,newS);
           if(region != null) {
             // update the global memstore size counter

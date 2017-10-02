@@ -66,7 +66,7 @@ public class CompactingMemStore extends AbstractMemStore {
   // Default fraction of in-memory-flush size w.r.t. flush-to-disk size
   public static final String IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY =
       "hbase.memstore.inmemoryflush.threshold.factor";
-  private static final double IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT = 0.25;
+  private static final double IN_MEMORY_FLUSH_THRESHOLD_FACTOR_DEFAULT = 0.02;
 
   private static final Log LOG = LogFactory.getLog(CompactingMemStore.class);
   private HStore store;
@@ -205,6 +205,7 @@ public class CompactingMemStore extends AbstractMemStore {
       } else {
         pushTailToSnapshot();
       }
+      compactor.resetStats();
     }
     return new MemStoreSnapshot(snapshotId, this.snapshot);
   }
@@ -298,10 +299,6 @@ public class CompactingMemStore extends AbstractMemStore {
     this.compositeSnapshot = useCompositeSnapshot;
   }
 
-  public boolean isCompositeSnapshot() {
-    return this.compositeSnapshot;
-  }
-
   public boolean swapCompactedSegments(VersionedSegmentsList versionedList, ImmutableSegment result,
       boolean merge) {
     // last true stands for updating the region size
@@ -313,8 +310,8 @@ public class CompactingMemStore extends AbstractMemStore {
    *           with version taken earlier. This version must be passed as a parameter here.
    *           The flattening happens only if versions match.
    */
-  public void flattenOneSegment(long requesterVersion) {
-    pipeline.flattenOneSegment(requesterVersion, indexType);
+  public void flattenOneSegment(long requesterVersion,  MemStoreCompactionStrategy.Action action) {
+    pipeline.flattenOneSegment(requesterVersion, indexType, action);
   }
 
   // setter is used only for testability
@@ -562,8 +559,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  void initiateType(MemoryCompactionPolicy compactionType) {
-    compactor.initiateAction(compactionType);
+  void initiateType(MemoryCompactionPolicy compactionType, Configuration conf) {
+    compactor.initiateCompactionStrategy(compactionType, conf);
   }
 
   /**

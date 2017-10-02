@@ -293,7 +293,7 @@ public class TestCompactingToCellFlatMapMemStore extends TestCompactingMemStore 
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType);
+    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
     addRowsByKeysDataSize(memstore, keys1);
 
     ((CompactingMemStore) memstore).flushInMemory(); // push keys to pipeline should not compact
@@ -372,7 +372,7 @@ public class TestCompactingToCellFlatMapMemStore extends TestCompactingMemStore 
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType);
+    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
     testTimeRange(false);
   }
 
@@ -611,7 +611,7 @@ public class TestCompactingToCellFlatMapMemStore extends TestCompactingMemStore 
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType);
+    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_INDEX_KEY,
         String.valueOf(CompactingMemStore.IndexType.CHUNK_MAP));
     ((CompactingMemStore)memstore).setIndexType();
