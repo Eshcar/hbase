@@ -44,9 +44,9 @@ public enum MemoryCompactionPolicy {
    */
   EAGER,
   /**
-   * Magic compaction adapts to the workload. It applies either index compaction or data
+   * Adaptive compaction adapts to the workload. It applies either index compaction or data
    * compaction based on the ratio of duplicate cells in the data.
    */
-  MAGIC
+  ADAPTIVE
 
 }

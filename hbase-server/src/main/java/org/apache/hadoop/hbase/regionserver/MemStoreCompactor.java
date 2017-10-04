@@ -238,7 +238,7 @@ public class MemStoreCompactor {
       break;
     case EAGER: strategy = new EagerCompactionStrategy(configuration, cfName);
       break;
-    case MAGIC: strategy = new MagicCompactionStrategy(configuration, cfName);
+    case ADAPTIVE: strategy = new AdaptiveCompactionStrategy(configuration, cfName);
       break;
     default:
       throw new RuntimeException("Unknown memory compaction type " + compType); // sanity check

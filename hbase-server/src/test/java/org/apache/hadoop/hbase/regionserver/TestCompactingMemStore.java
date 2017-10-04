@@ -743,12 +743,12 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   @Test
   public void testMagicCompaction3Buckets() throws IOException {
 
-    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.MAGIC;
+    MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.ADAPTIVE;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    memstore.getConfiguration().setDouble(MagicCompactionStrategy.MAGIC_COMPACTION_THRESHOLD_KEY,
-        0.45);
-    memstore.getConfiguration().setInt(MagicCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY,
+    memstore.getConfiguration().setDouble(
+        AdaptiveCompactionStrategy.ADAPTIVE_COMPACTION_THRESHOLD_KEY, 0.45);
+    memstore.getConfiguration().setInt(AdaptiveCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY,
         2);
     memstore.getConfiguration().setInt(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 1);
     ((CompactingMemStore) memstore).initiateType(compactionType, memstore.getConfiguration());

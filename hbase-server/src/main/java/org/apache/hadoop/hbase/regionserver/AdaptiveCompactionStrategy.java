@@ -22,16 +22,16 @@ import org.apache.hadoop.conf.Configuration;
 
 import java.util.Random;
 
-public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
+public class AdaptiveCompactionStrategy extends MemStoreCompactionStrategy{
 
-  private static final String name = "MAGIC";
-  public static final String MAGIC_COMPACTION_THRESHOLD_KEY =
-      "hbase.hregion.magic.compaction.threshold";
-  private static final double MAGIC_COMPACTION_THRESHOLD_DEFAULT = 0.5;
-  public static final String MAGIC_INITIAL_COMPACTION_PROBABILITY_KEY =
-      "hbase.hregion.magic.compaction.probability";
-  private static final double MAGIC_INITIAL_COMPACTION_PROBABILITY_DEFAULT = 0.5;
-  private static final double MAGIC_PROBABILITY_FACTOR = 1.02;
+  private static final String name = "ADAPTIVE";
+  public static final String ADAPTIVE_COMPACTION_THRESHOLD_KEY =
+      "hbase.hregion.adaptive.compaction.threshold";
+  private static final double ADAPTIVE_COMPACTION_THRESHOLD_DEFAULT = 0.5;
+  public static final String ADAPTIVE_INITIAL_COMPACTION_PROBABILITY_KEY =
+      "hbase.hregion.adaptive.compaction.probability";
+  private static final double ADAPTIVE_INITIAL_COMPACTION_PROBABILITY_DEFAULT = 0.5;
+  private static final double ADAPTIVE_PROBABILITY_FACTOR = 1.02;
 
   private double compactionThreshold;
   private double initialCompactionProbability;
@@ -40,12 +40,12 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
   private int numCellsInVersionedList = 0;
   private boolean compacted = false;
 
-  public MagicCompactionStrategy(Configuration conf, String cfName) {
+  public AdaptiveCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
-    compactionThreshold = conf.getDouble(MAGIC_COMPACTION_THRESHOLD_KEY,
-        MAGIC_COMPACTION_THRESHOLD_DEFAULT);
-    initialCompactionProbability = conf.getDouble(MAGIC_INITIAL_COMPACTION_PROBABILITY_KEY,
-        MAGIC_INITIAL_COMPACTION_PROBABILITY_DEFAULT);
+    compactionThreshold = conf.getDouble(ADAPTIVE_COMPACTION_THRESHOLD_KEY,
+        ADAPTIVE_COMPACTION_THRESHOLD_DEFAULT);
+    initialCompactionProbability = conf.getDouble(ADAPTIVE_INITIAL_COMPACTION_PROBABILITY_KEY,
+        ADAPTIVE_INITIAL_COMPACTION_PROBABILITY_DEFAULT);
     resetStats();
   }
 
@@ -68,13 +68,13 @@ public class MagicCompactionStrategy extends MemStoreCompactionStrategy{
     if(compacted) {
       if (replacement.getCellsCount() / numCellsInVersionedList < 1.0 - compactionThreshold) {
         // compaction was a good decision - increase probability
-        compactionProbability *= MAGIC_PROBABILITY_FACTOR;
+        compactionProbability *= ADAPTIVE_PROBABILITY_FACTOR;
         if(compactionProbability > 1.0) {
           compactionProbability = 1.0;
         }
       } else {
         // compaction was NOT a good decision - decrease probability
-        compactionProbability /= MAGIC_PROBABILITY_FACTOR;
+        compactionProbability /= ADAPTIVE_PROBABILITY_FACTOR;
       }
     }
   }
