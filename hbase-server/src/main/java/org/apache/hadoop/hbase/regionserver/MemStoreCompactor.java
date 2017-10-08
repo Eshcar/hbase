@@ -138,13 +138,13 @@ public class MemStoreCompactor {
     MemStoreCompactionStrategy.Action nextStep = strategy.getAction(versionedList);
     boolean merge =
         (nextStep == MemStoreCompactionStrategy.Action.MERGE ||
-            nextStep == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES);
+            nextStep == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUE_KEYS);
     try {
       if (nextStep == MemStoreCompactionStrategy.Action.NOOP) {
         return;
       }
       if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN ||
-          nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
+          nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUE_KEYS) {
         // some Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion(), nextStep);
         return;
@@ -205,7 +205,7 @@ public class MemStoreCompactor {
         iterator.close();
         break;
     case MERGE:
-    case MERGE_COUNT_UNIQUES:
+    case MERGE_COUNT_UNIQUE_KEYS:
         iterator =
             new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
             compactingMemStore.getComparator(), compactionKVMax);
@@ -234,11 +234,11 @@ public class MemStoreCompactor {
     assert (compType !=MemoryCompactionPolicy.NONE);
 
     switch (compType){
-    case BASIC: strategy = new BasicCompactionStrategy(configuration, cfName);
+    case BASIC: strategy = new BasicMemStoreCompactionStrategy(configuration, cfName);
       break;
-    case EAGER: strategy = new EagerCompactionStrategy(configuration, cfName);
+    case EAGER: strategy = new EagerMemStoreCompactionStrategy(configuration, cfName);
       break;
-    case ADAPTIVE: strategy = new AdaptiveCompactionStrategy(configuration, cfName);
+    case ADAPTIVE: strategy = new AdaptiveMemStoreCompactionStrategy(configuration, cfName);
       break;
     default:
       throw new RuntimeException("Unknown memory compaction type " + compType); // sanity check

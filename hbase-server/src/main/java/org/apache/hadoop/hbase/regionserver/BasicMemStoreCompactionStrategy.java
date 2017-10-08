@@ -20,15 +20,22 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
 
-public class EagerCompactionStrategy extends MemStoreCompactionStrategy{
+/**
+ * Basic strategy chooses between two actions: flattening a segment or merging indices of all
+ * segments in the pipeline.
+ * If number of segments in pipeline exceed the limit defined in MemStoreCompactionStrategy then
+ * apply merge, otherwise flatten some segment.
+ */
+public class BasicMemStoreCompactionStrategy extends MemStoreCompactionStrategy{
 
-  private static final String name = "EAGER";
-  public EagerCompactionStrategy(Configuration conf, String cfName) {
+  private static final String name = "BASIC";
+
+  public BasicMemStoreCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
   }
 
   @Override
   public Action getAction(VersionedSegmentsList versionedList) {
-    return compact(versionedList, name);
+    return simpleMergeOrFlatten(versionedList, name);
   }
 }

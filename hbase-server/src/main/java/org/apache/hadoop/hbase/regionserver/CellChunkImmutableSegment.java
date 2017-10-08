@@ -126,7 +126,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
       // second parameter true, because in compaction/merge the addition of the cell to new segment
       // is always successful
       updateMetaInfo(c, true, null); // updates the size per cell
-      if(action == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES) {
+      if(action == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUE_KEYS) {
         //counting number of unique keys
         if (prev != null) {
           if (!CellUtil.matchingRowColumnBytes(prev, c)) {
@@ -140,7 +140,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     }
     if(action == MemStoreCompactionStrategy.Action.COMPACT) {
       numUniqueKeys = numOfCells;
-    } else if(action != MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUES) {
+    } else if(action != MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUE_KEYS) {
       numUniqueKeys = CellSet.UNKNOWN_NUM_UNIQUES;
     }
     // build the immutable CellSet
@@ -184,7 +184,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
         offsetInCurentChunk =
             createCellReference((ByteBufferKeyValue) curCell, chunks[currentChunkIdx].getData(),
                 offsetInCurentChunk);
-        if(action == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
+        if(action == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUE_KEYS) {
           //counting number of unique keys
           if (prev != null) {
             if (!CellUtil.matchingRowColumn(prev, curCell)) {
@@ -196,7 +196,7 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
         }
         prev = curCell;
       }
-      if(action != MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUES) {
+      if(action != MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUE_KEYS) {
         numUniqueKeys = CellSet.UNKNOWN_NUM_UNIQUES;
       }
     } catch (IOException ie) {

@@ -20,16 +20,15 @@ package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
 
-public class BasicCompactionStrategy extends MemStoreCompactionStrategy{
+public class EagerMemStoreCompactionStrategy extends MemStoreCompactionStrategy{
 
-  private static final String name = "BASIC";
-
-  public BasicCompactionStrategy(Configuration conf, String cfName) {
+  private static final String name = "EAGER";
+  public EagerMemStoreCompactionStrategy(Configuration conf, String cfName) {
     super(conf, cfName);
   }
 
   @Override
   public Action getAction(VersionedSegmentsList versionedList) {
-    return simpleMergeOrFlatten(versionedList, name);
+    return compact(versionedList, name);
   }
 }

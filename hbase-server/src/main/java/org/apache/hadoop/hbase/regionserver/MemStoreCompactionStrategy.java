@@ -22,6 +22,18 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 
+/**
+ * MemStoreCompactionStrategy is the root of a class hierarchy which defines the strategy for
+ * choosing the next action to apply in an (in-memory) memstore compaction.
+ * Possible action are:
+ *  - No-op - do nothing
+ *  - Flatten - to change the segment's index from CSLM to a flat representation
+ *  - Merge - to merge the indices of the segments in the pipeline
+ *  - Compact - to merge the indices while removing data redundancies
+ *
+ * In addition while applying flat/merge actions it is possible to count the number of unique
+ * keys in the result segment.
+ */
 public abstract class MemStoreCompactionStrategy {
 
   protected static final Log LOG = LogFactory.getLog(MemStoreCompactionStrategy.class);
@@ -38,9 +50,9 @@ public abstract class MemStoreCompactionStrategy {
   public enum Action {
     NOOP,
     FLATTEN,  // flatten a segment in the pipeline
-    FLATTEN_COUNT_UNIQUES,  // flatten a segment in the pipeline and count its unique keys
+    FLATTEN_COUNT_UNIQUE_KEYS,  // flatten a segment in the pipeline and count its unique keys
     MERGE,    // merge all the segments in the pipeline into one
-    MERGE_COUNT_UNIQUES,    // merge all pipeline segments into one and count its unique keys
+    MERGE_COUNT_UNIQUE_KEYS,    // merge all pipeline segments into one and count its unique keys
     COMPACT   // compact the data of all pipeline segments
   }
 
