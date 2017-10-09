@@ -53,7 +53,7 @@ public class AdaptiveMemStoreCompactionStrategy extends MemStoreCompactionStrate
   private double initialCompactionProbability;
   private double compactionProbability;
   private Random rand = new Random();
-  private int numCellsInVersionedList = 0;
+  private double numCellsInVersionedList = 0;
   private boolean compacted = false;
 
   public AdaptiveMemStoreCompactionStrategy(Configuration conf, String cfName) {

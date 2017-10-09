@@ -126,10 +126,6 @@ public class CompactionPipeline {
       }
       suffix = versionedList.getStoreSegments();
       if (LOG.isDebugEnabled()) {
-        int count = 0;
-        if(segment != null) {
-          count = segment.getCellsCount();
-        }
         LOG.debug("Swapping pipeline suffix. "
             + "Just before the swap the number of segments in pipeline is:"
             + versionedList.getStoreSegments().size()
