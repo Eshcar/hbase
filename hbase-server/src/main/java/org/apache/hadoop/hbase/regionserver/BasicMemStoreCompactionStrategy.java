@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * Basic strategy chooses between two actions: flattening a segment or merging indices of all
@@ -26,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
  * If number of segments in pipeline exceed the limit defined in MemStoreCompactionStrategy then
  * apply merge, otherwise flatten some segment.
  */
+@InterfaceAudience.Private
 public class BasicMemStoreCompactionStrategy extends MemStoreCompactionStrategy{
 
   private static final String name = "BASIC";

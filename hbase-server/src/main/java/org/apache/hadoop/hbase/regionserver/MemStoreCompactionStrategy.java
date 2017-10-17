@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.regionserver;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * MemStoreCompactionStrategy is the root of a class hierarchy which defines the strategy for
@@ -34,6 +35,7 @@ import org.apache.hadoop.conf.Configuration;
  * In addition while applying flat/merge actions it is possible to count the number of unique
  * keys in the result segment.
  */
+@InterfaceAudience.Private
 public abstract class MemStoreCompactionStrategy {
 
   protected static final Log LOG = LogFactory.getLog(MemStoreCompactionStrategy.class);

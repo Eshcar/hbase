@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.yetus.audience.InterfaceAudience;
 
 import java.util.Random;
 
@@ -38,6 +39,7 @@ import java.util.Random;
  * Adaptive triggers redundancy elimination with probability compactionProbability if the
  * fraction of redundant keys 1-u exceeds a parameter threshold compactionThreshold.
  */
+@InterfaceAudience.Private
 public class AdaptiveMemStoreCompactionStrategy extends MemStoreCompactionStrategy{
 
   private static final String name = "ADAPTIVE";
