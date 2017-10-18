@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.exceptions.IllegalArgumentIOException;
 import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,7 +120,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  protected MemStoreCompactor createMemStoreCompactor(MemoryCompactionPolicy compactionPolicy) {
+  protected MemStoreCompactor createMemStoreCompactor(MemoryCompactionPolicy compactionPolicy)
+      throws IllegalArgumentIOException {
     return new MemStoreCompactor(this, compactionPolicy);
   }
 
@@ -559,7 +561,8 @@ public class CompactingMemStore extends AbstractMemStore {
   }
 
   @VisibleForTesting
-  void initiateType(MemoryCompactionPolicy compactionType, Configuration conf) {
+  void initiateType(MemoryCompactionPolicy compactionType, Configuration conf)
+      throws IllegalArgumentIOException {
     compactor.initiateCompactionStrategy(compactionType, conf);
   }
 

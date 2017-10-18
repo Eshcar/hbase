@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import org.apache.hadoop.hbase.exceptions.IllegalArgumentIOException;
 import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -69,7 +70,7 @@ public class MemStoreCompactor {
   private MemStoreCompactionStrategy strategy;
 
   public MemStoreCompactor(CompactingMemStore compactingMemStore,
-      MemoryCompactionPolicy compactionPolicy) {
+      MemoryCompactionPolicy compactionPolicy) throws IllegalArgumentIOException {
     this.compactingMemStore = compactingMemStore;
     this.compactionKVMax = compactingMemStore.getConfiguration()
         .getInt(HConstants.COMPACTION_KV_MAX, HConstants.COMPACTION_KV_MAX_DEFAULT);
@@ -224,12 +225,13 @@ public class MemStoreCompactor {
   }
 
   @VisibleForTesting
-  void initiateCompactionStrategy(MemoryCompactionPolicy compType, Configuration conf) {
-    initiateCompactionStrategy(compType, conf, "test");
+  void initiateCompactionStrategy(MemoryCompactionPolicy compType, Configuration conf)
+      throws IllegalArgumentIOException {
+    initiateCompactionStrategy(compType, conf, "NO_CF_NAME");
   }
 
   private void initiateCompactionStrategy(MemoryCompactionPolicy compType,
-      Configuration configuration, String cfName) {
+      Configuration configuration, String cfName) throws IllegalArgumentIOException {
 
     assert (compType !=MemoryCompactionPolicy.NONE);
 
@@ -241,7 +243,7 @@ public class MemStoreCompactor {
     case ADAPTIVE: strategy = new AdaptiveMemStoreCompactionStrategy(configuration, cfName);
       break;
     default:
-      throw new RuntimeException("Unknown memory compaction type " + compType); // sanity check
+      throw new IllegalArgumentIOException("Unknown memory compaction type " + compType); // sanity check
     }
   }
 }
