@@ -79,6 +79,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
+import org.apache.hadoop.hbase.exceptions.IllegalArgumentIOException;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.io.compress.Compression;
@@ -1669,7 +1670,8 @@ public class TestHStore {
   private static class MyMemStoreCompactor extends MemStoreCompactor {
     private static final AtomicInteger RUNNER_COUNT = new AtomicInteger(0);
     private static final CountDownLatch START_COMPACTOR_LATCH = new CountDownLatch(1);
-    public MyMemStoreCompactor(CompactingMemStore compactingMemStore, MemoryCompactionPolicy compactionPolicy) {
+    public MyMemStoreCompactor(CompactingMemStore compactingMemStore, MemoryCompactionPolicy compactionPolicy)
+        throws IllegalArgumentIOException {
       super(compactingMemStore, compactionPolicy);
     }
 
@@ -1697,7 +1699,8 @@ public class TestHStore {
     }
 
     @Override
-    protected MemStoreCompactor createMemStoreCompactor(MemoryCompactionPolicy compactionPolicy) {
+    protected MemStoreCompactor createMemStoreCompactor(MemoryCompactionPolicy compactionPolicy)
+        throws IllegalArgumentIOException {
       return new MyMemStoreCompactor(this, compactionPolicy);
     }
 
