@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.yetus.audience.InterfaceAudience;
 
 /**
@@ -64,7 +65,8 @@ public class VersionedSegmentsList {
   }
 
   // Estimates fraction of unique keys
-  public double getEstimatedUniquesFrac() {
+  @VisibleForTesting
+  double getEstimatedUniquesFrac() {
     int segmentCells = 0;
     int maxCells = 0;
     double est = 0;
