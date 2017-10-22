@@ -73,7 +73,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private HStore store;
   private RegionServicesForStores regionServices;
   private CompactionPipeline pipeline;
-  private MemStoreCompactor compactor;
+  protected MemStoreCompactor compactor;
 
   private long inmemoryFlushSize;       // the threshold on active size for in-memory flush
   private final AtomicBoolean inMemoryFlushInProgress = new AtomicBoolean(false);
@@ -82,7 +82,7 @@ public class CompactingMemStore extends AbstractMemStore {
   private boolean inWalReplay = false;
 
   @VisibleForTesting
-  private final AtomicBoolean allowCompaction = new AtomicBoolean(true);
+  protected final AtomicBoolean allowCompaction = new AtomicBoolean(true);
   private boolean compositeSnapshot = true;
 
   /**
@@ -542,28 +542,9 @@ public class CompactingMemStore extends AbstractMemStore {
     }
   }
 
-  //----------------------------------------------------------------------
-  //methods for tests
-  //----------------------------------------------------------------------
   @VisibleForTesting
   boolean isMemStoreFlushingInMemory() {
     return inMemoryFlushInProgress.get();
-  }
-
-  @VisibleForTesting
-  void disableCompaction() {
-    allowCompaction.set(false);
-  }
-
-  @VisibleForTesting
-  void enableCompaction() {
-    allowCompaction.set(true);
-  }
-
-  @VisibleForTesting
-  void initiateType(MemoryCompactionPolicy compactionType, Configuration conf)
-      throws IllegalArgumentIOException {
-    compactor.initiateCompactionStrategy(compactionType, conf);
   }
 
   /**

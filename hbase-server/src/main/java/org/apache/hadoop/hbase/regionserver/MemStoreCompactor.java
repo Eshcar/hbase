@@ -225,12 +225,7 @@ public class MemStoreCompactor {
   }
 
   @VisibleForTesting
-  void initiateCompactionStrategy(MemoryCompactionPolicy compType, Configuration conf)
-      throws IllegalArgumentIOException {
-    initiateCompactionStrategy(compType, conf, "NO_CF_NAME");
-  }
-
-  private void initiateCompactionStrategy(MemoryCompactionPolicy compType,
+  void initiateCompactionStrategy(MemoryCompactionPolicy compType,
       Configuration configuration, String cfName) throws IllegalArgumentIOException {
 
     assert (compType !=MemoryCompactionPolicy.NONE);

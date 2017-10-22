@@ -26,8 +26,23 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.CellComparatorImpl;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.KeepDeletedCells;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.KeyValueTestUtil;
+import org.apache.hadoop.hbase.MemoryCompactionPolicy;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.exceptions.IllegalArgumentIOException;
 import org.apache.hadoop.hbase.io.util.MemorySizeUtil;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
@@ -73,7 +88,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
   @Before
   public void setUp() throws Exception {
     compactingSetUp();
-    this.memstore = new CompactingMemStore(HBaseConfiguration.create(), CellComparatorImpl.COMPARATOR,
+    this.memstore = new MyCompactingMemStore(HBaseConfiguration.create(), CellComparatorImpl
+        .COMPARATOR,
         store, regionServicesForStores, MemoryCompactionPolicy.EAGER);
   }
 
@@ -482,7 +498,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
+    ((MyCompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
 
     byte[] row = Bytes.toBytes("testrow");
     byte[] fam = Bytes.toBytes("testfamily");
@@ -497,7 +513,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.add(new KeyValue(row, fam, qf3, 1, val), null);
 
     // Creating a pipeline
-    ((CompactingMemStore)memstore).disableCompaction();
+    ((MyCompactingMemStore)memstore).disableCompaction();
     ((CompactingMemStore)memstore).flushInMemory();
 
     // Adding value to "new" memstore
@@ -512,7 +528,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     List<KeyValueScanner> scanners = memstore.getScanners(0);
     // Shouldn't putting back the chunks to pool,since some scanners are opening
     // based on their data
-    ((CompactingMemStore)memstore).enableCompaction();
+    ((MyCompactingMemStore)memstore).enableCompaction();
     // trigger compaction
     ((CompactingMemStore)memstore).flushInMemory();
 
@@ -574,7 +590,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
     memstore.getConfiguration()
         .set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY, String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
+    ((MyCompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
 
     String[] keys1 = { "A", "A", "B", "C" }; //A1, A2, B3, C4
 
@@ -615,7 +631,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
         String.valueOf(compactionType));
     memstore.getConfiguration().set(MemStoreCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY,
         String.valueOf(1));
-    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
+    ((MyCompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
 
@@ -671,7 +687,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.EAGER;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
         String.valueOf(compactionType));
-    ((CompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
+    ((MyCompactingMemStore)memstore).initiateType(compactionType, memstore.getConfiguration());
     String[] keys1 = { "A", "A", "B", "C" };
     String[] keys2 = { "A", "B", "D" };
     String[] keys3 = { "D", "B", "B" };
@@ -700,7 +716,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     assertEquals(totalCellsLen1 + totalCellsLen2, regionServicesForStores.getMemStoreSize());
     assertEquals(totalHeapSize2, ((CompactingMemStore) memstore).heapSize());
 
-    ((CompactingMemStore) memstore).disableCompaction();
+    ((MyCompactingMemStore) memstore).disableCompaction();
     MemStoreSize size = memstore.getFlushableSize();
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline without compaction
     assertEquals(0, memstore.getSnapshot().getCellsCount());
@@ -716,7 +732,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
         + 3 * oneCellOnCSLMHeapSize;
     assertEquals(totalHeapSize3, ((CompactingMemStore) memstore).heapSize());
 
-    ((CompactingMemStore)memstore).enableCompaction();
+    ((MyCompactingMemStore)memstore).enableCompaction();
     size = memstore.getFlushableSize();
     ((CompactingMemStore)memstore).flushInMemory(); // push keys to pipeline and compact
     assertEquals(0, memstore.getSnapshot().getCellsCount());
@@ -751,7 +767,7 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
     memstore.getConfiguration().setInt(AdaptiveMemStoreCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY,
         2);
     memstore.getConfiguration().setInt(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 1);
-    ((CompactingMemStore) memstore).initiateType(compactionType, memstore.getConfiguration());
+    ((MyCompactingMemStore) memstore).initiateType(compactionType, memstore.getConfiguration());
 
     String[] keys1 = { "A", "B", "D" };
     String[] keys2 = { "A" };
@@ -834,4 +850,25 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
       }
     }
 
+  static protected class MyCompactingMemStore extends CompactingMemStore {
+
+    public MyCompactingMemStore(Configuration conf, CellComparator c, HStore store,
+        RegionServicesForStores regionServices, MemoryCompactionPolicy compactionPolicy)
+        throws IOException {
+      super(conf, c, store, regionServices, compactionPolicy);
+    }
+
+    void disableCompaction() {
+      allowCompaction.set(false);
+    }
+
+    void enableCompaction() {
+      allowCompaction.set(true);
+    }
+    void initiateType(MemoryCompactionPolicy compactionType, Configuration conf)
+        throws IllegalArgumentIOException {
+      compactor.initiateCompactionStrategy(compactionType, conf, "CF_TEST");
+    }
+
+  }
 }
