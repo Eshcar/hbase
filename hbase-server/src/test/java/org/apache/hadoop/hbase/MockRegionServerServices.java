@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.client.ClusterConnection;
 import org.apache.hadoop.hbase.executor.ExecutorService;
 import org.apache.hadoop.hbase.fs.HFileSystem;
+import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.ipc.RpcServerInterface;
 import org.apache.hadoop.hbase.master.TableLockManager;
 import org.apache.hadoop.hbase.master.TableLockManager.NullTableLockManager;
@@ -276,6 +277,10 @@ public class MockRegionServerServices implements RegionServerServices {
   @Override
   public ServerNonceManager getNonceManager() {
     // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override public CacheConfig getCacheConfig() {
     return null;
   }
 

@@ -142,6 +142,7 @@ import org.apache.hadoop.hbase.io.HeapSize;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
+import org.apache.hadoop.hbase.io.hfile.CacheStats;
 import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.ipc.CallerDisconnectedException;
 import org.apache.hadoop.hbase.ipc.CoprocessorRpcUtils;
@@ -7218,6 +7219,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     return scan;
   }
 
+  static AtomicInteger l1Changes = new AtomicInteger();
+  static AtomicInteger l2Changes = new AtomicInteger();
+  static AtomicInteger blockCacheChanges = new AtomicInteger();
   @Override
   public List<Cell> get(Get get, boolean withCoprocessor, long nonceGroup, long nonce)
       throws IOException {
@@ -7242,8 +7246,30 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     RegionScanner scanner = null;
     try {
+      CacheConfig cacheConfig = getRegionServerServices().getCacheConfig();
+      CacheStats l1Stats = cacheConfig.getL1Stats();
+      CacheStats l2Stats = cacheConfig.getL2Stats();
+      CacheStats blockCacheStats =cacheConfig.getBlockCache().getStats();
       scanner = getScanner(scan, null, nonceGroup, nonce);
       scanner.next(results);
+      if(cacheConfig.l1StatsChanged(l1Stats)) {
+        l1Changes.incrementAndGet();
+      }
+      if(cacheConfig.l2StatsChanged(l2Stats)) {
+        l2Changes.incrementAndGet();
+      }
+      if(cacheConfig.cacheStatsChanged(blockCacheStats)) {
+        blockCacheChanges.incrementAndGet();
+      }
+      if( (l1Changes.get() > 0 && ((l1Changes.get() % 50000) == 0))
+          || (l2Changes.get() > 0 && ((l2Changes.get() % 50000) == 0))
+          || (blockCacheChanges.get() > 0 && ((blockCacheChanges.get() % 50000) == 0))
+          ) {
+        LOG.info("ESHCAR l1Changes="+l1Changes.get()+ ", "
+            + "l2Changes="+l2Changes.get()+ ", "
+            + "blockCacheChanges="+blockCacheChanges.get()+ ", "
+        );
+      }
     } finally {
       if (scanner != null) {
         scanner.close();

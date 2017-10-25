@@ -32,6 +32,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.executor.ExecutorService;
+import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.ipc.RpcServerInterface;
 import org.apache.hadoop.hbase.master.TableLockManager;
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.RegionStateTransition.TransitionCode;
@@ -79,6 +80,8 @@ public interface RegionServerServices extends OnlineRegions, FavoredNodesForRegi
    * @return RegionServer's instance of {@link RegionServerQuotaManager}
    */
   RegionServerQuotaManager getRegionServerQuotaManager();
+
+  CacheConfig getCacheConfig();
 
   /**
    * Context for postOpenDeployTasks().

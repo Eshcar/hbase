@@ -141,6 +141,28 @@ public class CacheConfig {
   private static final String DROP_BEHIND_CACHE_COMPACTION_KEY="hbase.hfile.drop.behind.compaction";
   private static final boolean DROP_BEHIND_CACHE_COMPACTION_DEFAULT = true;
 
+  public boolean l1StatsChanged(CacheStats l1Stats) {
+    CacheStats l1currStats = getL1Stats();
+    return hasStatsChanged(l1Stats, l1currStats);
+  }
+
+  public boolean l2StatsChanged(CacheStats l2Stats) {
+    CacheStats l2currStats = getL2Stats();
+    return hasStatsChanged(l2Stats, l2currStats);
+  }
+
+  public boolean cacheStatsChanged(CacheStats cacheStats) {
+    CacheStats cachecurrStats = getBlockCache().getStats();
+    return hasStatsChanged(cacheStats, cachecurrStats);
+  }
+
+  private boolean hasStatsChanged(CacheStats l1Stats, CacheStats l1currStats) {
+    return (l1Stats.getDataMissCount() != l1currStats.getDataMissCount())
+        || (l1Stats.getBloomChunkMissCount() != l1currStats.getBloomChunkMissCount())
+        || (l1Stats.getMissCount() != l1currStats.getMissCount())
+        ;
+  }
+
   /**
    * Enum of all built in external block caches.
    * This is used for config.

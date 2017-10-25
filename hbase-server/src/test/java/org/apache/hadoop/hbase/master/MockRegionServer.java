@@ -47,6 +47,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.executor.ExecutorService;
+import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.ipc.HBaseRpcController;
 import org.apache.hadoop.hbase.ipc.RpcServerInterface;
 import org.apache.hadoop.hbase.master.TableLockManager.NullTableLockManager;
@@ -638,6 +639,10 @@ ClientProtos.ClientService.BlockingInterface, RegionServerServices {
   public CoprocessorServiceResponse execRegionServerService(RpcController controller,
       CoprocessorServiceRequest request) throws ServiceException {
     // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override public CacheConfig getCacheConfig() {
     return null;
   }
 
