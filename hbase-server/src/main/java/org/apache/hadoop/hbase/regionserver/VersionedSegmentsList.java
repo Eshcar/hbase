@@ -72,7 +72,7 @@ public class VersionedSegmentsList {
     double est = 0;
 
     for (ImmutableSegment s : storeSegments) {
-      double segmentUniques = s.getNumUniques();
+      double segmentUniques = s.getNumUniqueKeys();
       if(segmentUniques != CellSet.UNKNOWN_NUM_UNIQUES) {
         segmentCells = s.getCellsCount();
         if(segmentCells > maxCells) {

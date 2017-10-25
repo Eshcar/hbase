@@ -40,7 +40,7 @@ public abstract class ImmutableSegment extends Segment {
   // each sub-type of immutable segment knows whether it is flat or not
   protected abstract boolean canBeFlattened();
 
-  private int getNumUniqueKeys() {
+  public int getNumUniqueKeys() {
     return getCellSet().getNumUniqueKeys();
   }
 
@@ -77,10 +77,6 @@ public abstract class ImmutableSegment extends Segment {
   public List<Segment> getAllSegments() {
     List<Segment> res = new ArrayList<>(Arrays.asList(this));
     return res;
-  }
-
-  public int getNumUniques() {
-    return getCellSet().getNumUniqueKeys();
   }
 
   @Override

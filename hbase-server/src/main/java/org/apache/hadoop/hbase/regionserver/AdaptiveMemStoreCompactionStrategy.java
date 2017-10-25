@@ -44,10 +44,10 @@ public class AdaptiveMemStoreCompactionStrategy extends MemStoreCompactionStrate
 
   private static final String name = "ADAPTIVE";
   public static final String ADAPTIVE_COMPACTION_THRESHOLD_KEY =
-      "hbase.hregion.adaptive.compaction.threshold";
+      "hbase.hregion.compacting.memstore.adaptive.compaction.threshold";
   private static final double ADAPTIVE_COMPACTION_THRESHOLD_DEFAULT = 0.5;
   public static final String ADAPTIVE_INITIAL_COMPACTION_PROBABILITY_KEY =
-      "hbase.hregion.adaptive.compaction.probability";
+      "hbase.hregion.compacting.memstore.adaptive.compaction.probability";
   private static final double ADAPTIVE_INITIAL_COMPACTION_PROBABILITY_DEFAULT = 0.5;
   private static final double ADAPTIVE_PROBABILITY_FACTOR = 1.02;
 
