@@ -156,10 +156,14 @@ public class CacheConfig {
     return hasStatsChanged(cacheStats, cachecurrStats);
   }
 
-  private boolean hasStatsChanged(CacheStats l1Stats, CacheStats l1currStats) {
-    return (l1Stats.getDataMissCount() != l1currStats.getDataMissCount())
-        || (l1Stats.getBloomChunkMissCount() != l1currStats.getBloomChunkMissCount())
-        || (l1Stats.getMissCount() != l1currStats.getMissCount())
+  private boolean hasStatsChanged(CacheStats stats, CacheStats currStats) {
+    if(stats == null || currStats == null) {
+      return (currStats != stats);
+    }
+
+    return (stats.getDataMissCount() != currStats.getDataMissCount())
+        || (stats.getBloomChunkMissCount() != currStats.getBloomChunkMissCount())
+        || (stats.getMissCount() != currStats.getMissCount())
         ;
   }
 
