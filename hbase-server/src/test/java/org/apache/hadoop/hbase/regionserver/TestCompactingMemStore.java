@@ -764,8 +764,8 @@ public class TestCompactingMemStore extends TestDefaultMemStore {
         String.valueOf(compactionType));
     memstore.getConfiguration().setDouble(
         AdaptiveMemStoreCompactionStrategy.ADAPTIVE_COMPACTION_THRESHOLD_KEY, 0.45);
-    memstore.getConfiguration().setInt(AdaptiveMemStoreCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY,
-        2);
+    memstore.getConfiguration().setInt(
+        AdaptiveMemStoreCompactionStrategy.COMPACTING_MEMSTORE_THRESHOLD_KEY, 2);
     memstore.getConfiguration().setInt(CompactingMemStore.IN_MEMORY_FLUSH_THRESHOLD_FACTOR_KEY, 1);
     ((MyCompactingMemStore) memstore).initiateType(compactionType, memstore.getConfiguration());
 

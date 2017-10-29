@@ -609,7 +609,9 @@ public class TestCompactingToCellFlatMapMemStore extends TestCompactingMemStore 
 
   @Test
   public void testFlatteningToCellChunkMap() throws IOException {
-    if(!toCellChunkMap) return;
+    if(!toCellChunkMap) {
+      return;
+    }
     // set memstore to flat into CellChunkMap
     MemoryCompactionPolicy compactionType = MemoryCompactionPolicy.BASIC;
     memstore.getConfiguration().set(CompactingMemStore.COMPACTING_MEMSTORE_TYPE_KEY,
