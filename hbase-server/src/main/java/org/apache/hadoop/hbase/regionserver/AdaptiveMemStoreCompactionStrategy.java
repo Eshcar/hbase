@@ -18,10 +18,10 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import java.util.Random;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import java.util.Random;
 
 /**
  * Adaptive is a heuristic that chooses whether to apply data compaction or not based on the

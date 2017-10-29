@@ -100,15 +100,15 @@ public final class SegmentFactory {
       MemStoreSizing memstoreSizing, MemStoreCompactionStrategy.Action action) {
     ImmutableSegment res = null;
     switch (idxType) {
-    case CHUNK_MAP:
-      res = new CellChunkImmutableSegment(segment, memstoreSizing, action);
-      break;
-    case CSLM_MAP:
-      assert false; // non-flat segment can not be the result of flattening
-      break;
-    case ARRAY_MAP:
-      res = new CellArrayImmutableSegment(segment, memstoreSizing, action);
-      break;
+      case CHUNK_MAP:
+        res = new CellChunkImmutableSegment(segment, memstoreSizing, action);
+        break;
+      case CSLM_MAP:
+        assert false; // non-flat segment can not be the result of flattening
+        break;
+      case ARRAY_MAP:
+        res = new CellArrayImmutableSegment(segment, memstoreSizing, action);
+        break;
     }
     return res;
   }

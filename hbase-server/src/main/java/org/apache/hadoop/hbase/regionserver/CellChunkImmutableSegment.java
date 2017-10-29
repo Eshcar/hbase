@@ -206,7 +206,8 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     }
 
     CellChunkMap ccm = new CellChunkMap(getComparator(), chunks, 0, numOfCells, false);
-    this.setCellSet(oldCellSet, new CellSet(ccm, numUniqueKeys)); // update the CellSet of this Segment
+    // update the CellSet of this Segment
+    this.setCellSet(oldCellSet, new CellSet(ccm, numUniqueKeys));
   }
 
   /*------------------------------------------------------------------------*/

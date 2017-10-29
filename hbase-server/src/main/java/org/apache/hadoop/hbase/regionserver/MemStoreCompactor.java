@@ -205,8 +205,8 @@ public class MemStoreCompactor {
           versionedList.getNumOfCells(), compactingMemStore.getIndexType(), action);
         iterator.close();
         break;
-    case MERGE:
-    case MERGE_COUNT_UNIQUE_KEYS:
+      case MERGE:
+      case MERGE_COUNT_UNIQUE_KEYS:
         iterator =
             new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
             compactingMemStore.getComparator(), compactionKVMax);
@@ -231,14 +231,15 @@ public class MemStoreCompactor {
     assert (compType !=MemoryCompactionPolicy.NONE);
 
     switch (compType){
-    case BASIC: strategy = new BasicMemStoreCompactionStrategy(configuration, cfName);
-      break;
-    case EAGER: strategy = new EagerMemStoreCompactionStrategy(configuration, cfName);
-      break;
-    case ADAPTIVE: strategy = new AdaptiveMemStoreCompactionStrategy(configuration, cfName);
-      break;
-    default:
-      throw new IllegalArgumentIOException("Unknown memory compaction type " + compType); // sanity check
+      case BASIC: strategy = new BasicMemStoreCompactionStrategy(configuration, cfName);
+        break;
+      case EAGER: strategy = new EagerMemStoreCompactionStrategy(configuration, cfName);
+        break;
+      case ADAPTIVE: strategy = new AdaptiveMemStoreCompactionStrategy(configuration, cfName);
+        break;
+      default:
+        // sanity check
+        throw new IllegalArgumentIOException("Unknown memory compaction type " + compType);
     }
   }
 }

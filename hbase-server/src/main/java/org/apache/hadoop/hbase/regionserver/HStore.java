@@ -278,12 +278,12 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     }
     String className;
     switch (inMemoryCompaction) {
-    case NONE:
-      className = DefaultMemStore.class.getName();
-      this.memstore = ReflectionUtils.newInstance(DefaultMemStore.class,
-        new Object[] { conf, this.comparator });
-      break;
-    default:
+      case NONE:
+        className = DefaultMemStore.class.getName();
+        this.memstore = ReflectionUtils.newInstance(DefaultMemStore.class,
+            new Object[] { conf, this.comparator });
+        break;
+      default:
         Class<? extends CompactingMemStore> clz = conf.getClass(MEMSTORE_CLASS_NAME,
           CompactingMemStore.class, CompactingMemStore.class);
         className = clz.getName();
