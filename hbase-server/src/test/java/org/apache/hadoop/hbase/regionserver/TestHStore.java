@@ -942,8 +942,7 @@ public class TestHStore {
     for (int i = 0; i <= index; i++) {
       sf = it.next();
     }
-    store.getRegionFileSystem().removeStoreFiles(store.getColumnFamilyName(), Lists.newArrayList
-        (sf));
+    store.getRegionFileSystem().removeStoreFiles(store.getColumnFamilyName(), Lists.newArrayList(sf));
   }
 
   private void closeCompactedFile(int index) throws IOException {
@@ -1836,7 +1835,6 @@ public class TestHStore {
     public ListIterator<T> listIterator(int index) {return delegatee.listIterator(index);}
 
     @Override
-    public List<T> subList(int fromIndex, int toIndex) {return delegatee.subList(fromIndex,
-        toIndex);}
+    public List<T> subList(int fromIndex, int toIndex) {return delegatee.subList(fromIndex, toIndex);}
   }
 }
