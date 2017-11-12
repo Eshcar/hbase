@@ -89,14 +89,6 @@ public class CompositeImmutableSegment extends ImmutableSegment {
   }
 
   /**
-   * @return the first cell in the segment that has equal or greater key than the given cell
-   */
-  @Override
-  public Cell getFirstAfter(Cell cell) {
-    throw new IllegalStateException("Not supported by CompositeImmutableScanner");
-  }
-
-  /**
    * Closing a segment before it is being discarded
    */
   @Override
@@ -208,7 +200,7 @@ public class CompositeImmutableSegment extends ImmutableSegment {
    * Updates the heap size counter of the segment by the given delta
    */
   @Override
-  protected void incSize(long delta, long heapOverhead) {
+  protected void incSize(long delta, long heapOverhead, long offHeapOverhead) {
     throw new IllegalStateException("Not supported by CompositeImmutableScanner");
   }
 

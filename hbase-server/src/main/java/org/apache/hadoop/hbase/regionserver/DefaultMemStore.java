@@ -104,9 +104,9 @@ public class DefaultMemStore extends AbstractMemStore {
    */
   @Override
   public MemStoreSize getFlushableSize() {
-    MemStoreSize snapshotSize = getSnapshotSize();
+    MemStoreSize snapshotSize = getSnapshotSizing();
     return snapshotSize.getDataSize() > 0 ? snapshotSize
-        : new MemStoreSize(keySize(), heapSize());
+        : new MemStoreSize(active.getMemStoreSizing());
   }
 
   @Override
@@ -155,7 +155,7 @@ public class DefaultMemStore extends AbstractMemStore {
 
   @Override
   public MemStoreSize size() {
-    return new MemStoreSize(this.active.keySize(), this.active.heapSize());
+    return new MemStoreSize(active.getMemStoreSizing());
   }
 
   /**

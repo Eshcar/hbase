@@ -242,7 +242,7 @@ public class MapReduceCell extends ByteBufferCell implements ExtendedCell {
 
   @Override
   public long heapSize() {
-    return PrivateCellUtil.estimatedHeapSizeOf(cell);
+    return PrivateCellUtil.estimatedSizeOfCell(cell);
   }
 
   @Override

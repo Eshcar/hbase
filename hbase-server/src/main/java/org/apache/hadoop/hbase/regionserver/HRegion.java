@@ -1616,7 +1616,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
       this.closed.set(true);
       if (!canFlush) {
-        this.decrMemStoreSize(new MemStoreSizing(memstoreDataSize.get(), getMemStoreHeapSize()));
+        this.decrMemStoreSize(new MemStoreSize(memstoreDataSize.get(), getMemStoreHeapSize(),
+            getMemStoreOffHeapSize()));
       } else if (memstoreDataSize.get() != 0) {
         LOG.error("Memstore size is " + memstoreDataSize.get());
       }
@@ -1640,6 +1641,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   private long getMemStoreHeapSize() {
     return stores.values().stream().mapToLong(s -> s.getMemStoreSize().getHeapSize()).sum();
+  }
+
+  private long getMemStoreOffHeapSize() {
+    return stores.values().stream().mapToLong(s -> s.getMemStoreSize().getOffHeapSize()).sum();
   }
 
   /** Wait for all current flushes and compactions of the region to complete */
@@ -6481,7 +6486,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             scannerContext.incrementBatchProgress(results.size());
             for (Cell cell : results) {
               scannerContext.incrementSizeProgress(PrivateCellUtil.estimatedSerializedSizeOf(cell),
-                PrivateCellUtil.estimatedHeapSizeOf(cell));
+                PrivateCellUtil.estimatedSizeOfCell(cell));
             }
           }
 

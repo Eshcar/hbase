@@ -32,24 +32,35 @@ public class MemStoreSize {
    * be in on heap or off heap area depending on the MSLAB and its configuration to be using on heap
    * or off heap LABs
    */
-  protected long dataSize;
+  protected volatile long dataSize;
 
   /** 'heapSize' tracks all Cell's heap size occupancy. This will include Cell POJO heap overhead.
    * When Cells in on heap area, this will include the cells data size as well.
    */
-  protected long heapSize;
+  protected volatile long heapSize;
+
+  /** 'offHeapSize' tracks all Cell's off-heap size occupancy.
+   * When Cells are in off-heap area, this will include the cells data size as well.
+   */
+  protected volatile long offHeapSize;
 
   public MemStoreSize() {
-    this(0L, 0L);
+    this(0L, 0L, 0L);
   }
 
-  public MemStoreSize(long dataSize, long heapSize) {
+  public MemStoreSize(long dataSize, long heapSize, long offHeapSize) {
     this.dataSize = dataSize;
     this.heapSize = heapSize;
+    this.offHeapSize = offHeapSize;
   }
 
+  protected MemStoreSize(MemStoreSize memStoreSize) {
+    this.dataSize = memStoreSize.dataSize;
+    this.heapSize = memStoreSize.heapSize;
+    this.offHeapSize = memStoreSize.offHeapSize;
+  }
   public boolean isEmpty() {
-    return this.dataSize == 0 && this.heapSize == 0;
+    return this.dataSize == 0 && this.heapSize == 0 && this.offHeapSize == 0;
   }
 
   public long getDataSize() {
@@ -60,24 +71,33 @@ public class MemStoreSize {
     return this.heapSize;
   }
 
+  public long getOffHeapSize() {
+    return this.offHeapSize;
+  }
+
   @Override
   public boolean equals(Object obj) {
     if (obj == null || getClass() != obj.getClass()) {
       return false;
     }
     MemStoreSize other = (MemStoreSize) obj;
-    return this.dataSize == other.dataSize && this.heapSize == other.heapSize;
+    return this.dataSize == other.dataSize
+        && this.heapSize == other.heapSize
+        && this.offHeapSize == other.offHeapSize;
   }
 
   @Override
   public int hashCode() {
     long h = 13 * this.dataSize;
     h = h + 14 * this.heapSize;
+    h = h + 15 * this.offHeapSize;
     return (int) h;
   }
 
   @Override
   public String toString() {
-    return "dataSize=" + this.dataSize + " , heapSize=" + this.heapSize;
+    return "dataSize=" + this.dataSize
+        + " , heapSize=" + this.heapSize
+        + " , offHeapSize=" + this.offHeapSize;
   }
 }

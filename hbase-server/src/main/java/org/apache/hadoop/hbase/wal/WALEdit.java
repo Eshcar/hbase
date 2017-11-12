@@ -167,7 +167,7 @@ public class WALEdit implements HeapSize {
   public long heapSize() {
     long ret = ClassSize.ARRAYLIST;
     for (Cell cell : cells) {
-      ret += PrivateCellUtil.estimatedHeapSizeOf(cell);
+      ret += PrivateCellUtil.estimatedSizeOfCell(cell);
     }
     return ret;
   }

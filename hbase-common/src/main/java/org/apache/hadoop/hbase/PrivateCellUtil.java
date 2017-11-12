@@ -310,7 +310,7 @@ public class PrivateCellUtil {
 
     @Override
     public long heapSize() {
-      long sum = HEAP_SIZE_OVERHEAD + estimatedHeapSizeOf(cell);
+      long sum = HEAP_SIZE_OVERHEAD + estimatedSizeOfCell(cell);
       if (this.tags != null) {
         sum += ClassSize.sizeOf(this.tags);
       }
@@ -507,7 +507,7 @@ public class PrivateCellUtil {
 
     @Override
     public long heapSize() {
-      long sum = HEAP_SIZE_OVERHEAD + estimatedHeapSizeOf(cell);
+      long sum = HEAP_SIZE_OVERHEAD + estimatedSizeOfCell(cell);
       // this.tags is on heap byte[]
       if (this.tags != null) {
         sum += ClassSize.sizeOf(this.tags);
@@ -2589,10 +2589,11 @@ public class PrivateCellUtil {
    * {@link HeapSize} we call {@link HeapSize#heapSize()} so cell can give a correct value. In other
    * cases we just consider the bytes occupied by the cell components ie. row, CF, qualifier,
    * timestamp, type, value and tags.
+   * Note that this can be the JVM heap space (on-heap) or the OS heap (off-heap)
    * @param cell
    * @return estimate of the heap space
    */
-  public static long estimatedHeapSizeOf(final Cell cell) {
+  public static long estimatedSizeOfCell(final Cell cell) {
     if (cell instanceof HeapSize) {
       return ((HeapSize) cell).heapSize();
     }

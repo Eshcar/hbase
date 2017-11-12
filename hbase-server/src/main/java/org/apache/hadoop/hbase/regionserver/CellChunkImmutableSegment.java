@@ -51,7 +51,17 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
   protected CellChunkImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
       MemStoreLAB memStoreLAB, int numOfCells, MemStoreCompactionStrategy.Action action) {
     super(null, comparator, memStoreLAB); // initialize the CellSet with NULL
-    incSize(0, DEEP_OVERHEAD_CCM); // initiate the heapSize with the size of the segment metadata
+    long indexOverhead = DEEP_OVERHEAD_CCM;
+    boolean onHeap = true;
+    if(memStoreLAB != null) {
+      onHeap = memStoreLAB.isOnHeap();
+    }
+    // initiate the heapSize with the size of the segment metadata
+    if(onHeap) {
+      incSize(0, indexOverhead, 0);
+    } else {
+      incSize(0, 0, indexOverhead);
+    }
     // build the new CellSet based on CellArrayMap and update the CellSet of the new Segment
     initializeCellSet(numOfCells, iterator, action);
   }
@@ -64,7 +74,19 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
   protected CellChunkImmutableSegment(CSLMImmutableSegment segment,
       MemStoreSizing memstoreSizing, MemStoreCompactionStrategy.Action action) {
     super(segment); // initiailize the upper class
-    incSize(0,-CSLMImmutableSegment.DEEP_OVERHEAD_CSLM + CellChunkImmutableSegment.DEEP_OVERHEAD_CCM);
+    long indexOverhead = -CSLMImmutableSegment.DEEP_OVERHEAD_CSLM
+        + CellChunkImmutableSegment.DEEP_OVERHEAD_CCM;
+    boolean onHeap = true;
+    MemStoreLAB memStoreLAB = null;
+    if((memStoreLAB=getMemStoreLAB()) != null) {
+      onHeap = memStoreLAB.isOnHeap();
+    }
+    // initiate the heapSize with the size of the segment metadata
+    if(onHeap) {
+      incSize(0, indexOverhead, 0);
+    } else {
+      incSize(0, 0, indexOverhead);
+    }
     int numOfCells = segment.getCellsCount();
     // build the new CellSet based on CellChunkMap
     reinitializeCellSet(numOfCells, segment.getScanner(Long.MAX_VALUE), segment.getCellSet(),
@@ -73,9 +95,32 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     // add sizes of CellChunkMap entry, decrease also Cell object sizes
     // (reinitializeCellSet doesn't take the care for the sizes)
     long newSegmentSizeDelta = numOfCells*(indexEntrySize()-ClassSize.CONCURRENT_SKIPLISTMAP_ENTRY);
+    if(onHeap) {
+      incSize(0, newSegmentSizeDelta, 0);
+      memstoreSizing.incMemStoreSize(0, newSegmentSizeDelta, 0);
+    } else {
+      incSize(0, 0, newSegmentSizeDelta);
+      memstoreSizing.incMemStoreSize(0, 0, newSegmentSizeDelta);
 
-    incSize(0, newSegmentSizeDelta);
-    memstoreSizing.incMemStoreSize(0, newSegmentSizeDelta);
+    }
+  }
+
+  @Override
+  protected long indexEntryOnHeapSize(boolean onHeap) {
+    if(onHeap) {
+      return indexEntrySize();
+    }
+    // else the index is allocated off-heap
+    return 0;
+  }
+
+  @Override
+  protected long indexEntryOffHeapSize(boolean offHeap) {
+    if(offHeap) {
+      return indexEntrySize();
+    }
+    // else the index is allocated on-heap
+    return 0;
   }
 
   @Override
