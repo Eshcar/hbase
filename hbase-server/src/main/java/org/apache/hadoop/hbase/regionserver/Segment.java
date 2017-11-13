@@ -324,8 +324,8 @@ public abstract class Segment {
     long res = 0;
     if (succ) {
       boolean onHeap = true;
-      MemStoreLAB memStoreLAB = null;
-      if((memStoreLAB=getMemStoreLAB()) != null) {
+      MemStoreLAB memStoreLAB = getMemStoreLAB();
+      if(memStoreLAB != null) {
         onHeap = memStoreLAB.isOnHeap();
       }
       res += indexEntryOnHeapSize(onHeap);
@@ -341,8 +341,8 @@ public abstract class Segment {
     long res = 0;
     if (succ) {
       boolean offHeap = false;
-      MemStoreLAB memStoreLAB = null;
-      if((memStoreLAB=getMemStoreLAB()) != null) {
+      MemStoreLAB memStoreLAB = getMemStoreLAB();
+      if(memStoreLAB != null) {
         offHeap = memStoreLAB.isOnHeap();
       }
       res += indexEntryOffHeapSize(offHeap);

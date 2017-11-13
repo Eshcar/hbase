@@ -262,7 +262,6 @@ public class CompactionPipeline {
   public MemStoreSizing getPipelineSizing() {
     MemStoreSizing memStoreSizing = new MemStoreSizing();
     LinkedList<? extends Segment> localCopy = readOnlyCopy;
-    if (localCopy.isEmpty()) return memStoreSizing;
     for (Segment segment : localCopy) {
       memStoreSizing.incMemStoreSize(segment.getMemStoreSizing());
     }

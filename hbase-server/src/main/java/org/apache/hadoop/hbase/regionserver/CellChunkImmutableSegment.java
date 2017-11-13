@@ -77,8 +77,8 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     long indexOverhead = -CSLMImmutableSegment.DEEP_OVERHEAD_CSLM
         + CellChunkImmutableSegment.DEEP_OVERHEAD_CCM;
     boolean onHeap = true;
-    MemStoreLAB memStoreLAB = null;
-    if((memStoreLAB=getMemStoreLAB()) != null) {
+    MemStoreLAB memStoreLAB = getMemStoreLAB();
+    if(memStoreLAB != null) {
       onHeap = memStoreLAB.isOnHeap();
     }
     // initiate the heapSize with the size of the segment metadata

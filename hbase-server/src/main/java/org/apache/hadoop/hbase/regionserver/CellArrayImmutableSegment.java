@@ -45,8 +45,7 @@ public class CellArrayImmutableSegment extends ImmutableSegment {
   protected CellArrayImmutableSegment(CellComparator comparator, MemStoreSegmentsIterator iterator,
       MemStoreLAB memStoreLAB, int numOfCells, MemStoreCompactionStrategy.Action action) {
     super(null, comparator, memStoreLAB); // initiailize the CellSet with NULL
-    long indexOverhead = DEEP_OVERHEAD_CAM;
-    incSize(0, indexOverhead, 0); // CAM is always on-heap
+    incSize(0, DEEP_OVERHEAD_CAM, 0); // CAM is always on-heap
     // build the new CellSet based on CellArrayMap and update the CellSet of the new Segment
     initializeCellSet(numOfCells, iterator, action);
   }
