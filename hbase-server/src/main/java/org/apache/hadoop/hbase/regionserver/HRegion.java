@@ -7807,7 +7807,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       ClassSize.OBJECT +
       ClassSize.ARRAY +
       50 * ClassSize.REFERENCE + 2 * Bytes.SIZEOF_INT +
-      (14 * Bytes.SIZEOF_LONG) +
+      (16 * Bytes.SIZEOF_LONG) +
       3 * Bytes.SIZEOF_BOOLEAN);
 
   // woefully out of date - currently missing:
@@ -7823,7 +7823,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   public static final long DEEP_OVERHEAD = FIXED_OVERHEAD +
       ClassSize.OBJECT + // closeLock
       (2 * ClassSize.ATOMIC_BOOLEAN) + // closed, closing
-      (4 * ClassSize.ATOMIC_LONG) + // memStoreSize, numPutsWithoutWAL, dataInMemoryWithoutWAL,
+      (3 * ClassSize.ATOMIC_LONG) + // numPutsWithoutWAL, dataInMemoryWithoutWAL,
                                     // compactionsFailed
       (2 * ClassSize.CONCURRENT_HASHMAP) +  // lockedRows, scannerReadPoints
       WriteState.HEAP_SIZE + // writestate
