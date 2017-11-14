@@ -66,7 +66,7 @@ public class RegionServicesForStores {
   }
 
   public void addMemStoreSize(MemStoreSize size) {
-    region.addAndGetMemStoreSize(size);
+    region.incMemStoreSize(size);
   }
 
   public RegionInfo getRegionInfo() {
@@ -80,7 +80,7 @@ public class RegionServicesForStores {
   public ThreadPoolExecutor getInMemoryCompactionPool() { return INMEMORY_COMPACTION_POOL; }
 
   public long getMemStoreFlushSize() {
-    return region.getMemStoreFlushSize();
+    return region.getMemStoreFlushHeapSize();
   }
 
   public int getNumStores() {
@@ -89,6 +89,6 @@ public class RegionServicesForStores {
 
   @VisibleForTesting
   long getMemStoreSize() {
-    return region.getMemStoreSize();
+    return region.getMemStoreDataSize();
   }
 }

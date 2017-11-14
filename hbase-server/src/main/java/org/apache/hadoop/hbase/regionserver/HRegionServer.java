@@ -1611,7 +1611,7 @@ public class HRegionServer extends HasThread implements
     int storefiles = 0;
     int storeUncompressedSizeMB = 0;
     int storefileSizeMB = 0;
-    int memstoreSizeMB = (int) (r.getMemStoreSize() / 1024 / 1024);
+    int memstoreSizeMB = (int) (r.getMemStoreDataSize() / 1024 / 1024);
     long storefileIndexSizeKB = 0;
     int rootIndexSizeKB = 0;
     int totalStaticIndexSizeKB = 0;
@@ -2793,7 +2793,7 @@ public class HRegionServer extends HasThread implements
         });
     // Copy over all regions. Regions are sorted by size with biggest first.
     for (HRegion region : this.onlineRegions.values()) {
-      sortedRegions.put(region.getMemStoreSize(), region);
+      sortedRegions.put(region.getMemStoreDataSize(), region);
     }
     return sortedRegions;
   }

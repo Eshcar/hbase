@@ -399,7 +399,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
   @Override
   public long getMemStoreFlushSize() {
     // TODO: Why is this in here?  The flushsize of the region rather than the store?  St.Ack
-    return this.region.memstoreFlushSize;
+    return this.region.memStoreFlushHeapSize;
   }
 
   @Override

@@ -97,7 +97,7 @@ public class TestNegativeMemStoreSizeWithSlowCoprocessor {
 
       if (Bytes.equals(put.getRow(), Bytes.toBytes("row2"))) {
         region.flush(false);
-        Assert.assertTrue(region.addAndGetMemStoreSize(new MemStoreSize()) >= 0);
+        Assert.assertTrue(region.getMemStoreDataSize() >= 0);
       }
     }
   }

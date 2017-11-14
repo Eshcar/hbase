@@ -343,7 +343,7 @@ public abstract class Segment {
       boolean offHeap = false;
       MemStoreLAB memStoreLAB = getMemStoreLAB();
       if(memStoreLAB != null) {
-        offHeap = memStoreLAB.isOnHeap();
+        offHeap = memStoreLAB.isOffHeap();
       }
       res += indexEntryOffHeapSize(offHeap);
       if(offHeap) {

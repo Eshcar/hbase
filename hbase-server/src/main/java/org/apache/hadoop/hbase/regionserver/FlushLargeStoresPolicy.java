@@ -40,18 +40,23 @@ public abstract class FlushLargeStoresPolicy extends FlushPolicy {
   public static final long DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN =
       1024 * 1024 * 16L;
 
-  protected long flushSizeLowerBound = -1;
+  protected long flushHeapSizeLowerBound = -1;
+  protected long flushOffHeapSizeLowerBound = -1;
 
-  protected long getFlushSizeLowerBound(HRegion region) {
+  protected void setFlushSizeLowerBounds(HRegion region) {
     int familyNumber = region.getTableDescriptor().getColumnFamilyCount();
     // For multiple families, lower bound is the "average flush size" by default
     // unless setting in configuration is larger.
-    long flushSizeLowerBound = region.getMemStoreFlushSize() / familyNumber;
+    flushHeapSizeLowerBound = region.getMemStoreFlushHeapSize() / familyNumber;
+    flushOffHeapSizeLowerBound = region.getMemStoreFlushOffHeapSize() / familyNumber;
     long minimumLowerBound =
         getConf().getLong(HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN,
           DEFAULT_HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND_MIN);
-    if (minimumLowerBound > flushSizeLowerBound) {
-      flushSizeLowerBound = minimumLowerBound;
+    if (minimumLowerBound > flushHeapSizeLowerBound) {
+      flushHeapSizeLowerBound = minimumLowerBound;
+    }
+    if (minimumLowerBound > flushOffHeapSizeLowerBound) {
+      flushOffHeapSizeLowerBound = minimumLowerBound;
     }
     // use the setting in table description if any
     String flushedSizeLowerBoundString =
@@ -60,30 +65,35 @@ public abstract class FlushLargeStoresPolicy extends FlushPolicy {
       if (LOG.isDebugEnabled()) {
         LOG.debug("No " + HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND
             + " set in description of table " + region.getTableDescriptor().getTableName()
-            + ", use config (" + flushSizeLowerBound + ") instead");
+            + ", use config (flushHeapSizeLowerBound=" + flushHeapSizeLowerBound
+            + ", flushOffHeapSizeLowerBound=" + flushOffHeapSizeLowerBound+") instead");
       }
     } else {
       try {
-        flushSizeLowerBound = Long.parseLong(flushedSizeLowerBoundString);
+        flushHeapSizeLowerBound = Long.parseLong(flushedSizeLowerBoundString);
+        flushOffHeapSizeLowerBound = flushHeapSizeLowerBound;
       } catch (NumberFormatException nfe) {
         // fall back for fault setting
         LOG.warn("Number format exception when parsing "
             + HREGION_COLUMNFAMILY_FLUSH_SIZE_LOWER_BOUND + " for table "
-            + region.getTableDescriptor().getTableName() + ":" + flushedSizeLowerBoundString + ". " + nfe
-            + ", use config (" + flushSizeLowerBound + ") instead");
+            + region.getTableDescriptor().getTableName() + ":" + flushedSizeLowerBoundString
+            + ". " + nfe
+            + ", use config (flushHeapSizeLowerBound=" + flushHeapSizeLowerBound
+            + ", flushOffHeapSizeLowerBound=" + flushOffHeapSizeLowerBound+") instead");
 
       }
     }
-    return flushSizeLowerBound;
   }
 
   protected boolean shouldFlush(HStore store) {
-    if (store.getMemStoreSize().getDataSize() > this.flushSizeLowerBound) {
+    if (store.getMemStoreSize().getHeapSize() > this.flushHeapSizeLowerBound
+        || store.getMemStoreSize().getOffHeapSize() > this.flushOffHeapSizeLowerBound) {
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Flush Column Family " + store.getColumnFamilyName() + " of " +
-            region.getRegionInfo().getEncodedName() + " because memstoreSize=" +
-            store.getMemStoreSize().getDataSize() + " > lower bound="
-            + this.flushSizeLowerBound);
+        LOG.debug("Flush Column Family " + store.getColumnFamilyName() + " of "
+            + region.getRegionInfo().getEncodedName() + " because memstore size="
+            + store.getMemStoreSize().toString()
+            + " (flush heap lower bound=" + this.flushHeapSizeLowerBound
+            + " flush off-heap lower bound=" + this.flushOffHeapSizeLowerBound + ")");
       }
       return true;
     }
