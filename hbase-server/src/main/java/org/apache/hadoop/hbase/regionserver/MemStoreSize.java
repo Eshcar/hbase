@@ -27,6 +27,24 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 public class MemStoreSize {
+  // MemStore size tracks 3 sizes:
+  // (1) data size: the aggregated size of all key-value not including meta data such as
+  // index, time range etc.
+  // (2) heap size: the aggregated size of all data that is allocated on-heap including all
+  // key-values that reside on-heap and the metadata that resides on-heap
+  // (3) off-heap size: the aggregated size of all data that is allocated off-heap including all
+  // key-values that reside off-heap and the metadata that resides off-heap
+  //
+  // 3 examples to illustrate their usage:
+  // Consider a store with 100MB of key-values allocated on-heap and 20MB of metadata allocated
+  // on-heap. The counters are <100MB, 120MB, 0>, respectively.
+  // Consider a store with 100MB of key-values allocated off-heap and 20MB of metadata
+  // allocated on-heap (e.g, CAM index). The counters are <100MB, 20MB, 100MB>, respectively.
+  // Consider a store with 100MB of key-values from which 95MB are allocated off-heap and 5MB
+  // are allocated on-heap (e.g., due to upserts) and 20MB of metadata from which 15MB allocated
+  // off-heap (e.g, CCM index) and 5MB allocated on-heap (e.g, CSLM index in active).
+  // The counters are <100MB, 10MB, 110MB>, respectively.
+
   /**
    *'dataSize' tracks the Cell's data bytes size alone (Key bytes, value bytes). A cell's data can
    * be in on heap or off heap area depending on the MSLAB and its configuration to be using on heap
@@ -39,8 +57,8 @@ public class MemStoreSize {
    */
   protected volatile long heapSize;
 
-  /** 'offHeapSize' tracks all Cell's off-heap size occupancy.
-   * When Cells are in off-heap area, this will include the cells data size as well.
+  /** off-heap size: the aggregated size of all data that is allocated off-heap including all
+   * key-values that reside off-heap and the metadata that resides off-heap
    */
   protected volatile long offHeapSize;
 
