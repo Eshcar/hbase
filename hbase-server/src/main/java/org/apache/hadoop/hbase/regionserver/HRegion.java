@@ -1649,11 +1649,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   private long getMemStoreHeapSize() {
-    return stores.values().stream().mapToLong(s -> s.getMemStoreSize().getHeapSize()).sum();
+    return memStoreSize.getHeapSize();
   }
 
   private long getMemStoreOffHeapSize() {
-    return stores.values().stream().mapToLong(s -> s.getMemStoreSize().getOffHeapSize()).sum();
+    return memStoreSize.getOffHeapSize();
   }
 
   /** Wait for all current flushes and compactions of the region to complete */
