@@ -159,7 +159,8 @@ class MemStoreFlusher implements FlushRequester {
               + " has too many " + "store files, but is "
               + TraditionalBinaryPrefix.long2String(bestAnyRegion.getMemStoreDataSize(), "", 1)
               + " vs best flushable region's "
-              + TraditionalBinaryPrefix.long2String(bestFlushableRegion.getMemStoreDataSize(), "", 1)
+              + TraditionalBinaryPrefix.long2String(
+              bestFlushableRegion.getMemStoreDataSize(), "", 1)
               + ". Choosing the bigger.");
         }
         regionToFlush = bestAnyRegion;
