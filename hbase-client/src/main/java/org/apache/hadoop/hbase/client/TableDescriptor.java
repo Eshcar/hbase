@@ -150,6 +150,14 @@ public interface TableDescriptor {
    */
   long getMemStoreFlushSize();
 
+  /**
+   * Returns the off-heap size of the memstore after which a flush to filesystem is
+   * triggered.
+   *
+   * @return off-heap memory flush size for each hregion, -1 if not set.
+   */
+  long getMemStoreOffHeapFlushSize();
+
   // TODO: Currently this is used RPC scheduling only. Make it more generic than this; allow it
   // to also be priority when scheduling procedures that pertain to this table scheduling first
   // those tables with the highest priority (From Yi Liang over on HBASE-18109).

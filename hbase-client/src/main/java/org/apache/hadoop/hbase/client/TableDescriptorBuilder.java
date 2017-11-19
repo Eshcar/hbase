@@ -98,7 +98,17 @@ public class TableDescriptorBuilder {
   @InterfaceAudience.Private
   public static final String MEMSTORE_FLUSHSIZE = "MEMSTORE_FLUSHSIZE";
   private static final Bytes MEMSTORE_FLUSHSIZE_KEY
-          = new Bytes(Bytes.toBytes(MEMSTORE_FLUSHSIZE));
+      = new Bytes(Bytes.toBytes(MEMSTORE_FLUSHSIZE));
+
+  /**
+   * Used by HBase Shell interface to access this metadata
+   * attribute which represents the maximum off-heap size of the memstore after which its
+   * contents are flushed onto the disk.
+   */
+  @InterfaceAudience.Private
+  public static final String OFFHEAP_MEMSTORE_FLUSHSIZE = "OFFHEAP_MEMSTORE_FLUSHSIZE";
+  private static final Bytes OFFHEAP_MEMSTORE_FLUSHSIZE_KEY
+      = new Bytes(Bytes.toBytes(OFFHEAP_MEMSTORE_FLUSHSIZE));
 
   @InterfaceAudience.Private
   public static final String FLUSH_POLICY = "FLUSH_POLICY";
@@ -793,6 +803,11 @@ public class TableDescriptorBuilder {
     @Override
     public long getMemStoreFlushSize() {
       return getOrDefault(MEMSTORE_FLUSHSIZE_KEY, Long::valueOf, (long) -1);
+    }
+
+    @Override
+    public long getMemStoreOffHeapFlushSize() {
+      return getOrDefault(OFFHEAP_MEMSTORE_FLUSHSIZE_KEY, Long::valueOf, (long) -1);
     }
 
     /**

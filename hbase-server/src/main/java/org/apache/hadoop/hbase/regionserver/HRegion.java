@@ -816,13 +816,18 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   void setHTableSpecificConf() {
     if (this.htableDescriptor == null) return;
     long flushSize = this.htableDescriptor.getMemStoreFlushSize();
+    long offHeapFlushSize = this.htableDescriptor.getMemStoreOffHeapFlushSize();
 
     if (flushSize <= 0) {
       flushSize = conf.getLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE,
-        TableDescriptorBuilder.DEFAULT_MEMSTORE_FLUSH_SIZE);
+          TableDescriptorBuilder.DEFAULT_MEMSTORE_FLUSH_SIZE);
+    }
+    if (offHeapFlushSize <= 0) {
+      offHeapFlushSize = conf.getLong(HConstants.HREGION_MEMSTORE_OFFHEAP_FLUSH_SIZE,
+          TableDescriptorBuilder.DEFAULT_MEMSTORE_FLUSH_SIZE);
     }
     this.memStoreFlushHeapSize = flushSize;
-    this.memStoreFlushOffHeapSize = flushSize;
+    this.memStoreFlushOffHeapSize = offHeapFlushSize;
     long mult = conf.getLong(HConstants.HREGION_MEMSTORE_BLOCK_MULTIPLIER,
         HConstants.DEFAULT_HREGION_MEMSTORE_BLOCK_MULTIPLIER);
     this.blockingMemStoreHeapSize = this.memStoreFlushHeapSize * mult;

@@ -393,6 +393,11 @@ public class HTableDescriptor implements TableDescriptor, Comparable<HTableDescr
     return delegatee.getMemStoreFlushSize();
   }
 
+  @Override
+  public long getMemStoreOffHeapFlushSize() {
+    return delegatee.getMemStoreOffHeapFlushSize();
+  }
+
   /**
    * Represents the maximum size of the memstore after which the contents of the
    * memstore are flushed to the filesystem. This defaults to a size of 64 MB.

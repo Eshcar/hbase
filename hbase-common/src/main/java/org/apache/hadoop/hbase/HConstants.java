@@ -369,6 +369,10 @@ public final class HConstants {
   public static final String HREGION_MEMSTORE_FLUSH_SIZE =
       "hbase.hregion.memstore.flush.size";
 
+  /** Conf key for the memstore off-heap size at which we flush the memstore */
+  public static final String HREGION_MEMSTORE_OFFHEAP_FLUSH_SIZE =
+      "hbase.hregion.memstore.offheap.flush.size";
+
   public static final String HREGION_EDITS_REPLAY_SKIP_ERRORS =
       "hbase.hregion.edits.replay.skip.errors";
 
