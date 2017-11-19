@@ -72,15 +72,14 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
   protected CellChunkImmutableSegment(CSLMImmutableSegment segment,
       MemStoreSizing memstoreSizing, MemStoreCompactionStrategy.Action action) {
     super(segment); // initiailize the upper class
-    long indexOverhead = -CSLMImmutableSegment.DEEP_OVERHEAD_CSLM
-        + CellChunkImmutableSegment.DEEP_OVERHEAD_CCM;
+    long indexOverhead = -CSLMImmutableSegment.DEEP_OVERHEAD_CSLM + DEEP_OVERHEAD_CCM;
     // memStoreLAB cannot be null in this class
     boolean onHeap = getMemStoreLAB().isOnHeap();
     // initiate the heapSize with the size of the segment metadata
     if(onHeap) {
       incSize(0, indexOverhead, 0);
     } else {
-      incSize(0, 0, indexOverhead);
+      incSize(0, -CSLMImmutableSegment.DEEP_OVERHEAD_CSLM, DEEP_OVERHEAD_CCM);
     }
     int numOfCells = segment.getCellsCount();
     // build the new CellSet based on CellChunkMap
