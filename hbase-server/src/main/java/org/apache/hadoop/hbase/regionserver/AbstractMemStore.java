@@ -104,7 +104,7 @@ public abstract class AbstractMemStore implements MemStore {
 
   @Override
   public void add(Cell cell, MemStoreSizing memstoreSizing) {
-    Cell toAdd = maybeCloneWithAllocator(cell);
+    Cell toAdd = maybeCloneWithAllocator(cell, false);
     boolean mslabUsed = (toAdd != cell);
     // This cell data is backed by the same byte[] where we read request in RPC(See HBASE-15180). By
     // default MSLAB is ON and we might have copied cell to MSLAB area. If not we must do below deep
@@ -268,8 +268,8 @@ public abstract class AbstractMemStore implements MemStore {
     return result;
   }
 
-  private Cell maybeCloneWithAllocator(Cell cell) {
-    return active.maybeCloneWithAllocator(cell);
+  private Cell maybeCloneWithAllocator(Cell cell, boolean isExtraCell) {
+    return active.maybeCloneWithAllocator(cell, isExtraCell);
   }
 
   /*

@@ -97,6 +97,7 @@ public class MemStoreLABImpl implements MemStoreLAB {
   public MemStoreLABImpl(Configuration conf) {
     chunkSize = conf.getInt(CHUNK_SIZE_KEY, CHUNK_SIZE_DEFAULT);
     maxAlloc = conf.getInt(MAX_ALLOC_KEY, MAX_ALLOC_DEFAULT);
+//    maxAlloc = 50000;
     this.chunkCreator = ChunkCreator.getInstance();
     // if we don't exclude allocations >CHUNK_SIZE, we'd infiniteloop on one!
     Preconditions.checkArgument(maxAlloc <= chunkSize,
@@ -114,6 +115,7 @@ public class MemStoreLABImpl implements MemStoreLAB {
     // don't cause fragmentation as badly.
     if (size > maxAlloc) {
       return null;
+//      return copyExtraCellInto(cell);
     }
     Chunk c = null;
     int allocOffset = 0;
@@ -137,6 +139,26 @@ public class MemStoreLABImpl implements MemStoreLAB {
       }
     }
     return copyToChunkCell(cell, c.getData(), allocOffset, size);
+  }
+
+  @Override
+  public Cell copyExtraCellInto(Cell cell) {
+    int size = KeyValueUtil.length(cell);
+    Preconditions.checkArgument(size >= 0, "negative size");
+    if (size <= maxAlloc) {
+      return copyCellInto(cell);
+    } else {
+      Chunk c = null;
+      int allocOffset = 0;
+      if (size <= chunkSize) {
+        c = getNewExternalChunk();
+      } else {
+        c = getNewExternalJumboChunk(size);
+      }
+
+      allocOffset = c.alloc(size);
+      return copyToChunkCell(cell, c.getData(), allocOffset, size);
+    }
   }
 
   /**

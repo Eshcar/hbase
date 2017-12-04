@@ -69,6 +69,13 @@ public interface MemStoreLAB {
   Cell copyCellInto(Cell cell);
 
   /**
+   * Allocates slice in this LAB and copy the passed Cell into this area. Returns new Cell instance
+   * over the copied the data. When this MemStoreLAB can not copy this Cell, it returns null.
+   * Only deals with large cells (for whom size > maxAlloc)
+   */
+  Cell copyExtraCellInto(Cell cell);
+
+  /**
    * Close instance since it won't be used any more, try to put the chunks back to pool
    */
   void close();

@@ -160,12 +160,16 @@ public abstract class Segment {
    * otherwise the given cell is returned
    * @return either the given cell or its clone
    */
-  public Cell maybeCloneWithAllocator(Cell cell) {
+  public Cell maybeCloneWithAllocator(Cell cell, boolean isExtraCell) {
     if (this.memStoreLAB == null) {
       return cell;
     }
 
-    Cell cellFromMslab = this.memStoreLAB.copyCellInto(cell);
+    Cell cellFromMslab = null;
+    if (isExtraCell == false)
+      cellFromMslab = this.memStoreLAB.copyCellInto(cell);
+    else
+      cellFromMslab = this.memStoreLAB.copyExtraCellInto(cell);
     return (cellFromMslab != null) ? cellFromMslab : cell;
   }
 

@@ -111,13 +111,15 @@ public class CellChunkImmutableSegment extends ImmutableSegment {
     while (iterator.hasNext()) {        // the iterator hides the elimination logic for compaction
       Cell c = iterator.next();
       numOfCellsAfterCompaction++;
-      assert (c instanceof ByteBufferKeyValue); // shouldn't get here anything but ByteBufferKeyValue
+//      assert (c instanceof ByteBufferKeyValue); // shouldn't get here anything but ByteBufferKeyValue
+      if (c instanceof  ByteBufferKeyValue == false)
+        c = maybeCloneWithAllocator(c, true);
       if (offsetInCurentChunk + ClassSize.CELL_CHUNK_MAP_ENTRY > chunkSize) {
         currentChunkIdx++;              // continue to the next index chunk
         offsetInCurentChunk = ChunkCreator.SIZEOF_CHUNK_HEADER;
       }
       if (action == MemStoreCompactionStrategy.Action.COMPACT) {
-        c = maybeCloneWithAllocator(c); // for compaction copy cell to the new segment (MSLAB copy)
+        c = maybeCloneWithAllocator(c, false); // for compaction copy cell to the new segment (MSLAB copy)
       }
       offsetInCurentChunk = // add the Cell reference to the index chunk
           createCellReference((ByteBufferKeyValue)c, chunks[currentChunkIdx].getData(),
