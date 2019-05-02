@@ -28,19 +28,17 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.IncompatibleFilterException;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.security.access.Permission;
 import org.apache.hadoop.hbase.security.visibility.Authorizations;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Used to perform Scan operations.
@@ -59,7 +57,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  * To only retrieve columns within a specific range of version timestamps, call
  * {@link #setTimeRange(long, long) setTimeRange}.
  * <p>
- * To only retrieve columns with a specific timestamp, call {@link #setTimeStamp(long) setTimestamp}
+ * To only retrieve columns with a specific timestamp, call {@link #setTimestamp(long) setTimestamp}
  * .
  * <p>
  * To limit the number of versions of each column to be returned, call {@link #setMaxVersions(int)
@@ -87,7 +85,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  */
 @InterfaceAudience.Public
 public class Scan extends Query {
-  private static final Log LOG = LogFactory.getLog(Scan.class);
+  private static final Logger LOG = LoggerFactory.getLogger(Scan.class);
 
   private static final String RAW_ATTR = "_raw_";
 
@@ -114,19 +112,7 @@ public class Scan extends Query {
   private int storeLimit = -1;
   private int storeOffset = 0;
 
-  /**
-   * @deprecated since 1.0.0. Use {@link #setScanMetricsEnabled(boolean)}
-   */
-  // Make private or remove.
-  @Deprecated
-  static public final String SCAN_ATTRIBUTES_METRICS_ENABLE = "scan.attributes.metrics.enable";
-
-  /**
-   * Use {@link #getScanMetrics()}
-   */
-  // Make this private or remove.
-  @Deprecated
-  static public final String SCAN_ATTRIBUTES_METRICS_DATA = "scan.attributes.metrics.data";
+  private static final String SCAN_ATTRIBUTES_METRICS_ENABLE = "scan.attributes.metrics.enable";
 
   // If an application wants to use multiple scans over different tables each scan must
   // define this attribute with the appropriate table name by calling
@@ -141,7 +127,7 @@ public class Scan extends Query {
   private long maxResultSize = -1;
   private boolean cacheBlocks = true;
   private boolean reversed = false;
-  private TimeRange tr = new TimeRange();
+  private TimeRange tr = TimeRange.allTime();
   private Map<byte [], NavigableSet<byte []>> familyMap =
     new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR);
   private Boolean asyncPrefetch = null;
@@ -279,6 +265,8 @@ public class Scan extends Query {
     this.limit = scan.getLimit();
     this.needCursorResult = scan.isNeedCursorResult();
     setPriority(scan.getPriority());
+    readType = scan.getReadType();
+    super.setReplicaId(scan.getReplicaId());
   }
 
   /**
@@ -310,6 +298,7 @@ public class Scan extends Query {
     }
     this.mvccReadPoint = -1L;
     setPriority(get.getPriority());
+    super.setReplicaId(get.getReplicaId());
   }
 
   public boolean isGetScan() {
@@ -376,16 +365,34 @@ public class Scan extends Query {
    * @see #setMaxVersions()
    * @see #setMaxVersions(int)
    * @return this
+   * @deprecated As of release 2.0.0, this will be removed in HBase 3.0.0.
+   *             Use {@link #setTimestamp(long)} instead
    */
+  @Deprecated
   public Scan setTimeStamp(long timestamp)
   throws IOException {
+    return this.setTimestamp(timestamp);
+  }
+
+  /**
+   * Get versions of columns with the specified timestamp. Note, default maximum
+   * versions to return is 1.  If your time range spans more than one version
+   * and you want all versions returned, up the number of versions beyond the
+   * defaut.
+   * @param timestamp version timestamp
+   * @see #setMaxVersions()
+   * @see #setMaxVersions(int)
+   * @return this
+   */
+  public Scan setTimestamp(long timestamp) {
     try {
-      tr = new TimeRange(timestamp, timestamp+1);
+      tr = new TimeRange(timestamp, timestamp + 1);
     } catch(Exception e) {
       // This should never happen, unless integer overflow or something extremely wrong...
       LOG.error("TimeRange failed, likely caused by integer overflow. ", e);
       throw e;
     }
+
     return this;
   }
 
@@ -462,7 +469,7 @@ public class Scan extends Query {
    * @return this
    * @throws IllegalArgumentException if stopRow does not meet criteria for a row key (when length
    *           exceeds {@link HConstants#MAX_ROW_LENGTH})
-   * @deprecated use {@link #withStartRow(byte[])} instead. This method may change the inclusive of
+   * @deprecated use {@link #withStopRow(byte[])} instead. This method may change the inclusive of
    *             the stop row to keep compatible with the old behavior.
    */
   @Deprecated
@@ -894,6 +901,7 @@ public class Scan extends Query {
     return allowPartialResults;
   }
 
+  @Override
   public Scan setLoadColumnFamiliesOnDemand(boolean value) {
     return (Scan) super.setLoadColumnFamiliesOnDemand(value);
   }
@@ -1099,20 +1107,6 @@ public class Scan extends Query {
   public boolean isScanMetricsEnabled() {
     byte[] attr = getAttribute(Scan.SCAN_ATTRIBUTES_METRICS_ENABLE);
     return attr == null ? false : Bytes.toBoolean(attr);
-  }
-
-  /**
-   * @return Metrics on this Scan, if metrics were enabled.
-   * @see #setScanMetricsEnabled(boolean)
-   * @deprecated Use {@link ResultScanner#getScanMetrics()} instead. And notice that, please do not
-   *             use this method and {@link ResultScanner#getScanMetrics()} together, the metrics
-   *             will be messed up.
-   */
-  @Deprecated
-  public ScanMetrics getScanMetrics() {
-    byte[] bytes = getAttribute(Scan.SCAN_ATTRIBUTES_METRICS_DATA);
-    if (bytes == null) return null;
-    return ProtobufUtil.toScanMetrics(bytes);
   }
 
   public Boolean isAsyncPrefetch() {

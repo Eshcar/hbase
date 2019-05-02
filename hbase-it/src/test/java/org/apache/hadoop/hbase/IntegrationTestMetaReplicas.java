@@ -19,8 +19,6 @@ package org.apache.hadoop.hbase;
 
 import java.io.IOException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.TestMetaWithReplicas;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
@@ -33,6 +31,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An integration test that starts the cluster with three replicas for the meta
@@ -43,7 +43,7 @@ import org.junit.experimental.categories.Category;
  */
 @Category(IntegrationTests.class)
 public class IntegrationTestMetaReplicas {
-  private static final Log LOG = LogFactory.getLog(IntegrationTestMetaReplicas.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IntegrationTestMetaReplicas.class);
   /**
    * Util to get at the cluster.
    */
@@ -81,7 +81,7 @@ public class IntegrationTestMetaReplicas {
   }
 
   private static void waitUntilZnodeAvailable(int replicaId) throws Exception {
-    String znode = util.getZooKeeperWatcher().znodePaths.getZNodeForReplica(replicaId);
+    String znode = util.getZooKeeperWatcher().getZNodePaths().getZNodeForReplica(replicaId);
     int i = 0;
     while (i < 1000) {
       if (ZKUtil.checkExists(util.getZooKeeperWatcher(), znode) == -1) {

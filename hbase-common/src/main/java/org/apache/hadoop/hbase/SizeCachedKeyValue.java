@@ -19,8 +19,8 @@
  */
 package org.apache.hadoop.hbase;
 
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * This class is an extension to KeyValue where rowLen and keyLen are cached.
@@ -61,5 +61,15 @@ public class SizeCachedKeyValue extends KeyValue {
   @Override
   public long heapSize() {
     return super.heapSize() + FIXED_OVERHEAD;
+  }
+
+  /**
+   * Override by just returning the length for saving cost of method dispatching. If not, it will
+   * call {@link ExtendedCell#getSerializedSize()} firstly, then forward to
+   * {@link SizeCachedKeyValue#getSerializedSize(boolean)}. (See HBASE-21657)
+   */
+  @Override
+  public int getSerializedSize() {
+    return this.length;
   }
 }

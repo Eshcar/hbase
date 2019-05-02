@@ -16,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.filter;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * <p>
@@ -46,21 +45,6 @@ import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferE
  */
 @InterfaceAudience.Public
 public class FamilyFilter extends CompareFilter {
-
-  /**
-   * Constructor.
-   *
-   * @param familyCompareOp  the compare op for column family matching
-   * @param familyComparator the comparator for column family matching
-   * @deprecated  Since 2.0.0. Will be removed in 3.0.0.
-   *  Use {@link #FamilyFilter(CompareOperator, ByteArrayComparable)}
-   */
-  @Deprecated
-  public FamilyFilter(final CompareOp familyCompareOp,
-                      final ByteArrayComparable familyComparator) {
-      super(familyCompareOp, familyComparator);
-  }
-
   /**
    * Constructor.
    *
@@ -99,6 +83,7 @@ public class FamilyFilter extends CompareFilter {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte [] toByteArray() {
     FilterProtos.FamilyFilter.Builder builder =
       FilterProtos.FamilyFilter.newBuilder();
@@ -137,6 +122,7 @@ public class FamilyFilter extends CompareFilter {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof FamilyFilter)) return false;
@@ -144,4 +130,14 @@ public class FamilyFilter extends CompareFilter {
     FamilyFilter other = (FamilyFilter)o;
     return super.areSerializedFieldsEqual(other);
  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
+  }
 }

@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -24,21 +23,22 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeepDeletedCells;
-import org.apache.hadoop.hbase.testclassification.RegionServerTests;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.filter.TimestampsFilter;
+import org.apache.hadoop.hbase.testclassification.RegionServerTests;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -49,6 +49,11 @@ import org.junit.rules.TestName;
  */
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestMinVersions {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMinVersions.class);
+
   HBaseTestingUtility hbu = HBaseTestingUtility.createLocalHTU();
   private final byte[] T0 = Bytes.toBytes("0");
   private final byte[] T1 = Bytes.toBytes("1");
@@ -152,12 +157,12 @@ public class TestMinVersions {
       // and the 3rd, 4th oldest also in the memstore
 
       Get g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       Result r = region.get(g); // this'll use ScanWildcardColumnTracker
       checkResult(r, c0, T3,T2,T1);
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       g.addColumn(c0, c0);
       r = region.get(g);  // this'll use ExplicitColumnTracker
       checkResult(r, c0, T3,T2,T1);
@@ -195,12 +200,12 @@ public class TestMinVersions {
       region.delete(d);
 
       Get g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       Result r = region.get(g);  // this'll use ScanWildcardColumnTracker
       checkResult(r, c0, T3);
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       g.addColumn(c0, c0);
       r = region.get(g);  // this'll use ExplicitColumnTracker
       checkResult(r, c0, T3);
@@ -211,12 +216,12 @@ public class TestMinVersions {
 
       // try again
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g);  // this'll use ScanWildcardColumnTracker
       checkResult(r, c0, T3);
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       g.addColumn(c0, c0);
       r = region.get(g);  // this'll use ExplicitColumnTracker
       checkResult(r, c0, T3);
@@ -269,12 +274,12 @@ public class TestMinVersions {
       checkResult(r, c0, T4);
 
       Get g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g); // this'll use ScanWildcardColumnTracker
       checkResult(r, c0, T4,T3);
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       g.addColumn(c0, c0);
       r = region.get(g);  // this'll use ExplicitColumnTracker
       checkResult(r, c0, T4,T3);
@@ -286,12 +291,12 @@ public class TestMinVersions {
       // now the latest version is in the memstore
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g);  // this'll use ScanWildcardColumnTracker
       checkResult(r, c0, T5,T4);
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       g.addColumn(c0, c0);
       r = region.get(g);  // this'll use ExplicitColumnTracker
       checkResult(r, c0, T5,T4);
@@ -350,12 +355,12 @@ public class TestMinVersions {
       // gets see only available versions
       // even before compactions
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g); // this'll use ScanWildcardColumnTracker
       checkResult(r, c0, T4,T3);
 
       g = new Get(T1);
-      g.setMaxVersions();
+      g.readAllVersions();
       g.addColumn(c0, c0);
       r = region.get(g);  // this'll use ExplicitColumnTracker
       checkResult(r, c0, T4,T3);
@@ -435,7 +440,7 @@ public class TestMinVersions {
       Get g = new Get(T1);
       g.addColumn(c1,c1);
       g.setFilter(new TimestampsFilter(tss));
-      g.setMaxVersions();
+      g.readAllVersions();
       Result r = region.get(g);
       checkResult(r, c1, T2);
 
@@ -443,7 +448,7 @@ public class TestMinVersions {
       g = new Get(T1);
       g.addColumn(c0,c0);
       g.setFilter(new TimestampsFilter(tss));
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g);
       checkResult(r, c0, T2);
 
@@ -455,7 +460,7 @@ public class TestMinVersions {
       g = new Get(T1);
       g.addColumn(c1,c1);
       g.setFilter(new TimestampsFilter(tss));
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g);
       checkResult(r, c1, T2);
 
@@ -463,7 +468,7 @@ public class TestMinVersions {
       g = new Get(T1);
       g.addColumn(c0,c0);
       g.setFilter(new TimestampsFilter(tss));
-      g.setMaxVersions();
+      g.readAllVersions();
       r = region.get(g);
       checkResult(r, c0, T2);
     } finally {

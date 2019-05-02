@@ -32,14 +32,15 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.concurrent.ThreadPoolExecutor;
-
-import org.apache.hadoop.hbase.testclassification.MasterTests;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.errorhandling.ForeignException;
 import org.apache.hadoop.hbase.errorhandling.ForeignExceptionDispatcher;
 import org.apache.hadoop.hbase.errorhandling.TimeoutException;
 import org.apache.hadoop.hbase.procedure.Subprocedure.SubprocedureImpl;
+import org.apache.hadoop.hbase.testclassification.MasterTests;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.junit.After;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.InOrder;
@@ -52,6 +53,11 @@ import org.mockito.stubbing.Answer;
  */
 @Category({MasterTests.class, SmallTests.class})
 public class TestProcedureMember {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestProcedureMember.class);
+
   private static final long WAKE_FREQUENCY = 100;
   private static final long TIMEOUT = 100000;
   private static final long POOL_KEEP_ALIVE = 1;
@@ -123,7 +129,7 @@ public class TestProcedureMember {
   /**
    * Test the normal sub procedure execution case.
    */
-  @Test(timeout = 500)
+  @Test
   public void testSimpleRun() throws Exception {
     member = buildCohortMember();
     EmptySubprocedure subproc = new EmptySubprocedure(member, mockListener);
@@ -154,7 +160,7 @@ public class TestProcedureMember {
    * Make sure we call cleanup etc, when we have an exception during
    * {@link Subprocedure#acquireBarrier()}.
    */
-  @Test(timeout = 60000)
+  @Test
   public void testMemberPrepareException() throws Exception {
     buildCohortMemberPair();
 
@@ -189,7 +195,7 @@ public class TestProcedureMember {
   /**
    * Make sure we call cleanup etc, when we have an exception during prepare.
    */
-  @Test(timeout = 60000)
+  @Test
   public void testSendMemberAcquiredCommsFailure() throws Exception {
     buildCohortMemberPair();
 
@@ -228,7 +234,7 @@ public class TestProcedureMember {
    * is checked.  Thus, the {@link Subprocedure#acquireBarrier()} should succeed but later get rolled back
    * via {@link Subprocedure#cleanup}.
    */
-  @Test(timeout = 60000)
+  @Test
   public void testCoordinatorAbort() throws Exception {
     buildCohortMemberPair();
 
@@ -273,7 +279,7 @@ public class TestProcedureMember {
    * member.  Members are then responsible for reading its TX log.  This implementation actually
    * rolls back, and thus breaks the normal TX guarantees.
   */
-  @Test(timeout = 60000)
+  @Test
   public void testMemberCommitException() throws Exception {
     buildCohortMemberPair();
 
@@ -314,7 +320,7 @@ public class TestProcedureMember {
    * member.  Members are then responsible for reading its TX log.  This implementation actually
    * rolls back, and thus breaks the normal TX guarantees.
   */
-  @Test(timeout = 60000)
+  @Test
   public void testMemberCommitCommsFailure() throws Exception {
     buildCohortMemberPair();
     final TimeoutException oate = new TimeoutException("bogus timeout",1,2,0);
@@ -352,7 +358,7 @@ public class TestProcedureMember {
    * Fail correctly on getting an external error while waiting for the prepared latch
    * @throws Exception on failure
    */
-  @Test(timeout = 60000)
+  @Test
   public void testPropagateConnectionErrorBackToManager() throws Exception {
     // setup the operation
     member = buildCohortMember();

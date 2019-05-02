@@ -24,25 +24,24 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.ArrayBackedTag;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.TagType;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.replication.ReplicationEndpoint;
 import org.apache.hadoop.hbase.replication.ReplicationPeerConfig;
 import org.apache.hadoop.hbase.replication.WALEntryFilter;
 import org.apache.hadoop.hbase.wal.WAL.Entry;
+import org.apache.hadoop.hbase.wal.WALEdit;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @InterfaceAudience.Private
 public class VisibilityReplicationEndpoint implements ReplicationEndpoint {
 
-  private static final Log LOG = LogFactory.getLog(VisibilityReplicationEndpoint.class);
+  private static final Logger LOG = LoggerFactory.getLogger(VisibilityReplicationEndpoint.class);
 
   private final ReplicationEndpoint delegator;
   private final VisibilityLabelService visibilityLabelsService;
@@ -111,7 +110,7 @@ public class VisibilityReplicationEndpoint implements ReplicationEndpoint {
             newEdit.add(cell);
           }
         }
-        newEntries.add(new Entry(entry.getKey(), newEdit));
+        newEntries.add(new Entry((entry.getKey()), newEdit));
       }
       replicateContext.setEntries(newEntries);
       return delegator.replicate(replicateContext);

@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.errorhandling.ForeignException;
@@ -31,6 +29,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZNodePaths;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * ZooKeeper based controller for a procedure member.
@@ -52,7 +52,7 @@ import org.apache.zookeeper.KeeperException;
  */
 @InterfaceAudience.Private
 public class ZKProcedureMemberRpcs implements ProcedureMemberRpcs {
-  private static final Log LOG = LogFactory.getLog(ZKProcedureMemberRpcs.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ZKProcedureMemberRpcs.class);
 
   private final ZKProcedureUtil zkController;
 
@@ -135,8 +135,12 @@ public class ZKProcedureMemberRpcs implements ProcedureMemberRpcs {
     LOG.debug("Checking for aborted procedures on node: '" + zkController.getAbortZnode() + "'");
     try {
       // this is the list of the currently aborted procedues
-      for (String node : ZKUtil.listChildrenAndWatchForNewChildren(zkController.getWatcher(),
-        zkController.getAbortZnode())) {
+      List<String> children = ZKUtil.listChildrenAndWatchForNewChildren(zkController.getWatcher(),
+                   zkController.getAbortZnode());
+      if (children == null || children.isEmpty()) {
+        return;
+      }
+      for (String node : children) {
         String abortNode = ZNodePaths.joinZNode(zkController.getAbortZnode(), node);
         abort(abortNode);
       }
@@ -348,6 +352,7 @@ public class ZKProcedureMemberRpcs implements ProcedureMemberRpcs {
     }
   }
 
+  @Override
   public void start(final String memberName, final ProcedureMember listener) {
     LOG.debug("Starting procedure member '" + memberName + "'");
     this.member = listener;

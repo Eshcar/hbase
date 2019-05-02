@@ -23,7 +23,6 @@ import java.io.IOException;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.CellComparatorImpl;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.io.hfile.HFile.Writer;
 import org.apache.yetus.audience.InterfaceAudience;
@@ -38,6 +37,7 @@ public class RowBloomContext extends BloomContext {
     super(bloomFilterWriter, comparator);
   }
 
+  @Override
   public void addLastBloomKey(Writer writer) throws IOException {
     if (this.getLastCell() != null) {
       byte[] key = CellUtil.copyRow(this.getLastCell());

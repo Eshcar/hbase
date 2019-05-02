@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,8 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 package org.apache.hadoop.hbase.client;
 
 import java.io.IOException;
@@ -29,12 +26,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
@@ -44,10 +39,8 @@ import org.apache.hadoop.hbase.RegionLocations;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Waiter;
-
 import org.apache.hadoop.hbase.client.replication.ReplicationAdmin;
 import org.apache.hadoop.hbase.coprocessor.CoreCoprocessor;
-import org.apache.hadoop.hbase.coprocessor.HasRegionServerServices;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
@@ -65,15 +58,23 @@ import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({MediumTests.class, ClientTests.class})
 public class TestReplicaWithCluster {
-  private static final Log LOG = LogFactory.getLog(TestReplicaWithCluster.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestReplicaWithCluster.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestReplicaWithCluster.class);
 
   private static final int NB_SERVERS = 3;
-  private static final byte[] row = TestReplicaWithCluster.class.getName().getBytes();
+  private static final byte[] row = Bytes.toBytes(TestReplicaWithCluster.class.getName());
   private static final HBaseTestingUtility HTU = new HBaseTestingUtility();
 
   // second minicluster used in testing of replication
@@ -116,7 +117,7 @@ public class TestReplicaWithCluster {
             }
           }
         } catch (InterruptedException e1) {
-          LOG.error(e1);
+          LOG.error(e1.toString(), e1);
         }
       } else {
         LOG.info("We're not the primary replicas.");
@@ -193,8 +194,7 @@ public class TestReplicaWithCluster {
         if (!e.getEnvironment().getRegion().getRegionInfo().isMetaRegion() && (replicaId == 0)) {
           LOG.info("Get, throw Region Server Stopped Exceptoin for region " + e.getEnvironment()
               .getRegion().getRegionInfo());
-          throw new RegionServerStoppedException("Server " +
-            ((HasRegionServerServices)e.getEnvironment()).getRegionServerServices().getServerName()
+          throw new RegionServerStoppedException("Server " + e.getEnvironment().getServerName()
                   + " not running");
         }
       } else {
@@ -224,8 +224,7 @@ public class TestReplicaWithCluster {
           LOG.info("Scan, throw Region Server Stopped Exceptoin for replica " + e.getEnvironment()
               .getRegion().getRegionInfo());
 
-          throw new RegionServerStoppedException("Server " +
-            ((HasRegionServerServices)e.getEnvironment()).getRegionServerServices().getServerName()
+          throw new RegionServerStoppedException("Server " + e.getEnvironment().getServerName()
                + " not running");
         } else {
           LOG.info("Scan, We're replica region " + replicaId);
@@ -281,7 +280,7 @@ public class TestReplicaWithCluster {
     HTU.shutdownMiniCluster();
   }
 
-  @Test (timeout=30000)
+  @Test
   public void testCreateDeleteTable() throws IOException {
     // Create table then get the single region for our new table.
     HTableDescriptor hdt = HTU.createTableDescriptor("testCreateDeleteTable");
@@ -314,12 +313,12 @@ public class TestReplicaWithCluster {
     HTU.deleteTable(hdt.getTableName());
   }
 
-  @Test (timeout=120000)
+  @Test
   public void testChangeTable() throws Exception {
     TableDescriptor td = TableDescriptorBuilder.newBuilder(TableName.valueOf("testChangeTable"))
             .setRegionReplication(NB_SERVERS)
-            .addCoprocessor(SlowMeCopro.class.getName())
-            .addColumnFamily(ColumnFamilyDescriptorBuilder.of(f))
+            .setCoprocessor(SlowMeCopro.class.getName())
+            .setColumnFamily(ColumnFamilyDescriptorBuilder.of(f))
             .build();
     HTU.getAdmin().createTable(td);
     Table table = HTU.getConnection().getTable(td.getTableName());
@@ -335,7 +334,7 @@ public class TestReplicaWithCluster {
     // Add a CF, it should work.
     TableDescriptor bHdt = HTU.getAdmin().getDescriptor(td.getTableName());
     td = TableDescriptorBuilder.newBuilder(td)
-            .addColumnFamily(ColumnFamilyDescriptorBuilder.of(row))
+            .setColumnFamily(ColumnFamilyDescriptorBuilder.of(row))
             .build();
     HTU.getAdmin().disableTable(td.getTableName());
     HTU.getAdmin().modifyTable(td);
@@ -374,7 +373,7 @@ public class TestReplicaWithCluster {
   }
 
   @SuppressWarnings("deprecation")
-  @Test (timeout=300000)
+  @Test
   public void testReplicaAndReplication() throws Exception {
     HTableDescriptor hdt = HTU.createTableDescriptor("testReplicaAndReplication");
     hdt.setRegionReplication(NB_SERVERS);
@@ -458,7 +457,7 @@ public class TestReplicaWithCluster {
     // the minicluster has negative impact of deleting all HConnections in JVM.
   }
 
-  @Test (timeout=30000)
+  @Test
   public void testBulkLoad() throws IOException {
     // Create table then get the single region for our new table.
     LOG.debug("Creating test table");
@@ -558,7 +557,7 @@ public class TestReplicaWithCluster {
       try {
         Thread.sleep(2 * REFRESH_PERIOD);
       } catch (InterruptedException e1) {
-        LOG.error(e1);
+        LOG.error(e1.toString(), e1);
       }
 
       // But if we ask for stale we will get it
@@ -593,7 +592,7 @@ public class TestReplicaWithCluster {
       try {
         Thread.sleep(2 * REFRESH_PERIOD);
       } catch (InterruptedException e1) {
-        LOG.error(e1);
+        LOG.error(e1.toString(), e1);
       }
 
       // But if we ask for stale we will get it
@@ -639,7 +638,7 @@ public class TestReplicaWithCluster {
       try {
         Thread.sleep(2 * REFRESH_PERIOD);
       } catch (InterruptedException e1) {
-        LOG.error(e1);
+        LOG.error(e1.toString(), e1);
       }
 
       try {
@@ -671,7 +670,7 @@ public class TestReplicaWithCluster {
   // within configured hbase.client.metaReplicaCallTimeout.scan from primary meta region.
   @Test
   public void testGetRegionLocationFromPrimaryMetaRegion() throws IOException, InterruptedException {
-    HTU.getAdmin().setBalancerRunning(false, true);
+    HTU.getAdmin().balancerSwitch(false, true);
 
     ((ConnectionImplementation) HTU.getAdmin().getConnection()).setUseMetaReplicas(true);
 
@@ -691,7 +690,7 @@ public class TestReplicaWithCluster {
     } finally {
       RegionServerHostingPrimayMetaRegionSlowOrStopCopro.slowDownPrimaryMetaScan = false;
       ((ConnectionImplementation) HTU.getAdmin().getConnection()).setUseMetaReplicas(false);
-      HTU.getAdmin().setBalancerRunning(true, true);
+      HTU.getAdmin().balancerSwitch(true, true);
       HTU.getAdmin().disableTable(hdt.getTableName());
       HTU.deleteTable(hdt.getTableName());
     }
@@ -704,7 +703,7 @@ public class TestReplicaWithCluster {
   // with the primary meta region.
   @Test
   public void testReplicaGetWithPrimaryAndMetaDown() throws IOException, InterruptedException {
-    HTU.getAdmin().setBalancerRunning(false, true);
+    HTU.getAdmin().balancerSwitch(false, true);
 
     ((ConnectionImplementation)HTU.getAdmin().getConnection()).setUseMetaReplicas(true);
 
@@ -771,7 +770,7 @@ public class TestReplicaWithCluster {
       try {
         Thread.sleep(2 * REFRESH_PERIOD);
       } catch (InterruptedException e1) {
-        LOG.error(e1);
+        LOG.error(e1.toString(), e1);
       }
 
       // Simulating the RS down
@@ -790,7 +789,7 @@ public class TestReplicaWithCluster {
     } finally {
       ((ConnectionImplementation)HTU.getAdmin().getConnection()).setUseMetaReplicas(false);
       RegionServerHostingPrimayMetaRegionSlowOrStopCopro.throwException = false;
-      HTU.getAdmin().setBalancerRunning(true, true);
+      HTU.getAdmin().balancerSwitch(true, true);
       HTU.getAdmin().disableTable(hdt.getTableName());
       HTU.deleteTable(hdt.getTableName());
     }

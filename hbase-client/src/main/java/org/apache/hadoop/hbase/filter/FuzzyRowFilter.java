@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.PriorityQueue;
 
 import org.apache.hadoop.hbase.Cell;
@@ -28,16 +29,15 @@ import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.BytesBytesPair;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
-import org.apache.hadoop.hbase.util.UnsafeAccess;
 import org.apache.hadoop.hbase.util.UnsafeAvailChecker;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * This is optimized version of a standard FuzzyRowFilter Filters data based on fuzzy row key.
@@ -263,6 +263,7 @@ public class FuzzyRowFilter extends FilterBase {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte[] toByteArray() {
     FilterProtos.FuzzyRowFilter.Builder builder = FilterProtos.FuzzyRowFilter.newBuilder();
     for (Pair<byte[], byte[]> fuzzyData : fuzzyKeysData) {
@@ -350,9 +351,9 @@ public class FuzzyRowFilter extends FilterBase {
     int j = numWords << 3; // numWords * SIZEOF_LONG;
 
     for (int i = 0; i < j; i += Bytes.SIZEOF_LONG) {
-      long fuzzyBytes = UnsafeAccess.toLong(fuzzyKeyBytes, i);
-      long fuzzyMeta = UnsafeAccess.toLong(fuzzyKeyMeta, i);
-      long rowValue = UnsafeAccess.toLong(row, offset + i);
+      long fuzzyBytes = Bytes.toLong(fuzzyKeyBytes, i);
+      long fuzzyMeta = Bytes.toLong(fuzzyKeyMeta, i);
+      long rowValue = Bytes.toLong(row, offset + i);
       if ((rowValue & fuzzyMeta) != (fuzzyBytes)) {
         // We always return NEXT_EXISTS
         return SatisfiesCode.NEXT_EXISTS;
@@ -362,9 +363,9 @@ public class FuzzyRowFilter extends FilterBase {
     int off = j;
 
     if (length - off >= Bytes.SIZEOF_INT) {
-      int fuzzyBytes = UnsafeAccess.toInt(fuzzyKeyBytes, off);
-      int fuzzyMeta = UnsafeAccess.toInt(fuzzyKeyMeta, off);
-      int rowValue = UnsafeAccess.toInt(row, offset + off);
+      int fuzzyBytes = Bytes.toInt(fuzzyKeyBytes, off);
+      int fuzzyMeta = Bytes.toInt(fuzzyKeyMeta, off);
+      int rowValue = Bytes.toInt(row, offset + off);
       if ((rowValue & fuzzyMeta) != (fuzzyBytes)) {
         // We always return NEXT_EXISTS
         return SatisfiesCode.NEXT_EXISTS;
@@ -373,9 +374,9 @@ public class FuzzyRowFilter extends FilterBase {
     }
 
     if (length - off >= Bytes.SIZEOF_SHORT) {
-      short fuzzyBytes = UnsafeAccess.toShort(fuzzyKeyBytes, off);
-      short fuzzyMeta = UnsafeAccess.toShort(fuzzyKeyMeta, off);
-      short rowValue = UnsafeAccess.toShort(row, offset + off);
+      short fuzzyBytes = Bytes.toShort(fuzzyKeyBytes, off);
+      short fuzzyMeta = Bytes.toShort(fuzzyKeyMeta, off);
+      short rowValue = Bytes.toShort(row, offset + off);
       if ((rowValue & fuzzyMeta) != (fuzzyBytes)) {
         // We always return NEXT_EXISTS
         // even if it does not (in this case getNextForFuzzyRule
@@ -457,45 +458,55 @@ public class FuzzyRowFilter extends FilterBase {
   /** Abstracts directional comparisons based on scan direction. */
   private enum Order {
     ASC {
+      @Override
       public boolean lt(int lhs, int rhs) {
         return lhs < rhs;
       }
 
+      @Override
       public boolean gt(int lhs, int rhs) {
         return lhs > rhs;
       }
 
+      @Override
       public byte inc(byte val) {
         // TODO: what about over/underflow?
         return (byte) (val + 1);
       }
 
+      @Override
       public boolean isMax(byte val) {
         return val == (byte) 0xff;
       }
 
+      @Override
       public byte min() {
         return 0;
       }
     },
     DESC {
+      @Override
       public boolean lt(int lhs, int rhs) {
         return lhs > rhs;
       }
 
+      @Override
       public boolean gt(int lhs, int rhs) {
         return lhs < rhs;
       }
 
+      @Override
       public byte inc(byte val) {
         // TODO: what about over/underflow?
         return (byte) (val - 1);
       }
 
+      @Override
       public boolean isMax(byte val) {
         return val == 0;
       }
 
+      @Override
       public byte min() {
         return (byte) 0xFF;
       }
@@ -618,6 +629,7 @@ public class FuzzyRowFilter extends FilterBase {
    * @return true if and only if the fields of the filter that are serialized are equal to the
    *         corresponding fields in other. Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof FuzzyRowFilter)) return false;
@@ -633,5 +645,15 @@ public class FuzzyRowFilter extends FilterBase {
       }
     }
     return true;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(this.fuzzyKeysData);
   }
 }

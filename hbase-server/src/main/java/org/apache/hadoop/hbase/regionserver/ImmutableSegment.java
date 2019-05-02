@@ -18,15 +18,11 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.util.ClassSize;
-import org.apache.hadoop.hbase.CellComparator;
-import org.apache.hadoop.hbase.io.TimeRange;
-
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import org.apache.hadoop.hbase.CellComparator;
+import org.apache.hadoop.hbase.util.ClassSize;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * ImmutableSegment is an abstract class that extends the API supported by a {@link Segment},
@@ -52,6 +48,10 @@ public abstract class ImmutableSegment extends Segment {
     super(comparator, TimeRangeTracker.create(TimeRangeTracker.Type.NON_SYNC));
   }
 
+  protected ImmutableSegment(CellComparator comparator, List<ImmutableSegment> segments) {
+    super(comparator, segments, TimeRangeTracker.create(TimeRangeTracker.Type.NON_SYNC));
+  }
+
   /**------------------------------------------------------------------------
    * C-tor to be used to build the derived classes
    */
@@ -75,8 +75,7 @@ public abstract class ImmutableSegment extends Segment {
   }
 
   public List<Segment> getAllSegments() {
-    List<Segment> res = new ArrayList<>(Arrays.asList(this));
-    return res;
+    return Collections.singletonList(this);
   }
 
   @Override
@@ -84,5 +83,9 @@ public abstract class ImmutableSegment extends Segment {
     String res = super.toString();
     res += "Num uniques "+getNumUniqueKeys()+"; ";
     return res;
+  }
+
+  List<KeyValueScanner> getSnapshotScanners() {
+    return Collections.singletonList(new SnapshotSegmentScanner(this));
   }
 }

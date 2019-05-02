@@ -40,17 +40,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.errorhandling.ForeignExceptionDispatcher;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.junit.After;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.InOrder;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
 
 /**
  * Test Procedure coordinator operation.
@@ -60,6 +62,11 @@ import org.mockito.stubbing.Answer;
  */
 @Category({MasterTests.class, SmallTests.class})
 public class TestProcedureCoordinator {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestProcedureCoordinator.class);
+
   // general test constants
   private static final long WAKE_FREQUENCY = 1000;
   private static final long TIMEOUT = 100000;
@@ -116,7 +123,7 @@ public class TestProcedureCoordinator {
   /**
    * Check handling a connection failure correctly if we get it during the acquiring phase
    */
-  @Test(timeout = 60000)
+  @Test
   public void testUnreachableControllerDuringPrepare() throws Exception {
     coordinator = buildNewCoordinator();
     // setup the proc
@@ -147,7 +154,7 @@ public class TestProcedureCoordinator {
   /**
    * Check handling a connection failure correctly if we get it during the barrier phase
    */
-  @Test(timeout = 60000)
+  @Test
   public void testUnreachableControllerDuringCommit() throws Exception {
     coordinator = buildNewCoordinator();
 
@@ -177,17 +184,17 @@ public class TestProcedureCoordinator {
         anyListOf(String.class));
   }
 
-  @Test(timeout = 60000)
+  @Test
   public void testNoCohort() throws Exception {
     runSimpleProcedure();
   }
 
-  @Test(timeout = 60000)
+  @Test
   public void testSingleCohortOrchestration() throws Exception {
     runSimpleProcedure("one");
   }
 
-  @Test(timeout = 60000)
+  @Test
   public void testMultipleCohortOrchestration() throws Exception {
     runSimpleProcedure("one", "two", "three", "four");
   }
@@ -203,7 +210,7 @@ public class TestProcedureCoordinator {
   /**
    * Test that if nodes join the barrier early we still correctly handle the progress
    */
-  @Test(timeout = 60000)
+  @Test
   public void testEarlyJoiningBarrier() throws Exception {
     final String[] cohort = new String[] { "one", "two", "three", "four" };
     coordinator = buildNewCoordinator();
@@ -213,6 +220,7 @@ public class TestProcedureCoordinator {
     final Procedure spy = spy(task);
 
     AcquireBarrierAnswer prepare = new AcquireBarrierAnswer(procName, cohort) {
+      @Override
       public void doWork() {
         // then do some fun where we commit before all nodes have prepared
         // "one" commits before anyone else is done
@@ -288,7 +296,7 @@ public class TestProcedureCoordinator {
     inorder.verify(controller).sendGlobalBarrierReached(eq(task), anyListOf(String.class));
   }
 
-  private abstract class OperationAnswer implements Answer<Void> {
+  private static abstract class OperationAnswer implements Answer<Void> {
     private boolean ran = false;
 
     public void ensureRan() {

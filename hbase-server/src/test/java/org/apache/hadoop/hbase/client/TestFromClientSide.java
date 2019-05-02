@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -30,7 +29,6 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,31 +37,29 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.ClusterStatus.Option;
+import org.apache.hadoop.hbase.ClusterMetrics.Option;
 import org.apache.hadoop.hbase.CompareOperator;
+import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeepDeletedCells;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.RegionLocations;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
@@ -86,6 +82,7 @@ import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.SubstringComparator;
 import org.apache.hadoop.hbase.filter.ValueFilter;
 import org.apache.hadoop.hbase.filter.WhileMatchFilter;
+import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
@@ -103,14 +100,18 @@ import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.NonRepeatedEnvironmentEdge;
 import org.apache.hadoop.hbase.util.Pair;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Run tests that use the HBase clients; {@link Table}.
@@ -120,8 +121,13 @@ import org.junit.rules.TestName;
 @Category({LargeTests.class, ClientTests.class})
 @SuppressWarnings ("deprecation")
 public class TestFromClientSide {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFromClientSide.class);
+
   // NOTE: Increment tests were moved to their own class, TestIncrementsFromClientSide.
-  private static final Log LOG = LogFactory.getLog(TestFromClientSide.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestFromClientSide.class);
   protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static byte [] ROW = Bytes.toBytes("testRow");
   private static byte [] FAMILY = Bytes.toBytes("testFamily");
@@ -133,20 +139,25 @@ public class TestFromClientSide {
   @Rule
   public TestName name = new TestName();
 
-  @BeforeClass
-  public static void setUpBeforeClass() throws Exception {
+  protected static final void initialize(Class<?>... cps) throws Exception {
     // Uncomment the following lines if more verbosity is needed for
     // debugging (see HBASE-12285 for details).
-    //((Log4JLogger)RpcServer.LOG).getLogger().setLevel(Level.ALL);
-    //((Log4JLogger)RpcClient.LOG).getLogger().setLevel(Level.ALL);
-    //((Log4JLogger)ScannerCallable.LOG).getLogger().setLevel(Level.ALL);
+    // ((Log4JLogger)RpcServer.LOG).getLogger().setLevel(Level.ALL);
+    // ((Log4JLogger)RpcClient.LOG).getLogger().setLevel(Level.ALL);
+    // ((Log4JLogger)ScannerCallable.LOG).getLogger().setLevel(Level.ALL);
+    // make sure that we do not get the same ts twice, see HBASE-19731 for more details.
+    EnvironmentEdgeManager.injectEdge(new NonRepeatedEnvironmentEdge());
     Configuration conf = TEST_UTIL.getConfiguration();
     conf.setStrings(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY,
-        MultiRowMutationEndpoint.class.getName());
+      Arrays.stream(cps).map(Class::getName).toArray(String[]::new));
     conf.setBoolean("hbase.table.sanity.checks", true); // enable for below tests
-    conf.setLong(HConstants.HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD, 6000000);
     // We need more than one region server in this test
     TEST_UTIL.startMiniCluster(SLAVES);
+  }
+
+  @BeforeClass
+  public static void setUpBeforeClass() throws Exception {
+    initialize(MultiRowMutationEndpoint.class);
   }
 
   @AfterClass
@@ -201,125 +212,123 @@ public class TestFromClientSide {
   /**
    * Basic client side validation of HBASE-4536
    */
-   @Test
-   public void testKeepDeletedCells() throws Exception {
-     final TableName tableName = TableName.valueOf(name.getMethodName());
-     final byte[] FAMILY = Bytes.toBytes("family");
-     final byte[] C0 = Bytes.toBytes("c0");
+  @Test
+  public void testKeepDeletedCells() throws Exception {
+    final TableName tableName = TableName.valueOf(name.getMethodName());
+    final byte[] FAMILY = Bytes.toBytes("family");
+    final byte[] C0 = Bytes.toBytes("c0");
 
-     final byte[] T1 = Bytes.toBytes("T1");
-     final byte[] T2 = Bytes.toBytes("T2");
-     final byte[] T3 = Bytes.toBytes("T3");
-     HColumnDescriptor hcd = new HColumnDescriptor(FAMILY)
-         .setKeepDeletedCells(KeepDeletedCells.TRUE)
-         .setMaxVersions(3);
+    final byte[] T1 = Bytes.toBytes("T1");
+    final byte[] T2 = Bytes.toBytes("T2");
+    final byte[] T3 = Bytes.toBytes("T3");
+    HColumnDescriptor hcd =
+        new HColumnDescriptor(FAMILY).setKeepDeletedCells(KeepDeletedCells.TRUE).setMaxVersions(3);
 
-     HTableDescriptor desc = new HTableDescriptor(tableName);
-     desc.addFamily(hcd);
-     TEST_UTIL.getAdmin().createTable(desc);
-     Table h = TEST_UTIL.getConnection().getTable(tableName);
+    HTableDescriptor desc = new HTableDescriptor(tableName);
+    desc.addFamily(hcd);
+    TEST_UTIL.getAdmin().createTable(desc);
+    Table h = TEST_UTIL.getConnection().getTable(tableName);
 
-     long ts = System.currentTimeMillis();
-     Put p = new Put(T1, ts);
-     p.addColumn(FAMILY, C0, T1);
-     h.put(p);
-     p = new Put(T1, ts+2);
-     p.addColumn(FAMILY, C0, T2);
-     h.put(p);
-     p = new Put(T1, ts+4);
-     p.addColumn(FAMILY, C0, T3);
-     h.put(p);
+    long ts = System.currentTimeMillis();
+    Put p = new Put(T1, ts);
+    p.addColumn(FAMILY, C0, T1);
+    h.put(p);
+    p = new Put(T1, ts + 2);
+    p.addColumn(FAMILY, C0, T2);
+    h.put(p);
+    p = new Put(T1, ts + 4);
+    p.addColumn(FAMILY, C0, T3);
+    h.put(p);
 
-     Delete d = new Delete(T1, ts+3);
-     h.delete(d);
+    Delete d = new Delete(T1, ts + 3);
+    h.delete(d);
 
-     d = new Delete(T1, ts+3);
-     d.addColumns(FAMILY, C0, ts+3);
-     h.delete(d);
+    d = new Delete(T1, ts + 3);
+    d.addColumns(FAMILY, C0, ts + 3);
+    h.delete(d);
 
-     Get g = new Get(T1);
-     // does *not* include the delete
-     g.setTimeRange(0, ts+3);
-     Result r = h.get(g);
-     assertArrayEquals(T2, r.getValue(FAMILY, C0));
+    Get g = new Get(T1);
+    // does *not* include the delete
+    g.setTimeRange(0, ts + 3);
+    Result r = h.get(g);
+    assertArrayEquals(T2, r.getValue(FAMILY, C0));
 
-     Scan s = new Scan(T1);
-     s.setTimeRange(0, ts+3);
-     s.setMaxVersions();
-     ResultScanner scanner = h.getScanner(s);
-     Cell[] kvs = scanner.next().rawCells();
-     assertArrayEquals(T2, CellUtil.cloneValue(kvs[0]));
-     assertArrayEquals(T1, CellUtil.cloneValue(kvs[1]));
-     scanner.close();
+    Scan s = new Scan(T1);
+    s.setTimeRange(0, ts + 3);
+    s.setMaxVersions();
+    ResultScanner scanner = h.getScanner(s);
+    Cell[] kvs = scanner.next().rawCells();
+    assertArrayEquals(T2, CellUtil.cloneValue(kvs[0]));
+    assertArrayEquals(T1, CellUtil.cloneValue(kvs[1]));
+    scanner.close();
 
-     s = new Scan(T1);
-     s.setRaw(true);
-     s.setMaxVersions();
-     scanner = h.getScanner(s);
-     kvs = scanner.next().rawCells();
-     assertTrue(PrivateCellUtil.isDeleteFamily(kvs[0]));
-     assertArrayEquals(T3, CellUtil.cloneValue(kvs[1]));
-     assertTrue(CellUtil.isDelete(kvs[2]));
-     assertArrayEquals(T2, CellUtil.cloneValue(kvs[3]));
-     assertArrayEquals(T1, CellUtil.cloneValue(kvs[4]));
-     scanner.close();
-     h.close();
-   }
+    s = new Scan(T1);
+    s.setRaw(true);
+    s.setMaxVersions();
+    scanner = h.getScanner(s);
+    kvs = scanner.next().rawCells();
+    assertTrue(PrivateCellUtil.isDeleteFamily(kvs[0]));
+    assertArrayEquals(T3, CellUtil.cloneValue(kvs[1]));
+    assertTrue(CellUtil.isDelete(kvs[2]));
+    assertArrayEquals(T2, CellUtil.cloneValue(kvs[3]));
+    assertArrayEquals(T1, CellUtil.cloneValue(kvs[4]));
+    scanner.close();
+    h.close();
+  }
 
-    /**
-    * Basic client side validation of HBASE-10118
-    */
-   @Test
-   public void testPurgeFutureDeletes() throws Exception {
-     final TableName tableName = TableName.valueOf(name.getMethodName());
-     final byte[] ROW = Bytes.toBytes("row");
-     final byte[] FAMILY = Bytes.toBytes("family");
-     final byte[] COLUMN = Bytes.toBytes("column");
-     final byte[] VALUE = Bytes.toBytes("value");
+  /**
+   * Basic client side validation of HBASE-10118
+   */
+  @Test
+  public void testPurgeFutureDeletes() throws Exception {
+    final TableName tableName = TableName.valueOf(name.getMethodName());
+    final byte[] ROW = Bytes.toBytes("row");
+    final byte[] FAMILY = Bytes.toBytes("family");
+    final byte[] COLUMN = Bytes.toBytes("column");
+    final byte[] VALUE = Bytes.toBytes("value");
 
-     Table table = TEST_UTIL.createTable(tableName, FAMILY);
+    Table table = TEST_UTIL.createTable(tableName, FAMILY);
 
-     // future timestamp
-     long ts = System.currentTimeMillis() * 2;
-     Put put = new Put(ROW, ts);
-     put.addColumn(FAMILY, COLUMN, VALUE);
-     table.put(put);
+    // future timestamp
+    long ts = System.currentTimeMillis() * 2;
+    Put put = new Put(ROW, ts);
+    put.addColumn(FAMILY, COLUMN, VALUE);
+    table.put(put);
 
-     Get get = new Get(ROW);
-     Result result = table.get(get);
-     assertArrayEquals(VALUE, result.getValue(FAMILY, COLUMN));
+    Get get = new Get(ROW);
+    Result result = table.get(get);
+    assertArrayEquals(VALUE, result.getValue(FAMILY, COLUMN));
 
-     Delete del = new Delete(ROW);
-     del.addColumn(FAMILY, COLUMN, ts);
-     table.delete(del);
+    Delete del = new Delete(ROW);
+    del.addColumn(FAMILY, COLUMN, ts);
+    table.delete(del);
 
-     get = new Get(ROW);
-     result = table.get(get);
-     assertNull(result.getValue(FAMILY, COLUMN));
+    get = new Get(ROW);
+    result = table.get(get);
+    assertNull(result.getValue(FAMILY, COLUMN));
 
-     // major compaction, purged future deletes
-     TEST_UTIL.getAdmin().flush(tableName);
-     TEST_UTIL.getAdmin().majorCompact(tableName);
+    // major compaction, purged future deletes
+    TEST_UTIL.getAdmin().flush(tableName);
+    TEST_UTIL.getAdmin().majorCompact(tableName);
 
-     // waiting for the major compaction to complete
-     TEST_UTIL.waitFor(6000, new Waiter.Predicate<IOException>() {
-       @Override
-       public boolean evaluate() throws IOException {
-         return TEST_UTIL.getAdmin().getCompactionState(tableName) ==
-             CompactionState.NONE;
-       }
-     });
+    // waiting for the major compaction to complete
+    TEST_UTIL.waitFor(6000, new Waiter.Predicate<IOException>() {
+      @Override
+      public boolean evaluate() throws IOException {
+        return TEST_UTIL.getAdmin().getCompactionState(tableName) == CompactionState.NONE;
+      }
+    });
 
-     put = new Put(ROW, ts);
-     put.addColumn(FAMILY, COLUMN, VALUE);
-     table.put(put);
+    put = new Put(ROW, ts);
+    put.addColumn(FAMILY, COLUMN, VALUE);
+    table.put(put);
 
-     get = new Get(ROW);
-     result = table.get(get);
-     assertArrayEquals(VALUE, result.getValue(FAMILY, COLUMN));
+    get = new Get(ROW);
+    result = table.get(get);
+    assertArrayEquals(VALUE, result.getValue(FAMILY, COLUMN));
 
-     table.close();
-   }
+    table.close();
+  }
 
   /**
    * Verifies that getConfiguration returns the same Configuration object used
@@ -347,9 +356,9 @@ public class TestFromClientSide {
     Table ht = TEST_UTIL.createTable(tableName, FAMILIES);
     String value = "this is the value";
     String value2 = "this is some other value";
-    String keyPrefix1 = UUID.randomUUID().toString();
-    String keyPrefix2 = UUID.randomUUID().toString();
-    String keyPrefix3 = UUID.randomUUID().toString();
+    String keyPrefix1 = TEST_UTIL.getRandomUUID().toString();
+    String keyPrefix2 = TEST_UTIL.getRandomUUID().toString();
+    String keyPrefix3 = TEST_UTIL.getRandomUUID().toString();
     putRows(ht, 3, value, keyPrefix1);
     putRows(ht, 3, value, keyPrefix2);
     putRows(ht, 3, value, keyPrefix3);
@@ -439,7 +448,7 @@ public class TestFromClientSide {
   private void putRows(Table ht, int numRows, String value, String key)
       throws IOException {
     for (int i = 0; i < numRows; i++) {
-      String row = key + "_" + UUID.randomUUID().toString();
+      String row = key + "_" + TEST_UTIL.getRandomUUID().toString();
       System.out.println(String.format("Saving row: %s, with value %s", row,
           value));
       Put put = new Put(Bytes.toBytes(row));
@@ -658,13 +667,13 @@ public class TestFromClientSide {
     ResultScanner scanner = ht.getScanner(scan);
     int expectedIndex = 1;
     for(Result result : ht.getScanner(scan)) {
-      assertEquals(result.size(), 1);
+      assertEquals(1, result.size());
       assertTrue(Bytes.equals(CellUtil.cloneRow(result.rawCells()[0]), ROWS[expectedIndex]));
       assertTrue(Bytes.equals(CellUtil.cloneQualifier(result.rawCells()[0]),
           QUALIFIERS[expectedIndex]));
       expectedIndex++;
     }
-    assertEquals(expectedIndex, 6);
+    assertEquals(6, expectedIndex);
     scanner.close();
   }
 
@@ -691,11 +700,11 @@ public class TestFromClientSide {
     ResultScanner scanner = ht.getScanner(scan);
     int expectedIndex = 0;
     for(Result result : ht.getScanner(scan)) {
-      assertEquals(result.size(), 1);
+      assertEquals(1, result.size());
       assertTrue(Bytes.toLong(result.getValue(FAMILY, QUALIFIER)) > 500);
       expectedIndex++;
     }
-    assertEquals(expectedIndex, 4);
+    assertEquals(4, expectedIndex);
     scanner.close();
 }
 
@@ -724,12 +733,12 @@ public class TestFromClientSide {
     ResultScanner scanner = ht.getScanner(scan);
     int count = 0;
     for(Result result : ht.getScanner(scan)) {
-      assertEquals(result.size(), 1);
-      assertEquals(result.rawCells()[0].getValueLength(), Bytes.SIZEOF_INT);
-      assertEquals(Bytes.toInt(CellUtil.cloneValue(result.rawCells()[0])), VALUE.length);
+      assertEquals(1, result.size());
+      assertEquals(Bytes.SIZEOF_INT, result.rawCells()[0].getValueLength());
+      assertEquals(VALUE.length, Bytes.toInt(CellUtil.cloneValue(result.rawCells()[0])));
       count++;
     }
-    assertEquals(count, 10);
+    assertEquals(10, count);
     scanner.close();
   }
 
@@ -1160,7 +1169,7 @@ public class TestFromClientSide {
 
     // Null family (should NOT work)
     try {
-      TEST_UTIL.createTable(tableName, new byte[][]{(byte[])null});
+      TEST_UTIL.createTable(tableName, new byte[][]{null});
       fail("Creating a table with a null family passed, should fail");
     } catch(Exception e) {}
 
@@ -1296,19 +1305,19 @@ public class TestFromClientSide {
     table.append(append);
     getTestNull(table, ROW, FAMILY, VALUE);
 
-    // Work for checkAndMutate, checkAndPut, checkAndDelete
+    // Work for checkAndMutate using thenPut, thenMutate and thenDelete
     put = new Put(ROW);
     put.addColumn(FAMILY, null, Bytes.toBytes("checkAndPut"));
     table.put(put);
-    table.checkAndPut(ROW, FAMILY, null, VALUE, put);
+    table.checkAndMutate(ROW, FAMILY).ifEquals(VALUE).thenPut(put);
 
     RowMutations mutate = new RowMutations(ROW);
     mutate.add(new Put(ROW).addColumn(FAMILY, null, Bytes.toBytes("checkAndMutate")));
-    table.checkAndMutate(ROW, FAMILY, null, CompareOperator.EQUAL, Bytes.toBytes("checkAndPut"), mutate);
+    table.checkAndMutate(ROW, FAMILY).ifEquals(Bytes.toBytes("checkAndPut")).thenMutate(mutate);
 
     delete = new Delete(ROW);
     delete.addColumns(FAMILY, null);
-    table.checkAndDelete(ROW, FAMILY, null, Bytes.toBytes("checkAndMutate"), delete);
+    table.checkAndMutate(ROW, FAMILY).ifEquals(Bytes.toBytes("checkAndMutate")).thenDelete(delete);
   }
 
   @Test
@@ -1349,7 +1358,7 @@ public class TestFromClientSide {
     // Ensure maxVersions in query is respected
     Get get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(2);
+    get.readVersions(2);
     Result result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[4], STAMPS[5]},
@@ -1390,7 +1399,7 @@ public class TestFromClientSide {
     // Ensure maxVersions in query is respected
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(2);
+    get.readVersions(2);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[4], STAMPS[5]},
@@ -1420,7 +1429,7 @@ public class TestFromClientSide {
     // Ensure maxVersions in query is respected
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions();
+    get.readAllVersions();
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[1], STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[7], STAMPS[8]},
@@ -1437,7 +1446,7 @@ public class TestFromClientSide {
         0, 7);
 
     get = new Get(ROW);
-    get.setMaxVersions();
+    get.readAllVersions();
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[1], STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[7], STAMPS[8]},
@@ -1482,7 +1491,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[7], STAMPS[8], STAMPS[9], STAMPS[11], STAMPS[13], STAMPS[15]},
@@ -1507,7 +1516,7 @@ public class TestFromClientSide {
     // Test that it's gone
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[1], STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[8], STAMPS[9], STAMPS[13], STAMPS[15]},
@@ -1557,7 +1566,7 @@ public class TestFromClientSide {
 
     Get get = new Get(ROW);
     get.addColumn(FAMILIES[0], QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[0], QUALIFIER,
         new long [] {STAMPS[1]},
@@ -1566,7 +1575,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addFamily(FAMILIES[0]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[0], QUALIFIER,
         new long [] {STAMPS[1]},
@@ -1595,7 +1604,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILIES[1], QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[1], QUALIFIER,
         new long [] {STAMPS[1], STAMPS[2], STAMPS[3]},
@@ -1604,7 +1613,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addFamily(FAMILIES[1]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[1], QUALIFIER,
         new long [] {STAMPS[1], STAMPS[2], STAMPS[3]},
@@ -1633,7 +1642,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILIES[2], QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[2], QUALIFIER,
         new long [] {STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6]},
@@ -1642,7 +1651,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[2], QUALIFIER,
         new long [] {STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6]},
@@ -1670,7 +1679,7 @@ public class TestFromClientSide {
     // Try all families
 
     get = new Get(ROW);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 9 keys but received " + result.size(),
         result.size() == 9);
@@ -1679,7 +1688,7 @@ public class TestFromClientSide {
     get.addFamily(FAMILIES[0]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 9 keys but received " + result.size(),
         result.size() == 9);
@@ -1688,7 +1697,7 @@ public class TestFromClientSide {
     get.addColumn(FAMILIES[0], QUALIFIER);
     get.addColumn(FAMILIES[1], QUALIFIER);
     get.addColumn(FAMILIES[2], QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 9 keys but received " + result.size(),
         result.size() == 9);
@@ -1746,7 +1755,7 @@ public class TestFromClientSide {
     for (int i = 0; i < 1; i++) {
       Get get = new Get(ROW);
       get.addColumn(FAMILY, QUALIFIERS[i]);
-      get.setMaxVersions(Integer.MAX_VALUE);
+      get.readVersions(Integer.MAX_VALUE);
       Result result = ht.get(get);
       // verify version '1000'/'3000'/'5000' remains for all columns
       assertNResult(result, ROW, FAMILY, QUALIFIERS[i],
@@ -1817,7 +1826,7 @@ public class TestFromClientSide {
     // 5. check ROW
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIERS[0]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIERS[0],
         new long [] {ts[4]},
@@ -1826,7 +1835,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIERS[1]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIERS[1],
         new long [] {ts[2], ts[4]},
@@ -1835,13 +1844,13 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIERS[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertEquals(0, result.size());
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIERS[3]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIERS[3],
         new long [] {ts[2], ts[4]},
@@ -1850,7 +1859,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIERS[4]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIERS[4],
         new long [] {ts[2]},
@@ -1861,7 +1870,7 @@ public class TestFromClientSide {
     for (int i = 0; i < 5; i++) {
       get = new Get(ROW2);
       get.addColumn(FAMILY, QUALIFIERS[i]);
-      get.setMaxVersions(Integer.MAX_VALUE);
+      get.readVersions(Integer.MAX_VALUE);
       result = ht.get(get);
       // verify version '1000'/'3000'/'5000' remains for all columns
       assertNResult(result, ROW2, FAMILY, QUALIFIERS[i],
@@ -1921,7 +1930,7 @@ public class TestFromClientSide {
 
     Get get = new Get(ROW);
     get.addFamily(FAMILIES[0]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[0], QUALIFIER,
         new long [] {ts[1]},
@@ -1953,7 +1962,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILIES[0], QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[0], QUALIFIER,
         new long [] {ts[1], ts[2], ts[3]},
@@ -1993,7 +2002,7 @@ public class TestFromClientSide {
     // the switch to using Scan for Get this is no longer the case.
     get = new Get(ROW);
     get.addFamily(FAMILIES[0]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILIES[0], QUALIFIER,
         new long [] {ts[1], ts[2], ts[3]},
@@ -2038,7 +2047,7 @@ public class TestFromClientSide {
     get = new Get(ROWS[2]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 4 key but received " + result.size() + ": " + result,
         result.size() == 4);
@@ -2060,7 +2069,7 @@ public class TestFromClientSide {
     get = new Get(ROWS[0]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 2 keys but received " + result.size(),
         result.size() == 2);
@@ -2084,7 +2093,7 @@ public class TestFromClientSide {
     get = new Get(ROWS[1]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 2 keys but received " + result.size(),
         result.size() == 2);
@@ -2100,7 +2109,7 @@ public class TestFromClientSide {
     get = new Get(ROWS[2]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertEquals(1, result.size());
     assertNResult(result, ROWS[2], FAMILIES[2], QUALIFIER,
@@ -2137,7 +2146,7 @@ public class TestFromClientSide {
     get = new Get(ROWS[3]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 1 key but received " + result.size(),
         result.size() == 1);
@@ -2145,7 +2154,7 @@ public class TestFromClientSide {
     get = new Get(ROWS[4]);
     get.addFamily(FAMILIES[1]);
     get.addFamily(FAMILIES[2]);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertTrue("Expected 2 keys but received " + result.size(),
         result.size() == 2);
@@ -2679,7 +2688,7 @@ public class TestFromClientSide {
   throws IOException {
     Get get = new Get(row);
     get.addColumn(family, qualifier);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     get.setTimeRange(stamps[start+1], Long.MAX_VALUE);
     Result result = ht.get(get);
     assertNResult(result, row, family, qualifier, stamps, values, start+1, end);
@@ -2690,7 +2699,7 @@ public class TestFromClientSide {
   throws IOException {
     Get get = new Get(row);
     get.addColumn(family, qualifier);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     get.setTimeRange(stamps[start], stamps[end]+1);
     Result result = ht.get(get);
     assertNResult(result, row, family, qualifier, stamps, values, start, end);
@@ -2701,7 +2710,7 @@ public class TestFromClientSide {
   throws IOException {
     Get get = new Get(row);
     get.addColumn(family, qualifier);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     assertNResult(result, row, family, qualifier, stamps, values, start, end);
   }
@@ -2744,8 +2753,8 @@ public class TestFromClientSide {
   throws Exception {
     Get get = new Get(row);
     get.addColumn(family, qualifier);
-    get.setTimeStamp(stamp);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.setTimestamp(stamp);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     assertSingleResult(result, row, family, qualifier, stamp, value);
   }
@@ -2755,8 +2764,8 @@ public class TestFromClientSide {
   throws Exception {
     Get get = new Get(row);
     get.addColumn(family, qualifier);
-    get.setTimeStamp(stamp);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.setTimestamp(stamp);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     assertEmptyResult(result);
   }
@@ -2766,7 +2775,7 @@ public class TestFromClientSide {
   throws Exception {
     Scan scan = new Scan(row);
     scan.addColumn(family, qualifier);
-    scan.setTimeStamp(stamp);
+    scan.setTimestamp(stamp);
     scan.setMaxVersions(Integer.MAX_VALUE);
     Result result = getSingleScanResult(ht, scan);
     assertSingleResult(result, row, family, qualifier, stamp, value);
@@ -2777,7 +2786,7 @@ public class TestFromClientSide {
   throws Exception {
     Scan scan = new Scan(row);
     scan.addColumn(family, qualifier);
-    scan.setTimeStamp(stamp);
+    scan.setTimestamp(stamp);
     scan.setMaxVersions(Integer.MAX_VALUE);
     Result result = getSingleScanResult(ht, scan);
     assertNullResult(result);
@@ -3497,7 +3506,9 @@ public class TestFromClientSide {
 
   private long [] makeStamps(int n) {
     long [] stamps = new long[n];
-    for(int i=0;i<n;i++) stamps[i] = i+1;
+    for (int i = 0; i < n; i++) {
+      stamps[i] = i+1L;
+    }
     return stamps;
   }
 
@@ -3546,7 +3557,7 @@ public class TestFromClientSide {
     // Ensure maxVersions in query is respected
     Get get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(2);
+    get.readVersions(2);
     Result result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[4], STAMPS[5]},
@@ -3587,7 +3598,7 @@ public class TestFromClientSide {
     // Ensure maxVersions in query is respected
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(2);
+    get.readVersions(2);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[4], STAMPS[5]},
@@ -3618,7 +3629,7 @@ public class TestFromClientSide {
     // Ensure maxVersions in query is respected
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(7);
+    get.readVersions(7);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[7], STAMPS[8]},
@@ -3635,7 +3646,7 @@ public class TestFromClientSide {
         0, 6);
 
     get = new Get(ROW);
-    get.setMaxVersions(7);
+    get.readVersions(7);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[7], STAMPS[8]},
@@ -3680,7 +3691,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[7], STAMPS[8], STAMPS[9], STAMPS[11], STAMPS[13], STAMPS[15]},
@@ -3705,7 +3716,7 @@ public class TestFromClientSide {
     // Test that it's gone
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     assertNResult(result, ROW, FAMILY, QUALIFIER,
         new long [] {STAMPS[1], STAMPS[2], STAMPS[3], STAMPS[4], STAMPS[5], STAMPS[6], STAMPS[8], STAMPS[9], STAMPS[13], STAMPS[15]},
@@ -3744,7 +3755,7 @@ public class TestFromClientSide {
 
     Get get = new Get(row);
     get.addColumn(FAMILY, qualifier);
-    get.setMaxVersions();
+    get.readAllVersions();
 
     // Check that the column indeed has the right values at timestamps 1 and
     // 2
@@ -3794,7 +3805,7 @@ public class TestFromClientSide {
 
     Get get = new Get(row);
     get.addColumn(FAMILY, qualifier);
-    get.setMaxVersions();
+    get.readAllVersions();
 
     // Check that the column indeed has the right values at timestamps 1 and
     // 2
@@ -3854,7 +3865,7 @@ public class TestFromClientSide {
 
     Get get = new Get(row);
     get.addColumn(FAMILY, qualifier);
-    get.setMaxVersions();
+    get.readAllVersions();
 
     // Check that the column indeed has the right values at timestamps 1 and
     // 2
@@ -3967,8 +3978,8 @@ public class TestFromClientSide {
     put = new Put(row2);
     put.addColumn(CONTENTS_FAMILY, null, value);
 
-    assertEquals(put.size(), 1);
-    assertEquals(put.getFamilyCellMap().get(CONTENTS_FAMILY).size(), 1);
+    assertEquals(1, put.size());
+    assertEquals(1, put.getFamilyCellMap().get(CONTENTS_FAMILY).size());
 
     // KeyValue v1 expectation.  Cast for now until we go all Cell all the time. TODO
     KeyValue kv = (KeyValue)put.getFamilyCellMap().get(CONTENTS_FAMILY).get(0);
@@ -4199,15 +4210,14 @@ public class TestFromClientSide {
       TEST_UTIL.createTable(tables[i], FAMILY);
     }
     Admin admin = TEST_UTIL.getAdmin();
-    HTableDescriptor[] ts = admin.listTables();
-    HashSet<HTableDescriptor> result = new HashSet<HTableDescriptor>(ts.length);
-    Collections.addAll(result, ts);
+    List<TableDescriptor> ts = admin.listTableDescriptors();
+    HashSet<TableDescriptor> result = new HashSet<>(ts);
     int size = result.size();
     assertTrue(size >= tables.length);
     for (int i = 0; i < tables.length && i < size; i++) {
       boolean found = false;
-      for (int j = 0; j < ts.length; j++) {
-        if (ts[j].getTableName().equals(tables[i])) {
+      for (int j = 0; j < ts.size(); j++) {
+        if (ts.get(j).getTableName().equals(tables[i])) {
           found = true;
           break;
         }
@@ -4261,8 +4271,8 @@ public class TestFromClientSide {
     boolean tablesOnMaster = LoadBalancer.isTablesOnMaster(TEST_UTIL.getConfiguration());
     try (Admin admin = conn.getAdmin()) {
       assertTrue(admin.tableExists(tableName));
-      assertTrue(admin.getClusterStatus(EnumSet.of(Option.LIVE_SERVERS))
-          .getServersSize() == SLAVES + (tablesOnMaster ? 1 : 0));
+      assertTrue(admin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS))
+          .getLiveServerMetrics().size() == SLAVES + (tablesOnMaster ? 1 : 0));
     }
   }
 
@@ -4322,7 +4332,7 @@ public class TestFromClientSide {
     for (HColumnDescriptor c : desc.getFamilies())
       c.setValue(attrName, attrValue);
     // update metadata for all regions of this table
-    admin.modifyTable(tableAname, desc);
+    admin.modifyTable(desc);
     // enable the table
     admin.enableTable(tableAname);
 
@@ -4677,7 +4687,7 @@ public class TestFromClientSide {
     final long ts = EnvironmentEdgeManager.currentTime();
     Get get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions();
+    get.readAllVersions();
 
     for (int versions = 1; versions <= numVersions; versions++) {
       Put put = new Put(ROW);
@@ -4713,7 +4723,7 @@ public class TestFromClientSide {
     final long ts = EnvironmentEdgeManager.currentTime();
     final Get get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions();
+    get.readAllVersions();
 
     for (int versions = 1; versions <= numVersions; versions++) {
       Put put = new Put(ROW);
@@ -4766,7 +4776,7 @@ public class TestFromClientSide {
             // the error happens in a thread, it won't fail the test,
             // need to pass it to the caller for proper handling.
             error.set(e);
-            LOG.error(e);
+            LOG.error(e.toString(), e);
           }
 
           return null;
@@ -4790,33 +4800,88 @@ public class TestFromClientSide {
     put1.addColumn(FAMILY, QUALIFIER, VALUE);
 
     // row doesn't exist, so using non-null value should be considered "not match".
-    boolean ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, VALUE, put1);
-    assertEquals(ok, false);
+    boolean ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifEquals(VALUE).thenPut(put1);
+    assertFalse(ok);
 
-    // row doesn't exist, so using "null" to check for existence should be considered "match".
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, null, put1);
-    assertEquals(ok, true);
+    // row doesn't exist, so using "ifNotExists" should be considered "match".
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER).ifNotExists().thenPut(put1);
+    assertTrue(ok);
 
-    // row now exists, so using "null" to check for existence should be considered "not match".
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, null, put1);
-    assertEquals(ok, false);
+    // row now exists, so using "ifNotExists" should be considered "not match".
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER).ifNotExists().thenPut(put1);
+    assertFalse(ok);
 
     Put put2 = new Put(ROW);
     put2.addColumn(FAMILY, QUALIFIER, value2);
 
     // row now exists, use the matching value to check
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, VALUE, put2);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER).ifEquals(VALUE).thenPut(put2);
+    assertTrue(ok);
 
     Put put3 = new Put(anotherrow);
     put3.addColumn(FAMILY, QUALIFIER, VALUE);
 
     // try to do CheckAndPut on different rows
     try {
-        ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, value2, put3);
-        fail("trying to check and modify different rows should have failed.");
+      table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER).ifEquals(value2).thenPut(put3);
+      fail("trying to check and modify different rows should have failed.");
     } catch(Exception e) {}
 
+  }
+
+  @Test
+  public void testCheckAndMutateWithTimeRange() throws IOException {
+    Table table = TEST_UTIL.createTable(TableName.valueOf(name.getMethodName()), FAMILY);
+    final long ts = System.currentTimeMillis() / 2;
+    Put put = new Put(ROW);
+    put.addColumn(FAMILY, QUALIFIER, ts, VALUE);
+
+    boolean ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .ifNotExists()
+      .thenPut(put);
+    assertTrue(ok);
+
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .timeRange(TimeRange.at(ts + 10000))
+      .ifEquals(VALUE)
+      .thenPut(put);
+    assertFalse(ok);
+
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .timeRange(TimeRange.at(ts))
+      .ifEquals(VALUE)
+      .thenPut(put);
+    assertTrue(ok);
+
+    RowMutations rm = new RowMutations(ROW)
+      .add((Mutation) put);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .timeRange(TimeRange.at(ts + 10000))
+      .ifEquals(VALUE)
+      .thenMutate(rm);
+    assertFalse(ok);
+
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .timeRange(TimeRange.at(ts))
+      .ifEquals(VALUE)
+      .thenMutate(rm);
+    assertTrue(ok);
+
+    Delete delete = new Delete(ROW)
+      .addColumn(FAMILY, QUALIFIER);
+
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .timeRange(TimeRange.at(ts + 10000))
+      .ifEquals(VALUE)
+      .thenDelete(delete);
+    assertFalse(ok);
+
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+      .timeRange(TimeRange.at(ts))
+      .ifEquals(VALUE)
+      .thenDelete(delete);
+    assertTrue(ok);
   }
 
   @Test
@@ -4834,54 +4899,72 @@ public class TestFromClientSide {
     Put put3 = new Put(ROW);
     put3.addColumn(FAMILY, QUALIFIER, value3);
 
-    // row doesn't exist, so using "null" to check for existence should be considered "match".
-    boolean ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, null, put2);
-    assertEquals(ok, true);
+    // row doesn't exist, so using "ifNotExists" should be considered "match".
+    boolean ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER).ifNotExists().thenPut(put2);
+    assertTrue(ok);
 
     // cell = "bbbb", using "aaaa" to compare only LESS/LESS_OR_EQUAL/NOT_EQUAL
     // turns out "match"
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER, value1, put2);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.EQUAL, value1, put2);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER_OR_EQUAL, value1, put2);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.LESS, value1, put2);
-    assertEquals(ok, true);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.LESS_OR_EQUAL, value1, put2);
-    assertEquals(ok, true);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.NOT_EQUAL, value1, put3);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER, value1).thenPut(put2);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.EQUAL, value1).thenPut(put2);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER_OR_EQUAL, value1).thenPut(put2);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS, value1).thenPut(put2);
+    assertTrue(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS_OR_EQUAL, value1).thenPut(put2);
+    assertTrue(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.NOT_EQUAL, value1).thenPut(put3);
+    assertTrue(ok);
 
     // cell = "cccc", using "dddd" to compare only LARGER/LARGER_OR_EQUAL/NOT_EQUAL
     // turns out "match"
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.LESS, value4, put3);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.LESS_OR_EQUAL, value4, put3);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.EQUAL, value4, put3);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER, value4, put3);
-    assertEquals(ok, true);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER_OR_EQUAL, value4, put3);
-    assertEquals(ok, true);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.NOT_EQUAL, value4, put2);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS, value4).thenPut(put3);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS_OR_EQUAL, value4).thenPut(put3);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.EQUAL, value4).thenPut(put3);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER, value4).thenPut(put3);
+    assertTrue(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER_OR_EQUAL, value4).thenPut(put3);
+    assertTrue(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.NOT_EQUAL, value4).thenPut(put2);
+    assertTrue(ok);
 
     // cell = "bbbb", using "bbbb" to compare only GREATER_OR_EQUAL/LESS_OR_EQUAL/EQUAL
     // turns out "match"
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER, value2, put2);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.NOT_EQUAL, value2, put2);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.LESS, value2, put2);
-    assertEquals(ok, false);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER_OR_EQUAL, value2, put2);
-    assertEquals(ok, true);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.LESS_OR_EQUAL, value2, put2);
-    assertEquals(ok, true);
-    ok = table.checkAndPut(ROW, FAMILY, QUALIFIER, CompareOperator.EQUAL, value2, put3);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER, value2).thenPut(put2);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.NOT_EQUAL, value2).thenPut(put2);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS, value2).thenPut(put2);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER_OR_EQUAL, value2).thenPut(put2);
+    assertTrue(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS_OR_EQUAL, value2).thenPut(put2);
+    assertTrue(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.EQUAL, value2).thenPut(put3);
+    assertTrue(ok);
   }
 
   @Test
@@ -4898,8 +4981,9 @@ public class TestFromClientSide {
     Delete delete = new Delete(ROW);
     delete.addColumns(FAMILY, QUALIFIER);
 
-    boolean ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, value1, delete);
-    assertEquals(ok, true);
+    boolean ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifEquals(value1).thenDelete(delete);
+    assertTrue(ok);
   }
 
   @Test
@@ -4924,56 +5008,74 @@ public class TestFromClientSide {
 
     // cell = "bbbb", using "aaaa" to compare only LESS/LESS_OR_EQUAL/NOT_EQUAL
     // turns out "match"
-    boolean ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER, value1, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.EQUAL, value1, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER_OR_EQUAL, value1, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.LESS, value1, delete);
-    assertEquals(ok, true);
+    boolean ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER, value1).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.EQUAL, value1).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER_OR_EQUAL, value1).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS, value1).thenDelete(delete);
+    assertTrue(ok);
     table.put(put2);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.LESS_OR_EQUAL, value1, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS_OR_EQUAL, value1).thenDelete(delete);
+    assertTrue(ok);
     table.put(put2);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.NOT_EQUAL, value1, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.NOT_EQUAL, value1).thenDelete(delete);
+    assertTrue(ok);
 
     // cell = "cccc", using "dddd" to compare only LARGER/LARGER_OR_EQUAL/NOT_EQUAL
     // turns out "match"
     table.put(put3);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.LESS, value4, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.LESS_OR_EQUAL, value4, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.EQUAL, value4, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER, value4, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS, value4).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS_OR_EQUAL, value4).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.EQUAL, value4).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER, value4).thenDelete(delete);
+    assertTrue(ok);
     table.put(put3);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER_OR_EQUAL, value4, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER_OR_EQUAL, value4).thenDelete(delete);
+    assertTrue(ok);
     table.put(put3);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.NOT_EQUAL, value4, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.NOT_EQUAL, value4).thenDelete(delete);
+    assertTrue(ok);
 
     // cell = "bbbb", using "bbbb" to compare only GREATER_OR_EQUAL/LESS_OR_EQUAL/EQUAL
     // turns out "match"
     table.put(put2);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER, value2, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.NOT_EQUAL, value2, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.LESS, value2, delete);
-    assertEquals(ok, false);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.GREATER_OR_EQUAL, value2, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER, value2).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.NOT_EQUAL, value2).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS, value2).thenDelete(delete);
+    assertFalse(ok);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.GREATER_OR_EQUAL, value2).thenDelete(delete);
+    assertTrue(ok);
     table.put(put2);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.LESS_OR_EQUAL, value2, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.LESS_OR_EQUAL, value2).thenDelete(delete);
+    assertTrue(ok);
     table.put(put2);
-    ok = table.checkAndDelete(ROW, FAMILY, QUALIFIER, CompareOperator.EQUAL, value2, delete);
-    assertEquals(ok, true);
+    ok = table.checkAndMutate(ROW, FAMILY).qualifier(QUALIFIER)
+        .ifMatches(CompareOperator.EQUAL, value2).thenDelete(delete);
+    assertTrue(ok);
   }
 
   /**
@@ -5011,7 +5113,7 @@ public class TestFromClientSide {
     LOG.info("test data has " + numRecords + " records.");
 
     // by default, scan metrics collection is turned off
-    assertEquals(null, scan1.getScanMetrics());
+    assertEquals(null, scanner.getScanMetrics());
 
     // turn on scan metrics
     Scan scan2 = new Scan();
@@ -5022,7 +5124,7 @@ public class TestFromClientSide {
     }
     scanner.close();
     // closing the scanner will set the metrics.
-    assertNotNull(scan2.getScanMetrics());
+    assertNotNull(scanner.getScanMetrics());
 
     // set caching to 1, because metrics are collected in each roundtrip only
     scan2 = new Scan();
@@ -5035,7 +5137,7 @@ public class TestFromClientSide {
     }
     scanner.close();
 
-    ScanMetrics scanMetrics = scan2.getScanMetrics();
+    ScanMetrics scanMetrics = scanner.getScanMetrics();
     assertEquals("Did not access all the regions in the table", numOfRegions,
         scanMetrics.countOfRegions.get());
 
@@ -5051,7 +5153,7 @@ public class TestFromClientSide {
       }
     }
     scanner.close();
-    scanMetrics = scan2.getScanMetrics();
+    scanMetrics = scanner.getScanMetrics();
     assertEquals("Did not count the result bytes", numBytes,
       scanMetrics.countOfBytesInResults.get());
 
@@ -5068,7 +5170,7 @@ public class TestFromClientSide {
       }
     }
     scanner.close();
-    scanMetrics = scan2.getScanMetrics();
+    scanMetrics = scanner.getScanMetrics();
     assertEquals("Did not count the result bytes", numBytes,
       scanMetrics.countOfBytesInResults.get());
 
@@ -5096,18 +5198,9 @@ public class TestFromClientSide {
     for (Result result : scannerWithClose.next(numRecords + 1)) {
     }
     scannerWithClose.close();
-    ScanMetrics scanMetricsWithClose = getScanMetrics(scanWithClose);
+    ScanMetrics scanMetricsWithClose = scannerWithClose.getScanMetrics();
     assertEquals("Did not access all the regions in the table", numOfRegions,
         scanMetricsWithClose.countOfRegions.get());
-  }
-
-  private ScanMetrics getScanMetrics(Scan scan) throws Exception {
-    byte[] serializedMetrics = scan.getAttribute(Scan.SCAN_ATTRIBUTES_METRICS_DATA);
-    assertTrue("Serialized metrics were not found.", serializedMetrics != null);
-
-    ScanMetrics scanMetrics = ProtobufUtil.toScanMetrics(serializedMetrics);
-
-    return scanMetrics;
   }
 
   /**
@@ -5125,19 +5218,18 @@ public class TestFromClientSide {
       // get the block cache and region
       String regionName = locator.getAllRegionLocations().get(0).getRegionInfo().getEncodedName();
 
-      HRegion region = (HRegion) TEST_UTIL.getRSForFirstRegionInTable(tableName)
+      HRegion region = TEST_UTIL.getRSForFirstRegionInTable(tableName)
           .getRegion(regionName);
       HStore store = region.getStores().iterator().next();
       CacheConfig cacheConf = store.getCacheConfig();
       cacheConf.setCacheDataOnWrite(true);
       cacheConf.setEvictOnClose(true);
-      BlockCache cache = cacheConf.getBlockCache();
+      BlockCache cache = cacheConf.getBlockCache().get();
 
       // establish baseline stats
       long startBlockCount = cache.getBlockCount();
       long startBlockHits = cache.getStats().getHitCount();
       long startBlockMiss = cache.getStats().getMissCount();
-
 
       // wait till baseline is stable, (minimal 500 ms)
       for (int i = 0; i < 5; i++) {
@@ -5259,8 +5351,7 @@ public class TestFromClientSide {
         HRegionServer regionServer = TEST_UTIL.getHBaseCluster().getRegionServer(i);
         ServerName addr = regionServer.getServerName();
         if (addr.getPort() != addrBefore.getPort()) {
-          admin.move(regionInfo.getEncodedNameAsBytes(),
-              Bytes.toBytes(addr.toString()));
+          admin.move(regionInfo.getEncodedNameAsBytes(), addr);
           // Wait for the region to move.
           Thread.sleep(5000);
           addrAfter = addr;
@@ -5478,18 +5569,18 @@ public class TestFromClientSide {
 
     // put the same row 4 times, with different values
     Put p = new Put(row);
-    p.addColumn(FAMILY, QUALIFIER, (long) 10, VALUE);
+    p.addColumn(FAMILY, QUALIFIER, 10, VALUE);
     table.put(p);
     p = new Put(row);
-    p.addColumn(FAMILY, QUALIFIER, (long) 11, ArrayUtils.add(VALUE, (byte) 2));
-    table.put(p);
-
-    p = new Put(row);
-    p.addColumn(FAMILY, QUALIFIER, (long) 12, ArrayUtils.add(VALUE, (byte) 3));
+    p.addColumn(FAMILY, QUALIFIER, 11, ArrayUtils.add(VALUE, (byte) 2));
     table.put(p);
 
     p = new Put(row);
-    p.addColumn(FAMILY, QUALIFIER, (long) 13, ArrayUtils.add(VALUE, (byte) 4));
+    p.addColumn(FAMILY, QUALIFIER, 12, ArrayUtils.add(VALUE, (byte) 3));
+    table.put(p);
+
+    p = new Put(row);
+    p.addColumn(FAMILY, QUALIFIER, 13, ArrayUtils.add(VALUE, (byte) 4));
     table.put(p);
 
     int versions = 4;
@@ -5686,7 +5777,7 @@ public class TestFromClientSide {
     ResultScanner scanner = ht.getScanner(scan);
     int expectedIndex = 5;
     for (Result result : scanner) {
-      assertEquals(result.size(), 1);
+      assertEquals(1, result.size());
       Cell c = result.rawCells()[0];
       assertTrue(Bytes.equals(c.getRowArray(), c.getRowOffset(), c.getRowLength(),
         ROWS[expectedIndex], 0, ROWS[expectedIndex].length));
@@ -5694,7 +5785,7 @@ public class TestFromClientSide {
         c.getQualifierLength(), QUALIFIERS[expectedIndex], 0, QUALIFIERS[expectedIndex].length));
       expectedIndex--;
     }
-    assertEquals(expectedIndex, 0);
+    assertEquals(0, expectedIndex);
     scanner.close();
     ht.close();
   }
@@ -5727,12 +5818,12 @@ public class TestFromClientSide {
     ResultScanner scanner = ht.getScanner(scan);
     int count = 0;
     for (Result result : ht.getScanner(scan)) {
-      assertEquals(result.size(), 1);
-      assertEquals(result.rawCells()[0].getValueLength(), Bytes.SIZEOF_INT);
-      assertEquals(Bytes.toInt(CellUtil.cloneValue(result.rawCells()[0])), VALUE.length);
+      assertEquals(1, result.size());
+      assertEquals(Bytes.SIZEOF_INT, result.rawCells()[0].getValueLength());
+      assertEquals(VALUE.length, Bytes.toInt(CellUtil.cloneValue(result.rawCells()[0])));
       count++;
     }
-    assertEquals(count, 10);
+    assertEquals(10, count);
     scanner.close();
     ht.close();
   }
@@ -6249,41 +6340,17 @@ public class TestFromClientSide {
     assertEquals(4, count); // 003 004 005 006
   }
 
-  @Test
-  public void testGetStartEndKeysWithRegionReplicas() throws IOException {
-    HTableDescriptor htd = new HTableDescriptor(TableName.valueOf(name.getMethodName()));
-    HColumnDescriptor fam = new HColumnDescriptor(FAMILY);
-    htd.addFamily(fam);
-    byte[][] KEYS = HBaseTestingUtility.KEYS_FOR_HBA_CREATE_TABLE;
-    Admin admin = TEST_UTIL.getAdmin();
-    admin.createTable(htd, KEYS);
-    List<HRegionInfo> regions = admin.getTableRegions(htd.getTableName());
+  private static Pair<byte[][], byte[][]> getStartEndKeys(List<RegionLocations> regions) {
+    final byte[][] startKeyList = new byte[regions.size()][];
+    final byte[][] endKeyList = new byte[regions.size()][];
 
-    HRegionLocator locator =
-        (HRegionLocator) admin.getConnection().getRegionLocator(htd.getTableName());
-    for (int regionReplication = 1; regionReplication < 4; regionReplication++) {
-      List<RegionLocations> regionLocations = new ArrayList<>();
-
-      // mock region locations coming from meta with multiple replicas
-      for (HRegionInfo region : regions) {
-        HRegionLocation[] arr = new HRegionLocation[regionReplication];
-        for (int i = 0; i < arr.length; i++) {
-          arr[i] = new HRegionLocation(RegionReplicaUtil.getRegionInfoForReplica(region, i), null);
-        }
-        regionLocations.add(new RegionLocations(arr));
-      }
-
-      Pair<byte[][], byte[][]> startEndKeys = locator.getStartEndKeys(regionLocations);
-
-      assertEquals(KEYS.length + 1, startEndKeys.getFirst().length);
-
-      for (int i = 0; i < KEYS.length + 1; i++) {
-        byte[] startKey = i == 0 ? HConstants.EMPTY_START_ROW : KEYS[i - 1];
-        byte[] endKey = i == KEYS.length ? HConstants.EMPTY_END_ROW : KEYS[i];
-        assertArrayEquals(startKey, startEndKeys.getFirst()[i]);
-        assertArrayEquals(endKey, startEndKeys.getSecond()[i]);
-      }
+    for (int i = 0; i < regions.size(); i++) {
+      RegionInfo region = regions.get(i).getRegionLocation().getRegion();
+      startKeyList[i] = region.getStartKey();
+      endKeyList[i] = region.getEndKey();
     }
+
+    return new Pair<>(startKeyList, endKeyList);
   }
 
   @Test
@@ -6293,7 +6360,7 @@ public class TestFromClientSide {
     scan.setCaching(1);
     // Filter out any records
     scan.setFilter(new FilterList(new FirstKeyOnlyFilter(), new InclusiveStopFilter(new byte[0])));
-    try (Table table = TEST_UTIL.getConnection().getTable(TableName.NAMESPACE_TABLE_NAME)) {
+    try (Table table = TEST_UTIL.getConnection().getTable(TableName.META_TABLE_NAME)) {
       try (ResultScanner s = table.getScanner(scan)) {
         assertNull(s.next());
       }
@@ -6314,6 +6381,13 @@ public class TestFromClientSide {
     int number = ((ConnectionImplementation)admin.getConnection())
       .getNumberOfCachedRegionLocations(htd.getTableName());
     assertEquals(results.size(), number);
+    ConnectionImplementation conn = ((ConnectionImplementation)admin.getConnection());
+    assertNotNull("Can't get cached location for row aaa",
+        conn.getCachedLocation(htd.getTableName(),Bytes.toBytes("aaa")));
+    for(byte[] startKey:HBaseTestingUtility.KEYS_FOR_HBA_CREATE_TABLE){
+      assertNotNull("Can't get cached location for row "+
+        Bytes.toString(startKey),(conn.getCachedLocation(htd.getTableName(),startKey)));
+    }
   }
 
   @Test
@@ -6375,7 +6449,7 @@ public class TestFromClientSide {
 
     Get get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     // verify version 1000,2000,4000 remains for column FAMILY:QUALIFIER
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[0], ts[1], ts[3] }, new byte[][] {
@@ -6388,7 +6462,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     // verify version 1000,2000,4000 remains for column FAMILY:QUALIFIER
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[0], ts[1], ts[3] }, new byte[][] {
@@ -6422,7 +6496,7 @@ public class TestFromClientSide {
 
     Get get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     Result result = ht.get(get);
     // verify version 1000,2000,3000 remains for column FAMILY:QUALIFIER
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[0], ts[1], ts[2] }, new byte[][] {
@@ -6436,7 +6510,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     // verify version 1000 remains for column FAMILY:QUALIFIER
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[0] }, new byte[][] { VALUES[0] },
@@ -6449,7 +6523,7 @@ public class TestFromClientSide {
 
     get = new Get(ROW);
     get.addColumn(FAMILY, QUALIFIER);
-    get.setMaxVersions(Integer.MAX_VALUE);
+    get.readVersions(Integer.MAX_VALUE);
     result = ht.get(get);
     // verify version 1000,5000 remains for column FAMILY:QUALIFIER
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[0], ts[4] }, new byte[][] {
@@ -6495,7 +6569,7 @@ public class TestFromClientSide {
     Get get =
         new Get(ROW)
             .setFilter(new ValueFilter(CompareOperator.EQUAL, new SubstringComparator("value-a")))
-            .setMaxVersions(3);
+            .readVersions(3);
     result = table.get(get);
     // ts[0] has gone from user view. Only read ts[2] which value is less or equal to 3
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[1] }, new byte[][] { VALUEA }, 0,
@@ -6515,7 +6589,7 @@ public class TestFromClientSide {
     get =
         new Get(ROW)
             .setFilter(new ValueFilter(CompareOperator.EQUAL, new SubstringComparator("value-a")))
-            .setMaxVersions(1);
+            .readVersions(1);
     result = table.get(get);
     // ts[0] has gone from user view. Only read ts[2] which value is less or equal to 3
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[1] }, new byte[][] { VALUEA }, 0,
@@ -6535,7 +6609,7 @@ public class TestFromClientSide {
     get =
         new Get(ROW)
             .setFilter(new ValueFilter(CompareOperator.EQUAL, new SubstringComparator("value-a")))
-            .setMaxVersions(5);
+            .readVersions(5);
     result = table.get(get);
     // ts[0] has gone from user view. Only read ts[2] which value is less or equal to 3
     assertNResult(result, ROW, FAMILY, QUALIFIER, new long[] { ts[1] }, new byte[][] { VALUEA }, 0,
@@ -6596,5 +6670,31 @@ public class TestFromClientSide {
       // No more results in this scan
       assertNull(scanner.next());
     }
+  }
+
+  @Test(expected = DoNotRetryIOException.class)
+  public void testCreateTableWithZeroRegionReplicas() throws Exception {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    TableDescriptor desc = TableDescriptorBuilder.newBuilder(tableName)
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.of(Bytes.toBytes("cf")))
+        .setRegionReplication(0)
+        .build();
+
+    TEST_UTIL.getAdmin().createTable(desc);
+  }
+
+  @Test(expected = DoNotRetryIOException.class)
+  public void testModifyTableWithZeroRegionReplicas() throws Exception {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    TableDescriptor desc = TableDescriptorBuilder.newBuilder(tableName)
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.of(Bytes.toBytes("cf")))
+        .build();
+
+    TEST_UTIL.getAdmin().createTable(desc);
+    TableDescriptor newDesc = TableDescriptorBuilder.newBuilder(desc)
+        .setRegionReplication(0)
+        .build();
+
+    TEST_UTIL.getAdmin().modifyTable(newDesc);
   }
 }

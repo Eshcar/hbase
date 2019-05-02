@@ -19,14 +19,16 @@
 
 package org.apache.hadoop.hbase.coordination;
 
+import static org.apache.hadoop.hbase.HConstants.DEFAULT_HBASE_SPLIT_WAL_MAX_SPLITTER;
+import static org.apache.hadoop.hbase.HConstants.HBASE_SPLIT_WAL_MAX_SPLITTER;
+
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -35,6 +37,7 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.SplitLogCounters;
 import org.apache.hadoop.hbase.SplitLogTask;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
+import org.apache.hadoop.hbase.log.HBaseMarkers;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.SplitLogWorker;
 import org.apache.hadoop.hbase.regionserver.SplitLogWorker.TaskExecutor;
@@ -53,6 +56,8 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * ZooKeeper based implementation of {@link SplitLogWorkerCoordination}
@@ -63,7 +68,7 @@ import org.apache.zookeeper.data.Stat;
 public class ZkSplitLogWorkerCoordination extends ZKListener implements
     SplitLogWorkerCoordination {
 
-  private static final Log LOG = LogFactory.getLog(ZkSplitLogWorkerCoordination.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ZkSplitLogWorkerCoordination.class);
 
   private static final int checkInterval = 5000; // 5 seconds
   private static final int FAILED_TO_OWN_TASK = -1;
@@ -72,7 +77,7 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
 
   private TaskExecutor splitTaskExecutor;
 
-  private AtomicInteger taskReadySeq = new AtomicInteger(0);
+  private final AtomicInteger taskReadySeq = new AtomicInteger(0);
   private volatile String currentTask = null;
   private int currentVersion;
   private volatile boolean shouldStop = false;
@@ -95,7 +100,7 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
    */
   @Override
   public void nodeChildrenChanged(String path) {
-    if (path.equals(watcher.znodePaths.splitLogZNode)) {
+    if (path.equals(watcher.getZNodePaths().splitLogZNode)) {
       if (LOG.isTraceEnabled()) {
         LOG.trace("tasks arrived or departed on " + path);
       }
@@ -133,7 +138,8 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
     this.server = server;
     this.worker = worker;
     this.splitTaskExecutor = splitExecutor;
-    maxConcurrentTasks = conf.getInt("hbase.regionserver.wal.max.splitters", DEFAULT_MAX_SPLITTERS);
+    maxConcurrentTasks =
+        conf.getInt(HBASE_SPLIT_WAL_MAX_SPLITTER, DEFAULT_HBASE_SPLIT_WAL_MAX_SPLITTER);
     reportPeriod =
         conf.getInt("hbase.splitlog.report.period",
           conf.getInt(HConstants.HBASE_SPLITLOG_MANAGER_TIMEOUT,
@@ -199,27 +205,28 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
    * try to grab a 'lock' on the task zk node to own and execute the task.
    * <p>
    * @param path zk node for the task
+   * @return boolean value when grab a task success return true otherwise false
    */
-  private void grabTask(String path) {
+  private boolean grabTask(String path) {
     Stat stat = new Stat();
     byte[] data;
     synchronized (grabTaskLock) {
       currentTask = path;
       workerInGrabTask = true;
       if (Thread.interrupted()) {
-        return;
+        return false;
       }
     }
     try {
       try {
         if ((data = ZKUtil.getDataNoWatch(watcher, path, stat)) == null) {
           SplitLogCounters.tot_wkr_failed_to_grab_task_no_data.increment();
-          return;
+          return false;
         }
       } catch (KeeperException e) {
         LOG.warn("Failed to get data for znode " + path, e);
         SplitLogCounters.tot_wkr_failed_to_grab_task_exception.increment();
-        return;
+        return false;
       }
       SplitLogTask slt;
       try {
@@ -227,18 +234,18 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
       } catch (DeserializationException e) {
         LOG.warn("Failed parse data for znode " + path, e);
         SplitLogCounters.tot_wkr_failed_to_grab_task_exception.increment();
-        return;
+        return false;
       }
       if (!slt.isUnassigned()) {
         SplitLogCounters.tot_wkr_failed_to_grab_task_owned.increment();
-        return;
+        return false;
       }
 
       currentVersion =
           attemptToOwnTask(true, watcher, server.getServerName(), path, stat.getVersion());
       if (currentVersion < 0) {
         SplitLogCounters.tot_wkr_failed_to_grab_task_lost_race.increment();
-        return;
+        return false;
       }
 
       if (ZKSplitLog.isRescanNode(watcher, currentTask)) {
@@ -249,7 +256,7 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
 
         endTask(new SplitLogTask.Done(server.getServerName()),
           SplitLogCounters.tot_wkr_task_acquired_rescan, splitTaskDetails);
-        return;
+        return false;
       }
 
       LOG.info("worker " + server.getServerName() + " acquired task " + path);
@@ -266,6 +273,7 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
         LOG.warn("Interrupted while yielding for other region servers", e);
         Thread.currentThread().interrupt();
       }
+      return true;
     } finally {
       synchronized (grabTaskLock) {
         workerInGrabTask = false;
@@ -316,28 +324,34 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
   }
 
   /**
-   * This function calculates how many splitters it could create based on expected average tasks per
-   * RS and the hard limit upper bound(maxConcurrentTasks) set by configuration. <br>
+   * This function calculates how many splitters this RS should create based on expected average
+   * tasks per RS and the hard limit upper bound(maxConcurrentTasks) set by configuration. <br>
    * At any given time, a RS allows spawn MIN(Expected Tasks/RS, Hard Upper Bound)
-   * @param numTasks current total number of available tasks
+   * @param numTasks total number of split tasks available
+   * @return number of tasks this RS can grab
    */
-  private int calculateAvailableSplitters(int numTasks) {
+  private int getNumExpectedTasksPerRS(int numTasks) {
     // at lease one RS(itself) available
     int availableRSs = 1;
     try {
       List<String> regionServers =
-          ZKUtil.listChildrenNoWatch(watcher, watcher.znodePaths.rsZNode);
+          ZKUtil.listChildrenNoWatch(watcher, watcher.getZNodePaths().rsZNode);
       availableRSs = Math.max(availableRSs, (regionServers == null) ? 0 : regionServers.size());
     } catch (KeeperException e) {
       // do nothing
       LOG.debug("getAvailableRegionServers got ZooKeeper exception", e);
     }
-
     int expectedTasksPerRS = (numTasks / availableRSs) + ((numTasks % availableRSs == 0) ? 0 : 1);
-    expectedTasksPerRS = Math.max(1, expectedTasksPerRS); // at least be one
-    // calculate how many more splitters we could spawn
-    return Math.min(expectedTasksPerRS, maxConcurrentTasks)
-        - this.tasksInProgress.get();
+    return Math.max(1, expectedTasksPerRS); // at least be one
+  }
+
+  /**
+   * @param expectedTasksPerRS Average number of tasks to be handled by each RS
+   * @return true if more splitters are available, otherwise false.
+   */
+  private boolean areSplittersAvailable(int expectedTasksPerRS) {
+    return (Math.min(expectedTasksPerRS, maxConcurrentTasks)
+        - this.tasksInProgress.get()) > 0;
   }
 
   /**
@@ -402,12 +416,15 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
       List<String> paths;
       paths = getTaskList();
       if (paths == null) {
-        LOG.warn("Could not get tasks, did someone remove " + watcher.znodePaths.splitLogZNode
+        LOG.warn("Could not get tasks, did someone remove " + watcher.getZNodePaths().splitLogZNode
             + " ... worker thread exiting.");
         return;
       }
+      // shuffle the paths to prevent different split log worker start from the same log file after
+      // meta log (if any)
+      Collections.shuffle(paths);
       // pick meta wal firstly
-      int offset = (int) (Math.random() * paths.size());
+      int offset = 0;
       for (int i = 0; i < paths.size(); i++) {
         if (AbstractFSWALProvider.isMetaFile(paths.get(i))) {
           offset = i;
@@ -415,20 +432,32 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
         }
       }
       int numTasks = paths.size();
+      int expectedTasksPerRS = getNumExpectedTasksPerRS(numTasks);
+      boolean taskGrabbed = false;
       for (int i = 0; i < numTasks; i++) {
-        int idx = (i + offset) % paths.size();
-        // don't call ZKSplitLog.getNodeName() because that will lead to
-        // double encoding of the path name
-        if (this.calculateAvailableSplitters(numTasks) > 0) {
-          grabTask(ZNodePaths.joinZNode(watcher.znodePaths.splitLogZNode, paths.get(idx)));
-        } else {
-          LOG.debug("Current region server " + server.getServerName() + " has "
-              + this.tasksInProgress.get() + " tasks in progress and can't take more.");
-          break;
+        while (!shouldStop) {
+          if (this.areSplittersAvailable(expectedTasksPerRS)) {
+            LOG.debug("Current region server " + server.getServerName()
+                + " is ready to take more tasks, will get task list and try grab tasks again.");
+            int idx = (i + offset) % paths.size();
+            // don't call ZKSplitLog.getNodeName() because that will lead to
+            // double encoding of the path name
+            taskGrabbed |= grabTask(ZNodePaths.joinZNode(
+                watcher.getZNodePaths().splitLogZNode, paths.get(idx)));
+            break;
+          } else {
+            LOG.debug("Current region server " + server.getServerName() + " has "
+                + this.tasksInProgress.get() + " tasks in progress and can't take more.");
+            Thread.sleep(100);
+          }
         }
         if (shouldStop) {
           return;
         }
+      }
+      if (!taskGrabbed && !shouldStop) {
+        // do not grab any tasks, sleep a little bit to reduce zk request.
+        Thread.sleep(1000);
       }
       SplitLogCounters.tot_wkr_task_grabing.increment();
       synchronized (taskReadySeq) {
@@ -447,14 +476,14 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
     while (!shouldStop) {
       try {
         childrenPaths = ZKUtil.listChildrenAndWatchForNewChildren(watcher,
-          watcher.znodePaths.splitLogZNode);
+          watcher.getZNodePaths().splitLogZNode);
         if (childrenPaths != null) {
           return childrenPaths;
         }
       } catch (KeeperException e) {
-        LOG.warn("Could not get children of znode " + watcher.znodePaths.splitLogZNode, e);
+        LOG.warn("Could not get children of znode " + watcher.getZNodePaths().splitLogZNode, e);
       }
-      LOG.debug("Retry listChildren of znode " + watcher.znodePaths.splitLogZNode
+      LOG.debug("Retry listChildren of znode " + watcher.getZNodePaths().splitLogZNode
           + " after sleep for " + sleepTime + "ms!");
       Thread.sleep(sleepTime);
     }
@@ -470,14 +499,14 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
   public boolean isReady() throws InterruptedException {
     int result = -1;
     try {
-      result = ZKUtil.checkExists(watcher, watcher.znodePaths.splitLogZNode);
+      result = ZKUtil.checkExists(watcher, watcher.getZNodePaths().splitLogZNode);
     } catch (KeeperException e) {
       // ignore
-      LOG.warn("Exception when checking for " + watcher.znodePaths.splitLogZNode
+      LOG.warn("Exception when checking for " + watcher.getZNodePaths().splitLogZNode
           + " ... retrying", e);
     }
     if (result == -1) {
-      LOG.info(watcher.znodePaths.splitLogZNode
+      LOG.info(watcher.getZNodePaths().splitLogZNode
           + " znode does not exist, waiting for master to create");
       Thread.sleep(1000);
     }
@@ -515,7 +544,7 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
    * Asynchronous handler for zk get-data-set-watch on node results.
    */
   class GetDataAsyncCallback implements AsyncCallback.DataCallback {
-    private final Log LOG = LogFactory.getLog(GetDataAsyncCallback.class);
+    private final Logger LOG = LoggerFactory.getLogger(GetDataAsyncCallback.class);
 
     @Override
     public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
@@ -556,7 +585,7 @@ public class ZkSplitLogWorkerCoordination extends ZKListener implements
       LOG.warn("transisition task " + task + " to " + slt + " failed because of version mismatch",
         bve);
     } catch (KeeperException.NoNodeException e) {
-      LOG.fatal(
+      LOG.error(HBaseMarkers.FATAL,
         "logic error - end task " + task + " " + slt + " failed because task doesn't exist", e);
     } catch (KeeperException e) {
       LOG.warn("failed to end task, " + task + " " + slt, e);

@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -39,20 +40,18 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.ArrayBackedTag;
 import org.apache.hadoop.hbase.CellComparatorImpl;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.Tag;
-import org.apache.hadoop.hbase.ArrayBackedTag;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.io.compress.Compression;
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm;
@@ -69,21 +68,29 @@ import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.io.WritableUtils;
 import org.apache.hadoop.io.compress.Compressor;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({IOTests.class, MediumTests.class})
 @RunWith(Parameterized.class)
 public class TestHFileBlock {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestHFileBlock.class);
+
   // change this value to activate more logs
   private static final boolean detailedLogging = false;
   private static final boolean[] BOOLEAN_VALUES = new boolean[] { false, true };
 
-  private static final Log LOG = LogFactory.getLog(TestHFileBlock.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestHFileBlock.class);
 
   static final Compression.Algorithm[] COMPRESSION_ALGORITHMS = { NONE, GZ };
 
@@ -124,7 +131,7 @@ public class TestHFileBlock {
   static int writeTestKeyValues(HFileBlock.Writer hbw, int seed, boolean includesMemstoreTS,
       boolean useTag) throws IOException {
     List<KeyValue> keyValues = new ArrayList<>();
-    Random randomizer = new Random(42l + seed); // just any fixed number
+    Random randomizer = new Random(42L + seed); // just any fixed number
 
     // generate keyValues
     for (int i = 0; i < NUM_KEYVALUES; ++i) {
@@ -240,7 +247,7 @@ public class TestHFileBlock {
   @Test
   public void testNoCompression() throws IOException {
     CacheConfig cacheConf = Mockito.mock(CacheConfig.class);
-    Mockito.when(cacheConf.isBlockCacheEnabled()).thenReturn(false);
+    Mockito.when(cacheConf.getBlockCache()).thenReturn(Optional.empty());
 
     HFileBlock block =
       createTestV2Block(NONE, includesMemstoreTS, false).getBlockForCaching(cacheConf);
@@ -370,6 +377,8 @@ public class TestHFileBlock {
     for (Compression.Algorithm algo : COMPRESSION_ALGORITHMS) {
       for (boolean pread : new boolean[] { false, true }) {
         for (DataBlockEncoding encoding : DataBlockEncoding.values()) {
+          LOG.info("testDataBlockEncoding: Compression algorithm={}, pread={}, dataBlockEncoder={}",
+              algo.toString(), pread, encoding);
           Path path = new Path(TEST_UTIL.getDataTestDir(), "blocks_v2_"
               + algo + "_" + encoding.toString());
           FSDataOutputStream os = fs.create(path);
@@ -462,7 +471,7 @@ public class TestHFileBlock {
             // test serialized blocks
             for (boolean reuseBuffer : new boolean[] { false, true }) {
               ByteBuffer serialized = ByteBuffer.allocate(blockFromHFile.getSerializedLength());
-              blockFromHFile.serialize(serialized);
+              blockFromHFile.serialize(serialized, true);
               HFileBlock deserialized =
                   (HFileBlock) blockFromHFile.getDeserializer().deserialize(
                     new SingleByteBuff(serialized), reuseBuffer, MemoryType.EXCLUSIVE);
@@ -528,9 +537,8 @@ public class TestHFileBlock {
       for (boolean pread : BOOLEAN_VALUES) {
         for (boolean cacheOnWrite : BOOLEAN_VALUES) {
           Random rand = defaultRandom();
-          LOG.info("testPreviousOffset:Compression algorithm: " + algo +
-                   ", pread=" + pread +
-                   ", cacheOnWrite=" + cacheOnWrite);
+          LOG.info("testPreviousOffset: Compression algorithm={}, pread={}, cacheOnWrite={}",
+              algo.toString(), pread, cacheOnWrite);
           Path path = new Path(TEST_UTIL.getDataTestDir(), "prev_offset");
           List<Long> expectedOffsets = new ArrayList<>();
           List<Long> expectedPrevOffsets = new ArrayList<>();
@@ -851,5 +859,28 @@ public class TestHFileBlock {
           "size: " + hfileBlockExpectedSize + ";", expected,
           block.heapSize());
     }
+  }
+
+  @Test
+  public void testSerializeWithoutNextBlockMetadata() {
+    int size = 100;
+    int length = HConstants.HFILEBLOCK_HEADER_SIZE + size;
+    byte[] byteArr = new byte[length];
+    ByteBuffer buf = ByteBuffer.wrap(byteArr, 0, size);
+    HFileContext meta = new HFileContextBuilder().build();
+    HFileBlock blockWithNextBlockMetadata = new HFileBlock(BlockType.DATA, size, size, -1, buf,
+        HFileBlock.FILL_HEADER, -1, 52, -1, meta);
+    HFileBlock blockWithoutNextBlockMetadata = new HFileBlock(BlockType.DATA, size, size, -1, buf,
+        HFileBlock.FILL_HEADER, -1, -1, -1, meta);
+    ByteBuffer buff1 = ByteBuffer.allocate(length);
+    ByteBuffer buff2 = ByteBuffer.allocate(length);
+    blockWithNextBlockMetadata.serialize(buff1, true);
+    blockWithoutNextBlockMetadata.serialize(buff2, true);
+    assertNotEquals(buff1, buff2);
+    buff1.clear();
+    buff2.clear();
+    blockWithNextBlockMetadata.serialize(buff1, false);
+    blockWithoutNextBlockMetadata.serialize(buff2, false);
+    assertEquals(buff1, buff2);
   }
 }

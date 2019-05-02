@@ -43,21 +43,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CellScanner;
+import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.Server;
 import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.yetus.audience.InterfaceStability;
 import org.apache.hadoop.hbase.monitoring.MonitoredRPCHandler;
 import org.apache.hadoop.hbase.security.HBasePolicyProvider;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.BlockingService;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.Descriptors.MethodDescriptor;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.Message;
+import org.apache.hbase.thirdparty.com.google.protobuf.BlockingService;
+import org.apache.hbase.thirdparty.com.google.protobuf.Descriptors.MethodDescriptor;
+import org.apache.hbase.thirdparty.com.google.protobuf.Message;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.authorize.ServiceAuthorizationManager;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * The RPC server with native java NIO implementation deriving from Hadoop to
@@ -81,8 +81,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.ThreadFa
  *
  * @see BlockingRpcClient
  */
-@InterfaceAudience.Private
-@InterfaceStability.Evolving
+@InterfaceAudience.LimitedPrivate({HBaseInterfaceAudience.CONFIG})
 public class SimpleRpcServer extends RpcServer {
 
   protected int port;                             // port we listen on
@@ -375,13 +374,13 @@ public class SimpleRpcServer extends RpcServer {
    * @param bindAddress Where to listen
    * @param conf
    * @param scheduler
+   * @param reservoirEnabled Enable ByteBufferPool or not.
    */
   public SimpleRpcServer(final Server server, final String name,
       final List<BlockingServiceAndInterface> services,
       final InetSocketAddress bindAddress, Configuration conf,
-      RpcScheduler scheduler)
-      throws IOException {
-    super(server, name, services, bindAddress, conf, scheduler);
+      RpcScheduler scheduler, boolean reservoirEnabled) throws IOException {
+    super(server, name, services, bindAddress, conf, scheduler, reservoirEnabled);
     this.socketSendBufferSize = 0;
     this.readThreads = conf.getInt("hbase.ipc.server.read.threadpool.size", 10);
     this.purgeTimeout = conf.getLong("hbase.ipc.client.call.purge.timeout",
@@ -549,6 +548,7 @@ public class SimpleRpcServer extends RpcServer {
    * The number of open RPC conections
    * @return the number of open rpc connections
    */
+  @Override
   public int getNumOpenConnections() {
     return connectionManager.size();
   }
@@ -613,7 +613,8 @@ public class SimpleRpcServer extends RpcServer {
             "; connections=" + size() +
             ", queued calls size (bytes)=" + callQueueSizeInBytes.sum() +
             ", general queued calls=" + scheduler.getGeneralQueueLength() +
-            ", priority queued calls=" + scheduler.getPriorityQueueLength());
+            ", priority queued calls=" + scheduler.getPriorityQueueLength() +
+            ", meta priority queued calls=" + scheduler.getMetaPriorityQueueLength());
       }
       return connection;
     }

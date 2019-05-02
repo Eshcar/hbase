@@ -25,11 +25,9 @@ import static org.mockito.Mockito.spy;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-
 import org.apache.commons.lang3.mutable.MutableBoolean;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.DroppedSnapshotException;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.NamespaceDescriptor;
@@ -51,11 +49,14 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Testcase for https://issues.apache.org/jira/browse/HBASE-13811
@@ -63,7 +64,11 @@ import org.mockito.stubbing.Answer;
 @Category({ MediumTests.class })
 public class TestSplitWalDataLoss {
 
-  private static final Log LOG = LogFactory.getLog(TestSplitWalDataLoss.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSplitWalDataLoss.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestSplitWalDataLoss.class);
 
   private final HBaseTestingUtility testUtil = new HBaseTestingUtility();
 
@@ -83,7 +88,7 @@ public class TestSplitWalDataLoss {
     Admin admin = testUtil.getAdmin();
     admin.createNamespace(namespace);
     admin.createTable(TableDescriptorBuilder.newBuilder(tableName)
-        .addColumnFamily(ColumnFamilyDescriptorBuilder.of(family)).build());
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.of(family)).build());
     testUtil.waitTableAvailable(tableName);
   }
 

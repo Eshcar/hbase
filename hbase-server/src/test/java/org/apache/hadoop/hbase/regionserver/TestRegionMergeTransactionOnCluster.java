@@ -1,20 +1,19 @@
-/*
- * Copyright The Apache Software Foundation
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with this
- * work for additional information regarding copyright ownership. The ASF
- * licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.hadoop.hbase.regionserver;
 
@@ -26,26 +25,25 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.commons.lang3.RandomUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.StartMiniClusterOption;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.UnknownRegionException;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
+import org.apache.hadoop.hbase.client.DoNotRetryRegionException;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.RegionReplicaUtil;
@@ -72,27 +70,33 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.zookeeper.KeeperException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Joiner;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.RpcController;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException;
+import org.apache.hbase.thirdparty.com.google.common.base.Joiner;
+import org.apache.hbase.thirdparty.com.google.protobuf.RpcController;
+import org.apache.hbase.thirdparty.com.google.protobuf.ServiceException;
+
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos.RegionStateTransition.TransitionCode;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos.ReportRegionStateTransitionRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos.ReportRegionStateTransitionResponse;
 
 @Category({RegionServerTests.class, LargeTests.class})
 public class TestRegionMergeTransactionOnCluster {
-  private static final Log LOG = LogFactory.getLog(TestRegionMergeTransactionOnCluster.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRegionMergeTransactionOnCluster.class);
+
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestRegionMergeTransactionOnCluster.class);
+
   @Rule public TestName name = new TestName();
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().
-      withTimeout(this.getClass()).
-      withLookingForStuckThread(true).
-      build();
 
   private static final int NB_SERVERS = 3;
 
@@ -114,7 +118,9 @@ public class TestRegionMergeTransactionOnCluster {
   @BeforeClass
   public static void beforeAllTests() throws Exception {
     // Start a cluster
-    TEST_UTIL.startMiniCluster(1, NB_SERVERS, null, MyMaster.class, null);
+    StartMiniClusterOption option = StartMiniClusterOption.builder()
+        .masterClass(MyMaster.class).numRegionServers(NB_SERVERS).numDataNodes(NB_SERVERS).build();
+    TEST_UTIL.startMiniCluster(option);
     MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
     MASTER = cluster.getMaster();
     MASTER.balanceSwitch(false);
@@ -153,7 +159,7 @@ public class TestRegionMergeTransactionOnCluster {
     RegionStates regionStates = am.getRegionStates();
 
     // We should not be able to assign it again
-    am.assign(hri, true);
+    am.assign(hri);
     assertFalse("Merged region can't be assigned",
       regionStates.isRegionInTransition(hri));
 
@@ -191,7 +197,7 @@ public class TestRegionMergeTransactionOnCluster {
   @Test
   public void testCleanMergeReference() throws Exception {
     LOG.info("Starting " + name.getMethodName());
-    ADMIN.enableCatalogJanitor(false);
+    ADMIN.catalogJanitorSwitch(false);
     try {
       final TableName tableName = TableName.valueOf(name.getMethodName());
       // Create table and load data.
@@ -272,7 +278,7 @@ public class TestRegionMergeTransactionOnCluster {
       // files of merging regions
       int cleaned = 0;
       while (cleaned == 0) {
-        cleaned = ADMIN.runCatalogScan();
+        cleaned = ADMIN.runCatalogJanitor();
         LOG.debug("catalog janitor returned " + cleaned);
         Thread.sleep(50);
         // Cleanup is async so wait till all procedures are done running.
@@ -291,7 +297,7 @@ public class TestRegionMergeTransactionOnCluster {
           HConstants.MERGEB_QUALIFIER) != null);
 
     } finally {
-      ADMIN.enableCatalogJanitor(true);
+      ADMIN.catalogJanitorSwitch(true);
     }
   }
 
@@ -323,11 +329,9 @@ public class TestRegionMergeTransactionOnCluster {
         admin.mergeRegionsAsync(a.getEncodedNameAsBytes(), b.getEncodedNameAsBytes(), false)
                 .get(syncWaitTimeout, TimeUnit.MILLISECONDS);
         fail("Offline regions should not be able to merge");
-      } catch (ExecutionException ie) {
+      } catch (DoNotRetryRegionException ie) {
         System.out.println(ie);
-        assertTrue("Exception should mention regions not online",
-          StringUtils.stringifyException(ie.getCause()).contains("regions not online")
-            && ie.getCause() instanceof MergeRegionException);
+        assertTrue(ie instanceof MergeRegionException);
       }
 
       try {
@@ -426,8 +430,8 @@ public class TestRegionMergeTransactionOnCluster {
           MetaTableAccessor.getTableRegionsAndLocations(TEST_UTIL.getConnection(), tablename);
       tableRegionsInMaster =
           master.getAssignmentManager().getRegionStates().getRegionsOfTable(tablename);
-      LOG.info(tableRegionsInMaster);
-      LOG.info(tableRegionsInMeta);
+      LOG.info(Objects.toString(tableRegionsInMaster));
+      LOG.info(Objects.toString(tableRegionsInMeta));
       int tableRegionsInMetaSize = tableRegionsInMeta.size();
       int tableRegionsInMasterSize = tableRegionsInMaster.size();
       if (tableRegionsInMetaSize == expectedRegionNum
@@ -467,21 +471,14 @@ public class TestRegionMergeTransactionOnCluster {
     verifyRowCount(table, ROWSIZE);
     LOG.info("Verified " + table.getName());
 
-    // Sleep here is an ugly hack to allow region transitions to finish
-    long timeout = System.currentTimeMillis() + waitTime;
     List<Pair<RegionInfo, ServerName>> tableRegions;
-    while (System.currentTimeMillis() < timeout) {
-      tableRegions = MetaTableAccessor.getTableRegionsAndLocations(
-          TEST_UTIL.getConnection(), tablename);
-      LOG.info("Found " + tableRegions.size() + ", expecting " + numRegions * replication);
-      if (tableRegions.size() == numRegions * replication)
-        break;
-      Thread.sleep(250);
-    }
-    LOG.info("Getting regions of " + table.getName());
+    TEST_UTIL.waitUntilAllRegionsAssigned(tablename);
+    LOG.info("All regions assigned for table - " + table.getName());
     tableRegions = MetaTableAccessor.getTableRegionsAndLocations(
         TEST_UTIL.getConnection(), tablename);
-    LOG.info("Regions after load: " + Joiner.on(',').join(tableRegions));
+    assertEquals("Wrong number of regions in table " + tablename,
+        numRegions * replication, tableRegions.size());
+    LOG.info(tableRegions.size() + "Regions after load: " + Joiner.on(',').join(tableRegions));
     assertEquals(numRegions * replication, tableRegions.size());
     return table;
   }

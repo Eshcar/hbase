@@ -24,10 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
@@ -39,17 +37,25 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test the load balancer that is created by default.
  */
 @Category({MasterTests.class, MediumTests.class})
 public class TestDefaultLoadBalancer extends BalancerTestBase {
-  private static final Log LOG = LogFactory.getLog(TestDefaultLoadBalancer.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestDefaultLoadBalancer.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestDefaultLoadBalancer.class);
 
   private static LoadBalancer loadBalancer;
 
@@ -125,7 +131,7 @@ public class TestDefaultLoadBalancer extends BalancerTestBase {
    *
    * @throws Exception
    */
-  @Test (timeout=60000)
+  @Test
   public void testBalanceClusterOverall() throws Exception {
     Map<TableName, Map<ServerName, List<RegionInfo>>> clusterLoad = new TreeMap<>();
     for (int[] mockCluster : clusterStateMocks) {
@@ -163,7 +169,7 @@ public class TestDefaultLoadBalancer extends BalancerTestBase {
    * level balance while the bytable strategy cannot
    * @throws Exception
    */
-  @Test (timeout=60000)
+  @Test
   public void testImpactOfBalanceClusterOverall() throws Exception {
     Map<TableName, Map<ServerName, List<RegionInfo>>> clusterLoad = new TreeMap<>();
     Map<ServerName, List<RegionInfo>> clusterServers = mockUniformClusterServers(mockUniformCluster);

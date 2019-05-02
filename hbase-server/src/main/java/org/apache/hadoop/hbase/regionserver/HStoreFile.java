@@ -20,14 +20,14 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -41,8 +41,12 @@ import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.util.BloomFilterFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 
 /**
  * A Store data file.  Stores usually have one or more of these files.  They
@@ -60,7 +64,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTe
 @InterfaceAudience.Private
 public class HStoreFile implements StoreFile {
 
-  private static final Log LOG = LogFactory.getLog(HStoreFile.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(HStoreFile.class.getName());
 
   public static final String STORE_FILE_READER_NO_READAHEAD = "hbase.store.reader.no-readahead";
 
@@ -78,8 +82,16 @@ public class HStoreFile implements StoreFile {
   public static final byte[] EXCLUDE_FROM_MINOR_COMPACTION_KEY =
       Bytes.toBytes("EXCLUDE_FROM_MINOR_COMPACTION");
 
+  /**
+   * Key for compaction event which contains the compacted storefiles in FileInfo
+   */
+  public static final byte[] COMPACTION_EVENT_KEY = Bytes.toBytes("COMPACTION_EVENT_KEY");
+
   /** Bloom filter Type in FileInfo */
   public static final byte[] BLOOM_FILTER_TYPE_KEY = Bytes.toBytes("BLOOM_FILTER_TYPE");
+
+  /** Bloom filter param in FileInfo */
+  public static final byte[] BLOOM_FILTER_PARAM_KEY = Bytes.toBytes("BLOOM_FILTER_PARAM");
 
   /** Delete Family Count in FileInfo */
   public static final byte[] DELETE_FAMILY_COUNT = Bytes.toBytes("DELETE_FAMILY_COUNT");
@@ -170,6 +182,9 @@ public class HStoreFile implements StoreFile {
   // If true, this file should not be included in minor compactions.
   // It's set whenever you get a Reader.
   private boolean excludeFromMinorCompaction = false;
+
+  // This file was product of these compacted store files
+  private final Set<String> compactedStoreFiles = new HashSet<>();
 
   /**
    * Map of the metadata entries in the corresponding HFile. Populated when Reader is opened
@@ -283,6 +298,11 @@ public class HStoreFile implements StoreFile {
 
   @Override
   public long getModificationTimeStamp() throws IOException {
+    return getModificationTimestamp();
+  }
+
+  @Override
+  public long getModificationTimestamp() throws IOException {
     return fileInfo.getModificationTime();
   }
 
@@ -341,7 +361,6 @@ public class HStoreFile implements StoreFile {
 
   /**
    * Opens reader on this store file. Called by Constructor.
-   * @throws IOException
    * @see #closeStoreFile(boolean)
    */
   private void open() throws IOException {
@@ -446,6 +465,14 @@ public class HStoreFile implements StoreFile {
           "proceeding without", e);
       this.reader.timeRange = null;
     }
+
+    try {
+      byte[] data = metadataMap.get(COMPACTION_EVENT_KEY);
+      this.compactedStoreFiles.addAll(ProtobufUtil.toCompactedStoreFiles(data));
+    } catch (IOException e) {
+      LOG.error("Error reading compacted storefiles from meta data", e);
+    }
+
     // initialize so we can reuse them after reader closed.
     firstKey = reader.getFirstKey();
     lastKey = reader.getLastKey();
@@ -498,8 +525,9 @@ public class HStoreFile implements StoreFile {
   public StoreFileScanner getStreamScanner(boolean canUseDropBehind, boolean cacheBlocks,
       boolean isCompaction, long readPt, long scannerOrder, boolean canOptimizeForNonNullColumn)
       throws IOException {
-    return createStreamReader(canUseDropBehind).getStoreFileScanner(cacheBlocks, false,
-      isCompaction, readPt, scannerOrder, canOptimizeForNonNullColumn);
+    return createStreamReader(canUseDropBehind)
+        .getStoreFileScanner(cacheBlocks, false, isCompaction, readPt, scannerOrder,
+            canOptimizeForNonNullColumn);
   }
 
   /**
@@ -584,5 +612,9 @@ public class HStoreFile implements StoreFile {
   public OptionalLong getMaximumTimestamp() {
     TimeRange tr = getReader().timeRange;
     return tr != null ? OptionalLong.of(tr.getMax()) : OptionalLong.empty();
+  }
+
+  Set<String> getCompactedStoreFiles() {
+    return Collections.unmodifiableSet(this.compactedStoreFiles);
   }
 }

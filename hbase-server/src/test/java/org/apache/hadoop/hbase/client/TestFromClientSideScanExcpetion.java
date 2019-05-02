@@ -29,12 +29,12 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
@@ -53,6 +53,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -60,6 +61,10 @@ import org.junit.rules.TestName;
 
 @Category({ MediumTests.class, ClientTests.class })
 public class TestFromClientSideScanExcpetion {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFromClientSideScanExcpetion.class);
 
   protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
 
@@ -111,16 +116,17 @@ public class TestFromClientSideScanExcpetion {
     }
 
     @Override
-    protected HStore instantiateHStore(ColumnFamilyDescriptor family) throws IOException {
-      return new MyHStore(this, family, conf);
+    protected HStore instantiateHStore(ColumnFamilyDescriptor family, boolean warmup)
+        throws IOException {
+      return new MyHStore(this, family, conf, warmup);
     }
   }
 
   public static final class MyHStore extends HStore {
 
-    public MyHStore(HRegion region, ColumnFamilyDescriptor family, Configuration confParam)
-        throws IOException {
-      super(region, family, confParam);
+    public MyHStore(HRegion region, ColumnFamilyDescriptor family, Configuration confParam,
+        boolean warmup) throws IOException {
+      super(region, family, confParam, warmup);
     }
 
     @Override

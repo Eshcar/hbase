@@ -18,23 +18,26 @@
  */
 package org.apache.hadoop.hbase.master.normalizer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseIOException;
-import org.apache.hadoop.hbase.RegionLoad;
+import org.apache.hadoop.hbase.RegionMetrics;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.Size;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.MasterSwitchType;
 import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.master.MasterRpcServices;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.normalizer.NormalizationPlan.PlanType;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
 
@@ -44,13 +47,13 @@ import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
  * Logic in use:
  *
  *  <ol>
- *  <li> get all regions of a given table
- *  <li> get avg size S of each region (by total size of store files reported in RegionLoad)
- *  <li> If biggest region is bigger than S * 2, it is kindly requested to split,
- *    and normalization stops
- *  <li> Otherwise, two smallest region R1 and its smallest neighbor R2 are kindly requested
- *    to merge, if R1 + R1 &lt;  S, and normalization stops
- *  <li> Otherwise, no action is performed
+ *  <li> Get all regions of a given table
+ *  <li> Get avg size S of each region (by total size of store files reported in RegionMetrics)
+ *  <li> Seek every single region one by one. If a region R0 is bigger than S * 2, it is
+ *  kindly requested to split. Thereon evaluate the next region R1
+ *  <li> Otherwise, if R0 + R1 is smaller than S, R0 and R1 are kindly requested to merge.
+ *  Thereon evaluate the next region R2
+ *  <li> Otherwise, R1 is evaluated
  * </ol>
  * <p>
  * Region sizes are coarse and approximate on the order of megabytes. Additionally,
@@ -60,12 +63,15 @@ import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
 @InterfaceAudience.Private
 public class SimpleRegionNormalizer implements RegionNormalizer {
 
-  private static final Log LOG = LogFactory.getLog(SimpleRegionNormalizer.class);
-  private static final int MIN_REGION_COUNT = 3;
+  private static final Logger LOG = LoggerFactory.getLogger(SimpleRegionNormalizer.class);
+  private int minRegionCount;
   private MasterServices masterServices;
   private MasterRpcServices masterRpcServices;
   private static long[] skippedCount = new long[NormalizationPlan.PlanType.values().length];
 
+  public SimpleRegionNormalizer() {
+    minRegionCount = HBaseConfiguration.create().getInt("hbase.normalizer.min.region.count", 3);
+  }
   /**
    * Set the master service.
    * @param masterServices inject instance of MasterServices
@@ -90,20 +96,27 @@ public class SimpleRegionNormalizer implements RegionNormalizer {
     return skippedCount[type.ordinal()];
   }
 
-  // Comparator that gives higher priority to region Split plan
-  private Comparator<NormalizationPlan> planComparator =
-      new Comparator<NormalizationPlan>() {
+  /**
+   * Comparator class that gives higher priority to region Split plan.
+   */
+  static class PlanComparator implements Comparator<NormalizationPlan> {
     @Override
-    public int compare(NormalizationPlan plan, NormalizationPlan plan2) {
-      if (plan instanceof SplitNormalizationPlan) {
+    public int compare(NormalizationPlan plan1, NormalizationPlan plan2) {
+      boolean plan1IsSplit = plan1 instanceof SplitNormalizationPlan;
+      boolean plan2IsSplit = plan2 instanceof SplitNormalizationPlan;
+      if (plan1IsSplit && plan2IsSplit) {
+        return 0;
+      } else if (plan1IsSplit) {
         return -1;
-      }
-      if (plan2 instanceof SplitNormalizationPlan) {
+      } else if (plan2IsSplit) {
         return 1;
+      } else {
+        return 0;
       }
-      return 0;
     }
-  };
+  }
+
+  private Comparator<NormalizationPlan> planComparator = new PlanComparator();
 
   /**
    * Computes next most "urgent" normalization action on the table.
@@ -124,10 +137,10 @@ public class SimpleRegionNormalizer implements RegionNormalizer {
       getRegionsOfTable(table);
 
     //TODO: should we make min number of regions a config param?
-    if (tableRegions == null || tableRegions.size() < MIN_REGION_COUNT) {
+    if (tableRegions == null || tableRegions.size() < minRegionCount) {
       int nrRegions = tableRegions == null ? 0 : tableRegions.size();
       LOG.debug("Table " + table + " has " + nrRegions + " regions, required min number"
-        + " of regions for normalizer to run is " + MIN_REGION_COUNT + ", not running normalizer");
+        + " of regions for normalizer to run is " + minRegionCount + ", not running normalizer");
       return null;
     }
 
@@ -145,8 +158,32 @@ public class SimpleRegionNormalizer implements RegionNormalizer {
         totalSizeMb += regionSize;
       }
     }
+    int targetRegionCount = -1;
+    long targetRegionSize = -1;
+    try {
+      TableDescriptor tableDescriptor = masterServices.getTableDescriptors().get(table);
+      if(tableDescriptor != null) {
+        targetRegionCount =
+            tableDescriptor.getNormalizerTargetRegionCount();
+        targetRegionSize =
+            tableDescriptor.getNormalizerTargetRegionSize();
+        LOG.debug("Table {}:  target region count is {}, target region size is {}", table,
+            targetRegionCount, targetRegionSize);
+      }
+    } catch (IOException e) {
+      LOG.warn(
+        "cannot get the target number and target size of table {}, they will be default value -1.",
+        table);
+    }
 
-    double avgRegionSize = acutalRegionCnt == 0 ? 0 : totalSizeMb / (double) acutalRegionCnt;
+    double avgRegionSize;
+    if (targetRegionSize > 0) {
+      avgRegionSize = targetRegionSize;
+    } else if (targetRegionCount > 0) {
+      avgRegionSize = totalSizeMb / (double) targetRegionCount;
+    } else {
+      avgRegionSize = acutalRegionCnt == 0 ? 0 : totalSizeMb / (double) acutalRegionCnt;
+    }
 
     LOG.debug("Table " + table + ", total aggregated regions size: " + totalSizeMb);
     LOG.debug("Table " + table + ", average region size: " + avgRegionSize);
@@ -156,13 +193,13 @@ public class SimpleRegionNormalizer implements RegionNormalizer {
     try {
       splitEnabled = masterRpcServices.isSplitOrMergeEnabled(null,
         RequestConverter.buildIsSplitOrMergeEnabledRequest(MasterSwitchType.SPLIT)).getEnabled();
-    } catch (org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException e) {
+    } catch (org.apache.hbase.thirdparty.com.google.protobuf.ServiceException e) {
       LOG.debug("Unable to determine whether split is enabled", e);
     }
     try {
       mergeEnabled = masterRpcServices.isSplitOrMergeEnabled(null,
         RequestConverter.buildIsSplitOrMergeEnabledRequest(MasterSwitchType.MERGE)).getEnabled();
-    } catch (org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException e) {
+    } catch (org.apache.hbase.thirdparty.com.google.protobuf.ServiceException e) {
       LOG.debug("Unable to determine whether split is enabled", e);
     }
     while (candidateIdx < tableRegions.size()) {
@@ -205,12 +242,12 @@ public class SimpleRegionNormalizer implements RegionNormalizer {
   private long getRegionSize(RegionInfo hri) {
     ServerName sn = masterServices.getAssignmentManager().getRegionStates().
       getRegionServerOfRegion(hri);
-    RegionLoad regionLoad = masterServices.getServerManager().getLoad(sn).
-      getRegionsLoad().get(hri.getRegionName());
+    RegionMetrics regionLoad = masterServices.getServerManager().getLoad(sn).
+      getRegionMetrics().get(hri.getRegionName());
     if (regionLoad == null) {
       LOG.debug(hri.getRegionNameAsString() + " was not found in RegionsLoad");
       return -1;
     }
-    return regionLoad.getStorefileSizeMB();
+    return (long) regionLoad.getStoreFileSize().get(Size.Unit.MEGABYTE);
   }
 }

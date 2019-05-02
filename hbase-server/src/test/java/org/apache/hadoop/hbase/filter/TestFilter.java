@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.filter;
 
 import static org.junit.Assert.assertEquals;
@@ -28,12 +26,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.CompareOperator;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -56,20 +53,28 @@ import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Throwables;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.com.google.common.base.Throwables;
 
 /**
  * Test filters at the HRegion doorstep.
  */
 @Category({FilterTests.class, SmallTests.class})
 public class TestFilter {
-  private final static Log LOG = LogFactory.getLog(TestFilter.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFilter.class);
+
+  private final static Logger LOG = LoggerFactory.getLogger(TestFilter.class);
   private HRegion region;
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
 
@@ -128,6 +133,10 @@ public class TestFilter {
     Bytes.toBytes("testQualifierFour-2"), Bytes.toBytes("testQualifierFour-3")
   };
 
+  private static final byte [][] QUALIFIERS_FIVE = {
+    Bytes.toBytes("testQualifierFive-0"), Bytes.toBytes("testQualifierFive-1")
+  };
+
   private static final byte [][] VALUES = {
     Bytes.toBytes("testValueOne"), Bytes.toBytes("testValueTwo")
   };
@@ -136,13 +145,14 @@ public class TestFilter {
       Bytes.toBytes("f1"), Bytes.toBytes("f2")
     };
 
-  private long numRows = ROWS_ONE.length + ROWS_TWO.length;
-  private long colsPerRow = FAMILIES.length * QUALIFIERS_ONE.length;
+  private long numRows = (long) ROWS_ONE.length + ROWS_TWO.length;
+  private long colsPerRow = (long) FAMILIES.length * QUALIFIERS_ONE.length;
 
   @Before
   public void setUp() throws Exception {
     HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("TestFilter"));
-    htd.addFamily(new HColumnDescriptor(FAMILIES[0]));
+    HColumnDescriptor family0 = new HColumnDescriptor(FAMILIES[0]).setVersions(100, 100);
+    htd.addFamily(family0);
     htd.addFamily(new HColumnDescriptor(FAMILIES[1]));
     htd.addFamily(new HColumnDescriptor(FAMILIES_1[0]));
     htd.addFamily(new HColumnDescriptor(FAMILIES_1[1]));
@@ -1658,6 +1668,157 @@ public class TestFilter {
 
   }
 
+  @Test
+  public void testColumnValueFilter() throws Exception {
+    // Prepare test rows:
+    for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < ROWS_ONE.length; j++) {
+        Put p1 = new Put(ROWS_ONE[j]).setDurability(Durability.SKIP_WAL);
+        Put p2 = new Put(ROWS_TWO[j]).setDurability(Durability.SKIP_WAL);
+        for (byte[] q5 : QUALIFIERS_FIVE) {
+          p1.addColumn(FAMILIES[0], q5, VALUES[0 + i]).addColumn(FAMILIES[1], q5, VALUES[0 + i]);
+          p2.addColumn(FAMILIES[0], q5, VALUES[1 - i]).addColumn(FAMILIES[1], q5, VALUES[1 - i]);
+        }
+        this.region.put(p1);
+        this.region.put(p2);
+      }
+      this.region.flush(true);
+    }
+    // 1. Test = f[0]:q5[0]:v[1]
+    Scan scan = new Scan().setFilter(
+      new ColumnValueFilter(FAMILIES[0], QUALIFIERS_FIVE[0], CompareOperator.EQUAL, VALUES[1]));
+    KeyValue[] expectedEquals =
+      { new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]) };
+    verifyScanFull(scan, expectedEquals);
+    // 2. Test > f[0]:q5[0]:v[0]
+    scan.setFilter(
+      new ColumnValueFilter(FAMILIES[0], QUALIFIERS_FIVE[0], CompareOperator.GREATER, VALUES[0]));
+    KeyValue[] expectedGreater =
+      { new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]) };
+    verifyScanFull(scan, expectedGreater);
+    // 3. Test >= f[0]:q5[0]:v[0]
+    // also test readAllVersions(), since FAMILIES[0] allow multiple versions.
+    scan.readAllVersions().setFilter(new ColumnValueFilter(FAMILIES[0], QUALIFIERS_FIVE[0],
+      CompareOperator.GREATER_OR_EQUAL, VALUES[0]));
+    KeyValue[] expectedGreaterOrEqual =
+      { new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]) };
+    verifyScanFull(scan, expectedGreaterOrEqual);
+    // 4. Test < f[1]:q5[1]:v[1], FAMILIES[1] doesn't support multiple versions
+    scan.readVersions(1).setFilter(new ColumnValueFilter(FAMILIES[1], QUALIFIERS_FIVE[1],
+      CompareOperator.LESS, VALUES[1]));
+    KeyValue[] expectedLess =
+      { new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]) };
+    verifyScanFull(scan, expectedLess);
+    // 5. Test <= f[1]:q5[0]:v[1]
+    scan.setFilter(new ColumnValueFilter(FAMILIES[1], QUALIFIERS_FIVE[1],
+      CompareOperator.LESS_OR_EQUAL, VALUES[1]));
+    KeyValue[] expectedLessOrEqual =
+      { new KeyValue(ROWS_ONE[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[1]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[1]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[1]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[1]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]) };
+    verifyScanFull(scan, expectedLessOrEqual);
+    // 6. Test != f[1]:q5[1]:v[1]
+    scan.setFilter(
+      new ColumnValueFilter(FAMILIES[1], QUALIFIERS_FIVE[1], CompareOperator.NOT_EQUAL, VALUES[1]));
+    KeyValue[] expectedNotEqual =
+      { new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]) };
+    verifyScanFull(scan, expectedNotEqual);
+    // 7. Test FilterList(MUST_PASS_ONE) combining ColumnValueFilter and QualifierFilter
+    // (ColumnValueFilter, != f[1]:q5[1]:v[1]) || (QualifierFilter, = q5[0])
+    List<Filter> orFilters = new ArrayList<>(2);
+    orFilters.add(
+      new ColumnValueFilter(FAMILIES[1], QUALIFIERS_FIVE[1], CompareOperator.NOT_EQUAL, VALUES[1]));
+    orFilters.add(
+      new QualifierFilter(CompareOperator.EQUAL, new BinaryComparator(QUALIFIERS_FIVE[0])));
+    scan.setFilter(new FilterList(Operator.MUST_PASS_ONE, orFilters));
+    KeyValue[] expectedMustPassOne =
+      { new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[0], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[1], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[2], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_ONE[3], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[1]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]), // this pass scvf
+        new KeyValue(ROWS_TWO[1], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]), // this pass scvf
+        new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]), // this pass scvf
+        new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[0], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]) }; // this pass scvf
+    verifyScanFull(scan, expectedMustPassOne);
+    // 8. Test FilterList(MUST_PASS_ALL) combining ColumnValueFilter and RowFilter
+    // (ColumnValueFilter, != f[1]:q5[1]:v[1]) && (RowFilter, = prefix:"testRow")
+    List<Filter> andFilters = new ArrayList<>(2);
+    andFilters.add(
+      new ColumnValueFilter(FAMILIES[1], QUALIFIERS_FIVE[1], CompareOperator.NOT_EQUAL, VALUES[1]));
+    andFilters.add(new RowFilter(CompareOperator.EQUAL,
+      new BinaryPrefixComparator(Bytes.toBytes("testRow"))));
+    scan.setFilter(new FilterList(Operator.MUST_PASS_ALL, andFilters));
+    KeyValue[] expectedMustPassAll =
+      { new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]) };
+    verifyScanFull(scan, expectedMustPassAll);
+    // 9. Test specified columns with FilterList(MUST_PASS_ONE) which sused in case 7.
+    // Result is different from case 7, because column is strongly constrained by specified columns
+    Scan anotherScan = new Scan().addColumn(FAMILIES[1], QUALIFIERS_FIVE[1])
+      .setFilter(new FilterList(Operator.MUST_PASS_ONE, orFilters));
+    KeyValue[] expectedValues =
+      { new KeyValue(ROWS_TWO[0], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[1], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[2], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]),
+        new KeyValue(ROWS_TWO[3], FAMILIES[1], QUALIFIERS_FIVE[1], VALUES[0]) };
+    verifyScanFull(anotherScan, expectedValues);
+  }
+
   private void verifyScan(Scan s, long expectedRows, long expectedKeys)
   throws IOException {
     InternalScanner scanner = this.region.getScanner(s);
@@ -1755,15 +1916,14 @@ public class TestFilter {
         assertTrue("Qualifier mismatch", CellUtil.matchingQualifier(kv, kvs[idx]));
         assertFalse("Should not have returned whole value", CellUtil.matchingValue(kv, kvs[idx]));
         if (useLen) {
-          assertEquals("Value in result is not SIZEOF_INT",
-                     kv.getValueLength(), Bytes.SIZEOF_INT);
+          assertEquals("Value in result is not SIZEOF_INT", Bytes.SIZEOF_INT, kv.getValueLength());
           LOG.info("idx = "  + idx + ", len=" + kvs[idx].getValueLength()
               + ", actual=" +  Bytes.toInt(CellUtil.cloneValue(kv)));
           assertEquals("Scan value should be the length of the actual value. ",
                      kvs[idx].getValueLength(), Bytes.toInt(CellUtil.cloneValue(kv)) );
           LOG.info("good");
         } else {
-          assertEquals("Value in result is not empty", kv.getValueLength(), 0);
+          assertEquals("Value in result is not empty", 0, kv.getValueLength());
         }
         idx++;
       }
@@ -1858,6 +2018,65 @@ public class TestFilter {
     s.addFamily(FAMILIES[1]);
     s.setFilter(new ColumnPaginationFilter(2, QUALIFIERS_TWO[2]));
     this.verifyScanFull(s, expectedKVs3);
+  }
+
+  @Test
+  public void testLatestVersionFilterWithExplicitColumn() throws Exception {
+    // Add multiple versions
+    Put p = new Put(ROWS_ONE[0]);
+    p.setDurability(Durability.SKIP_WAL);
+    p.addColumn(FAMILIES[0], QUALIFIERS_ONE[0], VALUES[0]);
+    this.region.put(p);
+    p = new Put(ROWS_ONE[0]);
+    p.setDurability(Durability.SKIP_WAL);
+    p.addColumn(FAMILIES[0], QUALIFIERS_ONE[0], VALUES[1]);
+    this.region.put(p);
+    this.region.flush(true);
+    Scan s = new Scan();
+    s.setFilter(new FilterBase() {
+      @Override
+      public ReturnCode filterCell(Cell c) throws IOException {
+        return ReturnCode.INCLUDE_AND_NEXT_COL;
+      }
+    });
+    s.readVersions(100);
+    s.addColumn(FAMILIES[0], QUALIFIERS_ONE[0]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_ONE[1]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_ONE[2]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_ONE[3]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_TWO[0]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_TWO[1]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_TWO[2]);
+    s.addColumn(FAMILIES[0], QUALIFIERS_TWO[3]);
+    KeyValue[] kvs = {
+      // testRowOne-0
+      new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_ONE[0], VALUES[1]),
+      new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_ONE[2], VALUES[0]),
+      new KeyValue(ROWS_ONE[0], FAMILIES[0], QUALIFIERS_ONE[3], VALUES[0]),
+
+      // testRowOne-2
+      new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_ONE[0], VALUES[0]),
+      new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_ONE[2], VALUES[0]),
+      new KeyValue(ROWS_ONE[2], FAMILIES[0], QUALIFIERS_ONE[3], VALUES[0]),
+
+      // testRowOne-3
+      new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_ONE[0], VALUES[0]),
+      new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_ONE[2], VALUES[0]),
+      new KeyValue(ROWS_ONE[3], FAMILIES[0], QUALIFIERS_ONE[3], VALUES[0]),
+      // testRowTwo-0
+      new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_TWO[0], VALUES[1]),
+      new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_TWO[2], VALUES[1]),
+      new KeyValue(ROWS_TWO[0], FAMILIES[0], QUALIFIERS_TWO[3], VALUES[1]),
+      // testRowTwo-2
+      new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_TWO[0], VALUES[1]),
+      new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_TWO[2], VALUES[1]),
+      new KeyValue(ROWS_TWO[2], FAMILIES[0], QUALIFIERS_TWO[3], VALUES[1]),
+      // testRowTwo-3
+      new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_TWO[0], VALUES[1]),
+      new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_TWO[2], VALUES[1]),
+      new KeyValue(ROWS_TWO[3], FAMILIES[0], QUALIFIERS_TWO[3], VALUES[1]), };
+    verifyScanFull(s, kvs);
+
   }
 
   @Test

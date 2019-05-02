@@ -25,7 +25,7 @@ import static org.junit.Assert.assertNull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
@@ -41,11 +41,16 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({ CoprocessorTests.class, MediumTests.class })
 public class TestValueReplacingCompaction {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestValueReplacingCompaction.class);
 
   private static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
   private static final TableName NAME = TableName.valueOf("TestValueReplacement");
@@ -62,10 +67,10 @@ public class TestValueReplacingCompaction {
     UTIL.startMiniCluster(1);
     UTIL.getAdmin()
         .createTable(TableDescriptorBuilder.newBuilder(NAME)
-            .addCoprocessor(ValueRewritingObserver.class.getName())
+            .setCoprocessor(ValueRewritingObserver.class.getName())
             .setValue(ValueRewritingObserver.ORIGINAL_VALUE_KEY, value)
             .setValue(ValueRewritingObserver.REPLACED_VALUE_KEY, replacedValue)
-            .addColumnFamily(CFD).build());
+            .setColumnFamily(CFD).build());
   }
 
   @AfterClass

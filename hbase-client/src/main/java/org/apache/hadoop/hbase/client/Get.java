@@ -30,10 +30,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.security.access.Permission;
@@ -56,24 +56,23 @@ import org.apache.hadoop.hbase.util.Bytes;
  * execute {@link #setTimeRange(long, long) setTimeRange}.
  * <p>
  * To only retrieve columns with a specific timestamp, execute
- * {@link #setTimeStamp(long) setTimestamp}.
+ * {@link #setTimestamp(long) setTimestamp}.
  * <p>
  * To limit the number of versions of each column to be returned, execute
- * {@link #setMaxVersions(int) setMaxVersions}.
+ * {@link #readVersions(int) readVersions}.
  * <p>
  * To add a filter, call {@link #setFilter(Filter) setFilter}.
  */
 @InterfaceAudience.Public
-public class Get extends Query
-  implements Row, Comparable<Row> {
-  private static final Log LOG = LogFactory.getLog(Get.class);
+public class Get extends Query implements Row {
+  private static final Logger LOG = LoggerFactory.getLogger(Get.class);
 
   private byte [] row = null;
   private int maxVersions = 1;
   private boolean cacheBlocks = true;
   private int storeLimit = -1;
   private int storeOffset = 0;
-  private TimeRange tr = new TimeRange();
+  private TimeRange tr = TimeRange.allTime();
   private boolean checkExistenceOnly = false;
   private boolean closestRowBefore = false;
   private Map<byte [], NavigableSet<byte []>> familyMap = new TreeMap<>(Bytes.BYTES_COMPARATOR);
@@ -162,26 +161,6 @@ public class Get extends Query
   }
 
   /**
-   * This will always return the default value which is false as client cannot set the value to this
-   * property any more.
-   * @deprecated since 2.0.0 and will be removed in 3.0.0
-   */
-  @Deprecated
-  public boolean isClosestRowBefore() {
-    return closestRowBefore;
-  }
-
-  /**
-   * This is not used any more and does nothing. Use reverse scan instead.
-   * @deprecated since 2.0.0 and will be removed in 3.0.0
-   */
-  @Deprecated
-  public Get setClosestRowBefore(boolean closestRowBefore) {
-    // do Nothing
-    return this;
-  }
-
-  /**
    * Get all columns from the specified family.
    * <p>
    * Overrides previous calls to addColumn for this family.
@@ -233,44 +212,20 @@ public class Get extends Query
    * @param timestamp version timestamp
    * @return this for invocation chaining
    */
-  public Get setTimeStamp(long timestamp)
-  throws IOException {
+  public Get setTimestamp(long timestamp) {
     try {
-      tr = new TimeRange(timestamp, timestamp+1);
+      tr = new TimeRange(timestamp, timestamp + 1);
     } catch(Exception e) {
       // This should never happen, unless integer overflow or something extremely wrong...
       LOG.error("TimeRange failed, likely caused by integer overflow. ", e);
       throw e;
     }
+
     return this;
   }
 
   @Override public Get setColumnFamilyTimeRange(byte[] cf, long minStamp, long maxStamp) {
     return (Get) super.setColumnFamilyTimeRange(cf, minStamp, maxStamp);
-  }
-
-  /**
-   * Get all available versions.
-   * @return this for invocation chaining
-   * @deprecated It is easy to misunderstand with column family's max versions, so use
-   *             {@link #readAllVersions()} instead.
-   */
-  @Deprecated
-  public Get setMaxVersions() {
-    return readAllVersions();
-  }
-
-  /**
-   * Get up to the specified number of versions of each column.
-   * @param maxVersions maximum versions for each column
-   * @throws IOException if invalid number of versions
-   * @return this for invocation chaining
-   * @deprecated It is easy to misunderstand with column family's max versions, so use
-   *             {@link #readVersions(int)} instead.
-   */
-  @Deprecated
-  public Get setMaxVersions(int maxVersions) throws IOException {
-    return readVersions(maxVersions);
   }
 
   /**
@@ -296,6 +251,7 @@ public class Get extends Query
     return this;
   }
 
+  @Override
   public Get setLoadColumnFamiliesOnDemand(boolean value) {
     return (Get) super.setLoadColumnFamiliesOnDemand(value);
   }

@@ -21,16 +21,16 @@ package org.apache.hadoop.hbase.zookeeper;
 
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * You may add the jaas.conf option
@@ -44,7 +44,7 @@ import org.apache.zookeeper.ZooKeeper;
  */
 @InterfaceAudience.Private
 public class ZKAclReset extends Configured implements Tool {
-  private static final Log LOG = LogFactory.getLog(ZKAclReset.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ZKAclReset.class);
 
   private static void resetAcls(final ZKWatcher zkw, final String znode,
                                 final boolean eraseAcls) throws Exception {
@@ -70,8 +70,8 @@ public class ZKAclReset extends Configured implements Tool {
     ZKWatcher zkw = new ZKWatcher(conf, "ZKAclReset", null);
     try {
       LOG.info((eraseAcls ? "Erase" : "Set") + " HBase ACLs for " +
-                zkw.getQuorum() + " " + zkw.znodePaths.baseZNode);
-      resetAcls(zkw, zkw.znodePaths.baseZNode, eraseAcls);
+                zkw.getQuorum() + " " + zkw.getZNodePaths().baseZNode);
+      resetAcls(zkw, zkw.getZNodePaths().baseZNode, eraseAcls);
     } finally {
       zkw.close();
     }

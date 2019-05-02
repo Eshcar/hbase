@@ -18,26 +18,27 @@
 
 package org.apache.hadoop.hbase.zookeeper;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.io.IOException;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionNormalizerProtos;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.zookeeper.KeeperException;
-
-import java.io.IOException;
 
 /**
  * Tracks region normalizer state up in ZK
  */
+@InterfaceAudience.Private
 public class RegionNormalizerTracker extends ZKNodeTracker {
-  private static final Log LOG = LogFactory.getLog(RegionNormalizerTracker.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RegionNormalizerTracker.class);
 
-  public RegionNormalizerTracker(ZKWatcher watcher,
-                             Abortable abortable) {
-    super(watcher, watcher.znodePaths.regionNormalizerZNode, abortable);
+  public RegionNormalizerTracker(ZKWatcher watcher, Abortable abortable) {
+    super(watcher, watcher.getZNodePaths().regionNormalizerZNode, abortable);
   }
 
   /**
@@ -59,16 +60,16 @@ public class RegionNormalizerTracker extends ZKNodeTracker {
   /**
    * Set region normalizer on/off
    * @param normalizerOn whether normalizer should be on or off
-   * @throws KeeperException
+   * @throws KeeperException if a ZooKeeper operation fails
    */
   public void setNormalizerOn(boolean normalizerOn) throws KeeperException {
     byte [] upData = toByteArray(normalizerOn);
     try {
-      ZKUtil.setData(watcher, watcher.znodePaths.regionNormalizerZNode, upData);
+      ZKUtil.setData(watcher, watcher.getZNodePaths().regionNormalizerZNode, upData);
     } catch(KeeperException.NoNodeException nne) {
-      ZKUtil.createAndWatch(watcher, watcher.znodePaths.regionNormalizerZNode, upData);
+      ZKUtil.createAndWatch(watcher, watcher.getZNodePaths().regionNormalizerZNode, upData);
     }
-    super.nodeDataChanged(watcher.znodePaths.regionNormalizerZNode);
+    super.nodeDataChanged(watcher.getZNodePaths().regionNormalizerZNode);
   }
 
   private byte [] toByteArray(boolean isNormalizerOn) {

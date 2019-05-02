@@ -29,19 +29,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.PrivateCellUtil;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.io.compress.Compression;
 import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.io.hfile.HFile.FileInfo;
 import org.apache.hadoop.hbase.regionserver.CellSink;
-import org.apache.hadoop.hbase.regionserver.CustomizedScanInfoBuilder;
 import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.HStoreFile;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
@@ -62,8 +58,9 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.util.StringUtils.TraditionalBinaryPrefix;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.io.Closeables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.io.Closeables;
 
 /**
  * A compactor is a compaction algorithm associated a given policy. Base class also contains
@@ -71,7 +68,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.io.Closeables;
  */
 @InterfaceAudience.Private
 public abstract class Compactor<T extends CellSink> {
-  private static final Log LOG = LogFactory.getLog(Compactor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(Compactor.class);
   protected static final long COMPACTION_PROGRESS_LOG_INTERVAL = 60 * 1000;
   protected volatile CompactionProgress progress;
   protected final Configuration conf;
@@ -144,11 +141,11 @@ public abstract class Compactor<T extends CellSink> {
   private FileDetails getFileDetails(
       Collection<HStoreFile> filesToCompact, boolean allFiles) throws IOException {
     FileDetails fd = new FileDetails();
-    long oldestHFileTimeStampToKeepMVCC = System.currentTimeMillis() -
+    long oldestHFileTimestampToKeepMVCC = System.currentTimeMillis() -
       (1000L * 60 * 60 * 24 * this.keepSeqIdPeriod);
 
     for (HStoreFile file : filesToCompact) {
-      if(allFiles && (file.getModificationTimeStamp() < oldestHFileTimeStampToKeepMVCC)) {
+      if(allFiles && (file.getModificationTimestamp() < oldestHFileTimestampToKeepMVCC)) {
         // when isAllFiles is true, all files are compacted so we can calculate the smallest
         // MVCC value to keep
         if(fd.minSeqIdToKeep < file.getMaxMemStoreTS()) {
@@ -201,15 +198,16 @@ public abstract class Compactor<T extends CellSink> {
       }
       tmp = fileInfo.get(TIMERANGE_KEY);
       fd.latestPutTs = tmp == null ? HConstants.LATEST_TIMESTAMP: TimeRangeTracker.parseFrom(tmp).getMax();
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Compacting " + file +
-          ", keycount=" + keyCount +
-          ", bloomtype=" + r.getBloomFilterType().toString() +
-          ", size=" + TraditionalBinaryPrefix.long2String(r.length(), "", 1) +
-          ", encoding=" + r.getHFileReader().getDataBlockEncoding() +
-          ", seqNum=" + seqNum +
-          (allFiles ? ", earliestPutTs=" + earliestPutTs: ""));
-      }
+      LOG.debug("Compacting {}, keycount={}, bloomtype={}, size={}, "
+              + "encoding={}, compression={}, seqNum={}{}",
+          (file.getPath() == null? null: file.getPath().getName()),
+          keyCount,
+          r.getBloomFilterType().toString(),
+          TraditionalBinaryPrefix.long2String(r.length(), "", 1),
+          r.getHFileReader().getDataBlockEncoding(),
+          compactionCompression,
+          seqNum,
+          (allFiles? ", earliestPutTs=" + earliestPutTs: ""));
     }
     return fd;
   }
@@ -262,10 +260,8 @@ public abstract class Compactor<T extends CellSink> {
       throws IOException {
     // When all MVCC readpoints are 0, don't write them.
     // See HBASE-8166, HBASE-12600, and HBASE-13389.
-    return store.createWriterInTmp(fd.maxKeyCount, this.compactionCompression,
-    /* isCompaction = */true,
-    /* includeMVCCReadpoint = */fd.maxMVCCReadpoint > 0,
-    /* includesTags = */fd.maxTagsLength > 0, shouldDropBehind);
+    return store.createWriterInTmp(fd.maxKeyCount, this.compactionCompression, true,
+    fd.maxMVCCReadpoint > 0, fd.maxTagsLength > 0, shouldDropBehind);
   }
 
   private ScanInfo preCompactScannerOpen(CompactionRequestImpl request, ScanType scanType,
@@ -320,10 +316,6 @@ public abstract class Compactor<T extends CellSink> {
       ScanInfo scanInfo = preCompactScannerOpen(request, scanType, user);
       scanner = postCompactScannerOpen(request, scanType,
         scannerFactory.createScanner(scanInfo, scanners, scanType, fd, smallestReadPoint), user);
-      if (scanner == null) {
-        // NULL scanner returned from coprocessor hooks means skip normal processing.
-        return new ArrayList<>();
-      }
       boolean cleanSeqId = false;
       if (fd.minSeqIdToKeep > 0 && !store.getColumnFamilyDescriptor().isNewVersionBehavior()) {
         // For mvcc-sensitive family, we never set mvcc to 0.
@@ -408,7 +400,7 @@ public abstract class Compactor<T extends CellSink> {
             lastCleanCellSeqId = 0;
           }
           writer.append(c);
-          int len = KeyValueUtil.length(c);
+          int len = c.getSerializedSize();
           ++progress.currentCompactedKVs;
           progress.totalCompactedSize += len;
           bytesWrittenProgressForShippedCall += len;

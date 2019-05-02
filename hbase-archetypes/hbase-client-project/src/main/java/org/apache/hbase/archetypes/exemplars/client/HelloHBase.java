@@ -66,9 +66,8 @@ public final class HelloHBase {
      * CLASSPATH, to enable creation of Connection to HBase via ZooKeeper.
      */
     try (Connection connection = ConnectionFactory.createConnection();
-            Admin admin = connection.getAdmin()) {
-
-      admin.getClusterStatus(); // assure connection successfully established
+        Admin admin = connection.getAdmin()) {
+      admin.getClusterMetrics(); // assure connection successfully established
       System.out.println("\n*** Hello HBase! -- Connection has been "
               + "established via ZooKeeper!!\n");
 
@@ -112,7 +111,7 @@ public final class HelloHBase {
               + "], with one Column Family ["
               + Bytes.toString(MY_COLUMN_FAMILY_NAME) + "].");
       TableDescriptor desc = TableDescriptorBuilder.newBuilder(MY_TABLE_NAME)
-              .addColumnFamily(ColumnFamilyDescriptorBuilder.of(MY_COLUMN_FAMILY_NAME))
+              .setColumnFamily(ColumnFamilyDescriptorBuilder.of(MY_COLUMN_FAMILY_NAME))
               .build();
       admin.createTable(desc);
     }

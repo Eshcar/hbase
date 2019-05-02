@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,19 +18,22 @@
 package org.apache.hadoop.hbase.master;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.ClusterStatus.Option;
+import org.apache.hadoop.hbase.ClusterMetrics.Option;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -41,6 +43,7 @@ import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.MetaTableAccessor.Visitor;
 import org.apache.hadoop.hbase.RegionLocations;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.StartMiniClusterOption;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
@@ -53,17 +56,26 @@ import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.JVMClusterUtil;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({MasterTests.class, MediumTests.class})
 public class TestMasterOperationsForRegionReplicas {
-  private static final Log LOG = LogFactory.getLog(TestRegionPlacement.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMasterOperationsForRegionReplicas.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestRegionPlacement.class);
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static Connection CONNECTION = null;
   private static Admin ADMIN;
@@ -80,8 +92,8 @@ public class TestMasterOperationsForRegionReplicas {
     TEST_UTIL.startMiniCluster(numSlaves);
     CONNECTION = ConnectionFactory.createConnection(TEST_UTIL.getConfiguration());
     ADMIN = CONNECTION.getAdmin();
-    while(ADMIN.getClusterStatus(EnumSet.of(Option.LIVE_SERVERS))
-               .getServers().size() < numSlaves) {
+    while(ADMIN.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS))
+               .getLiveServerMetrics().size() < numSlaves) {
       Thread.sleep(100);
     }
   }
@@ -159,7 +171,7 @@ public class TestMasterOperationsForRegionReplicas {
         ADMIN.getConnection());
 
       // Now kill the master, restart it and see if the assignments are kept
-      ServerName master = TEST_UTIL.getHBaseClusterInterface().getClusterStatus().getMaster();
+      ServerName master = TEST_UTIL.getHBaseClusterInterface().getClusterMetrics().getMasterName();
       TEST_UTIL.getHBaseClusterInterface().stopMaster(master);
       TEST_UTIL.getHBaseClusterInterface().waitForMasterToStop(master, 30000);
       TEST_UTIL.getHBaseClusterInterface().startMaster(master.getHostname(), master.getPort());
@@ -174,21 +186,29 @@ public class TestMasterOperationsForRegionReplicas {
       }
       validateFromSnapshotFromMeta(TEST_UTIL, tableName, numRegions, numReplica,
         ADMIN.getConnection());
-      /* DISABLED!!!!! FOR NOW!!!!
       // Now shut the whole cluster down, and verify the assignments are kept so that the
-      // availability constraints are met.
-      TEST_UTIL.getConfiguration().setBoolean("hbase.master.startup.retainassign", true);
+      // availability constraints are met. MiniHBaseCluster chooses arbitrary ports on each
+      // restart. This messes with our being able to test that we retain locality. Therefore,
+      // figure current cluster ports and pass them in on next cluster start so new cluster comes
+      // up at same coordinates -- and the assignment retention logic has a chance to cut in.
+      List<Integer> rsports = new ArrayList<>();
+      for (JVMClusterUtil.RegionServerThread rst:
+          TEST_UTIL.getHBaseCluster().getLiveRegionServerThreads()) {
+        rsports.add(rst.getRegionServer().getRpcServer().getListenerAddress().getPort());
+      }
       TEST_UTIL.shutdownMiniHBaseCluster();
-      TEST_UTIL.startMiniHBaseCluster(1, numSlaves);
-      TEST_UTIL.waitTableEnabled(tableName);
+      StartMiniClusterOption option = StartMiniClusterOption.builder()
+          .numRegionServers(numSlaves).rsPorts(rsports).build();
+      TEST_UTIL.startMiniHBaseCluster(option);
+      TEST_UTIL.waitTableAvailable(tableName);
       validateFromSnapshotFromMeta(TEST_UTIL, tableName, numRegions, numReplica,
         ADMIN.getConnection());
 
       // Now shut the whole cluster down, and verify regions are assigned even if there is only
       // one server running
       TEST_UTIL.shutdownMiniHBaseCluster();
-      TEST_UTIL.startMiniHBaseCluster(1, 1);
-      TEST_UTIL.waitTableEnabled(tableName);
+      TEST_UTIL.startMiniHBaseCluster();
+      TEST_UTIL.waitTableAvailable(tableName);
       validateSingleRegionServerAssignment(ADMIN.getConnection(), numRegions, numReplica);
       for (int i = 1; i < numSlaves; i++) { //restore the cluster
         TEST_UTIL.getMiniHBaseCluster().startRegionServer();
@@ -199,19 +219,19 @@ public class TestMasterOperationsForRegionReplicas {
       assert(ADMIN.isTableDisabled(tableName));
       //increase the replica
       desc.setRegionReplication(numReplica + 1);
-      ADMIN.modifyTable(tableName, desc);
+      ADMIN.modifyTable(desc);
       ADMIN.enableTable(tableName);
-      LOG.info(ADMIN.getTableDescriptor(tableName).toString());
+      LOG.info(ADMIN.getDescriptor(tableName).toString());
       assert(ADMIN.isTableEnabled(tableName));
-      List<RegionInfo> regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
-          .getAssignmentManager().getRegionStates().getRegionsOfTable(tableName);
-      assertTrue("regions.size=" + regions.size() + ", numRegions=" + numRegions + ", numReplica=" + numReplica,
-          regions.size() == numRegions * (numReplica + 1));
+      List<RegionInfo> regions = TEST_UTIL.getMiniHBaseCluster().getMaster().
+          getAssignmentManager().getRegionStates().getRegionsOfTable(tableName);
+      assertTrue("regions.size=" + regions.size() + ", numRegions=" + numRegions +
+          ", numReplica=" + numReplica, regions.size() == numRegions * (numReplica + 1));
 
       //decrease the replica(earlier, table was modified to have a replica count of numReplica + 1)
       ADMIN.disableTable(tableName);
       desc.setRegionReplication(numReplica);
-      ADMIN.modifyTable(tableName, desc);
+      ADMIN.modifyTable(desc);
       ADMIN.enableTable(tableName);
       assert(ADMIN.isTableEnabled(tableName));
       regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
@@ -232,8 +252,7 @@ public class TestMasterOperationsForRegionReplicas {
       }
       assert(defaultReplicas.size() == numRegions);
       Collection<Integer> counts = new HashSet<>(defaultReplicas.values());
-      assert(counts.size() == 1 && counts.contains(new Integer(numReplica)));
-      */
+      assert(counts.size() == 1 && counts.contains(numReplica));
     } finally {
       ADMIN.disableTable(tableName);
       ADMIN.deleteTable(tableName);
@@ -287,7 +306,7 @@ public class TestMasterOperationsForRegionReplicas {
   }
 
   private String printRegions(List<RegionInfo> regions) {
-    StringBuffer strBuf = new StringBuffer();
+    StringBuilder strBuf = new StringBuilder();
     for (RegionInfo r : regions) {
       strBuf.append(" ____ " + r.toString());
     }
@@ -315,7 +334,7 @@ public class TestMasterOperationsForRegionReplicas {
       connection);
     snapshot.initialize();
     Map<RegionInfo, ServerName> regionToServerMap = snapshot.getRegionToRegionServerMap();
-    assert(regionToServerMap.size() == numRegions * numReplica + 1); //'1' for the namespace
+    assert(regionToServerMap.size() == numRegions * numReplica);
     Map<ServerName, List<RegionInfo>> serverToRegionMap = snapshot.getRegionServerToRegionMap();
     for (Map.Entry<ServerName, List<RegionInfo>> entry : serverToRegionMap.entrySet()) {
       if (entry.getKey().equals(util.getHBaseCluster().getMaster().getServerName())) {
@@ -327,7 +346,7 @@ public class TestMasterOperationsForRegionReplicas {
         byte[] startKey = region.getStartKey();
         if (region.getTable().equals(table)) {
           setOfStartKeys.add(startKey); //ignore other tables
-          LOG.info("--STARTKEY " + new String(startKey)+"--");
+          LOG.info("--STARTKEY {}--", new String(startKey, StandardCharsets.UTF_8));
         }
       }
       // the number of startkeys will be equal to the number of regions hosted in each server
@@ -342,9 +361,9 @@ public class TestMasterOperationsForRegionReplicas {
       connection);
     snapshot.initialize();
     Map<RegionInfo, ServerName>  regionToServerMap = snapshot.getRegionToRegionServerMap();
-    assertEquals(regionToServerMap.size(), numRegions * numReplica + 1); //'1' for the namespace
+    assertEquals(regionToServerMap.size(), numRegions * numReplica);
     Map<ServerName, List<RegionInfo>> serverToRegionMap = snapshot.getRegionServerToRegionMap();
-    assertEquals(serverToRegionMap.keySet().size(), 2); // 1 rs + 1 master
+    assertEquals("One Region Only", 1, serverToRegionMap.keySet().size());
     for (Map.Entry<ServerName, List<RegionInfo>> entry : serverToRegionMap.entrySet()) {
       if (entry.getKey().equals(TEST_UTIL.getHBaseCluster().getMaster().getServerName())) {
         continue;

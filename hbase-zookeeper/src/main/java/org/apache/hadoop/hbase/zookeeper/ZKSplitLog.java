@@ -22,19 +22,23 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Common methods and attributes used by SplitLogManager and SplitLogWorker running distributed splitting of WAL logs.
+ * Common methods and attributes used by SplitLogManager and SplitLogWorker running distributed
+ * splitting of WAL logs.
  */
 @InterfaceAudience.Private
-public class ZKSplitLog {
-  private static final Log LOG = LogFactory.getLog(ZKSplitLog.class);
+public final class ZKSplitLog {
+  private static final Logger LOG = LoggerFactory.getLogger(ZKSplitLog.class);
+
+  private ZKSplitLog() {
+  }
 
   /**
    * Gets the full path node name for the log file being split.
@@ -43,7 +47,7 @@ public class ZKSplitLog {
    * @param filename log file name (only the basename)
    */
   public static String getEncodedNodeName(ZKWatcher zkw, String filename) {
-    return ZNodePaths.joinZNode(zkw.znodePaths.splitLogZNode, encode(filename));
+    return ZNodePaths.joinZNode(zkw.getZNodePaths().splitLogZNode, encode(filename));
   }
 
   public static String getFileName(String node) {
@@ -68,7 +72,7 @@ public class ZKSplitLog {
   }
 
   public static String getRescanNode(ZKWatcher zkw) {
-    return ZNodePaths.joinZNode(zkw.znodePaths.splitLogZNode, "RESCAN");
+    return ZNodePaths.joinZNode(zkw.getZNodePaths().splitLogZNode, "RESCAN");
   }
 
   /**
@@ -80,7 +84,9 @@ public class ZKSplitLog {
   }
 
   /**
-   * @param zkw
+   * Checks if the given path represents a rescan node.
+   *
+   * @param zkw reference to the {@link ZKWatcher} which also contains configuration and constants
    * @param path the absolute path, starts with '/'
    * @return whether the path represents a rescan node
    */

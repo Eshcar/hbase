@@ -31,11 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HBaseIOException;
-import org.apache.hadoop.hbase.ServerLoad;
+import org.apache.hadoop.hbase.ServerMetrics;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.favored.FavoredNodeAssignmentHelper;
@@ -47,10 +44,13 @@ import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Maps;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
+import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 
 /**
  * An implementation of the {@link org.apache.hadoop.hbase.master.LoadBalancer} that
@@ -67,10 +67,11 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
  * {@link org.apache.hadoop.hbase.master.balancer.StochasticLoadBalancer.CandidateGenerator}
  *
  */
+@InterfaceAudience.Private
 public class FavoredStochasticBalancer extends StochasticLoadBalancer implements
     FavoredNodesPromoter {
 
-  private static final Log LOG = LogFactory.getLog(FavoredStochasticBalancer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FavoredStochasticBalancer.class);
   private FavoredNodesManager fnm;
 
   @Override
@@ -87,7 +88,7 @@ public class FavoredStochasticBalancer extends StochasticLoadBalancer implements
   }
 
   @Override
-  public void setMasterServices(MasterServices masterServices) {
+  public synchronized void setMasterServices(MasterServices masterServices) {
     super.setMasterServices(masterServices);
     fnm = masterServices.getFavoredNodesManager();
   }
@@ -275,10 +276,10 @@ public class FavoredStochasticBalancer extends StochasticLoadBalancer implements
 
       // Assign the region to the one with a lower load (both have the desired hdfs blocks)
       ServerName s;
-      ServerLoad tertiaryLoad = super.services.getServerManager().getLoad(tertiaryHost);
-      ServerLoad secondaryLoad = super.services.getServerManager().getLoad(secondaryHost);
+      ServerMetrics tertiaryLoad = super.services.getServerManager().getLoad(tertiaryHost);
+      ServerMetrics secondaryLoad = super.services.getServerManager().getLoad(secondaryHost);
       if (secondaryLoad != null && tertiaryLoad != null) {
-        if (secondaryLoad.getLoad() < tertiaryLoad.getLoad()) {
+        if (secondaryLoad.getRegionMetrics().size() < tertiaryLoad.getRegionMetrics().size()) {
           s = secondaryHost;
         } else {
           s = tertiaryHost;
@@ -693,7 +694,8 @@ public class FavoredStochasticBalancer extends StochasticLoadBalancer implements
    * implementation. For the misplaced regions, we assign a bogus server to it and AM takes care.
    */
   @Override
-  public List<RegionPlan> balanceCluster(Map<ServerName, List<RegionInfo>> clusterState) {
+  public synchronized List<RegionPlan> balanceCluster(Map<ServerName,
+      List<RegionInfo>> clusterState) {
 
     if (this.services != null) {
 

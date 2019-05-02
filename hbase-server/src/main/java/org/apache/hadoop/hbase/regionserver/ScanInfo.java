@@ -27,7 +27,7 @@ import org.apache.hadoop.hbase.KeepDeletedCells;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Immutable information for scans over a store.
@@ -171,10 +171,11 @@ public class ScanInfo {
   }
 
   /**
-   * Used for CP users for customizing max versions and ttl.
+   * Used for CP users for customizing max versions, ttl and keepDeletedCells.
    */
-  ScanInfo customize(int maxVersions, long ttl) {
-    return new ScanInfo(family, minVersions, maxVersions, ttl, keepDeletedCells, ttl, comparator,
-        ttl, usePread, maxVersions, parallelSeekEnabled, ttl, newVersionBehavior);
+  ScanInfo customize(int maxVersions, long ttl, KeepDeletedCells keepDeletedCells) {
+    return new ScanInfo(family, minVersions, maxVersions, ttl, keepDeletedCells, timeToPurgeDeletes,
+        comparator, tableMaxRowSize, usePread, cellsPerTimeoutCheck, parallelSeekEnabled,
+        preadMaxBytes, newVersionBehavior);
   }
 }

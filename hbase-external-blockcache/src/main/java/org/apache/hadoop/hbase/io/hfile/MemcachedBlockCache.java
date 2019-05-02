@@ -1,4 +1,3 @@
-
 /**
  * Copyright The Apache Software Foundation
  *
@@ -29,8 +28,12 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import net.spy.memcached.CachedData;
+import net.spy.memcached.ConnectionFactoryBuilder;
+import net.spy.memcached.FailureMode;
+import net.spy.memcached.MemcachedClient;
+import net.spy.memcached.transcoders.Transcoder;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.io.hfile.Cacheable.MemoryType;
@@ -40,12 +43,8 @@ import org.apache.hadoop.hbase.trace.TraceUtil;
 import org.apache.hadoop.hbase.util.Addressing;
 import org.apache.htrace.core.TraceScope;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import net.spy.memcached.CachedData;
-import net.spy.memcached.ConnectionFactoryBuilder;
-import net.spy.memcached.FailureMode;
-import net.spy.memcached.MemcachedClient;
-import net.spy.memcached.transcoders.Transcoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class to store blocks into memcached.
@@ -55,7 +54,7 @@ import net.spy.memcached.transcoders.Transcoder;
  */
 @InterfaceAudience.Private
 public class MemcachedBlockCache implements BlockCache {
-  private static final Log LOG = LogFactory.getLog(MemcachedBlockCache.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(MemcachedBlockCache.class.getName());
 
   // Some memcache versions won't take more than 1024 * 1024. So set the limit below
   // that just in case this client is used with those versions.
@@ -110,10 +109,7 @@ public class MemcachedBlockCache implements BlockCache {
   }
 
   @Override
-  public void cacheBlock(BlockCacheKey cacheKey,
-                         Cacheable buf,
-                         boolean inMemory,
-                         boolean cacheDataInL1) {
+  public void cacheBlock(BlockCacheKey cacheKey, Cacheable buf, boolean inMemory) {
     cacheBlock(cacheKey, buf);
   }
 
@@ -267,7 +263,7 @@ public class MemcachedBlockCache implements BlockCache {
     @Override
     public CachedData encode(HFileBlock block) {
       ByteBuffer bb = ByteBuffer.allocate(block.getSerializedLength());
-      block.serialize(bb);
+      block.serialize(bb, true);
       return new CachedData(0, bb.array(), CachedData.MAX_SIZE);
     }
 
@@ -288,10 +284,4 @@ public class MemcachedBlockCache implements BlockCache {
       return MAX_SIZE;
     }
   }
-
-  @Override
-  public void returnBlock(BlockCacheKey cacheKey, Cacheable block) {
-    // Not doing reference counting. All blocks here are EXCLUSIVE
-  }
-
 }

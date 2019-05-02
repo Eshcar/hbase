@@ -19,10 +19,9 @@
 package org.apache.hadoop.hbase.mapreduce;
 
 import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -52,7 +51,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 public class TableOutputFormat<KEY> extends OutputFormat<KEY, Mutation>
 implements Configurable {
 
-  private static final Log LOG = LogFactory.getLog(TableOutputFormat.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TableOutputFormat.class);
 
   /** Job parameter that specifies the output table. */
   public static final String OUTPUT_TABLE = "hbase.mapred.outputtable";
@@ -175,9 +174,13 @@ implements Configurable {
   @Override
   public void checkOutputSpecs(JobContext context) throws IOException,
       InterruptedException {
+    Configuration hConf = getConf();
+    if (hConf == null) {
+      hConf = context.getConfiguration();
+    }
 
-    try (Admin admin = ConnectionFactory.createConnection(getConf()).getAdmin()) {
-      TableName tableName = TableName.valueOf(this.conf.get(OUTPUT_TABLE));
+    try (Admin admin = ConnectionFactory.createConnection(hConf).getAdmin()) {
+      TableName tableName = TableName.valueOf(hConf.get(OUTPUT_TABLE));
       if (!admin.tableExists(tableName)) {
         throw new TableNotFoundException("Can't write, table does not exist:" +
             tableName.getNameAsString());
@@ -232,7 +235,7 @@ implements Configurable {
         this.conf.setInt(HConstants.ZOOKEEPER_CLIENT_PORT, zkClientPort);
       }
     } catch(IOException e) {
-      LOG.error(e);
+      LOG.error(e.toString(), e);
       throw new RuntimeException(e);
     }
   }

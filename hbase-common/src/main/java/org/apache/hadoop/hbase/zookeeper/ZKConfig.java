@@ -22,10 +22,13 @@ import java.io.IOException;
 import java.util.Map.Entry;
 import java.util.Properties;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.validator.routines.InetAddressValidator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.yetus.audience.InterfaceAudience;
+
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Utility methods for reading, and building the ZooKeeper configuration.
@@ -84,7 +87,7 @@ public final class ZKConfig {
     // If clientPort is not set, assign the default.
     if (zkProperties.getProperty(HConstants.CLIENT_PORT_STR) == null) {
       zkProperties.put(HConstants.CLIENT_PORT_STR,
-          HConstants.DEFAULT_ZOOKEPER_CLIENT_PORT);
+          HConstants.DEFAULT_ZOOKEEPER_CLIENT_PORT);
     }
 
     // Create the server.X properties.
@@ -118,7 +121,7 @@ public final class ZKConfig {
    */
   private static String getZKQuorumServersStringFromHbaseConfig(Configuration conf) {
     String defaultClientPort = Integer.toString(
-        conf.getInt(HConstants.ZOOKEEPER_CLIENT_PORT, HConstants.DEFAULT_ZOOKEPER_CLIENT_PORT));
+        conf.getInt(HConstants.ZOOKEEPER_CLIENT_PORT, HConstants.DEFAULT_ZOOKEEPER_CLIENT_PORT));
 
     // Build the ZK quorum server string with "server:clientport" list, separated by ','
     final String[] serverHosts =
@@ -144,12 +147,36 @@ public final class ZKConfig {
   public static String buildZKQuorumServerString(String[] serverHosts, String clientPort) {
     StringBuilder quorumStringBuilder = new StringBuilder();
     String serverHost;
+    InetAddressValidator validator = new InetAddressValidator();
     for (int i = 0; i < serverHosts.length; ++i) {
-      if (serverHosts[i].contains(":")) {
-        serverHost = serverHosts[i]; // just use the port specified from the input
+      if (serverHosts[i].startsWith("[")) {
+        int index = serverHosts[i].indexOf("]");
+        if (index < 0) {
+          throw new IllegalArgumentException(serverHosts[i]
+                  + " starts with '[' but has no matching ']:'");
+        }
+        if (index + 2 == serverHosts[i].length()) {
+          throw new IllegalArgumentException(serverHosts[i]
+                  + " doesn't have a port after colon");
+        }
+        //check the IPv6 address e.g. [2001:db8::1]
+        String serverHostWithoutBracket = serverHosts[i].substring(1, index);
+        if (!validator.isValidInet6Address(serverHostWithoutBracket)) {
+          throw new IllegalArgumentException(serverHosts[i]
+                  + " is not a valid IPv6 address");
+        }
+        serverHost = serverHosts[i];
+        if ((index + 1 == serverHosts[i].length())) {
+          serverHost = serverHosts[i] + ":" + clientPort;
+        }
       } else {
-        serverHost = serverHosts[i] + ":" + clientPort;
+        if (serverHosts[i].contains(":")) {
+          serverHost = serverHosts[i]; // just use the port specified from the input
+        } else {
+          serverHost = serverHosts[i] + ":" + clientPort;
+        }
       }
+
       if (i > 0) {
         quorumStringBuilder.append(',');
       }
@@ -308,5 +335,24 @@ public final class ZKConfig {
     public String getZnodeParent() {
       return znodeParent;
     }
+  }
+
+  /**
+   * Get the client ZK Quorum servers string
+   * @param conf the configuration to read
+   * @return Client quorum servers, or null if not specified
+   */
+  public static String getClientZKQuorumServersString(Configuration conf) {
+    String clientQuromServers = conf.get(HConstants.CLIENT_ZOOKEEPER_QUORUM);
+    if (clientQuromServers == null) {
+      return null;
+    }
+    int defaultClientPort =
+        conf.getInt(HConstants.ZOOKEEPER_CLIENT_PORT, HConstants.DEFAULT_ZOOKEEPER_CLIENT_PORT);
+    String clientZkClientPort =
+        Integer.toString(conf.getInt(HConstants.CLIENT_ZOOKEEPER_CLIENT_PORT, defaultClientPort));
+    // Build the ZK quorum server string with "server:clientport" list, separated by ','
+    final String[] serverHosts = StringUtils.getStrings(clientQuromServers);
+    return buildZKQuorumServerString(serverHosts, clientZkClientPort);
   }
 }

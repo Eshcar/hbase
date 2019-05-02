@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,26 +17,24 @@
  */
 package org.apache.hadoop.hbase.security.access;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
 
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CompareOperator;
 import org.apache.hadoop.hbase.Coprocessor;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.CompareOperator;
 import org.apache.hadoop.hbase.TableNotFoundException;
+import org.apache.hadoop.hbase.TestTableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.Connection;
@@ -62,38 +60,35 @@ import org.apache.hadoop.hbase.regionserver.FlushLifeCycleTracker;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.MiniBatchOperationInProgress;
 import org.apache.hadoop.hbase.regionserver.RegionCoprocessorHost;
-import org.apache.hadoop.hbase.regionserver.RegionScanner;
 import org.apache.hadoop.hbase.regionserver.RegionServerCoprocessorHost;
-import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.access.Permission.Action;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.SecurityTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
-import org.apache.hadoop.hbase.TestTableName;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.hadoop.hbase.wal.WALEdit;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
 
 @Category({SecurityTests.class, LargeTests.class})
 public class TestWithDisabledAuthorization extends SecureTestUtil {
-  private static final Log LOG = LogFactory.getLog(TestWithDisabledAuthorization.class);
 
-  static {
-    Logger.getLogger(AccessController.class).setLevel(Level.TRACE);
-    Logger.getLogger(AccessControlFilter.class).setLevel(Level.TRACE);
-    Logger.getLogger(TableAuthManager.class).setLevel(Level.TRACE);
-  }
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestWithDisabledAuthorization.class);
 
+  private static final Logger LOG = LoggerFactory.getLogger(TestWithDisabledAuthorization.class);
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
 
   private static final byte[] TEST_FAMILY = Bytes.toBytes("f1");
@@ -160,7 +155,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
     RSCP_ENV = rsHost.createEnvironment(ACCESS_CONTROLLER, Coprocessor.PRIORITY_HIGHEST, 1, conf);
 
     // Wait for the ACL table to become available
-    TEST_UTIL.waitUntilAllRegionsAssigned(AccessControlLists.ACL_TABLE_NAME);
+    TEST_UTIL.waitUntilAllRegionsAssigned(PermissionStorage.ACL_TABLE_NAME);
 
     // create a set of test users
     SUPERUSER = User.createUserForTesting(conf, "admin", new String[] { "supergroup" });
@@ -224,8 +219,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       Permission.Action.READ,
       Permission.Action.WRITE);
 
-    assertEquals(5, AccessControlLists.getTablePermissions(TEST_UTIL.getConfiguration(),
-      TEST_TABLE.getTableName()).size());
+    assertEquals(5, PermissionStorage
+        .getTablePermissions(TEST_UTIL.getConfiguration(), TEST_TABLE.getTableName()).size());
   }
 
   @After
@@ -238,9 +233,9 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       LOG.info("Test deleted table " + TEST_TABLE.getTableName());
     }
     // Verify all table/namespace permissions are erased
-    assertEquals(0, AccessControlLists.getTablePermissions(TEST_UTIL.getConfiguration(),
-      TEST_TABLE.getTableName()).size());
-    assertEquals(0, AccessControlLists.getNamespacePermissions(TEST_UTIL.getConfiguration(),
+    assertEquals(0, PermissionStorage
+        .getTablePermissions(TEST_UTIL.getConfiguration(), TEST_TABLE.getTableName()).size());
+    assertEquals(0, PermissionStorage.getNamespacePermissions(TEST_UTIL.getConfiguration(),
       TEST_TABLE.getTableName().getNamespaceAsString()).size());
   }
 
@@ -255,9 +250,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkGlobalAdmin, SUPERUSER, USER_ADMIN);
-    verifyDenied(checkGlobalAdmin, USER_OWNER, USER_CREATE, USER_RW, USER_RO, USER_QUAL,
-      USER_NONE);
+    verifyAllowed(checkGlobalAdmin, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkGlobalRead = new AccessTestAction() {
       @Override
@@ -267,9 +261,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkGlobalRead, SUPERUSER, USER_ADMIN);
-    verifyDenied(checkGlobalRead, USER_OWNER, USER_CREATE, USER_RW, USER_RO, USER_QUAL,
-      USER_NONE);
+    verifyAllowed(checkGlobalRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW, USER_RO,
+      USER_QUAL, USER_NONE);
 
     AccessTestAction checkGlobalReadWrite = new AccessTestAction() {
       @Override
@@ -279,9 +272,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkGlobalReadWrite, SUPERUSER, USER_ADMIN);
-    verifyDenied(checkGlobalReadWrite, USER_OWNER, USER_CREATE, USER_RW, USER_RO, USER_QUAL,
-      USER_NONE);
+    verifyAllowed(checkGlobalReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkTableAdmin = new AccessTestAction() {
       @Override
@@ -292,8 +284,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkTableAdmin, SUPERUSER, USER_ADMIN, USER_OWNER);
-    verifyDenied(checkTableAdmin, USER_CREATE, USER_RW, USER_RO, USER_QUAL, USER_NONE);
+    verifyAllowed(checkTableAdmin, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW, USER_RO,
+      USER_QUAL, USER_NONE);
 
     AccessTestAction checkTableCreate = new AccessTestAction() {
       @Override
@@ -304,8 +296,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkTableCreate, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE);
-    verifyDenied(checkTableCreate, USER_RW, USER_RO, USER_QUAL, USER_NONE);
+    verifyAllowed(checkTableCreate, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkTableRead = new AccessTestAction() {
       @Override
@@ -316,8 +308,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkTableRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE);
-    verifyDenied(checkTableRead, USER_RW, USER_RO, USER_QUAL, USER_NONE);
+    verifyAllowed(checkTableRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW, USER_RO,
+      USER_QUAL, USER_NONE);
 
     AccessTestAction checkTableReadWrite = new AccessTestAction() {
       @Override
@@ -328,8 +320,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkTableReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE);
-    verifyDenied(checkTableReadWrite, USER_RW, USER_RO, USER_QUAL, USER_NONE);
+    verifyAllowed(checkTableReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkColumnRead = new AccessTestAction() {
       @Override
@@ -340,9 +332,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkColumnRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
-      USER_RO);
-    verifyDenied(checkColumnRead, USER_QUAL, USER_NONE);
+    verifyAllowed(checkColumnRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW, USER_RO,
+      USER_QUAL, USER_NONE);
 
     AccessTestAction checkColumnReadWrite = new AccessTestAction() {
       @Override
@@ -353,9 +344,8 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkColumnReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE,
-      USER_RW);
-    verifyDenied(checkColumnReadWrite, USER_RO, USER_QUAL, USER_NONE);
+    verifyAllowed(checkColumnReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkQualifierRead = new AccessTestAction() {
       @Override
@@ -367,8 +357,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
     };
 
     verifyAllowed(checkQualifierRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
-      USER_RO, USER_QUAL);
-    verifyDenied(checkQualifierRead, USER_NONE);
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkQualifierReadWrite = new AccessTestAction() {
       @Override
@@ -379,41 +368,42 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyAllowed(checkQualifierReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE,
-      USER_RW, USER_QUAL);
-    verifyDenied(checkQualifierReadWrite, USER_RO, USER_NONE);
+    verifyAllowed(checkQualifierReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_QUAL, USER_RO, USER_NONE);
 
     AccessTestAction checkMultiQualifierRead = new AccessTestAction() {
       @Override
       public Void run() throws Exception {
-        checkTablePerms(TEST_UTIL, TEST_TABLE.getTableName(), new Permission[] {
-          new TablePermission(TEST_TABLE.getTableName(), TEST_FAMILY, TEST_Q1,
-            Permission.Action.READ),
-          new TablePermission(TEST_TABLE.getTableName(), TEST_FAMILY, TEST_Q2,
-            Permission.Action.READ), });
+        checkTablePerms(TEST_UTIL,
+          new Permission[] {
+              Permission.newBuilder(TEST_TABLE.getTableName()).withFamily(TEST_FAMILY)
+                  .withQualifier(TEST_Q1).withActions(Action.READ).build(),
+              Permission.newBuilder(TEST_TABLE.getTableName()).withFamily(TEST_FAMILY)
+                  .withQualifier(TEST_Q2).withActions(Action.READ).build() });
         return null;
       }
     };
 
-    verifyAllowed(checkMultiQualifierRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE,
-      USER_RW, USER_RO);
-    verifyDenied(checkMultiQualifierRead, USER_QUAL, USER_NONE);
+    verifyAllowed(checkMultiQualifierRead, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE, USER_RW,
+      USER_RO, USER_QUAL, USER_NONE);
 
     AccessTestAction checkMultiQualifierReadWrite = new AccessTestAction() {
       @Override
       public Void run() throws Exception {
-        checkTablePerms(TEST_UTIL, TEST_TABLE.getTableName(), new Permission[] {
-            new TablePermission(TEST_TABLE.getTableName(), TEST_FAMILY, TEST_Q1,
-              Permission.Action.READ, Permission.Action.WRITE),
-            new TablePermission(TEST_TABLE.getTableName(), TEST_FAMILY, TEST_Q2,
-              Permission.Action.READ, Permission.Action.WRITE), });
+        checkTablePerms(TEST_UTIL,
+          new Permission[] {
+              Permission.newBuilder(TEST_TABLE.getTableName()).withFamily(TEST_FAMILY)
+                  .withQualifier(TEST_Q1)
+                  .withActions(Permission.Action.READ, Permission.Action.WRITE).build(),
+              Permission.newBuilder(TEST_TABLE.getTableName()).withFamily(TEST_FAMILY)
+                  .withQualifier(TEST_Q2)
+                  .withActions(Permission.Action.READ, Permission.Action.WRITE).build() });
         return null;
       }
     };
 
     verifyAllowed(checkMultiQualifierReadWrite, SUPERUSER, USER_ADMIN, USER_OWNER, USER_CREATE,
-      USER_RW);
-    verifyDenied(checkMultiQualifierReadWrite, USER_RO, USER_QUAL, USER_NONE);
+      USER_RW, USER_RO, USER_QUAL, USER_NONE);
   }
 
   /** Test grants and revocations with authorization disabled */
@@ -425,7 +415,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
     User tblUser = User.createUserForTesting(TEST_UTIL.getConfiguration(), "tbluser",
       new String[0]);
 
-    // If we check now, the test user won't have permissions
+    // If we check now, the test user have permissions because authorization is disabled
 
     AccessTestAction checkTableRead = new AccessTestAction() {
       @Override
@@ -436,7 +426,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       }
     };
 
-    verifyDenied(tblUser, checkTableRead);
+    verifyAllowed(tblUser, checkTableRead);
 
     // An actual read won't be denied
 
@@ -470,7 +460,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
 
     // Now the permission check will indicate revocation but the actual op will still succeed
 
-    verifyDenied(tblUser, checkTableRead);
+    verifyAllowed(tblUser, checkTableRead);
     verifyAllowed(tblUser, tableRead);
   }
 
@@ -498,7 +488,9 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
         htd.addFamily(new HColumnDescriptor(TEST_FAMILY));
         htd.addFamily(new HColumnDescriptor(TEST_FAMILY2));
         ACCESS_CONTROLLER.preModifyTable(ObserverContextImpl.createAndPrepare(CP_ENV),
-          TEST_TABLE.getTableName(), htd);
+          TEST_TABLE.getTableName(),
+          null,  // not needed by AccessController
+          htd);
         return null;
       }
     }, SUPERUSER, USER_ADMIN, USER_RW, USER_RO, USER_OWNER, USER_CREATE, USER_QUAL, USER_NONE);
@@ -705,6 +697,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       public Object run() throws Exception {
         NamespaceDescriptor ns = NamespaceDescriptor.create("test").build();
         ACCESS_CONTROLLER.preModifyNamespace(ObserverContextImpl.createAndPrepare(CP_ENV),
+          null,  // not needed by AccessController
           ns);
         return null;
       }
@@ -878,7 +871,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       public Object run() throws Exception {
         ACCESS_CONTROLLER.preCheckAndPut(ObserverContextImpl.createAndPrepare(RCP_ENV),
           TEST_ROW, TEST_FAMILY, TEST_Q1, CompareOperator.EQUAL,
-          new BinaryComparator("foo".getBytes()), new Put(TEST_ROW), true);
+          new BinaryComparator(Bytes.toBytes("foo")), new Put(TEST_ROW), true);
         return null;
       }
     }, SUPERUSER, USER_ADMIN, USER_RW, USER_RO, USER_OWNER, USER_CREATE, USER_QUAL, USER_NONE);
@@ -889,7 +882,7 @@ public class TestWithDisabledAuthorization extends SecureTestUtil {
       public Object run() throws Exception {
         ACCESS_CONTROLLER.preCheckAndDelete(ObserverContextImpl.createAndPrepare(RCP_ENV),
           TEST_ROW, TEST_FAMILY, TEST_Q1, CompareOperator.EQUAL,
-          new BinaryComparator("foo".getBytes()), new Delete(TEST_ROW), true);
+          new BinaryComparator(Bytes.toBytes("foo")), new Delete(TEST_ROW), true);
         return null;
       }
     }, SUPERUSER, USER_ADMIN, USER_RW, USER_RO, USER_OWNER, USER_CREATE, USER_QUAL, USER_NONE);

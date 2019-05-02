@@ -32,10 +32,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -49,7 +45,10 @@ import org.apache.hadoop.hbase.util.AbstractHBaseTool;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.yetus.audience.InterfaceAudience;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.CommandLine;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.Option;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.SnapshotRegionManifest;
@@ -65,7 +64,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.Snapshot
  */
 @InterfaceAudience.Public
 public final class SnapshotInfo extends AbstractHBaseTool {
-  private static final Log LOG = LogFactory.getLog(SnapshotInfo.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotInfo.class);
 
   static final class Options {
     static final Option SNAPSHOT = new Option(null, "snapshot", true, "Snapshot to examine.");
@@ -301,7 +300,8 @@ public final class SnapshotInfo extends AbstractHBaseTool {
       boolean inArchive = false;
       long size = -1;
       try {
-        if ((inArchive = fs.exists(link.getArchivePath()))) {
+        if (fs.exists(link.getArchivePath())) {
+          inArchive = true;
           size = fs.getFileStatus(link.getArchivePath()).getLen();
           hfilesArchiveSize.addAndGet(size);
           hfilesArchiveCount.incrementAndGet();
@@ -312,7 +312,8 @@ public final class SnapshotInfo extends AbstractHBaseTool {
               !isArchivedFileStillReferenced(link.getArchivePath(), filesMap)) {
             nonSharedHfilesArchiveSize.addAndGet(size);
           }
-        } else if (inArchive = fs.exists(link.getMobPath())) {
+        } else if (fs.exists(link.getMobPath())) {
+          inArchive = true;
           size = fs.getFileStatus(link.getMobPath()).getLen();
           hfilesMobSize.addAndGet(size);
           hfilesMobCount.incrementAndGet();

@@ -28,13 +28,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
-import org.apache.hadoop.hbase.ServerLoad;
+import org.apache.hadoop.hbase.ServerMetrics;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.RegionInfo;
@@ -46,10 +43,12 @@ import org.apache.hadoop.hbase.master.SnapshotOfRegionAssignmentFromMeta;
 import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Maps;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
+import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 
 /**
  * An implementation of the {@link org.apache.hadoop.hbase.master.LoadBalancer} that
@@ -67,7 +66,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
 public class FavoredNodeLoadBalancer extends BaseLoadBalancer implements FavoredNodesPromoter {
-  private static final Log LOG = LogFactory.getLog(FavoredNodeLoadBalancer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FavoredNodeLoadBalancer.class);
 
   private RackManager rackManager;
   private Configuration conf;
@@ -133,12 +132,12 @@ public class FavoredNodeLoadBalancer extends BaseLoadBalancer implements Favored
           }
           //the region is currently on none of the favored nodes
           //get it on one of them if possible
-          ServerLoad l1 = super.services.getServerManager().getLoad(
+          ServerMetrics l1 = super.services.getServerManager().getLoad(
               serverNameWithoutCodeToServerName.get(favoredNodes.get(1)));
-          ServerLoad l2 = super.services.getServerManager().getLoad(
+          ServerMetrics l2 = super.services.getServerManager().getLoad(
               serverNameWithoutCodeToServerName.get(favoredNodes.get(2)));
           if (l1 != null && l2 != null) {
-            if (l1.getLoad() > l2.getLoad()) {
+            if (l1.getRegionMetrics().size() > l2.getRegionMetrics().size()) {
               destination = serverNameWithoutCodeToServerName.get(favoredNodes.get(2));
             } else {
               destination = serverNameWithoutCodeToServerName.get(favoredNodes.get(1));
@@ -297,9 +296,9 @@ public class FavoredNodeLoadBalancer extends BaseLoadBalancer implements Favored
       // assign the region to the one with a lower load
       // (both have the desired hdfs blocks)
       ServerName s;
-      ServerLoad tertiaryLoad = super.services.getServerManager().getLoad(tertiaryHost);
-      ServerLoad secondaryLoad = super.services.getServerManager().getLoad(secondaryHost);
-      if (secondaryLoad.getLoad() < tertiaryLoad.getLoad()) {
+      ServerMetrics tertiaryLoad = super.services.getServerManager().getLoad(tertiaryHost);
+      ServerMetrics secondaryLoad = super.services.getServerManager().getLoad(secondaryHost);
+      if (secondaryLoad.getRegionMetrics().size() < tertiaryLoad.getRegionMetrics().size()) {
         s = secondaryHost;
       } else {
         s = tertiaryHost;

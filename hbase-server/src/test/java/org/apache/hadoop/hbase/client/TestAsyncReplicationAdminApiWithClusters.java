@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.regex.Pattern;
-
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -42,6 +42,7 @@ import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -53,6 +54,10 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 @Category({LargeTests.class, ClientTests.class})
 public class TestAsyncReplicationAdminApiWithClusters extends TestAsyncAdminBase {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestAsyncReplicationAdminApiWithClusters.class);
 
   private final static String ID_SECOND = "2";
 
@@ -81,6 +86,7 @@ public class TestAsyncReplicationAdminApiWithClusters extends TestAsyncAdminBase
     ASYNC_CONN.getAdmin().addReplicationPeer(ID_SECOND, rpc).join();
   }
 
+  @Override
   @After
   public void tearDown() throws Exception {
     Pattern pattern = Pattern.compile(tableName.getNameAsString() + ".*");
@@ -105,7 +111,7 @@ public class TestAsyncReplicationAdminApiWithClusters extends TestAsyncAdminBase
 
   private void createTableWithDefaultConf(AsyncAdmin admin, TableName tableName) {
     TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(tableName);
-    builder.addColumnFamily(ColumnFamilyDescriptorBuilder.of(FAMILY));
+    builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(FAMILY));
     admin.createTable(builder.build()).join();
   }
 
@@ -141,7 +147,7 @@ public class TestAsyncReplicationAdminApiWithClusters extends TestAsyncAdminBase
     createTableWithDefaultConf(admin2, tableName);
     TableDescriptorBuilder builder =
         TableDescriptorBuilder.newBuilder(admin.getDescriptor(tableName).get());
-    builder.addColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("newFamily"))
+    builder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("newFamily"))
         .build());
     admin2.disableTable(tableName).join();
     admin2.modifyTable(builder.build()).join();
@@ -218,6 +224,7 @@ public class TestAsyncReplicationAdminApiWithClusters extends TestAsyncAdminBase
     Map<TableName, ? extends Collection<String>> tableCfs = new HashMap<>();
     tableCfs.put(tableName, null);
     ReplicationPeerConfig rpc = admin.getReplicationPeerConfig(ID_SECOND).get();
+    rpc.setReplicateAllUserTables(false);
     rpc.setTableCFsMap(tableCfs);
     try {
       // Only add tableName to replication peer config
@@ -236,6 +243,7 @@ public class TestAsyncReplicationAdminApiWithClusters extends TestAsyncAdminBase
         admin2.tableExists(tableName2).get());
     } finally {
       rpc.setTableCFsMap(null);
+      rpc.setReplicateAllUserTables(true);
       admin.updateReplicationPeerConfig(ID_SECOND, rpc).join();
     }
   }

@@ -24,8 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
@@ -34,6 +32,8 @@ import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.wal.WALKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class for testing WALObserver coprocessor. It will monitor WAL writing and restoring, and modify
@@ -43,7 +43,7 @@ import org.apache.hadoop.hbase.wal.WALKey;
 public class SampleRegionWALCoprocessor implements WALCoprocessor, RegionCoprocessor,
     WALObserver, RegionObserver {
 
-  private static final Log LOG = LogFactory.getLog(SampleRegionWALCoprocessor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SampleRegionWALCoprocessor.class);
 
   private byte[] tableName;
   private byte[] row;
@@ -123,7 +123,8 @@ public class SampleRegionWALCoprocessor implements WALCoprocessor, RegionCoproce
       if (Arrays.equals(family, changedFamily) &&
           Arrays.equals(qulifier, changedQualifier)) {
         LOG.debug("Found the KeyValue from WALEdit which should be changed.");
-        cell.getValueArray()[cell.getValueOffset()] += 1;
+        cell.getValueArray()[cell.getValueOffset()] =
+            (byte) (cell.getValueArray()[cell.getValueOffset()] + 1);
       }
     }
     if (null != row) {

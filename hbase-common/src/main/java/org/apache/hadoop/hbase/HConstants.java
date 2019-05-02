@@ -26,10 +26,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
-
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * HConstants holds a bunch of HBase-related constants
@@ -84,13 +83,14 @@ public final class HConstants {
   /**
    * Status codes used for return values of bulk operations.
    */
-  @InterfaceAudience.Private
+  @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
   public enum OperationStatusCode {
     NOT_RUN,
     SUCCESS,
     BAD_FAMILY,
+    STORE_TOO_BUSY,
     SANITY_CHECK_FAILURE,
-    FAILURE;
+    FAILURE
   }
 
   /** long constant for zero */
@@ -182,6 +182,19 @@ public final class HConstants {
   /** Name of ZooKeeper quorum configuration parameter. */
   public static final String ZOOKEEPER_QUORUM = "hbase.zookeeper.quorum";
 
+  /** Name of ZooKeeper quorum configuration parameter for client to locate meta. */
+  public static final String CLIENT_ZOOKEEPER_QUORUM = "hbase.client.zookeeper.quorum";
+
+  /** Client port of ZooKeeper for client to locate meta */
+  public static final String CLIENT_ZOOKEEPER_CLIENT_PORT =
+      "hbase.client.zookeeper.property.clientPort";
+
+  /** Indicate whether the client ZK are observer nodes of the server ZK */
+  public static final String CLIENT_ZOOKEEPER_OBSERVER_MODE =
+      "hbase.client.zookeeper.observer.mode";
+  /** Assuming client zk not in observer mode and master need to synchronize information */
+  public static final boolean DEFAULT_CLIENT_ZOOKEEPER_OBSERVER_MODE = false;
+
   /** Common prefix of ZooKeeper configuration properties */
   public static final String ZK_CFG_PROPERTY_PREFIX =
       "hbase.zookeeper.property.";
@@ -200,7 +213,7 @@ public final class HConstants {
       ZK_CFG_PROPERTY_PREFIX + CLIENT_PORT_STR;
 
   /** Default client port that the zookeeper listens on */
-  public static final int DEFAULT_ZOOKEPER_CLIENT_PORT = 2181;
+  public static final int DEFAULT_ZOOKEEPER_CLIENT_PORT = 2181;
 
   /** Parameter name for the root dir in ZK for this cluster */
   public static final String ZOOKEEPER_ZNODE_PARENT = "zookeeper.znode.parent";
@@ -223,7 +236,7 @@ public final class HConstants {
       ZK_CFG_PROPERTY_PREFIX + "tickTime";
 
   /** Default limit on concurrent client-side zookeeper connections */
-  public static final int DEFAULT_ZOOKEPER_MAX_CLIENT_CNXNS = 300;
+  public static final int DEFAULT_ZOOKEEPER_MAX_CLIENT_CNXNS = 300;
 
   /** Configuration key for ZooKeeper session timeout */
   public static final String ZK_SESSION_TIMEOUT = "zookeeper.session.timeout";
@@ -266,8 +279,19 @@ public final class HConstants {
   /** Parameter name for how often we should try to write a version file, before failing */
   public static final int DEFAULT_VERSION_FILE_WRITE_ATTEMPTS = 3;
 
-  /** Parameter name for how often a region should should perform a major compaction */
+  /** Parameter name and default value for how often a region should perform a major compaction */
   public static final String MAJOR_COMPACTION_PERIOD = "hbase.hregion.majorcompaction";
+  public static final long   DEFAULT_MAJOR_COMPACTION_PERIOD = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+  /**
+   * Parameter name and default value for major compaction jitter.
+   * Used as a multiplier applied to {@link HConstants#MAJOR_COMPACTION_PERIOD}
+   * to cause compaction to occur a given amount of time either side of
+   * {@link HConstants#MAJOR_COMPACTION_PERIOD}.
+   * Default to 0.5 so jitter has us fall evenly either side of when the compaction should run.
+   */
+  public static final String MAJOR_COMPACTION_JITTER = "hbase.hregion.majorcompaction.jitter";
+  public static final float  DEFAULT_MAJOR_COMPACTION_JITTER = 0.50F;
 
   /** Parameter name for the maximum batch of KVs to be used in flushes and compactions */
   public static final String COMPACTION_KV_MAX = "hbase.hstore.compaction.kv.max";
@@ -285,7 +309,7 @@ public final class HConstants {
   /** Parameter name for HBase client operation timeout. */
   public static final String HBASE_CLIENT_OPERATION_TIMEOUT = "hbase.client.operation.timeout";
 
-  /** Parameter name for HBase client operation timeout. */
+  /** Parameter name for HBase client meta operation timeout. */
   public static final String HBASE_CLIENT_META_OPERATION_TIMEOUT =
     "hbase.client.meta.operation.timeout";
 
@@ -420,27 +444,6 @@ public final class HConstants {
   /** The catalog family */
   public static final byte [] CATALOG_FAMILY = Bytes.toBytes(CATALOG_FAMILY_STR);
 
-  /** The replication barrier family as a string*/
-  public static final String REPLICATION_BARRIER_FAMILY_STR = "rep_barrier";
-
-  /** The replication barrier family */
-  public static final byte [] REPLICATION_BARRIER_FAMILY =
-      Bytes.toBytes(REPLICATION_BARRIER_FAMILY_STR);
-
-  /** The replication position family as a string*/
-  public static final String REPLICATION_POSITION_FAMILY_STR = "rep_position";
-
-  /** The replication position family */
-  public static final byte [] REPLICATION_POSITION_FAMILY =
-      Bytes.toBytes(REPLICATION_POSITION_FAMILY_STR);
-
-  /** The replication meta family as a string*/
-  public static final String REPLICATION_META_FAMILY_STR = "rep_meta";
-
-  /** The replication meta family */
-  public static final byte [] REPLICATION_META_FAMILY =
-      Bytes.toBytes(REPLICATION_META_FAMILY_STR);
-
   /** The RegionInfo qualifier as a string */
   public static final String REGIONINFO_QUALIFIER_STR = "regioninfo";
 
@@ -497,7 +500,20 @@ public final class HConstants {
   /** The serialized table state qualifier */
   public static final byte[] TABLE_STATE_QUALIFIER = Bytes.toBytes("state");
 
+  /** The replication barrier family as a string*/
+  public static final String REPLICATION_BARRIER_FAMILY_STR = "rep_barrier";
 
+  /** The replication barrier family */
+  public static final byte[] REPLICATION_BARRIER_FAMILY =
+      Bytes.toBytes(REPLICATION_BARRIER_FAMILY_STR);
+
+  /** The namespace family as a string */
+  public static final String NAMESPACE_FAMILY_STR = "ns";
+
+  /** The namespace family */
+  public static final byte[] NAMESPACE_FAMILY = Bytes.toBytes(NAMESPACE_FAMILY_STR);
+
+  public static final byte[] NAMESPACE_COL_DESC_QUALIFIER = Bytes.toBytes("d");
   /**
    * The meta table version column qualifier.
    * We keep current version of the meta table in this column in <code>-ROOT-</code>
@@ -520,9 +536,14 @@ public final class HConstants {
   // Other constants
 
   /**
-   * An empty instance.
+   * An empty byte array instance.
    */
   public static final byte [] EMPTY_BYTE_ARRAY = new byte [0];
+
+  /**
+   * An empty string instance.
+   */
+  public static final String EMPTY_STRING = "";
 
   public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(EMPTY_BYTE_ARRAY);
 
@@ -550,7 +571,8 @@ public final class HConstants {
   /**
    * Timestamp to use when we want to refer to the latest cell.
    *
-   * On client side, this is the timestamp set by default when no timestamp is specified, to refer to the latest.
+   * On client side, this is the timestamp set by default when no timestamp is specified,
+   * to refer to the latest.
    * On server side, this acts as a notation.
    * (1) For a cell of Put, which has this notation,
    *     its timestamp will be replaced with server's current time.
@@ -559,7 +581,8 @@ public final class HConstants {
    *        a. When the count of cell it gets is less than the count of cell to delete,
    *           the timestamp of Delete cell will be replaced with server's current time.
    *        b. When the count of cell it gets is equal to the count of cell to delete,
-   *           the timestamp of Delete cell will be replaced with the latest timestamp of cell it gets.
+   *           the timestamp of Delete cell will be replaced with the latest timestamp of cell it
+   *           gets.
    *       (c. It is invalid and an exception will be thrown,
    *           if the count of cell it gets is greater than the count of cell to delete,
    *           as the max version of Get is set to the count of cell to delete.)
@@ -576,7 +599,7 @@ public final class HConstants {
    * Special! Used in fake Cells only. Should never be the timestamp on an actual Cell returned to
    * a client.
    * @deprecated Should not be public since hbase-1.3.0. For internal use only. Move internal to
-   * Scanners flagged as special timestamp value never to be returned as timestamp on a Cell.
+   *   Scanners flagged as special timestamp value never to be returned as timestamp on a Cell.
    */
   @Deprecated
   public static final long OLDEST_TIMESTAMP = Long.MIN_VALUE;
@@ -647,12 +670,6 @@ public final class HConstants {
    * This data will be replicated to all peers.
    */
   public static final int REPLICATION_SCOPE_GLOBAL = 1;
-
-  /**
-   * Scope tag for serially scoped data
-   * This data will be replicated to all peers by the order of sequence id.
-   */
-  public static final int REPLICATION_SCOPE_SERIAL = 2;
 
   /**
    * Default cluster ID, cannot be used to identify a cluster so a key with
@@ -774,7 +791,12 @@ public final class HConstants {
   /**
    * Default value of {@link #HBASE_CLIENT_RETRIES_NUMBER}.
    */
-  public static final int DEFAULT_HBASE_CLIENT_RETRIES_NUMBER = 35;
+  public static final int DEFAULT_HBASE_CLIENT_RETRIES_NUMBER = 15;
+
+  public static final String HBASE_CLIENT_SERVERSIDE_RETRIES_MULTIPLIER =
+      "hbase.client.serverside.retries.multiplier";
+
+  public static final int DEFAULT_HBASE_CLIENT_SERVERSIDE_RETRIES_MULTIPLIER = 3;
 
   /**
    * Parameter name to set the default scanner caching for all clients.
@@ -899,12 +921,6 @@ public final class HConstants {
   public static final boolean REPLICATION_BULKLOAD_ENABLE_DEFAULT = false;
   /** Replication cluster id of source cluster which uniquely identifies itself with peer cluster */
   public static final String REPLICATION_CLUSTER_ID = "hbase.replication.cluster.id";
-
-  public static final String
-      REPLICATION_SERIALLY_WAITING_KEY = "hbase.serial.replication.waitingMs";
-  public static final long
-      REPLICATION_SERIALLY_WAITING_DEFAULT = 10000;
-
   /**
    * Max total size of buffered entries in all replication peers. It will prevent server getting
    * OOM if there are many peers. Default value is 256MB which is four times to default
@@ -949,6 +965,10 @@ public final class HConstants {
     */
   public static final float HBASE_CLUSTER_MINIMUM_MEMORY_THRESHOLD = 0.2f;
 
+  /**
+   * @deprecated  It is used internally. As of release 2.0.0, this will be removed in HBase 3.0.0.
+   */
+  @Deprecated
   public static final Pattern CP_HTD_ATTR_KEY_PATTERN =
       Pattern.compile("^coprocessor\\$([0-9]+)$", Pattern.CASE_INSENSITIVE);
 
@@ -959,12 +979,25 @@ public final class HConstants {
    * where arguments are {@code <KEY> '=' <VALUE> [,...]}
    * For example: {@code hdfs:///foo.jar|com.foo.FooRegionObserver|1001|arg1=1,arg2=2}
    * </pre>
+   * @deprecated  It is used internally. As of release 2.0.0, this will be removed in HBase 3.0.0.
    */
+  @Deprecated
   public static final Pattern CP_HTD_ATTR_VALUE_PATTERN =
       Pattern.compile("(^[^\\|]*)\\|([^\\|]+)\\|[\\s]*([\\d]*)[\\s]*(\\|.*)?$");
-
+  /**
+   * @deprecated  It is used internally. As of release 2.0.0, this will be removed in HBase 3.0.0.
+   */
+  @Deprecated
   public static final String CP_HTD_ATTR_VALUE_PARAM_KEY_PATTERN = "[^=,]+";
+  /**
+   * @deprecated  It is used internally. As of release 2.0.0, this will be removed in HBase 3.0.0.
+   */
+  @Deprecated
   public static final String CP_HTD_ATTR_VALUE_PARAM_VALUE_PATTERN = "[^,]+";
+  /**
+   * @deprecated  It is used internally. As of release 2.0.0, this will be removed in HBase 3.0.0.
+   */
+  @Deprecated
   public static final Pattern CP_HTD_ATTR_VALUE_PARAM_PATTERN = Pattern.compile(
       "(" + CP_HTD_ATTR_VALUE_PARAM_KEY_PATTERN + ")=(" +
       CP_HTD_ATTR_VALUE_PARAM_VALUE_PATTERN + "),?");
@@ -1015,6 +1048,11 @@ public final class HConstants {
   public static final String REGION_SERVER_REPLICATION_HANDLER_COUNT =
       "hbase.regionserver.replication.handler.count";
   public static final int DEFAULT_REGION_SERVER_REPLICATION_HANDLER_COUNT = 3;
+  // Meta Transition handlers to deal with meta ReportRegionStateTransitionRequest. Meta transition
+  // should be dealt with in a separate handler in case blocking other region's transition.
+  public static final String MASTER_META_TRANSITION_HANDLER_COUNT =
+      "hbase.master.meta.transition.handler.count";
+  public static final int MASTER__META_TRANSITION_HANDLER_COUNT_DEFAULT = 1;
 
   /** Conf key for enabling meta replication */
   public static final String USE_META_REPLICAS = "hbase.meta.replicas.use";
@@ -1050,7 +1088,13 @@ public final class HConstants {
    * Valid values are: HOT, COLD, WARM, ALL_SSD, ONE_SSD, LAZY_PERSIST
    * See http://hadoop.apache.org/docs/r2.7.3/hadoop-project-dist/hadoop-hdfs/ArchivalStorage.html*/
   public static final String WAL_STORAGE_POLICY = "hbase.wal.storage.policy";
-  public static final String DEFAULT_WAL_STORAGE_POLICY = "HOT";
+  /**
+   * "NONE" is not a valid storage policy and means we defer the policy to HDFS. @see
+   * <a href="https://issues.apache.org/jira/browse/HBASE-20691">HBASE-20691</a>
+   */
+  public static final String DEFER_TO_HDFS_STORAGE_POLICY = "NONE";
+  /** By default we defer the WAL storage policy to HDFS */
+  public static final String DEFAULT_WAL_STORAGE_POLICY = DEFER_TO_HDFS_STORAGE_POLICY;
 
   /** Region in Transition metrics threshold time */
   public static final String METRICS_RIT_STUCK_WARNING_THRESHOLD =
@@ -1066,7 +1110,7 @@ public final class HConstants {
    * by different set of handlers. For example, HIGH_QOS tagged methods are
    * handled by high priority handlers.
    */
-  // normal_QOS < replication_QOS < replay_QOS < QOS_threshold < admin_QOS < high_QOS
+  // normal_QOS < replication_QOS < replay_QOS < QOS_threshold < admin_QOS < high_QOS < meta_QOS
   public static final int PRIORITY_UNSET = -1;
   public static final int NORMAL_QOS = 0;
   public static final int REPLICATION_QOS = 5;
@@ -1075,6 +1119,12 @@ public final class HConstants {
   public static final int ADMIN_QOS = 100;
   public static final int HIGH_QOS = 200;
   public static final int SYSTEMTABLE_QOS = HIGH_QOS;
+  /**
+   * @deprecated the name "META_QOS" is a bit ambiguous, actually only meta region transition can
+   *             use this priority, and you should not use this directly. Will be removed in 3.0.0.
+   */
+  @Deprecated
+  public static final int META_QOS = 300;
 
   /** Directory under /hbase where archived hfiles are stored */
   public static final String HFILE_ARCHIVE_DIRECTORY = "archive";
@@ -1151,6 +1201,18 @@ public final class HConstants {
    */
   public static final String STATUS_MULTICAST_PORT = "hbase.status.multicast.address.port";
   public static final int DEFAULT_STATUS_MULTICAST_PORT = 16100;
+
+  /**
+   * The network interface name to use for the multicast messages.
+   */
+  public static final String STATUS_MULTICAST_NI_NAME = "hbase.status.multicast.ni.name";
+
+  /**
+   * The address to use for binding the local socket for sending multicast. Defaults to 0.0.0.0.
+   */
+  public static final String STATUS_MULTICAST_PUBLISHER_BIND_ADDRESS =
+    "hbase.status.multicast.publisher.bind.address.ip";
+  public static final String DEFAULT_STATUS_MULTICAST_PUBLISHER_BIND_ADDRESS = "0.0.0.0";
 
   public static final long NO_NONCE = 0;
 
@@ -1238,27 +1300,80 @@ public final class HConstants {
    */
   /**
    * Config for enabling/disabling the fast fail mode.
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
    */
+  @Deprecated
   public static final String HBASE_CLIENT_FAST_FAIL_MODE_ENABLED =
-      "hbase.client.fast.fail.mode.enabled";
+    "hbase.client.fast.fail.mode.enabled";
 
-  public static final boolean HBASE_CLIENT_ENABLE_FAST_FAIL_MODE_DEFAULT =
-      false;
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
+  public static final boolean HBASE_CLIENT_ENABLE_FAST_FAIL_MODE_DEFAULT = false;
 
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
   public static final String HBASE_CLIENT_FAST_FAIL_THREASHOLD_MS =
-      "hbase.client.fastfail.threshold";
+    "hbase.client.fastfail.threshold";
 
-  public static final long HBASE_CLIENT_FAST_FAIL_THREASHOLD_MS_DEFAULT =
-      60000;
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
+  public static final long HBASE_CLIENT_FAST_FAIL_THREASHOLD_MS_DEFAULT = 60000;
 
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
+  public static final String HBASE_CLIENT_FAILURE_MAP_CLEANUP_INTERVAL_MS =
+    "hbase.client.failure.map.cleanup.interval";
+
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
+  public static final long HBASE_CLIENT_FAILURE_MAP_CLEANUP_INTERVAL_MS_DEFAULT = 600000;
+
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
   public static final String HBASE_CLIENT_FAST_FAIL_CLEANUP_MS_DURATION_MS =
-      "hbase.client.fast.fail.cleanup.duration";
+    "hbase.client.fast.fail.cleanup.duration";
 
-  public static final long HBASE_CLIENT_FAST_FAIL_CLEANUP_DURATION_MS_DEFAULT =
-      600000;
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
+  public static final long HBASE_CLIENT_FAST_FAIL_CLEANUP_DURATION_MS_DEFAULT = 600000;
 
+  /**
+   * @deprecated since 2.3.0, and in 3.0.0 the actually implementation will be removed so config
+   *             this value will have no effect. The constants itself will be removed in 4.0.0.
+   */
+  @Deprecated
   public static final String HBASE_CLIENT_FAST_FAIL_INTERCEPTOR_IMPL =
-      "hbase.client.fast.fail.interceptor.impl";
+    "hbase.client.fast.fail.interceptor.impl";
+
+  public static final String HBASE_SPLIT_WAL_COORDINATED_BY_ZK = "hbase.split.wal.zk.coordinated";
+
+  public static final boolean DEFAULT_HBASE_SPLIT_COORDINATED_BY_ZK = true;
+
+  public static final String HBASE_SPLIT_WAL_MAX_SPLITTER = "hbase.regionserver.wal.max.splitters";
+
+  public static final int DEFAULT_HBASE_SPLIT_WAL_MAX_SPLITTER = 2;
 
   /** Config key for if the server should send backpressure and if the client should listen to
    * that backpressure from the server */
@@ -1280,6 +1395,7 @@ public final class HConstants {
     "hbase.regionserver.region.split.threads.max";
 
   /** Canary config keys */
+  // TODO: Move these defines to Canary Class
   public static final String HBASE_CANARY_WRITE_DATA_TTL_KEY = "hbase.canary.write.data.ttl";
 
   public static final String HBASE_CANARY_WRITE_PERSERVER_REGIONS_LOWERLIMIT_KEY =
@@ -1307,6 +1423,12 @@ public final class HConstants {
 
   /** Config key for hbase temporary directory in hdfs */
   public static final String TEMPORARY_FS_DIRECTORY_KEY = "hbase.fs.tmp.dir";
+
+  /**
+   * Don't use it! This'll get you the wrong path in a secure cluster.
+   * Use FileSystem.getHomeDirectory() or
+   * "/user/" + UserGroupInformation.getCurrentUser().getShortUserName()
+   */
   public static final String DEFAULT_TEMPORARY_HDFS_DIRECTORY = "/user/"
       + System.getProperty("user.name") + "/hbase-staging";
 
@@ -1319,6 +1441,8 @@ public final class HConstants {
   public static final String DEFAULT_SNAPSHOT_RESTORE_FAILSAFE_NAME =
       "hbase-failsafe-{snapshot.name}-{restore.timestamp}";
 
+  public static final String DEFAULT_LOSSY_COUNTING_ERROR_RATE =
+      "hbase.util.default.lossycounting.errorrate";
   public static final String NOT_IMPLEMENTED = "Not implemented";
 
   private HConstants() {

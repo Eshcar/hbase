@@ -15,12 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.tool;
 
-import org.apache.hadoop.hbase.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -28,11 +46,11 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Appender;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.spi.LoggingEvent;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
+import org.junit.ClassRule;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
@@ -41,24 +59,15 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
-import static org.junit.Assert.assertNotEquals;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isA;
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import org.apache.hbase.thirdparty.com.google.common.collect.Iterables;
 
 @RunWith(MockitoJUnitRunner.class)
 @Category({MediumTests.class})
 public class TestCanaryTool {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestCanaryTool.class);
 
   private HBaseTestingUtility testingUtility;
   private static final byte[] FAMILY = Bytes.toBytes("f");
@@ -85,20 +94,14 @@ public class TestCanaryTool {
 
   @Test
   public void testBasicZookeeperCanaryWorks() throws Exception {
-    Integer port =
-        Iterables.getOnlyElement(testingUtility.getZkCluster().getClientPortList(), null);
-    testingUtility.getConfiguration().set(HConstants.ZOOKEEPER_QUORUM,
-        "localhost:" + port + "/hbase");
-    ExecutorService executor = new ScheduledThreadPoolExecutor(2);
-    Canary.ZookeeperStdOutSink sink = spy(new Canary.ZookeeperStdOutSink());
-    Canary canary = new Canary(executor, sink);
-    String[] args = { "-t", "10000", "-zookeeper" };
-    assertEquals(0, ToolRunner.run(testingUtility.getConfiguration(), canary, args));
+    final String[] args = { "-t", "10000", "-zookeeper" };
+    testZookeeperCanaryWithArgs(args);
+  }
 
-    String baseZnode = testingUtility.getConfiguration()
-        .get(HConstants.ZOOKEEPER_ZNODE_PARENT, HConstants.DEFAULT_ZOOKEEPER_ZNODE_PARENT);
-    verify(sink, atLeastOnce())
-        .publishReadTiming(eq(baseZnode), eq("localhost:" + port), anyLong());
+  @Test
+  public void testZookeeperCanaryPermittedFailuresArgumentWorks() throws Exception {
+    final String[] args = { "-t", "10000", "-zookeeper", "-treatFailureAsError", "-permittedZookeeperFailures", "1" };
+    testZookeeperCanaryWithArgs(args);
   }
 
   @Test
@@ -115,11 +118,11 @@ public class TestCanaryTool {
     ExecutorService executor = new ScheduledThreadPoolExecutor(1);
     Canary.RegionStdOutSink sink = spy(new Canary.RegionStdOutSink());
     Canary canary = new Canary(executor, sink);
-    String[] args = { "-writeSniffing", "-t", "10000", name.getMethodName() };
+    String[] args = { "-writeSniffing", "-t", "10000", tableName.getNameAsString() };
     assertEquals(0, ToolRunner.run(testingUtility.getConfiguration(), canary, args));
     assertEquals("verify no read error count", 0, canary.getReadFailures().size());
     assertEquals("verify no write error count", 0, canary.getWriteFailures().size());
-    verify(sink, atLeastOnce()).publishReadTiming(isA(ServerName.class), isA(HRegionInfo.class),
+    verify(sink, atLeastOnce()).publishReadTiming(isA(ServerName.class), isA(RegionInfo.class),
       isA(ColumnFamilyDescriptor.class), anyLong());
   }
 
@@ -145,7 +148,8 @@ public class TestCanaryTool {
     Canary canary = new Canary(executor, sink);
     String configuredTimeoutStr = tableNames[0].getNameAsString() + "=" + Long.MAX_VALUE + "," +
       tableNames[1].getNameAsString() + "=0";
-    String[] args = { "-readTableTimeouts", configuredTimeoutStr, name.getMethodName() + "1", name.getMethodName() + "2"};
+    String[] args = {"-readTableTimeouts", configuredTimeoutStr, name.getMethodName() + "1",
+      name.getMethodName() + "2"};
     assertEquals(0, ToolRunner.run(testingUtility.getConfiguration(), canary, args));
     verify(sink, times(tableNames.length)).initializeAndGetReadLatencyForTable(isA(String.class));
     for (int i=0; i<2; i++) {
@@ -232,7 +236,7 @@ public class TestCanaryTool {
     conf.setBoolean(HConstants.HBASE_CANARY_READ_RAW_SCAN_KEY, true);
     assertEquals(0, ToolRunner.run(conf, canary, args));
     verify(sink, atLeastOnce())
-        .publishReadTiming(isA(ServerName.class), isA(HRegionInfo.class),
+        .publishReadTiming(isA(ServerName.class), isA(RegionInfo.class),
         isA(ColumnFamilyDescriptor.class), anyLong());
     assertEquals("verify no read error count", 0, canary.getReadFailures().size());
   }
@@ -245,4 +249,19 @@ public class TestCanaryTool {
     assertEquals("verify no read error count", 0, canary.getReadFailures().size());
   }
 
+  private void testZookeeperCanaryWithArgs(String[] args) throws Exception {
+    Integer port =
+      Iterables.getOnlyElement(testingUtility.getZkCluster().getClientPortList(), null);
+    testingUtility.getConfiguration().set(HConstants.ZOOKEEPER_QUORUM,
+      "localhost:" + port + "/hbase");
+    ExecutorService executor = new ScheduledThreadPoolExecutor(2);
+    Canary.ZookeeperStdOutSink sink = spy(new Canary.ZookeeperStdOutSink());
+    Canary canary = new Canary(executor, sink);
+    assertEquals(0, ToolRunner.run(testingUtility.getConfiguration(), canary, args));
+
+    String baseZnode = testingUtility.getConfiguration()
+      .get(HConstants.ZOOKEEPER_ZNODE_PARENT, HConstants.DEFAULT_ZOOKEEPER_ZNODE_PARENT);
+    verify(sink, atLeastOnce())
+      .publishReadTiming(eq(baseZnode), eq("localhost:" + port), anyLong());
+  }
 }

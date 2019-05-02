@@ -19,14 +19,13 @@
 
 package org.apache.hadoop.hbase.thrift;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CallQueueTooBigException;
+import org.apache.hadoop.hbase.CompatibilitySingletonFactory;
 import org.apache.hadoop.hbase.MultiActionResultTooLarge;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.RegionTooBusyException;
 import org.apache.hadoop.hbase.UnknownScannerException;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.CompatibilitySingletonFactory;
 import org.apache.hadoop.hbase.exceptions.ClientExceptionsUtil;
 import org.apache.hadoop.hbase.exceptions.FailedSanityCheckException;
 import org.apache.hadoop.hbase.exceptions.OutOfOrderScannerNextException;
@@ -34,6 +33,7 @@ import org.apache.hadoop.hbase.exceptions.RegionMovedException;
 import org.apache.hadoop.hbase.exceptions.ScannerResetException;
 import org.apache.hadoop.hbase.thrift.generated.IOError;
 import org.apache.hadoop.hbase.thrift2.generated.TIOError;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * This class is for maintaining the various statistics of thrift server
@@ -56,20 +56,22 @@ public class ThriftMetrics  {
     this.source = source;
   }
 
-  private MetricsThriftServerSource source;
-  private final long slowResponseTime;
+  protected MetricsThriftServerSource source;
+  protected final long slowResponseTime;
   public static final String SLOW_RESPONSE_NANO_SEC =
     "hbase.thrift.slow.response.nano.second";
   public static final long DEFAULT_SLOW_RESPONSE_NANO_SEC = 10 * 1000 * 1000;
 
 
   public ThriftMetrics(Configuration conf, ThriftServerType t) {
-    slowResponseTime = conf.getLong( SLOW_RESPONSE_NANO_SEC, DEFAULT_SLOW_RESPONSE_NANO_SEC);
+    slowResponseTime = conf.getLong(SLOW_RESPONSE_NANO_SEC, DEFAULT_SLOW_RESPONSE_NANO_SEC);
 
     if (t == ThriftServerType.ONE) {
-      source = CompatibilitySingletonFactory.getInstance(MetricsThriftServerSourceFactory.class).createThriftOneSource();
+      source = CompatibilitySingletonFactory.getInstance(MetricsThriftServerSourceFactory.class)
+              .createThriftOneSource();
     } else if (t == ThriftServerType.TWO) {
-      source = CompatibilitySingletonFactory.getInstance(MetricsThriftServerSourceFactory.class).createThriftTwoSource();
+      source = CompatibilitySingletonFactory.getInstance(MetricsThriftServerSourceFactory.class)
+              .createThriftTwoSource();
     }
 
   }
@@ -147,7 +149,7 @@ public class ThriftMetrics  {
     }
   }
 
-  private static Throwable unwrap(Throwable t) {
+  protected static Throwable unwrap(Throwable t) {
     if (t == null) {
       return t;
     }

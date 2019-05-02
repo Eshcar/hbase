@@ -1,6 +1,4 @@
 /**
- * Copyright The Apache Software Foundation
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,65 +17,77 @@
  */
 package org.apache.hadoop.hbase.client;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.Coprocessor;
-import org.apache.hadoop.hbase.coprocessor.ObserverContext;
-import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
-import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.coprocessor.RegionObserver;
-import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.regionserver.MiniBatchOperationInProgress;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.regionserver.RegionScanner;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.coprocessor.MultiRowMutationEndpoint;
+import org.apache.hadoop.hbase.coprocessor.ObserverContext;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.coprocessor.RegionObserver;
+import org.apache.hadoop.hbase.exceptions.UnknownProtocolException;
 import org.apache.hadoop.hbase.ipc.CoprocessorRpcUtils;
 import org.apache.hadoop.hbase.ipc.ServerRpcController;
 import org.apache.hadoop.hbase.protobuf.generated.MultiRowMutationProtos;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
+import org.apache.hadoop.hbase.regionserver.HRegionServer;
+import org.apache.hadoop.hbase.regionserver.MiniBatchOperationInProgress;
+import org.apache.hadoop.hbase.regionserver.RegionScanner;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.Pair;
 import org.junit.After;
 import org.junit.AfterClass;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
 
 @Category({LargeTests.class, ClientTests.class})
 public class TestFromClientSide3 {
-  private static final Log LOG = LogFactory.getLog(TestFromClientSide3.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFromClientSide3.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestFromClientSide3.class);
   private final static HBaseTestingUtility TEST_UTIL
     = new HBaseTestingUtility();
   private static byte[] FAMILY = Bytes.toBytes("testFamily");
@@ -110,23 +120,17 @@ public class TestFromClientSide3 {
     TEST_UTIL.shutdownMiniCluster();
   }
 
-  /**
-   * @throws java.lang.Exception
-   */
   @Before
   public void setUp() throws Exception {
     // Nothing to do.
   }
 
-  /**
-   * @throws java.lang.Exception
-   */
   @After
   public void tearDown() throws Exception {
-    for (HTableDescriptor htd: TEST_UTIL.getAdmin().listTables()) {
+    for (TableDescriptor htd : TEST_UTIL.getAdmin().listTableDescriptors()) {
       LOG.info("Tear down, remove table=" + htd.getTableName());
       TEST_UTIL.deleteTable(htd.getTableName());
-  }
+    }
   }
 
   private void randomCFPuts(Table table, byte[] row, byte[] family, int nPuts)
@@ -177,7 +181,7 @@ public class TestFromClientSide3 {
   public void testScanAfterDeletingSpecifiedRow() throws IOException {
     TableName tableName = TableName.valueOf(name.getMethodName());
     TableDescriptor desc = TableDescriptorBuilder.newBuilder(tableName)
-            .addColumnFamily(ColumnFamilyDescriptorBuilder.of(FAMILY))
+            .setColumnFamily(ColumnFamilyDescriptorBuilder.of(FAMILY))
             .build();
     TEST_UTIL.getAdmin().createTable(desc);
     byte[] row = Bytes.toBytes("SpecifiedRow");
@@ -224,7 +228,7 @@ public class TestFromClientSide3 {
   public void testScanAfterDeletingSpecifiedRowV2() throws IOException {
     TableName tableName = TableName.valueOf(name.getMethodName());
     TableDescriptor desc = TableDescriptorBuilder.newBuilder(tableName)
-            .addColumnFamily(ColumnFamilyDescriptorBuilder.of(FAMILY))
+            .setColumnFamily(ColumnFamilyDescriptorBuilder.of(FAMILY))
             .build();
     TEST_UTIL.getAdmin().createTable(desc);
     byte[] row = Bytes.toBytes("SpecifiedRow");
@@ -262,7 +266,7 @@ public class TestFromClientSide3 {
   }
 
   // override the config settings at the CF level and ensure priority
-  @Test(timeout = 60000)
+  @Test
   public void testAdvancedConfigOverride() throws Exception {
     /*
      * Overall idea: (1) create 3 store files and issue a compaction. config's
@@ -314,12 +318,7 @@ public class TestFromClientSide3 {
       LOG.info("hbase.hstore.compaction.min should now be 5");
       HTableDescriptor htd = new HTableDescriptor(hTable.getTableDescriptor());
       htd.setValue("hbase.hstore.compaction.min", String.valueOf(5));
-      admin.modifyTable(tableName, htd);
-      Pair<Integer, Integer> st;
-      while (null != (st = admin.getAlterStatus(tableName)) && st.getFirst() > 0) {
-        LOG.debug(st.getFirst() + " regions left to update");
-        Thread.sleep(40);
-      }
+      admin.modifyTable(htd);
       LOG.info("alter status finished");
 
       // Create 3 more store files.
@@ -341,11 +340,7 @@ public class TestFromClientSide3 {
       HColumnDescriptor hcd = new HColumnDescriptor(htd.getFamily(FAMILY));
       hcd.setValue("hbase.hstore.compaction.min", String.valueOf(2));
       htd.modifyFamily(hcd);
-      admin.modifyTable(tableName, htd);
-      while (null != (st = admin.getAlterStatus(tableName)) && st.getFirst() > 0) {
-        LOG.debug(st.getFirst() + " regions left to update");
-        Thread.sleep(40);
-      }
+      admin.modifyTable(htd);
       LOG.info("alter status finished");
 
       // Issue a compaction request
@@ -376,11 +371,7 @@ public class TestFromClientSide3 {
       hcd = new HColumnDescriptor(htd.getFamily(FAMILY));
       hcd.setValue("hbase.hstore.compaction.min", null);
       htd.modifyFamily(hcd);
-      admin.modifyTable(tableName, htd);
-      while (null != (st = admin.getAlterStatus(tableName)) && st.getFirst() > 0) {
-        LOG.debug(st.getFirst() + " regions left to update");
-        Thread.sleep(40);
-      }
+      admin.modifyTable(htd);
       LOG.info("alter status finished");
       assertNull(hTable.getTableDescriptor().getFamily(FAMILY).getValue(
           "hbase.hstore.compaction.min"));
@@ -411,6 +402,33 @@ public class TestFromClientSide3 {
     }
   }
 
+  // Test Table.batch with large amount of mutations against the same key.
+  // It used to trigger read lock's "Maximum lock count exceeded" Error.
+  @Test
+  public void testHTableWithLargeBatch() throws Exception {
+    Table table = TEST_UTIL.createTable(TableName.valueOf(name.getMethodName()),
+        new byte[][] { FAMILY });
+    int sixtyFourK = 64 * 1024;
+    try {
+      List actions = new ArrayList();
+      Object[] results = new Object[(sixtyFourK + 1) * 2];
+
+      for (int i = 0; i < sixtyFourK + 1; i ++) {
+        Put put1 = new Put(ROW);
+        put1.addColumn(FAMILY, QUALIFIER, VALUE);
+        actions.add(put1);
+
+        Put put2 = new Put(ANOTHERROW);
+        put2.addColumn(FAMILY, QUALIFIER, VALUE);
+        actions.add(put2);
+      }
+
+      table.batch(actions, results);
+    } finally {
+      table.close();
+    }
+  }
+
   @Test
   public void testBatchWithRowMutation() throws Exception {
     LOG.info("Starting testBatchWithRowMutation");
@@ -419,10 +437,9 @@ public class TestFromClientSide3 {
       byte [][] QUALIFIERS = new byte [][] {
         Bytes.toBytes("a"), Bytes.toBytes("b")
       };
-      RowMutations arm = new RowMutations(ROW);
-      Put p = new Put(ROW);
-      p.addColumn(FAMILY, QUALIFIERS[0], VALUE);
-      arm.add(p);
+
+      RowMutations arm = RowMutations.of(Collections.singletonList(
+        new Put(ROW).addColumn(FAMILY, QUALIFIERS[0], VALUE)));
       Object[] batchResult = new Object[1];
       t.batch(Arrays.asList(arm), batchResult);
 
@@ -430,13 +447,9 @@ public class TestFromClientSide3 {
       Result r = t.get(g);
       assertEquals(0, Bytes.compareTo(VALUE, r.getValue(FAMILY, QUALIFIERS[0])));
 
-      arm = new RowMutations(ROW);
-      p = new Put(ROW);
-      p.addColumn(FAMILY, QUALIFIERS[1], VALUE);
-      arm.add(p);
-      Delete d = new Delete(ROW);
-      d.addColumns(FAMILY, QUALIFIERS[0]);
-      arm.add(d);
+      arm = RowMutations.of(Arrays.asList(
+        new Put(ROW).addColumn(FAMILY, QUALIFIERS[1], VALUE),
+        new Delete(ROW).addColumns(FAMILY, QUALIFIERS[0])));
       t.batch(Arrays.asList(arm), batchResult);
       r = t.get(g);
       assertEquals(0, Bytes.compareTo(VALUE, r.getValue(FAMILY, QUALIFIERS[1])));
@@ -444,10 +457,8 @@ public class TestFromClientSide3 {
 
       // Test that we get the correct remote exception for RowMutations from batch()
       try {
-        arm = new RowMutations(ROW);
-        p = new Put(ROW);
-        p.addColumn(new byte[]{'b', 'o', 'g', 'u', 's'}, QUALIFIERS[0], VALUE);
-        arm.add(p);
+        arm = RowMutations.of(Collections.singletonList(
+          new Put(ROW).addColumn(new byte[]{'b', 'o', 'g', 'u', 's'}, QUALIFIERS[0], VALUE)));
         t.batch(Arrays.asList(arm), batchResult);
         fail("Expected RetriesExhaustedWithDetailsException with NoSuchColumnFamilyException");
       } catch(RetriesExhaustedWithDetailsException e) {
@@ -470,12 +481,12 @@ public class TestFromClientSide3 {
     Get get = new Get(ROW);
 
     boolean exist = table.exists(get);
-    assertEquals(exist, false);
+    assertFalse(exist);
 
     table.put(put);
 
     exist = table.exists(get);
-    assertEquals(exist, true);
+    assertTrue(exist);
   }
 
   @Test
@@ -562,12 +573,12 @@ public class TestFromClientSide3 {
     Get get = new Get(ROW);
 
     boolean exist = table.exists(get);
-    assertEquals(exist, false);
+    assertFalse(exist);
 
     table.put(put);
 
     exist = table.exists(get);
-    assertEquals(exist, true);
+    assertTrue(exist);
   }
 
   @Test
@@ -587,10 +598,10 @@ public class TestFromClientSide3 {
 
     LOG.info("Calling exists");
     boolean[] results = table.existsAll(gets);
-    assertEquals(results[0], false);
-    assertEquals(results[1], false);
-    assertEquals(results[2], true);
-    assertEquals(results[3], false);
+    assertFalse(results[0]);
+    assertFalse(results[1]);
+    assertTrue(results[2]);
+    assertFalse(results[3]);
 
     // Test with the first region.
     put = new Put(new byte[] { 0x00 });
@@ -601,8 +612,8 @@ public class TestFromClientSide3 {
     gets.add(new Get(new byte[] { 0x00 }));
     gets.add(new Get(new byte[] { 0x00, 0x00 }));
     results = table.existsAll(gets);
-    assertEquals(results[0], true);
-    assertEquals(results[1], false);
+    assertTrue(results[0]);
+    assertFalse(results[1]);
 
     // Test with the last region
     put = new Put(new byte[] { (byte) 0xff, (byte) 0xff });
@@ -614,9 +625,9 @@ public class TestFromClientSide3 {
     gets.add(new Get(new byte[] { (byte) 0xff, (byte) 0xff }));
     gets.add(new Get(new byte[] { (byte) 0xff, (byte) 0xff, (byte) 0xff }));
     results = table.existsAll(gets);
-    assertEquals(results[0], false);
-    assertEquals(results[1], true);
-    assertEquals(results[2], false);
+    assertFalse(results[0]);
+    assertTrue(results[1]);
+    assertFalse(results[2]);
   }
 
   @Test
@@ -654,7 +665,7 @@ public class TestFromClientSide3 {
     assertTrue(con.hasCellBlockSupport());
   }
 
-  @Test(timeout = 60000)
+  @Test
   public void testPutWithPreBatchMutate() throws Exception {
     final TableName tableName = TableName.valueOf(name.getMethodName());
     testPreBatchMutate(tableName, () -> {
@@ -669,7 +680,7 @@ public class TestFromClientSide3 {
     });
   }
 
-  @Test(timeout = 60000)
+  @Test
   public void testRowMutationsWithPreBatchMutate() throws Exception {
     final TableName tableName = TableName.valueOf(name.getMethodName());
     testPreBatchMutate(tableName, () -> {
@@ -716,7 +727,7 @@ public class TestFromClientSide3 {
     TEST_UTIL.deleteTable(tableName);
   }
 
-  @Test(timeout = 30000)
+  @Test
   public void testLockLeakWithDelta() throws Exception, Throwable {
     final TableName tableName = TableName.valueOf(name.getMethodName());
     HTableDescriptor desc = new HTableDescriptor(tableName);
@@ -769,7 +780,7 @@ public class TestFromClientSide3 {
     assertEquals(0, readLockCount);
   }
 
-  @Test(timeout = 30000)
+  @Test
   public void testMultiRowMutations() throws Exception, Throwable {
     final TableName tableName = TableName.valueOf(name.getMethodName());
     HTableDescriptor desc = new HTableDescriptor(tableName);
@@ -800,8 +811,8 @@ public class TestFromClientSide3 {
         }
       });
       ExecutorService cpService = Executors.newSingleThreadExecutor();
+      AtomicBoolean exceptionDuringMutateRows = new AtomicBoolean();
       cpService.execute(() -> {
-        boolean threw;
         Put put1 = new Put(row);
         Put put2 = new Put(rowLocked);
         put1.addColumn(FAMILY, QUALIFIER, value1);
@@ -815,26 +826,25 @@ public class TestFromClientSide3 {
                       org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto.MutationType.PUT, put2))
               .build();
           table.coprocessorService(MultiRowMutationProtos.MultiRowMutationService.class,
-            ROW, ROW,
+              ROW, ROW,
             (MultiRowMutationProtos.MultiRowMutationService exe) -> {
               ServerRpcController controller = new ServerRpcController();
               CoprocessorRpcUtils.BlockingRpcCallback<MultiRowMutationProtos.MutateRowsResponse>
                 rpcCallback = new CoprocessorRpcUtils.BlockingRpcCallback<>();
               exe.mutateRows(controller, request, rpcCallback);
+              if (controller.failedOnException() && !(controller.getFailedOn() instanceof UnknownProtocolException)) {
+                exceptionDuringMutateRows.set(true);
+              }
               return rpcCallback.get();
             });
-          threw = false;
         } catch (Throwable ex) {
-          threw = true;
-        }
-        if (!threw) {
-          // Can't call fail() earlier because the catch would eat it.
-          fail("This cp should fail because the target lock is blocked by previous put");
+          LOG.error("encountered " + ex);
         }
       });
       cpService.shutdown();
       cpService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
-      WaitingForMultiMutationsObserver observer = find(tableName, WaitingForMultiMutationsObserver.class);
+      WaitingForMultiMutationsObserver observer = find(tableName,
+          WaitingForMultiMutationsObserver.class);
       observer.latch.countDown();
       putService.shutdown();
       putService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
@@ -848,6 +858,9 @@ public class TestFromClientSide3 {
         assertTrue(Bytes.equals(r1.getValue(FAMILY, QUALIFIER), value0));
       }
       assertNoLocks(tableName);
+      if (!exceptionDuringMutateRows.get()) {
+        fail("This cp should fail because the target lock is blocked by previous put");
+      }
     }
   }
 
@@ -1023,6 +1036,79 @@ public class TestFromClientSide3 {
             final Scan scan, final RegionScanner s) throws IOException {
       latch.countDown();
       return s;
+    }
+  }
+
+  static byte[] generateHugeValue(int size) {
+    Random rand = ThreadLocalRandom.current();
+    byte[] value = new byte[size];
+    for (int i = 0; i < value.length; i++) {
+      value[i] = (byte) rand.nextInt(256);
+    }
+    return value;
+  }
+
+  @Test
+  public void testScanWithBatchSizeReturnIncompleteCells() throws IOException {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    TableDescriptor hd = TableDescriptorBuilder.newBuilder(tableName)
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY).setMaxVersions(3).build())
+        .build();
+
+    Table table = TEST_UTIL.createTable(hd, null);
+
+    Put put = new Put(ROW);
+    put.addColumn(FAMILY, Bytes.toBytes(0), generateHugeValue(3 * 1024 * 1024));
+    table.put(put);
+
+    put = new Put(ROW);
+    put.addColumn(FAMILY, Bytes.toBytes(1), generateHugeValue(4 * 1024 * 1024));
+    table.put(put);
+
+    for (int i = 2; i < 5; i++) {
+      for (int version = 0; version < 2; version++) {
+        put = new Put(ROW);
+        put.addColumn(FAMILY, Bytes.toBytes(i), generateHugeValue(1024));
+        table.put(put);
+      }
+    }
+
+    Scan scan = new Scan();
+    scan.withStartRow(ROW).withStopRow(ROW, true).addFamily(FAMILY).setBatch(3)
+        .setMaxResultSize(4 * 1024 * 1024);
+    Result result;
+    try (ResultScanner scanner = table.getScanner(scan)) {
+      List<Result> list = new ArrayList<>();
+      /*
+       * The first scan rpc should return a result with 2 cells, because 3MB + 4MB > 4MB; The second
+       * scan rpc should return a result with 3 cells, because reach the batch limit = 3; The
+       * mayHaveMoreCellsInRow in last result should be false in the scan rpc. BTW, the
+       * moreResultsInRegion also would be false. Finally, the client should collect all the cells
+       * into two result: 2+3 -> 3+2;
+       */
+      while ((result = scanner.next()) != null) {
+        list.add(result);
+      }
+
+      Assert.assertEquals(5, list.stream().mapToInt(Result::size).sum());
+      Assert.assertEquals(2, list.size());
+      Assert.assertEquals(3, list.get(0).size());
+      Assert.assertEquals(2, list.get(1).size());
+    }
+
+    scan = new Scan();
+    scan.withStartRow(ROW).withStopRow(ROW, true).addFamily(FAMILY).setBatch(2)
+        .setMaxResultSize(4 * 1024 * 1024);
+    try (ResultScanner scanner = table.getScanner(scan)) {
+      List<Result> list = new ArrayList<>();
+      while ((result = scanner.next()) != null) {
+        list.add(result);
+      }
+      Assert.assertEquals(5, list.stream().mapToInt(Result::size).sum());
+      Assert.assertEquals(3, list.size());
+      Assert.assertEquals(2, list.get(0).size());
+      Assert.assertEquals(2, list.get(1).size());
+      Assert.assertEquals(1, list.get(2).size());
     }
   }
 }

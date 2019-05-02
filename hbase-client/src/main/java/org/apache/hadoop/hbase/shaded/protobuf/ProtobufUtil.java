@@ -17,51 +17,52 @@
  */
 package org.apache.hadoop.hbase.shaded.protobuf;
 
+import static org.apache.hadoop.hbase.protobuf.ProtobufMagic.PB_MAGIC;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.ByteBufferCell;
+import org.apache.hadoop.hbase.ByteBufferExtendedCell;
 import org.apache.hadoop.hbase.CacheEvictionStats;
+import org.apache.hadoop.hbase.CacheEvictionStatsBuilder;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
 import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.ClusterId;
-import org.apache.hadoop.hbase.ClusterStatus;
-import org.apache.hadoop.hbase.ClusterStatus.Option;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.ExtendedCellBuilder;
 import org.apache.hadoop.hbase.ExtendedCellBuilderFactory;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.NamespaceDescriptor;
-import org.apache.hadoop.hbase.ServerLoad;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.Tag;
-import org.apache.hadoop.hbase.TagUtil;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.ClientUtil;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
@@ -89,9 +90,7 @@ import org.apache.hadoop.hbase.client.security.SecurityCapability;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.filter.ByteArrayComparable;
 import org.apache.hadoop.hbase.filter.Filter;
-import org.apache.hadoop.hbase.io.LimitInputStream;
 import org.apache.hadoop.hbase.io.TimeRange;
-import org.apache.hadoop.hbase.master.RegionState;
 import org.apache.hadoop.hbase.protobuf.ProtobufMagic;
 import org.apache.hadoop.hbase.protobuf.ProtobufMessageConverter;
 import org.apache.hadoop.hbase.quotas.QuotaScope;
@@ -102,25 +101,35 @@ import org.apache.hadoop.hbase.replication.ReplicationLoadSink;
 import org.apache.hadoop.hbase.replication.ReplicationLoadSource;
 import org.apache.hadoop.hbase.security.visibility.Authorizations;
 import org.apache.hadoop.hbase.security.visibility.CellVisibility;
-import org.apache.hadoop.hbase.shaded.com.google.gson.JsonArray;
-import org.apache.hadoop.hbase.shaded.com.google.gson.JsonElement;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ByteString;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.CodedInputStream;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.Message;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.RpcChannel;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.RpcController;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.Service;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.TextFormat;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
+import org.apache.hadoop.hbase.util.Addressing;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.DynamicClassLoader;
+import org.apache.hadoop.hbase.util.ExceptionUtil;
+import org.apache.hadoop.hbase.util.Methods;
+import org.apache.hadoop.hbase.util.VersionInfo;
+import org.apache.hadoop.ipc.RemoteException;
+import org.apache.yetus.audience.InterfaceAudience;
+
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.io.ByteStreams;
+import org.apache.hbase.thirdparty.com.google.gson.JsonArray;
+import org.apache.hbase.thirdparty.com.google.gson.JsonElement;
+import org.apache.hbase.thirdparty.com.google.protobuf.ByteString;
+import org.apache.hbase.thirdparty.com.google.protobuf.CodedInputStream;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.Message;
+import org.apache.hbase.thirdparty.com.google.protobuf.RpcChannel;
+import org.apache.hbase.thirdparty.com.google.protobuf.RpcController;
+import org.apache.hbase.thirdparty.com.google.protobuf.Service;
+import org.apache.hbase.thirdparty.com.google.protobuf.ServiceException;
+import org.apache.hbase.thirdparty.com.google.protobuf.TextFormat;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.AdminService;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.CloseRegionRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetOnlineRegionRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetOnlineRegionResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetRegionInfoRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetRegionInfoResponse;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetRegionLoadRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetRegionLoadResponse;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetServerInfoRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.GetServerInfoResponse;
@@ -140,11 +149,8 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MutationPr
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MutationProto.MutationType;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ScanRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos.LiveServerInfo;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos.RegionInTransition;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos.RegionLoad;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ComparatorProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.FSProtos.HBaseVersionFileContent;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.BytesBytesPair;
@@ -152,10 +158,12 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ColumnFamil
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.NameBytesPair;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.NameStringPair;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ProcedureDescription;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.RegionExceptionMessage;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.RegionInfo;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.RegionSpecifier;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.RegionSpecifier.RegionSpecifierType;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.TableSchema;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.HFileProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.LockServiceProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MapReduceProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos;
@@ -179,14 +187,6 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.WALProtos.RegionEventDe
 import org.apache.hadoop.hbase.shaded.protobuf.generated.WALProtos.RegionEventDescriptor.EventType;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.WALProtos.StoreDescriptor;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ZooKeeperProtos;
-import org.apache.hadoop.hbase.util.Addressing;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.DynamicClassLoader;
-import org.apache.hadoop.hbase.util.ExceptionUtil;
-import org.apache.hadoop.hbase.util.Methods;
-import org.apache.hadoop.hbase.util.VersionInfo;
-import org.apache.hadoop.ipc.RemoteException;
-import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * Protobufs utility.
@@ -198,17 +198,10 @@ import org.apache.yetus.audience.InterfaceAudience;
  * @see ProtobufUtil
  */
 // TODO: Generate the non-shaded protobufutil from this one.
-@edu.umd.cs.findbugs.annotations.SuppressWarnings(
-  value="DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED", justification="None. Address sometime.")
 @InterfaceAudience.Private // TODO: some clients (Hive, etc) use this class
 public final class ProtobufUtil {
   private ProtobufUtil() {
   }
-
-  /**
-   * Primitive type to class mapping.
-   */
-  private final static Map<String, Class<?>> PRIMITIVES = new HashMap<>();
 
   /**
    * Many results are simple: no cell, exists true or false. To save on object creations,
@@ -256,25 +249,27 @@ public final class ProtobufUtil {
     EMPTY_RESULT_PB_STALE = builder.build();
   }
 
+  private static volatile boolean classLoaderLoaded = false;
+
   /**
    * Dynamic class loader to load filter/comparators
    */
-  private final static ClassLoader CLASS_LOADER;
+  private final static class ClassLoaderHolder {
+    private final static ClassLoader CLASS_LOADER;
 
-  static {
-    ClassLoader parent = ProtobufUtil.class.getClassLoader();
-    Configuration conf = HBaseConfiguration.create();
-    CLASS_LOADER = new DynamicClassLoader(conf, parent);
+    static {
+      ClassLoader parent = ProtobufUtil.class.getClassLoader();
+      Configuration conf = HBaseConfiguration.create();
+      CLASS_LOADER = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)
+        () -> new DynamicClassLoader(conf, parent)
+      );
+      classLoaderLoaded = true;
+    }
+  }
 
-    PRIMITIVES.put(Boolean.TYPE.getName(), Boolean.TYPE);
-    PRIMITIVES.put(Byte.TYPE.getName(), Byte.TYPE);
-    PRIMITIVES.put(Character.TYPE.getName(), Character.TYPE);
-    PRIMITIVES.put(Short.TYPE.getName(), Short.TYPE);
-    PRIMITIVES.put(Integer.TYPE.getName(), Integer.TYPE);
-    PRIMITIVES.put(Long.TYPE.getName(), Long.TYPE);
-    PRIMITIVES.put(Float.TYPE.getName(), Float.TYPE);
-    PRIMITIVES.put(Double.TYPE.getName(), Double.TYPE);
-    PRIMITIVES.put(Void.TYPE.getName(), Void.TYPE);
+  @VisibleForTesting
+  public static boolean isClassLoaderLoaded() {
+    return classLoaderLoaded;
   }
 
   /**
@@ -286,7 +281,7 @@ public final class ProtobufUtil {
    * byte array that is <code>bytes.length</code> plus {@link ProtobufMagic#PB_MAGIC}.length.
    */
   public static byte [] prependPBMagic(final byte [] bytes) {
-    return Bytes.add(ProtobufMagic.PB_MAGIC, bytes);
+    return Bytes.add(PB_MAGIC, bytes);
   }
 
   /**
@@ -311,10 +306,11 @@ public final class ProtobufUtil {
    * @param bytes bytes to check
    * @throws DeserializationException if we are missing the pb magic prefix
    */
-  public static void expectPBMagicPrefix(final byte [] bytes) throws DeserializationException {
+  public static void expectPBMagicPrefix(final byte[] bytes) throws DeserializationException {
     if (!isPBMagicPrefix(bytes)) {
-      throw new DeserializationException("Missing pb magic " +
-          Bytes.toString(ProtobufMagic.PB_MAGIC) + " prefix");
+      String bytesPrefix = bytes == null ? "null" : Bytes.toStringBinary(bytes, 0, PB_MAGIC.length);
+      throw new DeserializationException(
+          "Missing pb magic " + Bytes.toString(PB_MAGIC) + " prefix" + ", bytes: " + bytesPrefix);
     }
   }
 
@@ -528,7 +524,7 @@ public final class ProtobufUtil {
       get.setCacheBlocks(proto.getCacheBlocks());
     }
     if (proto.hasMaxVersions()) {
-      get.setMaxVersions(proto.getMaxVersions());
+      get.readVersions(proto.getMaxVersions());
     }
     if (proto.hasStoreLimit()) {
       get.setMaxResultsPerColumnFamily(proto.getStoreLimit());
@@ -538,13 +534,13 @@ public final class ProtobufUtil {
     }
     if (proto.getCfTimeRangeCount() > 0) {
       for (HBaseProtos.ColumnFamilyTimeRange cftr : proto.getCfTimeRangeList()) {
-        TimeRange timeRange = protoToTimeRange(cftr.getTimeRange());
+        TimeRange timeRange = toTimeRange(cftr.getTimeRange());
         get.setColumnFamilyTimeRange(cftr.getColumnFamily().toByteArray(),
             timeRange.getMin(), timeRange.getMax());
       }
     }
     if (proto.hasTimeRange()) {
-      TimeRange timeRange = protoToTimeRange(proto.getTimeRange());
+      TimeRange timeRange = toTimeRange(proto.getTimeRange());
       get.setTimeRange(timeRange.getMin(), timeRange.getMax());
     }
     if (proto.hasFilter()) {
@@ -652,10 +648,6 @@ public final class ProtobufUtil {
             throw new DoNotRetryIOException(
                 "Missing required field: qualifier value");
           }
-          ByteBuffer qualifier =
-              qv.hasQualifier() ? qv.getQualifier().asReadOnlyByteBuffer() : null;
-          ByteBuffer value =
-              qv.hasValue() ? qv.getValue().asReadOnlyByteBuffer() : null;
           long ts = timestamp;
           if (qv.hasTimestamp()) {
             ts = qv.getTimestamp();
@@ -665,29 +657,42 @@ public final class ProtobufUtil {
             allTagsBytes = qv.getTags().toByteArray();
             if(qv.hasDeleteType()) {
               put.add(cellBuilder.clear()
-                      .setRow(proto.getRow().toByteArray())
-                      .setFamily(family)
-                      .setQualifier(qv.hasQualifier() ? qv.getQualifier().toByteArray() : null)
-                      .setTimestamp(ts)
-                      .setType(fromDeleteType(qv.getDeleteType()).getCode())
-                      .setTags(allTagsBytes)
-                      .build());
+                  .setRow(proto.getRow().toByteArray())
+                  .setFamily(family)
+                  .setQualifier(qv.hasQualifier() ? qv.getQualifier().toByteArray() : null)
+                  .setTimestamp(ts)
+                  .setType(fromDeleteType(qv.getDeleteType()).getCode())
+                  .setTags(allTagsBytes)
+                  .build());
             } else {
-              List<Tag> tags = TagUtil.asList(allTagsBytes, 0, (short)allTagsBytes.length);
-              Tag[] tagsArray = new Tag[tags.size()];
-              put.addImmutable(family, qualifier, ts, value, tags.toArray(tagsArray));
+              put.add(cellBuilder.clear()
+                  .setRow(put.getRow())
+                  .setFamily(family)
+                  .setQualifier(qv.hasQualifier() ? qv.getQualifier().toByteArray() : null)
+                  .setTimestamp(ts)
+                  .setType(Cell.Type.Put)
+                  .setValue(qv.hasValue() ? qv.getValue().toByteArray() : null)
+                  .setTags(allTagsBytes)
+                  .build());
             }
           } else {
             if(qv.hasDeleteType()) {
               put.add(cellBuilder.clear()
-                      .setRow(proto.getRow().toByteArray())
-                      .setFamily(family)
-                      .setQualifier(qv.hasQualifier() ? qv.getQualifier().toByteArray() : null)
-                      .setTimestamp(ts)
-                      .setType(fromDeleteType(qv.getDeleteType()).getCode())
-                      .build());
+                  .setRow(put.getRow())
+                  .setFamily(family)
+                  .setQualifier(qv.hasQualifier() ? qv.getQualifier().toByteArray() : null)
+                  .setTimestamp(ts)
+                  .setType(fromDeleteType(qv.getDeleteType()).getCode())
+                  .build());
             } else{
-              put.addImmutable(family, qualifier, ts, value);
+              put.add(cellBuilder.clear()
+                  .setRow(put.getRow())
+                  .setFamily(family)
+                  .setQualifier(qv.hasQualifier() ? qv.getQualifier().toByteArray() : null)
+                  .setTimestamp(ts)
+                  .setType(Type.Put)
+                  .setValue(qv.hasValue() ? qv.getValue().toByteArray() : null)
+                  .build());
             }
           }
         }
@@ -855,8 +860,13 @@ public final class ProtobufUtil {
           throws IOException {
     MutationType type = proto.getMutateType();
     assert type == MutationType.APPEND : type.name();
-    return toDelta((Bytes row) -> new Append(row.get(), row.getOffset(), row.getLength()),
+    Append append = toDelta((Bytes row) -> new Append(row.get(), row.getOffset(), row.getLength()),
             Append::add, proto, cellScanner);
+    if (proto.hasTimeRange()) {
+      TimeRange timeRange = toTimeRange(proto.getTimeRange());
+      append.setTimeRange(timeRange.getMin(), timeRange.getMax());
+    }
+    return append;
   }
 
   /**
@@ -873,7 +883,7 @@ public final class ProtobufUtil {
     Increment increment = toDelta((Bytes row) -> new Increment(row.get(), row.getOffset(), row.getLength()),
             Increment::add, proto, cellScanner);
     if (proto.hasTimeRange()) {
-      TimeRange timeRange = protoToTimeRange(proto.getTimeRange());
+      TimeRange timeRange = toTimeRange(proto.getTimeRange());
       increment.setTimeRange(timeRange.getMin(), timeRange.getMax());
     }
     return increment;
@@ -945,7 +955,7 @@ public final class ProtobufUtil {
       }
     }
     if (proto.hasTimeRange()) {
-      TimeRange timeRange = protoToTimeRange(proto.getTimeRange());
+      TimeRange timeRange = toTimeRange(proto.getTimeRange());
       get.setTimeRange(timeRange.getMin(), timeRange.getMax());
     }
     for (NameBytesPair attribute : proto.getAttributeList()) {
@@ -1009,20 +1019,13 @@ public final class ProtobufUtil {
       scanBuilder.setLoadColumnFamiliesOnDemand(loadColumnFamiliesOnDemand);
     }
     scanBuilder.setMaxVersions(scan.getMaxVersions());
-    for (Entry<byte[], TimeRange> cftr : scan.getColumnFamilyTimeRange().entrySet()) {
-      HBaseProtos.ColumnFamilyTimeRange.Builder b = HBaseProtos.ColumnFamilyTimeRange.newBuilder();
-      b.setColumnFamily(UnsafeByteOperations.unsafeWrap(cftr.getKey()));
-      b.setTimeRange(timeRangeToProto(cftr.getValue()));
-      scanBuilder.addCfTimeRange(b);
-    }
-    TimeRange timeRange = scan.getTimeRange();
-    if (!timeRange.isAllTime()) {
-      HBaseProtos.TimeRange.Builder timeRangeBuilder =
-        HBaseProtos.TimeRange.newBuilder();
-      timeRangeBuilder.setFrom(timeRange.getMin());
-      timeRangeBuilder.setTo(timeRange.getMax());
-      scanBuilder.setTimeRange(timeRangeBuilder.build());
-    }
+    scan.getColumnFamilyTimeRange().forEach((cf, timeRange) -> {
+      scanBuilder.addCfTimeRange(HBaseProtos.ColumnFamilyTimeRange.newBuilder()
+        .setColumnFamily(UnsafeByteOperations.unsafeWrap(cf))
+        .setTimeRange(toTimeRange(timeRange))
+        .build());
+    });
+    scanBuilder.setTimeRange(ProtobufUtil.toTimeRange(scan.getTimeRange()));
     Map<String, byte[]> attributes = scan.getAttributesMap();
     if (!attributes.isEmpty()) {
       NameBytesPair.Builder attributeBuilder = NameBytesPair.newBuilder();
@@ -1080,9 +1083,7 @@ public final class ProtobufUtil {
     if (!scan.includeStartRow()) {
       scanBuilder.setIncludeStartRow(false);
     }
-    if (scan.includeStopRow()) {
-      scanBuilder.setIncludeStopRow(true);
-    }
+    scanBuilder.setIncludeStopRow(scan.includeStopRow());
     if (scan.getReadType() != Scan.ReadType.DEFAULT) {
       scanBuilder.setReadType(toReadType(scan.getReadType()));
     }
@@ -1141,13 +1142,13 @@ public final class ProtobufUtil {
     }
     if (proto.getCfTimeRangeCount() > 0) {
       for (HBaseProtos.ColumnFamilyTimeRange cftr : proto.getCfTimeRangeList()) {
-        TimeRange timeRange = protoToTimeRange(cftr.getTimeRange());
+        TimeRange timeRange = toTimeRange(cftr.getTimeRange());
         scan.setColumnFamilyTimeRange(cftr.getColumnFamily().toByteArray(),
             timeRange.getMin(), timeRange.getMax());
       }
     }
     if (proto.hasTimeRange()) {
-      TimeRange timeRange = protoToTimeRange(proto.getTimeRange());
+      TimeRange timeRange = toTimeRange(proto.getTimeRange());
       scan.setTimeRange(timeRange.getMin(), timeRange.getMax());
     }
     if (proto.hasFilter()) {
@@ -1237,20 +1238,13 @@ public final class ProtobufUtil {
     if (get.getFilter() != null) {
       builder.setFilter(ProtobufUtil.toFilter(get.getFilter()));
     }
-    for (Entry<byte[], TimeRange> cftr : get.getColumnFamilyTimeRange().entrySet()) {
-      HBaseProtos.ColumnFamilyTimeRange.Builder b = HBaseProtos.ColumnFamilyTimeRange.newBuilder();
-      b.setColumnFamily(UnsafeByteOperations.unsafeWrap(cftr.getKey()));
-      b.setTimeRange(timeRangeToProto(cftr.getValue()));
-      builder.addCfTimeRange(b);
-    }
-    TimeRange timeRange = get.getTimeRange();
-    if (!timeRange.isAllTime()) {
-      HBaseProtos.TimeRange.Builder timeRangeBuilder =
-        HBaseProtos.TimeRange.newBuilder();
-      timeRangeBuilder.setFrom(timeRange.getMin());
-      timeRangeBuilder.setTo(timeRange.getMax());
-      builder.setTimeRange(timeRangeBuilder.build());
-    }
+    get.getColumnFamilyTimeRange().forEach((cf, timeRange) -> {
+      builder.addCfTimeRange(HBaseProtos.ColumnFamilyTimeRange.newBuilder()
+        .setColumnFamily(UnsafeByteOperations.unsafeWrap(cf))
+        .setTimeRange(toTimeRange(timeRange))
+        .build());
+    });
+    builder.setTimeRange(ProtobufUtil.toTimeRange(get.getTimeRange()));
     Map<String, byte[]> attributes = get.getAttributesMap();
     if (!attributes.isEmpty()) {
       NameBytesPair.Builder attributeBuilder = NameBytesPair.newBuilder();
@@ -1295,16 +1289,6 @@ public final class ProtobufUtil {
     return builder.build();
   }
 
-  static void setTimeRange(final MutationProto.Builder builder, final TimeRange timeRange) {
-    if (!timeRange.isAllTime()) {
-      HBaseProtos.TimeRange.Builder timeRangeBuilder =
-        HBaseProtos.TimeRange.newBuilder();
-      timeRangeBuilder.setFrom(timeRange.getMin());
-      timeRangeBuilder.setTo(timeRange.getMax());
-      builder.setTimeRange(timeRangeBuilder.build());
-    }
-  }
-
   public static MutationProto toMutation(final MutationType type, final Mutation mutation)
     throws IOException {
     return toMutation(type, mutation, HConstants.NO_NONCE);
@@ -1336,8 +1320,10 @@ public final class ProtobufUtil {
       builder.setNonce(nonce);
     }
     if (type == MutationType.INCREMENT) {
-      TimeRange timeRange = ((Increment) mutation).getTimeRange();
-      setTimeRange(builder, timeRange);
+      builder.setTimeRange(ProtobufUtil.toTimeRange(((Increment) mutation).getTimeRange()));
+    }
+    if (type == MutationType.APPEND) {
+      builder.setTimeRange(ProtobufUtil.toTimeRange(((Append) mutation).getTimeRange()));
     }
     ColumnValue.Builder columnBuilder = ColumnValue.newBuilder();
     QualifierValue.Builder valueBuilder = QualifierValue.newBuilder();
@@ -1395,7 +1381,10 @@ public final class ProtobufUtil {
     getMutationBuilderAndSetCommonFields(type, mutation, builder);
     builder.setAssociatedCellCount(mutation.size());
     if (mutation instanceof Increment) {
-      setTimeRange(builder, ((Increment)mutation).getTimeRange());
+      builder.setTimeRange(ProtobufUtil.toTimeRange(((Increment) mutation).getTimeRange()));
+    }
+    if (mutation instanceof Append) {
+      builder.setTimeRange(ProtobufUtil.toTimeRange(((Append) mutation).getTimeRange()));
     }
     if (nonce != HConstants.NO_NONCE) {
       builder.setNonce(nonce);
@@ -1415,7 +1404,7 @@ public final class ProtobufUtil {
     builder.setRow(UnsafeByteOperations.unsafeWrap(mutation.getRow()));
     builder.setMutateType(type);
     builder.setDurability(toDurability(mutation.getDurability()));
-    builder.setTimestamp(mutation.getTimeStamp());
+    builder.setTimestamp(mutation.getTimestamp());
     Map<String, byte[]> attributes = mutation.getAttributesMap();
     if (!attributes.isEmpty()) {
       NameBytesPair.Builder attributeBuilder = NameBytesPair.newBuilder();
@@ -1587,8 +1576,7 @@ public final class ProtobufUtil {
     String funcName = "parseFrom";
     byte [] value = proto.getSerializedComparator().toByteArray();
     try {
-      Class<? extends ByteArrayComparable> c =
-        (Class<? extends ByteArrayComparable>)Class.forName(type, true, CLASS_LOADER);
+      Class<?> c = Class.forName(type, true, ClassLoaderHolder.CLASS_LOADER);
       Method parseFrom = c.getMethod(funcName, byte[].class);
       if (parseFrom == null) {
         throw new IOException("Unable to locate function: " + funcName + " in type: " + type);
@@ -1611,8 +1599,7 @@ public final class ProtobufUtil {
     final byte [] value = proto.getSerializedFilter().toByteArray();
     String funcName = "parseFrom";
     try {
-      Class<? extends Filter> c =
-        (Class<? extends Filter>)Class.forName(type, true, CLASS_LOADER);
+      Class<?> c = Class.forName(type, true, ClassLoaderHolder.CLASS_LOADER);
       Method parseFrom = c.getMethod(funcName, byte[].class);
       if (parseFrom == null) {
         throw new IOException("Unable to locate function: " + funcName + " in type: " + type);
@@ -1698,7 +1685,7 @@ public final class ProtobufUtil {
     String type = parameter.getName();
     try {
       Class<? extends Throwable> c =
-        (Class<? extends Throwable>)Class.forName(type, true, CLASS_LOADER);
+        (Class<? extends Throwable>)Class.forName(type, true, ClassLoaderHolder.CLASS_LOADER);
       Constructor<? extends Throwable> cn = null;
       try {
         cn = c.getDeclaredConstructor(String.class);
@@ -1745,20 +1732,6 @@ public final class ProtobufUtil {
     } catch (ServiceException se) {
       throw getRemoteException(se);
     }
-  }
-
-  public static List<org.apache.hadoop.hbase.RegionLoad> getRegionLoad(
-      final RpcController controller, final AdminService.BlockingInterface admin,
-      final TableName tableName) throws IOException {
-    GetRegionLoadRequest request =
-        RequestConverter.buildGetRegionLoadRequest(tableName);
-    GetRegionLoadResponse response;
-    try {
-      response = admin.getRegionLoad(controller, request);
-    } catch (ServiceException se) {
-      throw getRemoteException(se);
-    }
-    return getRegionLoadInfo(response);
   }
 
   public static List<org.apache.hadoop.hbase.RegionLoad> getRegionLoadInfo(
@@ -1945,7 +1918,7 @@ public final class ProtobufUtil {
   public static byte [] toDelimitedByteArray(final Message m) throws IOException {
     // Allocate arbitrary big size so we avoid resizing.
     ByteArrayOutputStream baos = new ByteArrayOutputStream(4096);
-    baos.write(ProtobufMagic.PB_MAGIC);
+    baos.write(PB_MAGIC);
     m.writeDelimitedTo(baos);
     return baos.toByteArray();
   }
@@ -2022,17 +1995,17 @@ public final class ProtobufUtil {
     // Doing this is going to kill us if we do it for all data passed.
     // St.Ack 20121205
     CellProtos.Cell.Builder kvbuilder = CellProtos.Cell.newBuilder();
-    if (kv instanceof ByteBufferCell) {
-      kvbuilder.setRow(wrap(((ByteBufferCell) kv).getRowByteBuffer(),
-        ((ByteBufferCell) kv).getRowPosition(), kv.getRowLength()));
-      kvbuilder.setFamily(wrap(((ByteBufferCell) kv).getFamilyByteBuffer(),
-        ((ByteBufferCell) kv).getFamilyPosition(), kv.getFamilyLength()));
-      kvbuilder.setQualifier(wrap(((ByteBufferCell) kv).getQualifierByteBuffer(),
-        ((ByteBufferCell) kv).getQualifierPosition(), kv.getQualifierLength()));
+    if (kv instanceof ByteBufferExtendedCell) {
+      kvbuilder.setRow(wrap(((ByteBufferExtendedCell) kv).getRowByteBuffer(),
+        ((ByteBufferExtendedCell) kv).getRowPosition(), kv.getRowLength()));
+      kvbuilder.setFamily(wrap(((ByteBufferExtendedCell) kv).getFamilyByteBuffer(),
+        ((ByteBufferExtendedCell) kv).getFamilyPosition(), kv.getFamilyLength()));
+      kvbuilder.setQualifier(wrap(((ByteBufferExtendedCell) kv).getQualifierByteBuffer(),
+        ((ByteBufferExtendedCell) kv).getQualifierPosition(), kv.getQualifierLength()));
       kvbuilder.setCellType(CellProtos.CellType.valueOf(kv.getTypeByte()));
       kvbuilder.setTimestamp(kv.getTimestamp());
-      kvbuilder.setValue(wrap(((ByteBufferCell) kv).getValueByteBuffer(),
-        ((ByteBufferCell) kv).getValuePosition(), kv.getValueLength()));
+      kvbuilder.setValue(wrap(((ByteBufferExtendedCell) kv).getValueByteBuffer(),
+        ((ByteBufferExtendedCell) kv).getValuePosition(), kv.getValueLength()));
       // TODO : Once tags become first class then we may have to set tags to kvbuilder.
     } else {
       kvbuilder.setRow(
@@ -2212,6 +2185,13 @@ public final class ProtobufUtil {
           ", row=" + getStringForByteString(r.getGet().getRow());
     } else if (m instanceof ClientProtos.MultiRequest) {
       ClientProtos.MultiRequest r = (ClientProtos.MultiRequest) m;
+
+      // Get the number of Actions
+      int actionsCount = r.getRegionActionList()
+          .stream()
+          .mapToInt(ClientProtos.RegionAction::getActionCount)
+          .sum();
+
       // Get first set of Actions.
       ClientProtos.RegionAction actions = r.getRegionActionList().get(0);
       String row = actions.getActionCount() <= 0? "":
@@ -2219,8 +2199,7 @@ public final class ProtobufUtil {
           actions.getAction(0).getGet().getRow():
           actions.getAction(0).getMutation().getRow());
       return "region= " + getStringForByteString(actions.getRegion().getValue()) +
-          ", for " + r.getRegionActionCount() +
-          " actions and 1st row key=" + row;
+          ", for " + actionsCount + " action(s) and 1st row key=" + row;
     } else if (m instanceof ClientProtos.MutateRequest) {
       ClientProtos.MutateRequest r = (ClientProtos.MutateRequest) m;
       return "region= " + getStringForByteString(r.getRegion().getValue()) +
@@ -2409,14 +2388,27 @@ public final class ProtobufUtil {
    */
   public static ThrottleType toThrottleType(final QuotaProtos.ThrottleType proto) {
     switch (proto) {
-      case REQUEST_NUMBER: return ThrottleType.REQUEST_NUMBER;
-      case REQUEST_SIZE:   return ThrottleType.REQUEST_SIZE;
-      case WRITE_NUMBER:   return ThrottleType.WRITE_NUMBER;
-      case WRITE_SIZE:     return ThrottleType.WRITE_SIZE;
-      case READ_NUMBER:    return ThrottleType.READ_NUMBER;
-      case READ_SIZE:      return ThrottleType.READ_SIZE;
+      case REQUEST_NUMBER:
+        return ThrottleType.REQUEST_NUMBER;
+      case REQUEST_SIZE:
+        return ThrottleType.REQUEST_SIZE;
+      case REQUEST_CAPACITY_UNIT:
+        return ThrottleType.REQUEST_CAPACITY_UNIT;
+      case WRITE_NUMBER:
+        return ThrottleType.WRITE_NUMBER;
+      case WRITE_SIZE:
+        return ThrottleType.WRITE_SIZE;
+      case READ_NUMBER:
+        return ThrottleType.READ_NUMBER;
+      case READ_SIZE:
+        return ThrottleType.READ_SIZE;
+      case READ_CAPACITY_UNIT:
+        return ThrottleType.READ_CAPACITY_UNIT;
+      case WRITE_CAPACITY_UNIT:
+        return ThrottleType.WRITE_CAPACITY_UNIT;
+      default:
+        throw new RuntimeException("Invalid ThrottleType " + proto);
     }
-    throw new RuntimeException("Invalid ThrottleType " + proto);
   }
 
   /**
@@ -2427,14 +2419,27 @@ public final class ProtobufUtil {
    */
   public static QuotaProtos.ThrottleType toProtoThrottleType(final ThrottleType type) {
     switch (type) {
-      case REQUEST_NUMBER: return QuotaProtos.ThrottleType.REQUEST_NUMBER;
-      case REQUEST_SIZE:   return QuotaProtos.ThrottleType.REQUEST_SIZE;
-      case WRITE_NUMBER:   return QuotaProtos.ThrottleType.WRITE_NUMBER;
-      case WRITE_SIZE:     return QuotaProtos.ThrottleType.WRITE_SIZE;
-      case READ_NUMBER:    return QuotaProtos.ThrottleType.READ_NUMBER;
-      case READ_SIZE:      return QuotaProtos.ThrottleType.READ_SIZE;
+      case REQUEST_NUMBER:
+        return QuotaProtos.ThrottleType.REQUEST_NUMBER;
+      case REQUEST_SIZE:
+        return QuotaProtos.ThrottleType.REQUEST_SIZE;
+      case WRITE_NUMBER:
+        return QuotaProtos.ThrottleType.WRITE_NUMBER;
+      case WRITE_SIZE:
+        return QuotaProtos.ThrottleType.WRITE_SIZE;
+      case READ_NUMBER:
+        return QuotaProtos.ThrottleType.READ_NUMBER;
+      case READ_SIZE:
+        return QuotaProtos.ThrottleType.READ_SIZE;
+      case REQUEST_CAPACITY_UNIT:
+        return QuotaProtos.ThrottleType.REQUEST_CAPACITY_UNIT;
+      case READ_CAPACITY_UNIT:
+        return QuotaProtos.ThrottleType.READ_CAPACITY_UNIT;
+      case WRITE_CAPACITY_UNIT:
+        return QuotaProtos.ThrottleType.WRITE_CAPACITY_UNIT;
+      default:
+        throw new RuntimeException("Invalid ThrottleType " + type);
     }
-    throw new RuntimeException("Invalid ThrottleType " + type);
   }
 
   /**
@@ -2609,7 +2614,7 @@ public final class ProtobufUtil {
     final int firstByte = in.read();
     if (firstByte != -1) {
       final int size = CodedInputStream.readRawVarint32(firstByte, in);
-      final InputStream limitedInput = new LimitInputStream(in, size);
+      final InputStream limitedInput = ByteStreams.limit(in, size);
       final CodedInputStream codedInput = CodedInputStream.newInstance(limitedInput);
       codedInput.setSizeLimit(size);
       builder.mergeFrom(codedInput);
@@ -2707,23 +2712,26 @@ public final class ProtobufUtil {
   }
 
   public static ReplicationLoadSink toReplicationLoadSink(
-      ClusterStatusProtos.ReplicationLoadSink cls) {
-    return new ReplicationLoadSink(cls.getAgeOfLastAppliedOp(), cls.getTimeStampsOfLastAppliedOp());
+      ClusterStatusProtos.ReplicationLoadSink rls) {
+    return new ReplicationLoadSink(rls.getAgeOfLastAppliedOp(), rls.getTimeStampsOfLastAppliedOp());
   }
 
   public static ReplicationLoadSource toReplicationLoadSource(
-      ClusterStatusProtos.ReplicationLoadSource cls) {
-    return new ReplicationLoadSource(cls.getPeerID(), cls.getAgeOfLastShippedOp(),
-        cls.getSizeOfLogQueue(), cls.getTimeStampOfLastShippedOp(), cls.getReplicationLag());
-  }
-
-  public static List<ReplicationLoadSource> toReplicationLoadSourceList(
-      List<ClusterStatusProtos.ReplicationLoadSource> clsList) {
-    ArrayList<ReplicationLoadSource> rlsList = new ArrayList<>(clsList.size());
-    for (ClusterStatusProtos.ReplicationLoadSource cls : clsList) {
-      rlsList.add(toReplicationLoadSource(cls));
-    }
-    return rlsList;
+      ClusterStatusProtos.ReplicationLoadSource rls) {
+    ReplicationLoadSource.ReplicationLoadSourceBuilder builder = ReplicationLoadSource.newBuilder();
+    builder.setPeerID(rls.getPeerID()).
+        setAgeOfLastShippedOp(rls.getAgeOfLastShippedOp()).
+        setSizeOfLogQueue(rls.getSizeOfLogQueue()).
+        setTimestampOfLastShippedOp(rls.getTimeStampOfLastShippedOp()).
+        setTimeStampOfNextToReplicate(rls.getTimeStampOfNextToReplicate()).
+        setReplicationLag(rls.getReplicationLag()).
+        setQueueId(rls.getQueueId()).
+        setRecovered(rls.getRecovered()).
+        setRunning(rls.getRunning()).
+        setEditsSinceRestart(rls.getEditsSinceRestart()).
+        setEditsRead(rls.getEditsRead()).
+        setoPsShipped(rls.getOPsShipped());
+    return builder.build();
   }
 
   /**
@@ -2767,24 +2775,11 @@ public final class ProtobufUtil {
     return scList;
   }
 
-  private static HBaseProtos.TimeRange.Builder timeRangeToProto(TimeRange timeRange) {
-    HBaseProtos.TimeRange.Builder timeRangeBuilder =
-        HBaseProtos.TimeRange.newBuilder();
-    timeRangeBuilder.setFrom(timeRange.getMin());
-    timeRangeBuilder.setTo(timeRange.getMax());
-    return timeRangeBuilder;
-  }
-
-  private static TimeRange protoToTimeRange(HBaseProtos.TimeRange timeRange) throws IOException {
-      long minStamp = 0;
-      long maxStamp = Long.MAX_VALUE;
-      if (timeRange.hasFrom()) {
-        minStamp = timeRange.getFrom();
-      }
-      if (timeRange.hasTo()) {
-        maxStamp = timeRange.getTo();
-      }
-    return new TimeRange(minStamp, maxStamp);
+  public static TimeRange toTimeRange(HBaseProtos.TimeRange timeRange) {
+    return timeRange == null ?
+      TimeRange.allTime() :
+      new TimeRange(timeRange.hasFrom() ? timeRange.getFrom() : 0,
+        timeRange.hasTo() ? timeRange.getTo() : Long.MAX_VALUE);
   }
 
   /**
@@ -2857,7 +2852,7 @@ public final class ProtobufUtil {
     ts.getColumnFamiliesList()
       .stream()
       .map(ProtobufUtil::toColumnFamilyDescriptor)
-      .forEach(builder::addColumnFamily);
+      .forEach(builder::setColumnFamily);
     ts.getAttributesList()
       .forEach(a -> builder.setValue(a.getFirst().toByteArray(), a.getSecond().toByteArray()));
     ts.getConfigurationList()
@@ -2961,221 +2956,6 @@ public final class ProtobufUtil {
         snapshotDesc.getCreationTime(), snapshotDesc.getVersion());
   }
 
-  /**
-   * Convert a protobuf ClusterStatus to a ClusterStatus
-   *
-   * @param proto the protobuf ClusterStatus
-   * @return the converted ClusterStatus
-   */
-  public static ClusterStatus convert(ClusterStatusProtos.ClusterStatus proto) {
-    ClusterStatus.Builder builder = ClusterStatus.newBuilder();
-
-    Map<ServerName, ServerLoad> servers = null;
-    servers = new HashMap<>(proto.getLiveServersList().size());
-    for (LiveServerInfo lsi : proto.getLiveServersList()) {
-      servers.put(ProtobufUtil.toServerName(
-          lsi.getServer()), new ServerLoad(lsi.getServerLoad()));
-    }
-
-    List<ServerName> deadServers = new ArrayList<>(proto.getDeadServersList().size());
-    for (HBaseProtos.ServerName sn : proto.getDeadServersList()) {
-      deadServers.add(ProtobufUtil.toServerName(sn));
-    }
-
-    List<ServerName> backupMasters = new ArrayList<>(proto.getBackupMastersList().size());
-    for (HBaseProtos.ServerName sn : proto.getBackupMastersList()) {
-      backupMasters.add(ProtobufUtil.toServerName(sn));
-    }
-
-    List<RegionState> rit =
-      new ArrayList<>(proto.getRegionsInTransitionList().size());
-    for (RegionInTransition region : proto.getRegionsInTransitionList()) {
-      RegionState value = RegionState.convert(region.getRegionState());
-      rit.add(value);
-    }
-
-    String[] masterCoprocessors = null;
-    final int numMasterCoprocessors = proto.getMasterCoprocessorsCount();
-    masterCoprocessors = new String[numMasterCoprocessors];
-    for (int i = 0; i < numMasterCoprocessors; i++) {
-      masterCoprocessors[i] = proto.getMasterCoprocessors(i).getName();
-    }
-
-    String clusterId = null;
-    if (proto.hasClusterId()) {
-      clusterId = ClusterId.convert(proto.getClusterId()).toString();
-    }
-
-    String hbaseVersion = null;
-    if (proto.hasHbaseVersion()) {
-      hbaseVersion = proto.getHbaseVersion().getVersion();
-    }
-
-    ServerName master = null;
-    if (proto.hasMaster()) {
-      master = ProtobufUtil.toServerName(proto.getMaster());
-    }
-
-    Boolean balancerOn = null;
-    if (proto.hasBalancerOn()) {
-      balancerOn = proto.getBalancerOn();
-    }
-
-    builder.setHBaseVersion(hbaseVersion)
-           .setClusterId(clusterId)
-           .setLiveServers(servers)
-           .setDeadServers(deadServers)
-           .setMaster(master)
-           .setBackupMasters(backupMasters)
-           .setRegionState(rit)
-           .setMasterCoprocessors(masterCoprocessors)
-           .setBalancerOn(balancerOn);
-    if (proto.hasMasterInfoPort()) {
-      builder.setMasterInfoPort(proto.getMasterInfoPort());
-    }
-    return builder.build();
-  }
-
-  /**
-   * Convert ClusterStatusProtos.Option to ClusterStatus.Option
-   * @param option a ClusterStatusProtos.Option
-   * @return converted ClusterStatus.Option
-   */
-  public static ClusterStatus.Option toOption(ClusterStatusProtos.Option option) {
-    switch (option) {
-      case HBASE_VERSION: return ClusterStatus.Option.HBASE_VERSION;
-      case LIVE_SERVERS: return ClusterStatus.Option.LIVE_SERVERS;
-      case DEAD_SERVERS: return ClusterStatus.Option.DEAD_SERVERS;
-      case REGIONS_IN_TRANSITION: return ClusterStatus.Option.REGIONS_IN_TRANSITION;
-      case CLUSTER_ID: return ClusterStatus.Option.CLUSTER_ID;
-      case MASTER_COPROCESSORS: return ClusterStatus.Option.MASTER_COPROCESSORS;
-      case MASTER: return ClusterStatus.Option.MASTER;
-      case BACKUP_MASTERS: return ClusterStatus.Option.BACKUP_MASTERS;
-      case BALANCER_ON: return ClusterStatus.Option.BALANCER_ON;
-      case MASTER_INFO_PORT: return ClusterStatus.Option.MASTER_INFO_PORT;
-      // should not reach here
-      default: throw new IllegalArgumentException("Invalid option: " + option);
-    }
-  }
-
-  /**
-   * Convert ClusterStatus.Option to ClusterStatusProtos.Option
-   * @param option a ClusterStatus.Option
-   * @return converted ClusterStatusProtos.Option
-   */
-  public static ClusterStatusProtos.Option toOption(ClusterStatus.Option option) {
-    switch (option) {
-      case HBASE_VERSION: return ClusterStatusProtos.Option.HBASE_VERSION;
-      case LIVE_SERVERS: return ClusterStatusProtos.Option.LIVE_SERVERS;
-      case DEAD_SERVERS: return ClusterStatusProtos.Option.DEAD_SERVERS;
-      case REGIONS_IN_TRANSITION: return ClusterStatusProtos.Option.REGIONS_IN_TRANSITION;
-      case CLUSTER_ID: return ClusterStatusProtos.Option.CLUSTER_ID;
-      case MASTER_COPROCESSORS: return ClusterStatusProtos.Option.MASTER_COPROCESSORS;
-      case MASTER: return ClusterStatusProtos.Option.MASTER;
-      case BACKUP_MASTERS: return ClusterStatusProtos.Option.BACKUP_MASTERS;
-      case BALANCER_ON: return ClusterStatusProtos.Option.BALANCER_ON;
-      case MASTER_INFO_PORT: return ClusterStatusProtos.Option.MASTER_INFO_PORT;
-      // should not reach here
-      default: throw new IllegalArgumentException("Invalid option: " + option);
-    }
-  }
-
-  /**
-   * Convert a list of ClusterStatusProtos.Option to an enum set of ClusterStatus.Option
-   * @param options
-   * @return an enum set of ClusterStatus.Option
-   */
-  public static EnumSet<Option> toOptions(List<ClusterStatusProtos.Option> options) {
-    EnumSet<Option> result = EnumSet.noneOf(Option.class);
-    for (ClusterStatusProtos.Option opt : options) {
-      result.add(toOption(opt));
-    }
-    return result;
-  }
-
-  /**
-   * Convert an enum set of ClusterStatus.Option to a list of ClusterStatusProtos.Option
-   * @param options
-   * @return a list of ClusterStatusProtos.Option
-   */
-  public static List<ClusterStatusProtos.Option> toOptions(EnumSet<Option> options) {
-    List<ClusterStatusProtos.Option> result = new ArrayList<>(options.size());
-    for (ClusterStatus.Option opt : options) {
-      result.add(toOption(opt));
-    }
-    return result;
-  }
-
-  /**
-   * Convert a ClusterStatus to a protobuf ClusterStatus
-   *
-   * @return the protobuf ClusterStatus
-   */
-  public static ClusterStatusProtos.ClusterStatus convert(ClusterStatus status) {
-    ClusterStatusProtos.ClusterStatus.Builder builder =
-        ClusterStatusProtos.ClusterStatus.newBuilder();
-    if (status.getHBaseVersion() != null) {
-       builder.setHbaseVersion(
-         HBaseVersionFileContent.newBuilder()
-                                .setVersion(status.getHBaseVersion()));
-    }
-
-    if (status.getServers() != null) {
-      for (ServerName serverName : status.getServers()) {
-        LiveServerInfo.Builder lsi =
-            LiveServerInfo.newBuilder().setServer(ProtobufUtil.toServerName(serverName));
-        lsi.setServerLoad(status.getLoad(serverName).obtainServerLoadPB());
-        builder.addLiveServers(lsi.build());
-      }
-    }
-
-    if (status.getDeadServerNames() != null) {
-      for (ServerName deadServer : status.getDeadServerNames()) {
-        builder.addDeadServers(ProtobufUtil.toServerName(deadServer));
-      }
-    }
-
-    if (status.getRegionsInTransition() != null) {
-      for (RegionState rit : status.getRegionsInTransition()) {
-        ClusterStatusProtos.RegionState rs = rit.convert();
-        RegionSpecifier.Builder spec =
-            RegionSpecifier.newBuilder().setType(RegionSpecifierType.REGION_NAME);
-        spec.setValue(UnsafeByteOperations.unsafeWrap(rit.getRegion().getRegionName()));
-
-        RegionInTransition pbRIT =
-            RegionInTransition.newBuilder().setSpec(spec.build()).setRegionState(rs).build();
-        builder.addRegionsInTransition(pbRIT);
-      }
-    }
-
-    if (status.getClusterId() != null) {
-      builder.setClusterId(new ClusterId(status.getClusterId()).convert());
-    }
-
-    if (status.getMasterCoprocessors() != null) {
-      for (String coprocessor : status.getMasterCoprocessors()) {
-        builder.addMasterCoprocessors(HBaseProtos.Coprocessor.newBuilder().setName(coprocessor));
-      }
-    }
-
-    if (status.getMaster() != null) {
-      builder.setMaster(ProtobufUtil.toServerName(status.getMaster()));
-    }
-
-    if (status.getBackupMasters() != null) {
-      for (ServerName backup : status.getBackupMasters()) {
-        builder.addBackupMasters(ProtobufUtil.toServerName(backup));
-      }
-    }
-
-    if (status.getBalancerOn() != null) {
-      builder.setBalancerOn(status.getBalancerOn());
-    }
-
-    builder.setMasterInfoPort(status.getMasterInfoPort());
-    return builder.build();
-  }
-
   public static RegionLoadStats createRegionLoadStats(ClientProtos.RegionLoadStats stats) {
     return new RegionLoadStats(stats.getMemStoreLoad(), stats.getHeapOccupancy(),
         stats.getCompactionPressure());
@@ -3223,28 +3003,32 @@ public final class ProtobufUtil {
    }
 
   /**
-    * Create a CloseRegionRequest for a given region name
-    *
-    * @param regionName the name of the region to close
-    * @return a CloseRegionRequest
-    */
-   public static CloseRegionRequest buildCloseRegionRequest(ServerName server,
-       final byte[] regionName) {
-     return ProtobufUtil.buildCloseRegionRequest(server, regionName, null);
-   }
+   * Create a CloseRegionRequest for a given region name
+   * @param regionName the name of the region to close
+   * @return a CloseRegionRequest
+   */
+  public static CloseRegionRequest buildCloseRegionRequest(ServerName server, byte[] regionName) {
+    return ProtobufUtil.buildCloseRegionRequest(server, regionName, null);
+  }
 
-  public static CloseRegionRequest buildCloseRegionRequest(ServerName server,
-    final byte[] regionName, ServerName destinationServer) {
+  public static CloseRegionRequest buildCloseRegionRequest(ServerName server, byte[] regionName,
+      ServerName destinationServer) {
+    return buildCloseRegionRequest(server, regionName, destinationServer, -1);
+  }
+
+  public static CloseRegionRequest buildCloseRegionRequest(ServerName server, byte[] regionName,
+      ServerName destinationServer, long closeProcId) {
     CloseRegionRequest.Builder builder = CloseRegionRequest.newBuilder();
-    RegionSpecifier region = RequestConverter.buildRegionSpecifier(
-      RegionSpecifierType.REGION_NAME, regionName);
+    RegionSpecifier region =
+      RequestConverter.buildRegionSpecifier(RegionSpecifierType.REGION_NAME, regionName);
     builder.setRegion(region);
-    if (destinationServer != null){
+    if (destinationServer != null) {
       builder.setDestinationServer(toServerName(destinationServer));
     }
     if (server != null) {
       builder.setServerStartCode(server.getStartcode());
     }
+    builder.setCloseProcId(closeProcId);
     return builder.build();
   }
 
@@ -3395,6 +3179,22 @@ public final class ProtobufUtil {
     return rib.build();
   }
 
+  public static HBaseProtos.RegionLocation toRegionLocation(HRegionLocation loc) {
+    HBaseProtos.RegionLocation.Builder builder = HBaseProtos.RegionLocation.newBuilder();
+    builder.setRegionInfo(toRegionInfo(loc.getRegion()));
+    if (loc.getServerName() != null) {
+      builder.setServerName(toServerName(loc.getServerName()));
+    }
+    builder.setSeqNum(loc.getSeqNum());
+    return builder.build();
+  }
+
+  public static HRegionLocation toRegionLocation(HBaseProtos.RegionLocation proto) {
+    org.apache.hadoop.hbase.client.RegionInfo regionInfo = toRegionInfo(proto.getRegionInfo());
+    ServerName serverName = proto.hasServerName() ? toServerName(proto.getServerName()) : null;
+    return new HRegionLocation(regionInfo, serverName, proto.getSeqNum());
+  }
+
   public static List<SnapshotDescription> toSnapshotDescriptionList(
       GetCompletedSnapshotsResponse response, Pattern pattern) {
     return response.getSnapshotsList().stream().map(ProtobufUtil::createSnapshotDesc)
@@ -3402,17 +3202,95 @@ public final class ProtobufUtil {
         .collect(Collectors.toList());
   }
 
-  public static CacheEvictionStats toCacheEvictionStats(HBaseProtos.CacheEvictionStats cacheEvictionStats) {
-    return CacheEvictionStats.builder()
-        .withEvictedBlocks(cacheEvictionStats.getEvictedBlocks())
-        .withMaxCacheSize(cacheEvictionStats.getMaxCacheSize())
-        .build();
+  public static CacheEvictionStats toCacheEvictionStats(
+      HBaseProtos.CacheEvictionStats stats) throws IOException{
+    CacheEvictionStatsBuilder builder = CacheEvictionStats.builder();
+    builder.withEvictedBlocks(stats.getEvictedBlocks())
+        .withMaxCacheSize(stats.getMaxCacheSize());
+    if (stats.getExceptionCount() > 0) {
+      for (HBaseProtos.RegionExceptionMessage exception : stats.getExceptionList()) {
+        HBaseProtos.RegionSpecifier rs = exception.getRegion();
+        byte[] regionName = rs.getValue().toByteArray();
+        builder.addException(regionName, ProtobufUtil.toException(exception.getException()));
+      }
+    }
+    return builder.build();
   }
 
-  public static HBaseProtos.CacheEvictionStats toCacheEvictionStats(CacheEvictionStats cacheEvictionStats) {
-    return HBaseProtos.CacheEvictionStats.newBuilder()
+  public static HBaseProtos.CacheEvictionStats toCacheEvictionStats(
+      CacheEvictionStats cacheEvictionStats) {
+    HBaseProtos.CacheEvictionStats.Builder builder
+        = HBaseProtos.CacheEvictionStats.newBuilder();
+    for (Map.Entry<byte[], Throwable> entry : cacheEvictionStats.getExceptions().entrySet()) {
+      builder.addException(
+          RegionExceptionMessage.newBuilder()
+          .setRegion(RequestConverter.buildRegionSpecifier(
+                  RegionSpecifierType.REGION_NAME, entry.getKey()))
+          .setException(ResponseConverter.buildException(entry.getValue()))
+          .build()
+      );
+    }
+    return builder
         .setEvictedBlocks(cacheEvictionStats.getEvictedBlocks())
         .setMaxCacheSize(cacheEvictionStats.getMaxCacheSize())
         .build();
+  }
+
+  public static ClusterStatusProtos.ReplicationLoadSource toReplicationLoadSource(
+      ReplicationLoadSource rls) {
+    return ClusterStatusProtos.ReplicationLoadSource.newBuilder()
+        .setPeerID(rls.getPeerID())
+        .setAgeOfLastShippedOp(rls.getAgeOfLastShippedOp())
+        .setSizeOfLogQueue((int) rls.getSizeOfLogQueue())
+        .setTimeStampOfLastShippedOp(rls.getTimestampOfLastShippedOp())
+        .setReplicationLag(rls.getReplicationLag())
+        .setQueueId(rls.getQueueId())
+        .setRecovered(rls.isRecovered())
+        .setRunning(rls.isRunning())
+        .setEditsSinceRestart(rls.hasEditsSinceRestart())
+        .setTimeStampOfNextToReplicate(rls.getTimeStampOfNextToReplicate())
+        .setOPsShipped(rls.getOPsShipped())
+        .setEditsRead(rls.getEditsRead())
+        .build();
+  }
+
+  public static ClusterStatusProtos.ReplicationLoadSink toReplicationLoadSink(
+      ReplicationLoadSink rls) {
+    return ClusterStatusProtos.ReplicationLoadSink.newBuilder()
+        .setAgeOfLastAppliedOp(rls.getAgeOfLastAppliedOp())
+        .setTimeStampsOfLastAppliedOp(rls.getTimestampsOfLastAppliedOp())
+        .build();
+  }
+
+  public static HBaseProtos.TimeRange toTimeRange(TimeRange timeRange) {
+    if (timeRange == null) {
+      timeRange = TimeRange.allTime();
+    }
+    return HBaseProtos.TimeRange.newBuilder().setFrom(timeRange.getMin())
+      .setTo(timeRange.getMax())
+      .build();
+  }
+
+  public static byte[] toCompactionEventTrackerBytes(Set<String> storeFiles) {
+    HFileProtos.CompactionEventTracker.Builder builder =
+        HFileProtos.CompactionEventTracker.newBuilder();
+    storeFiles.forEach(sf -> builder.addCompactedStoreFile(ByteString.copyFromUtf8(sf)));
+    return ProtobufUtil.prependPBMagic(builder.build().toByteArray());
+  }
+
+  public static Set<String> toCompactedStoreFiles(byte[] bytes) throws IOException {
+    if (bytes != null && ProtobufUtil.isPBMagicPrefix(bytes)) {
+      int pbLen = ProtobufUtil.lengthOfPBMagic();
+      HFileProtos.CompactionEventTracker.Builder builder =
+          HFileProtos.CompactionEventTracker.newBuilder();
+      ProtobufUtil.mergeFrom(builder, bytes, pbLen, bytes.length - pbLen);
+      HFileProtos.CompactionEventTracker compactionEventTracker = builder.build();
+      List<ByteString> compactedStoreFiles = compactionEventTracker.getCompactedStoreFileList();
+      if (compactedStoreFiles != null && compactedStoreFiles.size() != 0) {
+        return compactedStoreFiles.stream().map(ByteString::toStringUtf8)
+            .collect(Collectors.toSet());
+      }
+    }
+    return Collections.emptySet();
   }
 }

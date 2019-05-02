@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -30,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.RegionTooBusyException;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
 
@@ -117,8 +117,7 @@ extends RetriesExhaustedException {
     String s = getDesc(classifyExs(exceptions));
     StringBuilder addrs = new StringBuilder(s);
     addrs.append("servers with issues: ");
-    Set<String> uniqAddr = new HashSet<>();
-    uniqAddr.addAll(hostnamePort);
+    Set<String> uniqAddr = new HashSet<>(hostnamePort);
 
     for (String addr : uniqAddr) {
       addrs.append(addr).append(", ");
@@ -154,7 +153,11 @@ extends RetriesExhaustedException {
     for (Throwable t : ths) {
       if (t == null) continue;
       String name = "";
-      if (t instanceof DoNotRetryIOException) {
+      if (t instanceof DoNotRetryIOException ||
+          t instanceof RegionTooBusyException) {
+        // If RegionTooBusyException, print message since it has Region name in it.
+        // RegionTooBusyException message was edited to remove variance. Has regionname, server,
+        // and why the exception; no longer has duration it waited on lock nor current memsize.
         name = t.getMessage();
       } else {
         name = t.getClass().getSimpleName();
@@ -181,5 +184,4 @@ extends RetriesExhaustedException {
     }
     return classificatons.toString();
   }
-
 }

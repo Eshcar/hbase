@@ -18,16 +18,18 @@
 
 package org.apache.hadoop.hbase.mapreduce;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import static org.junit.Assert.assertFalse;
+
+import java.io.IOException;
+import java.util.Arrays;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.StartMiniClusterOption;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Result;
@@ -41,19 +43,12 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.HFileArchiveUtil;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
-
-import static org.junit.Assert.assertFalse;
-
-import java.io.IOException;
-import java.util.Arrays;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class TableSnapshotInputFormatTestBase {
-  private static final Log LOG = LogFactory.getLog(TableSnapshotInputFormatTestBase.class);
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().
-      withTimeout(this.getClass()).withLookingForStuckThread(true).build();
+  private static final Logger LOG = LoggerFactory.getLogger(TableSnapshotInputFormatTestBase.class);
   protected final HBaseTestingUtility UTIL = new HBaseTestingUtility();
   protected static final int NUM_REGION_SERVERS = 2;
   protected static final byte[][] FAMILIES = {Bytes.toBytes("f1"), Bytes.toBytes("f2")};
@@ -63,7 +58,10 @@ public abstract class TableSnapshotInputFormatTestBase {
 
   public void setupCluster() throws Exception {
     setupConf(UTIL.getConfiguration());
-    UTIL.startMiniCluster(NUM_REGION_SERVERS, true);
+    StartMiniClusterOption option = StartMiniClusterOption.builder()
+        .numRegionServers(NUM_REGION_SERVERS).numDataNodes(NUM_REGION_SERVERS)
+        .createRootDir(true).build();
+    UTIL.startMiniCluster(option);
     rootDir = UTIL.getHBaseCluster().getMaster().getMasterFileSystem().getRootDir();
     fs = rootDir.getFileSystem(UTIL.getConfiguration());
   }
@@ -78,7 +76,8 @@ public abstract class TableSnapshotInputFormatTestBase {
   }
 
   protected abstract void testWithMockedMapReduce(HBaseTestingUtility util, String snapshotName,
-    int numRegions, int numSplitsPerRegion, int expectedNumSplits) throws Exception;
+    int numRegions, int numSplitsPerRegion, int expectedNumSplits, boolean setLocalityEnabledTo)
+    throws Exception;
 
   protected abstract void testWithMapReduceImpl(HBaseTestingUtility util, TableName tableName,
     String snapshotName, Path tableDir, int numRegions, int numSplitsPerRegion, int expectedNumSplits,
@@ -90,12 +89,12 @@ public abstract class TableSnapshotInputFormatTestBase {
 
   @Test
   public void testWithMockedMapReduceSingleRegion() throws Exception {
-    testWithMockedMapReduce(UTIL, "testWithMockedMapReduceSingleRegion", 1, 1, 1);
+    testWithMockedMapReduce(UTIL, "testWithMockedMapReduceSingleRegion", 1, 1, 1, true);
   }
 
   @Test
   public void testWithMockedMapReduceMultiRegion() throws Exception {
-    testWithMockedMapReduce(UTIL, "testWithMockedMapReduceMultiRegion", 10, 1, 8);
+    testWithMockedMapReduce(UTIL, "testWithMockedMapReduceMultiRegion", 10, 1, 8, false);
   }
 
   @Test
@@ -106,11 +105,6 @@ public abstract class TableSnapshotInputFormatTestBase {
   @Test
   public void testWithMapReduceMultiRegion() throws Exception {
     testWithMapReduce(UTIL, "testWithMapReduceMultiRegion", 10, 1, 8, false);
-  }
-
-  @Test
-  public void testWithMapReduceMultipleMappersPerRegion() throws Exception {
-    testWithMapReduce(UTIL, "testWithMapReduceMultiRegion", 10, 5, 50, false);
   }
 
   @Test

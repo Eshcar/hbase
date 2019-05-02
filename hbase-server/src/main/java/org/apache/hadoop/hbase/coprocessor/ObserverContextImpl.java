@@ -18,12 +18,12 @@
 package org.apache.hadoop.hbase.coprocessor;
 
 import java.util.Optional;
-
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.ipc.RpcServer;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.yetus.audience.InterfaceAudience;
+
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * This is the only implementation of {@link ObserverContext}, which serves as the interface for
@@ -48,6 +48,7 @@ public class ObserverContextImpl<E extends CoprocessorEnvironment> implements Ob
     this.bypassable = bypassable;
   }
 
+  @Override
   public E getEnvironment() {
     return env;
   }
@@ -58,8 +59,9 @@ public class ObserverContextImpl<E extends CoprocessorEnvironment> implements Ob
 
   public boolean isBypassable() {
     return this.bypassable;
-  };
+  }
 
+  @Override
   public void bypass() {
     if (!this.bypassable) {
       throw new UnsupportedOperationException("This method does not support 'bypass'.");
@@ -82,6 +84,7 @@ public class ObserverContextImpl<E extends CoprocessorEnvironment> implements Ob
     return false;
   }
 
+  @Override
   public Optional<User> getCaller() {
     return Optional.ofNullable(caller);
   }

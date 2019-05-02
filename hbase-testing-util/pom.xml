@@ -29,17 +29,6 @@
     <artifactId>hbase-testing-util</artifactId>
     <name>Apache HBase - Testing Util</name>
     <description>HBase Testing Utilities.</description>
-    <build>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-site-plugin</artifactId>
-          <configuration>
-            <skip>true</skip>
-          </configuration>
-        </plugin>
-      </plugins>
-    </build>
     <dependencies>
         <!-- Intra-project dependencies -->
         <dependency>
@@ -76,6 +65,18 @@
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase-client</artifactId>
             <type>jar</type>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hbase</groupId>
+            <artifactId>hbase-zookeeper</artifactId>
+            <type>jar</type>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hbase</groupId>
+            <artifactId>hbase-zookeeper</artifactId>
+            <type>test-jar</type>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -117,7 +118,6 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>${slf4j.version}</version>
         </dependency>
     </dependencies>
 
@@ -140,12 +140,6 @@
                     <groupId>org.apache.hadoop</groupId>
                     <artifactId>hadoop-common</artifactId>
                     <scope>compile</scope>
-                    <exclusions>
-                        <exclusion>
-                            <groupId>org.apache.htrace</groupId>
-                            <artifactId>htrace-core</artifactId>
-                        </exclusion>
-                    </exclusions>
                 </dependency>
                 <dependency>
                     <groupId>org.apache.hadoop</groupId>
@@ -189,32 +183,12 @@
                     <groupId>org.apache.hadoop</groupId>
                     <artifactId>hadoop-hdfs</artifactId>
                     <scope>compile</scope>
-                    <exclusions>
-                      <exclusion>
-                        <groupId>org.apache.htrace</groupId>
-                        <artifactId>htrace-core</artifactId>
-                      </exclusion>
-                      <exclusion>
-                        <groupId>com.google.guava</groupId>
-                        <artifactId>guava</artifactId>
-                      </exclusion>
-                    </exclusions>
                 </dependency>
                 <dependency>
                     <groupId>org.apache.hadoop</groupId>
                     <artifactId>hadoop-hdfs</artifactId>
                     <type>test-jar</type>
                     <scope>compile</scope>
-                    <exclusions>
-                      <exclusion>
-                        <groupId>org.apache.htrace</groupId>
-                        <artifactId>htrace-core</artifactId>
-                      </exclusion>
-                      <exclusion>
-                        <groupId>com.google.guava</groupId>
-                        <artifactId>guava</artifactId>
-                      </exclusion>
-                    </exclusions>
                 </dependency>
                 <dependency>
                     <groupId>org.apache.hadoop</groupId>
@@ -222,12 +196,12 @@
                     <scope>compile</scope>
                     <exclusions>
                       <exclusion>
-                        <groupId>org.apache.htrace</groupId>
-                        <artifactId>htrace-core</artifactId>
-                      </exclusion>
-                      <exclusion>
                         <groupId>com.google.guava</groupId>
                         <artifactId>guava</artifactId>
+                      </exclusion>
+                      <exclusion>
+                        <groupId>org.apache.zookeeper</groupId>
+                        <artifactId>zookeeper</artifactId>
                       </exclusion>
                     </exclusions>
                 </dependency>
@@ -249,31 +223,15 @@
                     <value>3.0</value>
                 </property>
             </activation>
-            <properties>
-                <hadoop.version>3.0-SNAPSHOT</hadoop.version>
-            </properties>
             <dependencies>
                 <dependency>
                     <groupId>org.apache.hadoop</groupId>
                     <artifactId>hadoop-common</artifactId>
-                    <scope>compile</scope>
-                    <exclusions>
-                        <exclusion>
-                            <groupId>org.apache.htrace</groupId>
-                            <artifactId>htrace-core</artifactId>
-                        </exclusion>
-                    </exclusions>
                 </dependency>
                 <dependency>
                     <groupId>org.apache.hadoop</groupId>
                     <artifactId>hadoop-minicluster</artifactId>
                     <scope>compile</scope>
-                    <exclusions>
-                        <exclusion>
-                            <groupId>org.apache.htrace</groupId>
-                            <artifactId>htrace-core</artifactId>
-                        </exclusion>
-                    </exclusions>
                 </dependency>
                 <dependency>
                     <groupId>org.apache.hadoop</groupId>

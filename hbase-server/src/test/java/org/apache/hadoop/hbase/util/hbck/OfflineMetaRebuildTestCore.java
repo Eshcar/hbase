@@ -22,9 +22,6 @@ import static org.junit.Assert.assertEquals;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -49,6 +46,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.regionserver.HRegionFileSystem;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
@@ -58,6 +56,8 @@ import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This testing base class creates a minicluster and testing table table
@@ -74,8 +74,8 @@ import org.junit.experimental.categories.Category;
  */
 @Category({MiscTests.class, LargeTests.class})
 public class OfflineMetaRebuildTestCore {
-  private final static Log LOG = LogFactory
-      .getLog(OfflineMetaRebuildTestCore.class);
+  private final static Logger LOG = LoggerFactory
+      .getLogger(OfflineMetaRebuildTestCore.class);
   protected HBaseTestingUtility TEST_UTIL;
   protected Configuration conf;
   private final static byte[] FAM = Bytes.toBytes("fam");
@@ -97,7 +97,7 @@ public class OfflineMetaRebuildTestCore {
     TEST_UTIL.startMiniCluster(3);
     conf = TEST_UTIL.getConfiguration();
     this.connection = ConnectionFactory.createConnection(conf);
-    assertEquals(0, TEST_UTIL.getAdmin().listTables().length);
+    assertEquals(0, TEST_UTIL.getAdmin().listTableDescriptors().size());
 
     // setup the table
     table = TableName.valueOf(TABLE_BASE + "-" + tableIdx);
@@ -109,7 +109,7 @@ public class OfflineMetaRebuildTestCore {
         + " entries.");
     assertEquals(16, tableRowCount(conf, table));
     TEST_UTIL.getAdmin().disableTable(table);
-    assertEquals(1, TEST_UTIL.getAdmin().listTables().length);
+    assertEquals(1, TEST_UTIL.getAdmin().listTableDescriptors().size());
   }
 
   @After
@@ -221,7 +221,7 @@ public class OfflineMetaRebuildTestCore {
     out.close();
 
     // add to meta.
-    MetaTableAccessor.addRegionToMeta(meta, hri);
+    MetaTableAccessor.addRegionToMeta(TEST_UTIL.getConnection(), hri);
     meta.close();
     return hri;
   }
@@ -280,13 +280,11 @@ public class OfflineMetaRebuildTestCore {
     return MetaTableAccessor.fullScanRegions(TEST_UTIL.getConnection()).size();
   }
 
-  protected HTableDescriptor[] getTables(final Configuration configuration) throws IOException {
-    HTableDescriptor[] htbls = null;
+  protected List<TableDescriptor> getTables(final Configuration configuration) throws IOException {
     try (Connection connection = ConnectionFactory.createConnection(configuration)) {
       try (Admin admin = connection.getAdmin()) {
-        htbls = admin.listTables();
+        return admin.listTableDescriptors();
       }
     }
-    return htbls;
   }
 }

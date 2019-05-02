@@ -18,15 +18,15 @@
 
 package org.apache.hadoop.hbase.security.visibility;
 
-import static org.apache.hadoop.hbase.HConstants.OperationStatusCode.SANITY_CHECK_FAILURE;
-import static org.apache.hadoop.hbase.HConstants.OperationStatusCode.SUCCESS;
-import static org.apache.hadoop.hbase.security.visibility.VisibilityConstants.LABELS_TABLE_FAMILY;
-import static org.apache.hadoop.hbase.security.visibility.VisibilityConstants.LABELS_TABLE_NAME;
-
 import com.google.protobuf.ByteString;
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
+
+import static org.apache.hadoop.hbase.HConstants.OperationStatusCode.SANITY_CHECK_FAILURE;
+import static org.apache.hadoop.hbase.HConstants.OperationStatusCode.SUCCESS;
+import static org.apache.hadoop.hbase.security.visibility.VisibilityConstants.LABELS_TABLE_FAMILY;
+import static org.apache.hadoop.hbase.security.visibility.VisibilityConstants.LABELS_TABLE_NAME;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -36,10 +36,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.AuthUtil;
 import org.apache.hadoop.hbase.Cell;
@@ -49,12 +48,11 @@ import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.MetaTableAccessor;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.TagType;
-import org.apache.hadoop.hbase.TagUtil;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.Delete;
@@ -108,14 +106,16 @@ import org.apache.hadoop.hbase.regionserver.querymatcher.DeleteTracker;
 import org.apache.hadoop.hbase.security.AccessDeniedException;
 import org.apache.hadoop.hbase.security.Superusers;
 import org.apache.hadoop.hbase.security.User;
+import org.apache.hadoop.hbase.security.access.AccessChecker;
 import org.apache.hadoop.hbase.security.access.AccessController;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.MapMaker;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.MapMaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Coprocessor that has both the MasterObserver and RegionObserver implemented that supports in
@@ -127,8 +127,9 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.MapMaker;
 public class VisibilityController implements MasterCoprocessor, RegionCoprocessor,
     VisibilityLabelsService.Interface, MasterObserver, RegionObserver {
 
-  private static final Log LOG = LogFactory.getLog(VisibilityController.class);
-  private static final Log AUDITLOG = LogFactory.getLog("SecurityLogger."
+
+  private static final Logger LOG = LoggerFactory.getLogger(VisibilityController.class);
+  private static final Logger AUDITLOG = LoggerFactory.getLogger("SecurityLogger."
       + VisibilityController.class.getName());
   // flags if we are running on a region of the 'labels' table
   private boolean labelsRegion = false;
@@ -143,8 +144,8 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
 
   private VisibilityLabelService visibilityLabelService;
 
-  /** if we are active, usually true, only not true if "hbase.security.authorization"
-    has been set to false in site configuration */
+  /** if we are active, usually false, only true if "hbase.security.authorization"
+    has been set to true in site configuration */
   boolean authorizationEnabled;
 
   // Add to this list if there are any reserved tag types
@@ -155,19 +156,15 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
     RESERVED_VIS_TAG_TYPES.add(TagType.STRING_VIS_TAG_TYPE);
   }
 
-  public static boolean isAuthorizationSupported(Configuration conf) {
-    return conf.getBoolean(User.HBASE_SECURITY_AUTHORIZATION_CONF_KEY, true);
-  }
-
   public static boolean isCellAuthorizationSupported(Configuration conf) {
-    return isAuthorizationSupported(conf);
+    return AccessChecker.isAuthorizationSupported(conf);
   }
 
   @Override
   public void start(CoprocessorEnvironment env) throws IOException {
     this.conf = env.getConfiguration();
 
-    authorizationEnabled = isAuthorizationSupported(conf);
+    authorizationEnabled = AccessChecker.isAuthorizationSupported(conf);
     if (!authorizationEnabled) {
       LOG.warn("The VisibilityController has been loaded with authorization checks disabled.");
     }
@@ -230,14 +227,15 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
   }
 
   @Override
-  public void preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      TableName tableName, TableDescriptor htd) throws IOException {
-    if (!authorizationEnabled) {
-      return;
+  public TableDescriptor preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      TableName tableName, TableDescriptor currentDescriptor, TableDescriptor newDescriptor)
+      throws IOException {
+    if (authorizationEnabled) {
+      if (LABELS_TABLE_NAME.equals(tableName)) {
+        throw new ConstraintException("Cannot alter " + LABELS_TABLE_NAME);
+      }
     }
-    if (LABELS_TABLE_NAME.equals(tableName)) {
-      throw new ConstraintException("Cannot alter " + LABELS_TABLE_NAME);
-    }
+    return newDescriptor;
   }
 
   @Override
@@ -321,7 +319,7 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
           Tag tag = pair.getSecond();
           if (cellVisibility == null && tag != null) {
             // May need to store only the first one
-            cellVisibility = new CellVisibility(TagUtil.getValueAsString(tag));
+            cellVisibility = new CellVisibility(Tag.getValueAsString(tag));
             modifiedTagFound = true;
           }
         }
@@ -407,7 +405,7 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
 
     if (result.size() < get.getMaxVersions()) {
       // Nothing to delete
-      PrivateCellUtil.updateLatestStamp(cell, byteNow, 0);
+      PrivateCellUtil.updateLatestStamp(cell, byteNow);
       return;
     }
     if (result.size() > get.getMaxVersions()) {
@@ -691,8 +689,30 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
   }
 
   @Override
-  public Cell postMutationBeforeWAL(ObserverContext<RegionCoprocessorEnvironment> ctx,
-      MutationType opType, Mutation mutation, Cell oldCell, Cell newCell) throws IOException {
+  public List<Pair<Cell, Cell>> postIncrementBeforeWAL(
+      ObserverContext<RegionCoprocessorEnvironment> ctx, Mutation mutation,
+      List<Pair<Cell, Cell>> cellPairs) throws IOException {
+    List<Pair<Cell, Cell>> resultPairs = new ArrayList<>(cellPairs.size());
+    for (Pair<Cell, Cell> pair : cellPairs) {
+      resultPairs
+          .add(new Pair<>(pair.getFirst(), createNewCellWithTags(mutation, pair.getSecond())));
+    }
+    return resultPairs;
+  }
+
+  @Override
+  public List<Pair<Cell, Cell>> postAppendBeforeWAL(
+      ObserverContext<RegionCoprocessorEnvironment> ctx, Mutation mutation,
+      List<Pair<Cell, Cell>> cellPairs) throws IOException {
+    List<Pair<Cell, Cell>> resultPairs = new ArrayList<>(cellPairs.size());
+    for (Pair<Cell, Cell> pair : cellPairs) {
+      resultPairs
+          .add(new Pair<>(pair.getFirst(), createNewCellWithTags(mutation, pair.getSecond())));
+    }
+    return resultPairs;
+  }
+
+  private Cell createNewCellWithTags(Mutation mutation, Cell newCell) throws IOException {
     List<Tag> tags = Lists.newArrayList();
     CellVisibility cellVisibility = null;
     try {
@@ -718,8 +738,7 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
       }
     }
 
-    Cell rewriteCell = PrivateCellUtil.createCell(newCell, tags);
-    return rewriteCell;
+    return PrivateCellUtil.createCell(newCell, tags);
   }
 
   @Override
@@ -758,8 +777,9 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
           logResult(true, "addLabels", "Adding labels allowed", null, labels, null);
           int i = 0;
           for (OperationStatus status : opStatus) {
-            while (response.getResult(i) != successResult)
+            while (!Objects.equals(response.getResult(i), successResult)) {
               i++;
+            }
             if (status.getOperationStatusCode() != SUCCESS) {
               RegionActionResult.Builder failureResultBuilder = RegionActionResult.newBuilder();
               failureResultBuilder.setException(buildException(new DoNotRetryIOException(
@@ -774,7 +794,7 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
         LOG.error("User is not having required permissions to add labels", e);
         setExceptionResults(visLabels.size(), e, response);
       } catch (IOException e) {
-        LOG.error(e);
+        LOG.error(e.toString(), e);
         setExceptionResults(visLabels.size(), e, response);
       }
     }
@@ -829,7 +849,7 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
         LOG.error("User is not having required permissions to set authorization", e);
         setExceptionResults(auths.size(), e, response);
       } catch (IOException e) {
-        LOG.error(e);
+        LOG.error(e.toString(), e);
         setExceptionResults(auths.size(), e, response);
       }
     }
@@ -953,7 +973,7 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
         LOG.error("User is not having required permissions to clear authorization", e);
         setExceptionResults(auths.size(), e, response);
       } catch (IOException e) {
-        LOG.error(e);
+        LOG.error(e.toString(), e);
         setExceptionResults(auths.size(), e, response);
       }
     }
@@ -1040,6 +1060,24 @@ public class VisibilityController implements MasterCoprocessor, RegionCoprocesso
           .matchVisibility(putVisTags, putCellVisTagsFormat, deleteCellVisTags,
               deleteCellVisTagsFormat);
       return matchFound ? ReturnCode.INCLUDE : ReturnCode.SKIP;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (!(obj instanceof DeleteVersionVisibilityExpressionFilter)) {
+        return false;
+      }
+      if (this == obj){
+        return true;
+      }
+      DeleteVersionVisibilityExpressionFilter f = (DeleteVersionVisibilityExpressionFilter)obj;
+      return this.deleteCellVisTags.equals(f.deleteCellVisTags) &&
+          this.deleteCellVisTagsFormat.equals(f.deleteCellVisTagsFormat);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(this.deleteCellVisTags, this.deleteCellVisTagsFormat);
     }
   }
 

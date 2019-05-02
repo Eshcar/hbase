@@ -15,25 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.master.procedure;
 
 import org.apache.hadoop.hbase.TableName;
 import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.yetus.audience.InterfaceStability;
 
 /**
  * Procedures that operates on a specific Table (e.g. create, delete, snapshot, ...)
  * must implement this interface to allow the system handle the lock/concurrency problems.
  */
 @InterfaceAudience.Private
-@InterfaceStability.Evolving
 public interface TableProcedureInterface {
+
+  /**
+   * Used for acquire/release lock for namespace related operations, just a place holder as we do
+   * not have namespace table any more.
+   */
+  public static final TableName DUMMY_NAMESPACE_TABLE_NAME = TableName.NAMESPACE_TABLE_NAME;
+
   public enum TableOperationType {
     CREATE, DELETE, DISABLE, EDIT, ENABLE, READ,
     REGION_EDIT, REGION_SPLIT, REGION_MERGE, REGION_ASSIGN, REGION_UNASSIGN,
       REGION_GC, MERGED_REGIONS_GC/* region operations */
-  };
+  }
 
   /**
    * @return the name of the table the procedure is operating on

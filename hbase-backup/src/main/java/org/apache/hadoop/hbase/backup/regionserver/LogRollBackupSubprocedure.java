@@ -22,8 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.backup.impl.BackupSystemTable;
 import org.apache.hadoop.hbase.backup.master.LogRollMasterProcedureManager;
 import org.apache.hadoop.hbase.client.Connection;
@@ -37,13 +35,15 @@ import org.apache.hadoop.hbase.regionserver.wal.AbstractFSWAL;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This backup sub-procedure implementation forces a WAL rolling on a RS.
  */
 @InterfaceAudience.Private
 public class LogRollBackupSubprocedure extends Subprocedure {
-  private static final Log LOG = LogFactory.getLog(LogRollBackupSubprocedure.class);
+  private static final Logger LOG = LoggerFactory.getLogger(LogRollBackupSubprocedure.class);
 
   private final RegionServerServices rss;
   private final LogRollBackupSubprocedurePool taskManager;
@@ -52,7 +52,6 @@ public class LogRollBackupSubprocedure extends Subprocedure {
   public LogRollBackupSubprocedure(RegionServerServices rss, ProcedureMember member,
       ForeignExceptionDispatcher errorListener, long wakeFrequency, long timeout,
       LogRollBackupSubprocedurePool taskManager, byte[] data) {
-
     super(member, LogRollMasterProcedureManager.ROLLLOG_PROCEDURE_NAME, errorListener,
         wakeFrequency, timeout);
     LOG.info("Constructing a LogRollBackupSubprocedure.");
@@ -82,7 +81,10 @@ public class LogRollBackupSubprocedure extends Subprocedure {
       List<WAL> wals = rss.getWALs();
       long highest = -1;
       for (WAL wal : wals) {
-        if (wal == null) continue;
+        if (wal == null) {
+          continue;
+        }
+
         if (((AbstractFSWAL<?>) wal).getFilenum() > highest) {
           highest = ((AbstractFSWAL<?>) wal).getFilenum();
         }
@@ -109,14 +111,15 @@ public class LogRollBackupSubprocedure extends Subprocedure {
         String server = host + ":" + port;
         Long sts = serverTimestampMap.get(host);
         if (sts != null && sts > highest) {
-          LOG.warn("Won't update server's last roll log result: current=" + sts + " new=" + highest);
+          LOG.warn("Won't update server's last roll log result: current=" + sts + " new="
+                  + highest);
           return null;
         }
         // write the log number to backup system table.
         table.writeRegionServerLastLogRollResult(server, highest, backupRoot);
         return null;
       } catch (Exception e) {
-        LOG.error(e);
+        LOG.error(e.toString(), e);
         throw e;
       }
     }
@@ -131,11 +134,10 @@ public class LogRollBackupSubprocedure extends Subprocedure {
     // wait for everything to complete.
     taskManager.waitForOutstandingTasks();
     monitor.rethrowException();
-
   }
 
   @Override
-  public void acquireBarrier() throws ForeignException {
+  public void acquireBarrier() {
     // do nothing, executing in inside barrier step.
   }
 
@@ -163,5 +165,4 @@ public class LogRollBackupSubprocedure extends Subprocedure {
   public void releaseBarrier() {
     // NO OP
   }
-
 }

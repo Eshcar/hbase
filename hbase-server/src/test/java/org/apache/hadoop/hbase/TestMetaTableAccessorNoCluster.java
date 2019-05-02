@@ -26,32 +26,33 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableMap;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.client.ClusterConnection;
 import org.apache.hadoop.hbase.client.HConnectionTestingUtility;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.RegionInfoBuilder;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.ipc.HBaseRpcController;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ScanRequest;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ScanResponse;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.RpcController;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException;
+import org.apache.hbase.thirdparty.com.google.protobuf.RpcController;
+import org.apache.hbase.thirdparty.com.google.protobuf.ServiceException;
+
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ScanRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.ScanResponse;
 
 /**
  * Test MetaTableAccessor but without spinning up a cluster.
@@ -59,7 +60,12 @@ import org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException;
  */
 @Category({MiscTests.class, MediumTests.class})
 public class TestMetaTableAccessorNoCluster {
-  private static final Log LOG = LogFactory.getLog(TestMetaTableAccessorNoCluster.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMetaTableAccessorNoCluster.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestMetaTableAccessorNoCluster.class);
   private static final  HBaseTestingUtility UTIL = new HBaseTestingUtility();
   private static final Abortable ABORTABLE = new Abortable() {
     boolean aborted = false;
@@ -116,7 +122,7 @@ public class TestMetaTableAccessorNoCluster {
   /**
    * Test that MetaTableAccessor will ride over server throwing
    * "Server not running" IOEs.
-   * @see @link {https://issues.apache.org/jira/browse/HBASE-3446}
+   * @see <a href="https://issues.apache.org/jira/browse/HBASE-3446">HBASE-3446</a>
    * @throws IOException
    * @throws InterruptedException
    */
@@ -164,6 +170,7 @@ public class TestMetaTableAccessorNoCluster {
           .thenThrow(new ServiceException("Server not running (2 of 3)"))
           .thenThrow(new ServiceException("Server not running (3 of 3)"))
           .thenAnswer(new Answer<ScanResponse>() {
+            @Override
             public ScanResponse answer(InvocationOnMock invocation) throws Throwable {
               ((HBaseRpcController) invocation.getArgument(0)).setCellScanner(CellUtil
                   .createCellScanner(cellScannables));

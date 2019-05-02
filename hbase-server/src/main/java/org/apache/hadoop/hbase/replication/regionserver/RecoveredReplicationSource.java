@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -22,22 +21,19 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.PriorityBlockingQueue;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.replication.ReplicationEndpoint;
-import org.apache.hadoop.hbase.replication.ReplicationPeers;
-import org.apache.hadoop.hbase.replication.ReplicationQueues;
+import org.apache.hadoop.hbase.replication.ReplicationPeer;
+import org.apache.hadoop.hbase.replication.ReplicationQueueStorage;
 import org.apache.hadoop.hbase.util.FSUtils;
-import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.wal.AbstractFSWALProvider;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class that handles the recovered source of a replication stream, which is transfered from
@@ -46,46 +42,24 @@ import org.apache.hadoop.hbase.wal.AbstractFSWALProvider;
 @InterfaceAudience.Private
 public class RecoveredReplicationSource extends ReplicationSource {
 
-  private static final Log LOG = LogFactory.getLog(RecoveredReplicationSource.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RecoveredReplicationSource.class);
 
   private String actualPeerId;
 
   @Override
   public void init(Configuration conf, FileSystem fs, ReplicationSourceManager manager,
-      ReplicationQueues replicationQueues, ReplicationPeers replicationPeers, Server server,
-      String peerClusterZnode, UUID clusterId, ReplicationEndpoint replicationEndpoint,
-      WALFileLengthProvider walFileLengthProvider, MetricsSource metrics) throws IOException {
-    super.init(conf, fs, manager, replicationQueues, replicationPeers, server, peerClusterZnode,
-      clusterId, replicationEndpoint, walFileLengthProvider, metrics);
+      ReplicationQueueStorage queueStorage, ReplicationPeer replicationPeer, Server server,
+      String peerClusterZnode, UUID clusterId, WALFileLengthProvider walFileLengthProvider,
+      MetricsSource metrics) throws IOException {
+    super.init(conf, fs, manager, queueStorage, replicationPeer, server, peerClusterZnode,
+      clusterId, walFileLengthProvider, metrics);
     this.actualPeerId = this.replicationQueueInfo.getPeerId();
   }
 
   @Override
-  protected void tryStartNewShipper(String walGroupId, PriorityBlockingQueue<Path> queue) {
-    final RecoveredReplicationSourceShipper worker =
-        new RecoveredReplicationSourceShipper(conf, walGroupId, queue, this,
-            this.replicationQueues);
-    ReplicationSourceShipper extant = workerThreads.putIfAbsent(walGroupId, worker);
-    if (extant != null) {
-      LOG.debug("Someone has beat us to start a worker thread for wal group " + walGroupId);
-    } else {
-      LOG.debug("Starting up worker for wal group " + walGroupId);
-      worker.startup(getUncaughtExceptionHandler());
-      worker.setWALReader(
-        startNewWALReader(worker.getName(), walGroupId, queue, worker.getStartPosition()));
-      workerThreads.put(walGroupId, worker);
-    }
-  }
-
-  @Override
-  protected ReplicationSourceWALReader startNewWALReader(String threadName,
-      String walGroupId, PriorityBlockingQueue<Path> queue, long startPosition) {
-    ReplicationSourceWALReader walReader = new RecoveredReplicationSourceWALReader(fs,
-        conf, queue, startPosition, walEntryFilter, this);
-    Threads.setDaemonThreadRunning(walReader, threadName
-        + ".replicationSource.replicationWALReaderThread." + walGroupId + "," + peerClusterZnode,
-      getUncaughtExceptionHandler());
-    return walReader;
+  protected RecoveredReplicationSourceShipper createNewShipper(String walGroupId,
+      PriorityBlockingQueue<Path> queue) {
+    return new RecoveredReplicationSourceShipper(conf, walGroupId, queue, this, queueStorage);
   }
 
   public void locateRecoveredPaths(PriorityBlockingQueue<Path> queue) throws IOException {
@@ -168,22 +142,10 @@ public class RecoveredReplicationSource extends ReplicationSource {
     return path;
   }
 
-  public void tryFinish() {
-    // use synchronize to make sure one last thread will clean the queue
-    synchronized (workerThreads) {
-      Threads.sleep(100);// wait a short while for other worker thread to fully exit
-      boolean allTasksDone = true;
-      for (ReplicationSourceShipper worker : workerThreads.values()) {
-        if (!worker.isFinished()) {
-          allTasksDone = false;
-          break;
-        }
-      }
-      if (allTasksDone) {
-        manager.closeRecoveredQueue(this);
-        LOG.info("Finished recovering queue " + peerClusterZnode + " with the following stats: "
-            + getStats());
-      }
+  void tryFinish() {
+    if (workerThreads.isEmpty()) {
+      this.getSourceMetrics().clear();
+      manager.finishRecoveredSource(this);
     }
   }
 
@@ -195,5 +157,10 @@ public class RecoveredReplicationSource extends ReplicationSource {
   @Override
   public ServerName getServerWALsBelongTo() {
     return this.replicationQueueInfo.getDeadRegionServers().get(0);
+  }
+
+  @Override
+  public boolean isRecovered() {
+    return true;
   }
 }

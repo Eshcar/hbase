@@ -22,19 +22,18 @@ import static org.apache.hadoop.hbase.client.ConnectionUtils.allOf;
 import static org.apache.hadoop.hbase.client.ConnectionUtils.toCheckExistenceOnly;
 
 import com.google.protobuf.RpcChannel;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CompareOperator;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.yetus.audience.InterfaceAudience;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
 
 /**
  * The interface for asynchronous version of Table. Obtain an instance from a
@@ -61,6 +60,15 @@ public interface AsyncTable<C extends ScanResultConsumerBase> {
    */
   Configuration getConfiguration();
 
+  /**
+   * Gets the {@link TableDescriptor} for this table.
+   */
+  CompletableFuture<TableDescriptor> getDescriptor();
+
+  /**
+   * Gets the {@link AsyncTableRegionLocator} for this table.
+   */
+  AsyncTableRegionLocator getRegionLocator();
   /**
    * Get timeout of each rpc request in this Table instance. It will be overridden by a more
    * specific rpc timeout config such as readRpcTimeout or writeRpcTimeout.
@@ -236,10 +244,19 @@ public interface AsyncTable<C extends ScanResultConsumerBase> {
     CheckAndMutateBuilder qualifier(byte[] qualifier);
 
     /**
+     * @param timeRange time range to check.
+     */
+    CheckAndMutateBuilder timeRange(TimeRange timeRange);
+
+    /**
      * Check for lack of column.
      */
     CheckAndMutateBuilder ifNotExists();
 
+    /**
+     * Check for equality.
+     * @param value the expected value
+     */
     default CheckAndMutateBuilder ifEquals(byte[] value) {
       return ifMatches(CompareOperator.EQUAL, value);
     }
@@ -431,11 +448,11 @@ public interface AsyncTable<C extends ScanResultConsumerBase> {
   }
 
   /**
-   * Method that does a batch call on Deletes, Gets, Puts, Increments and Appends. The ordering of
-   * execution of the actions is not defined. Meaning if you do a Put and a Get in the same
-   * {@link #batch} call, you will not necessarily be guaranteed that the Get returns what the Put
-   * had put.
-   * @param actions list of Get, Put, Delete, Increment, Append objects
+   * Method that does a batch call on Deletes, Gets, Puts, Increments, Appends and RowMutations. The
+   * ordering of execution of the actions is not defined. Meaning if you do a Put and a Get in the
+   * same {@link #batch} call, you will not necessarily be guaranteed that the Get returns what the
+   * Put had put.
+   * @param actions list of Get, Put, Delete, Increment, Append, and RowMutations objects
    * @return A list of {@link CompletableFuture}s that represent the result for each action.
    */
   <T> List<CompletableFuture<T>> batch(List<? extends Row> actions);
@@ -443,7 +460,7 @@ public interface AsyncTable<C extends ScanResultConsumerBase> {
   /**
    * A simple version of batch. It will fail if there are any failures and you will get the whole
    * result list at once if the operation is succeeded.
-   * @param actions list of Get, Put, Delete, Increment, Append objects
+   * @param actions list of Get, Put, Delete, Increment, Append and RowMutations objects
    * @return A list of the result for the actions. Wrapped by a {@link CompletableFuture}.
    */
   default <T> CompletableFuture<List<T>> batchAll(List<? extends Row> actions) {

@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.ipc;
 
 import static org.junit.Assert.assertEquals;
@@ -24,18 +23,23 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellScannable;
 import org.apache.hadoop.hbase.CellScanner;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({ ClientTests.class, SmallTests.class })
 public class TestHBaseRpcControllerImpl {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestHBaseRpcControllerImpl.class);
 
   @Test
   public void testListOfCellScannerables() throws IOException {
@@ -71,6 +75,11 @@ public class TestHBaseRpcControllerImpl {
             // Fake out a Cell. All this Cell has is a value that is an int in size and equal
             // to the above 'index' param serialized as an int.
             return new Cell() {
+              @Override
+              public long heapSize() {
+                return 0;
+              }
+
               private final int i = index;
 
               @Override
@@ -161,6 +170,11 @@ public class TestHBaseRpcControllerImpl {
               }
 
               @Override
+              public int getSerializedSize() {
+                return 0;
+              }
+
+              @Override
               public int getTagsOffset() {
                 // unused
                 return 0;
@@ -174,6 +188,12 @@ public class TestHBaseRpcControllerImpl {
 
               @Override
               public byte[] getTagsArray() {
+                // unused
+                return null;
+              }
+
+              @Override
+              public Type getType() {
                 // unused
                 return null;
               }

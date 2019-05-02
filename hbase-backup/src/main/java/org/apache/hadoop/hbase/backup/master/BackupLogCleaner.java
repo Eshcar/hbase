@@ -20,11 +20,10 @@ package org.apache.hadoop.hbase.backup.master;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
@@ -32,12 +31,17 @@ import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.backup.BackupRestoreConstants;
 import org.apache.hadoop.hbase.backup.impl.BackupManager;
 import org.apache.hadoop.hbase.backup.impl.BackupSystemTable;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.cleaner.BaseLogCleanerDelegate;
+import org.apache.yetus.audience.InterfaceAudience;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.org.apache.commons.collections4.MapUtils;
 
 /**
  * Implementation of a log cleaner that checks if a log is still scheduled for incremental backup
@@ -45,7 +49,7 @@ import org.apache.hadoop.hbase.master.cleaner.BaseLogCleanerDelegate;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
 public class BackupLogCleaner extends BaseLogCleanerDelegate {
-  private static final Log LOG = LogFactory.getLog(BackupLogCleaner.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BackupLogCleaner.class);
 
   private boolean stopped = false;
   private Connection conn;
@@ -55,8 +59,9 @@ public class BackupLogCleaner extends BaseLogCleanerDelegate {
 
   @Override
   public void init(Map<String, Object> params) {
-    if (params != null && params.containsKey(HMaster.MASTER)) {
-      MasterServices master = (MasterServices) params.get(HMaster.MASTER);
+    MasterServices master = (MasterServices) MapUtils.getObject(params,
+      HMaster.MASTER);
+    if (master != null) {
       conn = master.getConnection();
       if (getConf() == null) {
         super.setConf(conn.getConfiguration());
@@ -76,14 +81,11 @@ public class BackupLogCleaner extends BaseLogCleanerDelegate {
     // all members of this class are null if backup is disabled,
     // so we cannot filter the files
     if (this.getConf() == null || !BackupManager.isBackupEnabled(getConf())) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Backup is not enabled. Check your "
-            + BackupRestoreConstants.BACKUP_ENABLE_KEY + " setting");
-      }
+      LOG.debug("Backup is not enabled. Check your {} setting",
+          BackupRestoreConstants.BACKUP_ENABLE_KEY);
       return files;
     }
 
-    List<FileStatus> list = new ArrayList<FileStatus>();
     try (final BackupSystemTable table = new BackupSystemTable(conn)) {
       // If we do not have recorded backup sessions
       try {
@@ -92,27 +94,27 @@ public class BackupLogCleaner extends BaseLogCleanerDelegate {
           return files;
         }
       } catch (TableNotFoundException tnfe) {
-        LOG.warn("backup system table is not available" + tnfe.getMessage());
+        LOG.warn("Backup system table is not available: {}", tnfe.getMessage());
         return files;
       }
-
-      for (FileStatus file : files) {
+      List<FileStatus> list = new ArrayList<>();
+      Map<FileStatus, Boolean> walFilesDeletableMap = table.areWALFilesDeletable(files);
+      for (Map.Entry<FileStatus, Boolean> entry: walFilesDeletableMap.entrySet()) {
+        FileStatus file = entry.getKey();
         String wal = file.getPath().toString();
-        boolean logInSystemTable = table.isWALFileDeletable(wal);
-        if (LOG.isDebugEnabled()) {
-          if (logInSystemTable) {
-            LOG.debug("Found log file in backup system table, deleting: " + wal);
-            list.add(file);
-          } else {
-            LOG.debug("Didn't find this log in backup system table, keeping: " + wal);
-          }
+        boolean deletable = entry.getValue();
+        if (deletable) {
+          LOG.debug("Found log file in backup system table, deleting: {}", wal);
+          list.add(file);
+        } else {
+          LOG.debug("Did not find this log in backup system table, keeping: {}", wal);
         }
       }
       return list;
     } catch (IOException e) {
       LOG.error("Failed to get backup system table table, therefore will keep all files", e);
       // nothing to delete
-      return new ArrayList<FileStatus>();
+      return Collections.emptyList();
     }
   }
 
@@ -128,16 +130,14 @@ public class BackupLogCleaner extends BaseLogCleanerDelegate {
 
   @Override
   public void stop(String why) {
-    if (this.stopped) {
-      return;
+    if (!this.stopped) {
+      this.stopped = true;
+      LOG.info("Stopping BackupLogCleaner");
     }
-    this.stopped = true;
-    LOG.info("Stopping BackupLogCleaner");
   }
 
   @Override
   public boolean isStopped() {
     return this.stopped;
   }
-
 }

@@ -18,6 +18,8 @@
  */
 package org.apache.hadoop.hbase.client;
 
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -271,6 +273,26 @@ public interface RegionInfo {
     return encodedName;
   }
 
+  @InterfaceAudience.Private
+  static String getRegionNameAsString(byte[] regionName) {
+    return getRegionNameAsString(null, regionName);
+  }
+
+  @InterfaceAudience.Private
+  static String getRegionNameAsString(@CheckForNull RegionInfo ri, byte[] regionName) {
+    if (RegionInfo.hasEncodedName(regionName)) {
+      // new format region names already have their encoded name.
+      return Bytes.toStringBinary(regionName);
+    }
+
+    // old format. regionNameStr doesn't have the region name.
+    if (ri == null) {
+      return Bytes.toStringBinary(regionName) + "." + RegionInfo.encodeRegionName(regionName);
+    } else {
+      return Bytes.toStringBinary(regionName) + "." + ri.getEncodedName();
+    }
+  }
+
   /**
    * @return Return a String of short, printable names for <code>hris</code>
    * (usually encoded name) for us logging.
@@ -304,6 +326,9 @@ public interface RegionInfo {
         offset = i;
         break;
       }
+    }
+    if (offset <= 0) {
+      throw new IllegalArgumentException("offset=" + offset);
     }
     byte[] buff  = new byte[offset];
     System.arraycopy(regionName, 0, buff, 0, offset);
@@ -570,6 +595,17 @@ public interface RegionInfo {
     }
 
     return b;
+  }
+
+  /**
+   * Creates a RegionInfo object for MOB data.
+   *
+   * @param tableName the name of the table
+   * @return the MOB {@link RegionInfo}.
+   */
+  static RegionInfo createMobRegionInfo(TableName tableName) {
+    return RegionInfoBuilder.newBuilder(tableName)
+        .setStartKey(Bytes.toBytes(".mob")).setRegionId(0).build();
   }
 
   /**

@@ -28,8 +28,6 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.TreeMap;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
@@ -39,8 +37,9 @@ import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.MinMaxPriorityQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.collect.MinMaxPriorityQueue;
 
 /**
  * Makes decisions about the placement and movement of Regions across
@@ -57,7 +56,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.MinMaxPriorityQu
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
 public class SimpleLoadBalancer extends BaseLoadBalancer {
-  private static final Log LOG = LogFactory.getLog(SimpleLoadBalancer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SimpleLoadBalancer.class);
   private static final Random RANDOM = new Random(System.currentTimeMillis());
 
   private RegionInfoComparator riComparator = new RegionInfoComparator();
@@ -107,6 +106,7 @@ public class SimpleLoadBalancer extends BaseLoadBalancer {
 
   }
 
+  @Override
   public void setClusterLoad(Map<TableName, Map<ServerName, List<RegionInfo>>> clusterLoad){
     serverLoadList = new ArrayList<>();
     float sum = 0;
@@ -479,6 +479,9 @@ public class SimpleLoadBalancer extends BaseLoadBalancer {
     for (int i = 0; i < serverLoadList.size(); i++) {
       ServerAndLoad serverload = serverLoadList.get(i);
       BalanceInfo balanceInfo = serverBalanceInfo.get(serverload.getServerName());
+      if (balanceInfo == null) {
+        continue;
+      }
       setLoad(serverLoadList, i, balanceInfo.getNumRegionsAdded());
       if (balanceInfo.getHriList().size() + balanceInfo.getNumRegionsAdded() == max) {
         RegionInfo hriToPlan;

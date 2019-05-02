@@ -27,16 +27,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.nio.ByteBuff;
 import org.apache.hadoop.hbase.nio.MultiByteBuff;
 import org.apache.hadoop.hbase.nio.SingleByteBuff;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * This class manages an array of ByteBuffers with a default size 4MB. These
@@ -45,7 +44,7 @@ import com.google.common.annotations.VisibleForTesting;
  */
 @InterfaceAudience.Private
 public class ByteBufferArray {
-  private static final Log LOG = LogFactory.getLog(ByteBufferArray.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ByteBufferArray.class);
 
   public static final int DEFAULT_BUFFER_SIZE = 4 * 1024 * 1024;
   @VisibleForTesting
@@ -237,7 +236,7 @@ public class ByteBufferArray {
     int endBuffer = (int) (end / bufferSize), endOffset = (int) (end % bufferSize);
     assert array.length >= len + arrayOffset;
     assert startBuffer >= 0 && startBuffer < bufferCount;
-    assert endBuffer >= 0 && endBuffer < bufferCount
+    assert (endBuffer >= 0 && endBuffer < bufferCount)
         || (endBuffer == bufferCount && endOffset == 0);
     if (startBuffer >= buffers.length || startBuffer < 0) {
       String msg = "Failed multiple, start=" + start + ",startBuffer="
@@ -285,7 +284,7 @@ public class ByteBufferArray {
       endBufferOffset = bufferSize;
     }
     assert startBuffer >= 0 && startBuffer < bufferCount;
-    assert endBuffer >= 0 && endBuffer < bufferCount
+    assert (endBuffer >= 0 && endBuffer < bufferCount)
         || (endBuffer == bufferCount && endBufferOffset == 0);
     if (startBuffer >= buffers.length || startBuffer < 0) {
       String msg = "Failed subArray, start=" + offset + ",startBuffer=" + startBuffer

@@ -22,30 +22,35 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.yetus.audience.InterfaceAudience;
+import java.util.concurrent.locks.ReentrantLock;
 import org.apache.hadoop.hbase.io.hfile.Cacheable;
-import org.apache.hadoop.hbase.io.hfile.CacheableDeserializer;
 import org.apache.hadoop.hbase.io.hfile.Cacheable.MemoryType;
+import org.apache.hadoop.hbase.io.hfile.CacheableDeserializer;
 import org.apache.hadoop.hbase.nio.ByteBuff;
 import org.apache.hadoop.hbase.nio.SingleByteBuff;
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
 
 /**
  * IO engine that stores data to a file on the local file system.
  */
 @InterfaceAudience.Private
 public class FileIOEngine implements IOEngine {
-  private static final Log LOG = LogFactory.getLog(FileIOEngine.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FileIOEngine.class);
   public static final String FILE_DELIMITER = ",";
   private final String[] filePaths;
   private final FileChannel[] fileChannels;
   private final RandomAccessFile[] rafs;
+  private final ReentrantLock[] channelLocks;
 
   private final long sizePerFile;
   private final long capacity;
@@ -72,6 +77,7 @@ public class FileIOEngine implements IOEngine {
       }
     }
     this.rafs = new RandomAccessFile[filePaths.length];
+    this.channelLocks = new ReentrantLock[filePaths.length];
     for (int i = 0; i < filePaths.length; i++) {
       String filePath = filePaths[i];
       try {
@@ -87,6 +93,7 @@ public class FileIOEngine implements IOEngine {
         }
         rafs[i].setLength(sizePerFile);
         fileChannels[i] = rafs[i].getChannel();
+        channelLocks[i] = new ReentrantLock();
         LOG.info("Allocating cache " + StringUtils.byteDesc(sizePerFile)
             + ", on the path:" + filePath);
       } catch (IOException fex) {
@@ -137,6 +144,17 @@ public class FileIOEngine implements IOEngine {
       }
     }
     return deserializer.deserialize(new SingleByteBuff(dstBuffer), true, MemoryType.EXCLUSIVE);
+  }
+
+  @VisibleForTesting
+  void closeFileChannels() {
+    for (FileChannel fileChannel: fileChannels) {
+      try {
+        fileChannel.close();
+      } catch (IOException e) {
+        LOG.warn("Failed to close FileChannel", e);
+      }
+    }
   }
 
   /**
@@ -208,12 +226,20 @@ public class FileIOEngine implements IOEngine {
     int bufLimit = buffer.limit();
     while (true) {
       FileChannel fileChannel = fileChannels[accessFileNum];
+      int accessLen = 0;
       if (endFileNum > accessFileNum) {
         // short the limit;
         buffer.limit((int) (buffer.limit() - remainingAccessDataLen
             + sizePerFile - accessOffset));
       }
-      int accessLen = accessor.access(fileChannel, buffer, accessOffset);
+      try {
+        accessLen = accessor.access(fileChannel, buffer, accessOffset);
+      } catch (ClosedByInterruptException e) {
+        throw e;
+      } catch (ClosedChannelException e) {
+        refreshFileConnection(accessFileNum, e);
+        continue;
+      }
       // recover the limit
       buffer.limit(bufLimit);
       if (accessLen < remainingAccessDataLen) {
@@ -224,10 +250,9 @@ public class FileIOEngine implements IOEngine {
         break;
       }
       if (accessFileNum >= fileChannels.length) {
-        throw new IOException("Required data len "
-            + StringUtils.byteDesc(buffer.remaining())
-            + " exceed the engine's capacity " + StringUtils.byteDesc(capacity)
-            + " where offset=" + globalOffset);
+        throw new IOException("Required data len " + StringUtils.byteDesc(buffer.remaining())
+            + " exceed the engine's capacity " + StringUtils.byteDesc(capacity) + " where offset="
+            + globalOffset);
       }
     }
   }
@@ -252,6 +277,34 @@ public class FileIOEngine implements IOEngine {
           + " where capacity=" + capacity);
     }
     return fileNum;
+  }
+
+  @VisibleForTesting
+  FileChannel[] getFileChannels() {
+    return fileChannels;
+  }
+
+  @VisibleForTesting
+  void refreshFileConnection(int accessFileNum, IOException ioe) throws IOException {
+    ReentrantLock channelLock = channelLocks[accessFileNum];
+    channelLock.lock();
+    try {
+      FileChannel fileChannel = fileChannels[accessFileNum];
+      if (fileChannel != null) {
+        // Don't re-open a channel if we were waiting on another
+        // thread to re-open the channel and it is now open.
+        if (fileChannel.isOpen()) {
+          return;
+        }
+        fileChannel.close();
+      }
+      LOG.warn("Caught ClosedChannelException accessing BucketCache, reopening file: "
+          + filePaths[accessFileNum], ioe);
+      rafs[accessFileNum] = new RandomAccessFile(filePaths[accessFileNum], "rw");
+      fileChannels[accessFileNum] = rafs[accessFileNum].getChannel();
+    } finally{
+      channelLock.unlock();
+    }
   }
 
   private static interface FileAccessor {

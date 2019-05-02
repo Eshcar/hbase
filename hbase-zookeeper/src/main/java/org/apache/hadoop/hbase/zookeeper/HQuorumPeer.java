@@ -18,15 +18,13 @@
  */
 package org.apache.hadoop.hbase.zookeeper;
 
-import static org.apache.hadoop.hbase.HConstants.DEFAULT_ZK_SESSION_TIMEOUT;
-import static org.apache.hadoop.hbase.HConstants.ZK_SESSION_TIMEOUT;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -37,15 +35,17 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.yetus.audience.InterfaceStability;
 import org.apache.hadoop.hbase.util.DNS;
 import org.apache.hadoop.hbase.util.Strings;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.yetus.audience.InterfaceStability;
 import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import org.apache.zookeeper.server.quorum.QuorumPeerMain;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * HBase's version of ZooKeeper's QuorumPeer. When HBase is set to manage
@@ -56,7 +56,11 @@ import org.apache.zookeeper.server.quorum.QuorumPeerMain;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.TOOLS)
 @InterfaceStability.Evolving
-public class HQuorumPeer {
+public final class HQuorumPeer {
+  private static final Logger LOG = LoggerFactory.getLogger(HQuorumPeer.class);
+
+  private HQuorumPeer() {
+  }
 
   /**
    * Parse ZooKeeper configuration from HBase XML config and run a QuorumPeer.
@@ -77,12 +81,13 @@ public class HQuorumPeer {
 
       runZKServer(zkConfig);
     } catch (Exception e) {
-      e.printStackTrace();
+      LOG.error("Failed to start ZKServer", e);
       System.exit(-1);
     }
   }
 
-  private static void runZKServer(QuorumPeerConfig zkConfig) throws UnknownHostException, IOException {
+  private static void runZKServer(QuorumPeerConfig zkConfig)
+          throws UnknownHostException, IOException {
     if (zkConfig.isDistributed()) {
       QuorumPeerMain qp = new QuorumPeerMain();
       qp.runFromConfig(zkConfig);
@@ -141,8 +146,8 @@ public class HQuorumPeer {
     }
 
     // Set the max session timeout from the provided client-side timeout
-    properties.setProperty("maxSessionTimeout",
-      conf.get(HConstants.ZK_SESSION_TIMEOUT, Integer.toString(HConstants.DEFAULT_ZK_SESSION_TIMEOUT)));
+    properties.setProperty("maxSessionTimeout", conf.get(HConstants.ZK_SESSION_TIMEOUT,
+            Integer.toString(HConstants.DEFAULT_ZK_SESSION_TIMEOUT)));
 
     if (myId == -1) {
       throw new IOException("Could not find my address: " + myAddress +
@@ -158,7 +163,7 @@ public class HQuorumPeer {
     }
 
     File myIdFile = new File(dataDir, "myid");
-    PrintWriter w = new PrintWriter(myIdFile);
+    PrintWriter w = new PrintWriter(myIdFile, StandardCharsets.UTF_8.name());
     w.println(myId);
     w.close();
   }

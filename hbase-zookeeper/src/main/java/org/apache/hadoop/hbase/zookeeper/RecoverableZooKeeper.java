@@ -24,15 +24,13 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.trace.TraceUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.RetryCounter;
 import org.apache.hadoop.hbase.util.RetryCounterFactory;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.trace.TraceUtil;
 import org.apache.htrace.core.TraceScope;
+import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -46,6 +44,8 @@ import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.proto.CreateRequest;
 import org.apache.zookeeper.proto.SetDataRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A zookeeper that can handle 'recoverable' errors.
@@ -72,7 +72,7 @@ import org.apache.zookeeper.proto.SetDataRequest;
  */
 @InterfaceAudience.Private
 public class RecoverableZooKeeper {
-  private static final Log LOG = LogFactory.getLog(RecoverableZooKeeper.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RecoverableZooKeeper.class);
   // the actual ZooKeeper client instance
   private ZooKeeper zk;
   private final RetryCounterFactory retryCounterFactory;
@@ -82,20 +82,14 @@ public class RecoverableZooKeeper {
   private Watcher watcher;
   private int sessionTimeout;
   private String quorumServers;
-  private final ZKMetricsListener metrics;
-
-  public RecoverableZooKeeper(String quorumServers, int sessionTimeout,
-      Watcher watcher, int maxRetries, int retryIntervalMillis, int maxSleepTime)
-  throws IOException {
-    this(quorumServers, sessionTimeout, watcher, maxRetries, retryIntervalMillis, maxSleepTime,
-        null);
-  }
+  private int maxMultiSize;
 
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="DE_MIGHT_IGNORE",
       justification="None. Its always been this way.")
   public RecoverableZooKeeper(String quorumServers, int sessionTimeout,
-      Watcher watcher, int maxRetries, int retryIntervalMillis, int maxSleepTime, String identifier)
-  throws IOException {
+      Watcher watcher, int maxRetries, int retryIntervalMillis, int maxSleepTime, String identifier,
+      int maxMultiSize)
+    throws IOException {
     // TODO: Add support for zk 'chroot'; we don't add it to the quorumServers String as we should.
     this.retryCounterFactory =
       new RetryCounterFactory(maxRetries+1, retryIntervalMillis, maxSleepTime);
@@ -112,15 +106,31 @@ public class RecoverableZooKeeper {
     this.watcher = watcher;
     this.sessionTimeout = sessionTimeout;
     this.quorumServers = quorumServers;
-    this.metrics = new ZKMetrics();
-    try {checkZk();} catch (Exception x) {/* ignore */}
+    this.maxMultiSize = maxMultiSize;
+
+    try {
+      checkZk();
+    } catch (Exception x) {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Returns the maximum size (in bytes) that should be included in any single multi() call.
+   *
+   * NB: This is an approximation, so there may be variance in the msg actually sent over the
+   * wire. Please be sure to set this approximately, with respect to your ZK server configuration
+   * for jute.maxbuffer.
+   */
+  public int getMaxMultiSizeLimit() {
+    return maxMultiSize;
   }
 
   /**
    * Try to create a ZooKeeper connection. Turns any exception encountered into a
    * KeeperException.OperationTimeoutException so it can retried.
    * @return The created ZooKeeper connection object
-   * @throws KeeperException
+   * @throws KeeperException if a ZooKeeper operation fails
    */
   protected synchronized ZooKeeper checkZk() throws KeeperException {
     if (this.zk == null) {
@@ -161,10 +171,8 @@ public class RecoverableZooKeeper {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           checkZk().delete(path, version);
-          this.metrics.registerWriteOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case NONODE:
               if (isRetry) {
@@ -176,11 +184,9 @@ public class RecoverableZooKeeper {
               throw e;
 
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "delete");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "delete");
               break;
 
@@ -205,17 +211,13 @@ public class RecoverableZooKeeper {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           Stat nodeStat = checkZk().exists(path, watcher);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime, 1));
           return nodeStat;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "exists");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "exists");
               break;
 
@@ -239,17 +241,13 @@ public class RecoverableZooKeeper {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           Stat nodeStat = checkZk().exists(path, watch);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return nodeStat;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "exists");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "exists");
               break;
 
@@ -285,17 +283,13 @@ public class RecoverableZooKeeper {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           List<String> children = checkZk().getChildren(path, watcher);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return children;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "getChildren");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "getChildren");
               break;
 
@@ -313,24 +307,20 @@ public class RecoverableZooKeeper {
    * @return List of children znodes
    */
   public List<String> getChildren(String path, boolean watch)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.getChildren")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       while (true) {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           List<String> children = checkZk().getChildren(path, watch);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return children;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "getChildren");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "getChildren");
               break;
 
@@ -348,24 +338,20 @@ public class RecoverableZooKeeper {
    * @return Data
    */
   public byte[] getData(String path, Watcher watcher, Stat stat)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.getData")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       while (true) {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           byte[] revData = checkZk().getData(path, watcher, stat);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return ZKMetadata.removeMetaData(revData);
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "getData");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "getData");
               break;
 
@@ -383,24 +369,20 @@ public class RecoverableZooKeeper {
    * @return Data
    */
   public byte[] getData(String path, boolean watch, Stat stat)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.getData")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       while (true) {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           byte[] revData = checkZk().getData(path, watch, stat);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return ZKMetadata.removeMetaData(revData);
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "getData");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "getData");
               break;
 
@@ -420,7 +402,7 @@ public class RecoverableZooKeeper {
    * @return Stat instance
    */
   public Stat setData(String path, byte[] data, int version)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.setData")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       byte[] newData = ZKMetadata.appendMetaData(id, data);
@@ -430,17 +412,13 @@ public class RecoverableZooKeeper {
         try {
           startTime = EnvironmentEdgeManager.currentTime();
           Stat nodeStat = checkZk().setData(path, newData, version);
-          this.metrics.registerWriteOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return nodeStat;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "setData");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "setData");
               break;
             case BADVERSION:
@@ -448,15 +426,12 @@ public class RecoverableZooKeeper {
                 // try to verify whether the previous setData success or not
                 try{
                   Stat stat = new Stat();
-                  startTime = EnvironmentEdgeManager.currentTime();
                   byte[] revData = checkZk().getData(path, false, stat);
-                  this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
                   if(Bytes.compareTo(revData, newData) == 0) {
                     // the bad version is caused by previous successful setData
                     return stat;
                   }
                 } catch(KeeperException keeperException){
-                  this.metrics.registerFailedZKCall();
                   // the ZK is not reliable at this moment. just throwing exception
                   throw keeperException;
                 }
@@ -477,24 +452,20 @@ public class RecoverableZooKeeper {
    * @return list of ACLs
    */
   public List<ACL> getAcl(String path, Stat stat)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.getAcl")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       while (true) {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           List<ACL> nodeACL = checkZk().getACL(path, stat);
-          this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return nodeACL;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "getAcl");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "getAcl");
               break;
 
@@ -512,24 +483,20 @@ public class RecoverableZooKeeper {
    * @return list of ACLs
    */
   public Stat setAcl(String path, List<ACL> acls, int version)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.setAcl")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       while (true) {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           Stat nodeStat = checkZk().setACL(path, acls, version);
-          this.metrics.registerWriteOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return nodeStat;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "setAcl");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "setAcl");
               break;
 
@@ -559,7 +526,7 @@ public class RecoverableZooKeeper {
    */
   public String create(String path, byte[] data, List<ACL> acl,
       CreateMode createMode)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.create")) {
       byte[] newData = ZKMetadata.appendMetaData(id, data);
       switch (createMode) {
@@ -587,19 +554,15 @@ public class RecoverableZooKeeper {
       try {
         startTime = EnvironmentEdgeManager.currentTime();
         String nodePath = checkZk().create(path, data, acl, createMode);
-        this.metrics.registerWriteOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
         return nodePath;
       } catch (KeeperException e) {
-        this.metrics.registerFailedZKCall();
         switch (e.code()) {
           case NODEEXISTS:
             if (isRetry) {
               // If the connection was lost, there is still a possibility that
               // we have successfully created the node at our previous attempt,
               // so we read the node and compare.
-              startTime = EnvironmentEdgeManager.currentTime();
               byte[] currentData = checkZk().getData(path, false, null);
-              this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
               if (currentData != null &&
                   Bytes.compareTo(currentData, data) == 0) {
                 // We successfully created a non-sequential node
@@ -610,15 +573,13 @@ public class RecoverableZooKeeper {
                   Bytes.toStringBinary(data));
               throw e;
             }
-            LOG.debug("Node " + path + " already exists");
+            LOG.trace("Node {} already exists", path);
             throw e;
 
           case CONNECTIONLOSS:
-            this.metrics.registerConnectionLossException();
             retryOrThrow(retryCounter, e, "create");
             break;
           case OPERATIONTIMEOUT:
-            this.metrics.registerOperationTimeoutException();
             retryOrThrow(retryCounter, e, "create");
             break;
 
@@ -633,7 +594,7 @@ public class RecoverableZooKeeper {
 
   private String createSequential(String path, byte[] data,
       List<ACL> acl, CreateMode createMode)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     RetryCounter retryCounter = retryCounterFactory.create();
     boolean first = true;
     String newPath = path+this.identifier;
@@ -649,17 +610,13 @@ public class RecoverableZooKeeper {
         first = false;
         long startTime = EnvironmentEdgeManager.currentTime();
         String nodePath = checkZk().create(newPath, data, acl, createMode);
-        this.metrics.registerWriteOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
         return nodePath;
       } catch (KeeperException e) {
-        this.metrics.registerFailedZKCall();
         switch (e.code()) {
           case CONNECTIONLOSS:
-            this.metrics.registerConnectionLossException();
             retryOrThrow(retryCounter, e, "create");
             break;
           case OPERATIONTIMEOUT:
-            this.metrics.registerOperationTimeoutException();
             retryOrThrow(retryCounter, e, "create");
             break;
 
@@ -674,9 +631,10 @@ public class RecoverableZooKeeper {
    * Convert Iterable of {@link org.apache.zookeeper.Op} we got into the ZooKeeper.Op
    * instances to actually pass to multi (need to do this in order to appendMetaData).
    */
-  private Iterable<Op> prepareZKMulti(Iterable<Op> ops)
-  throws UnsupportedOperationException {
-    if(ops == null) return null;
+  private Iterable<Op> prepareZKMulti(Iterable<Op> ops) throws UnsupportedOperationException {
+    if(ops == null) {
+      return null;
+    }
 
     List<Op> preparedOps = new LinkedList<>();
     for (Op op : ops) {
@@ -689,8 +647,8 @@ public class RecoverableZooKeeper {
         preparedOps.add(op);
       } else if (op.getType() == ZooDefs.OpCode.setData) {
         SetDataRequest setData = (SetDataRequest)op.toRequestRecord();
-        preparedOps.add(Op.setData(setData.getPath(), ZKMetadata.appendMetaData(id, setData.getData()),
-          setData.getVersion()));
+        preparedOps.add(Op.setData(setData.getPath(),
+                ZKMetadata.appendMetaData(id, setData.getData()), setData.getVersion()));
       } else {
         throw new UnsupportedOperationException("Unexpected ZKOp type: " + op.getClass().getName());
       }
@@ -702,7 +660,7 @@ public class RecoverableZooKeeper {
    * Run multiple operations in a transactional manner. Retry before throwing exception
    */
   public List<OpResult> multi(Iterable<Op> ops)
-  throws KeeperException, InterruptedException {
+    throws KeeperException, InterruptedException {
     try (TraceScope scope = TraceUtil.createTrace("RecoverableZookeeper.multi")) {
       RetryCounter retryCounter = retryCounterFactory.create();
       Iterable<Op> multiOps = prepareZKMulti(ops);
@@ -710,17 +668,13 @@ public class RecoverableZooKeeper {
         try {
           long startTime = EnvironmentEdgeManager.currentTime();
           List<OpResult> opResults = checkZk().multi(multiOps);
-          this.metrics.registerWriteOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
           return opResults;
         } catch (KeeperException e) {
-          this.metrics.registerFailedZKCall();
           switch (e.code()) {
             case CONNECTIONLOSS:
-              this.metrics.registerConnectionLossException();
               retryOrThrow(retryCounter, e, "multi");
               break;
             case OPERATIONTIMEOUT:
-              this.metrics.registerOperationTimeoutException();
               retryOrThrow(retryCounter, e, "multi");
               break;
 
@@ -741,13 +695,11 @@ public class RecoverableZooKeeper {
     String nodePrefix = path.substring(lastSlashIdx+1);
     long startTime = EnvironmentEdgeManager.currentTime();
     List<String> nodes = checkZk().getChildren(parent, false);
-    this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
     List<String> matching = filterByPrefix(nodes, nodePrefix);
     for (String node : matching) {
       String nodePath = parent + "/" + node;
       startTime = EnvironmentEdgeManager.currentTime();
       Stat stat = checkZk().exists(nodePath, false);
-      this.metrics.registerReadOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
       if (stat != null) {
         return nodePath;
       }
@@ -760,7 +712,9 @@ public class RecoverableZooKeeper {
   }
 
   public synchronized void close() throws InterruptedException {
-    if (zk != null) zk.close();
+    if (zk != null) {
+      zk.close();
+    }
   }
 
   public synchronized States getState() {
@@ -776,9 +730,7 @@ public class RecoverableZooKeeper {
   }
 
   public void sync(String path, AsyncCallback.VoidCallback cb, Object ctx) throws KeeperException {
-    long startTime = EnvironmentEdgeManager.currentTime();
     checkZk().sync(path, cb, null);
-    this.metrics.registerSyncOperationLatency(Math.min(EnvironmentEdgeManager.currentTime() - startTime,  1));
   }
 
   /**

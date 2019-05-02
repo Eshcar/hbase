@@ -17,7 +17,6 @@
  */
 package org.apache.hadoop.hbase.client;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -27,9 +26,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
@@ -37,14 +35,19 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.Ignore;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 
 @Category({MediumTests.class, ClientTests.class})
 public class TestSplitOrMergeStatus {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSplitOrMergeStatus.class);
 
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static byte [] FAMILY = Bytes.toBytes("testFamily");
@@ -79,20 +82,18 @@ public class TestSplitOrMergeStatus {
 
     Admin admin = TEST_UTIL.getAdmin();
     initSwitchStatus(admin);
-    boolean[] results = admin.setSplitOrMergeEnabled(false, false, MasterSwitchType.SPLIT);
-    assertEquals(results.length, 1);
-    assertTrue(results[0]);
+    boolean result = admin.splitSwitch(false, false);
+    assertTrue(result);
     admin.split(t.getName());
-    int count = admin.getTableRegions(tableName).size();
+    int count = admin.getRegions(tableName).size();
     assertTrue(originalCount == count);
-    results = admin.setSplitOrMergeEnabled(true, false, MasterSwitchType.SPLIT);
-    assertEquals(results.length, 1);
-    assertFalse(results[0]);
+    result = admin.splitSwitch(true, false);
+    assertFalse(result);
     admin.split(t.getName());
-    while ((count = admin.getTableRegions(tableName).size()) == originalCount) {
-      Threads.sleep(1);;
+    while ((count = admin.getRegions(tableName).size()) == originalCount) {
+      Threads.sleep(1);
     }
-    count = admin.getTableRegions(tableName).size();
+    count = admin.getRegions(tableName).size();
     assertTrue(originalCount < count);
     admin.close();
   }
@@ -105,21 +106,20 @@ public class TestSplitOrMergeStatus {
     TEST_UTIL.loadTable(t, FAMILY, false);
 
     Admin admin = TEST_UTIL.getAdmin();
-    int originalCount = admin.getTableRegions(tableName).size();
+    int originalCount = admin.getRegions(tableName).size();
     initSwitchStatus(admin);
     admin.split(t.getName());
     int postSplitCount = -1;
-    while ((postSplitCount = admin.getTableRegions(tableName).size()) == originalCount) {
-      Threads.sleep(1);;
+    while ((postSplitCount = admin.getRegions(tableName).size()) == originalCount) {
+      Threads.sleep(1);
     }
     assertTrue("originalCount=" + originalCount + ", newCount=" + postSplitCount,
         originalCount != postSplitCount);
 
     // Merge switch is off so merge should NOT succeed.
-    boolean[] results = admin.setSplitOrMergeEnabled(false, false, MasterSwitchType.MERGE);
-    assertEquals(results.length, 1);
-    assertTrue(results[0]);
-    List<HRegionInfo> regions = admin.getTableRegions(t.getName());
+    boolean result = admin.mergeSwitch(false, false);
+    assertTrue(result);
+    List<RegionInfo> regions = admin.getRegions(t.getName());
     assertTrue(regions.size() > 1);
     Future<?> f = admin.mergeRegionsAsync(regions.get(0).getEncodedNameAsBytes(),
       regions.get(1).getEncodedNameAsBytes(), true);
@@ -129,17 +129,16 @@ public class TestSplitOrMergeStatus {
     } catch (ExecutionException ee) {
       // Expected.
     }
-    int count = admin.getTableRegions(tableName).size();
+    int count = admin.getRegions(tableName).size();
     assertTrue("newCount=" + postSplitCount + ", count=" + count, postSplitCount == count);
 
-    results = admin.setSplitOrMergeEnabled(true, false, MasterSwitchType.MERGE);
-    regions = admin.getTableRegions(t.getName());
-    assertEquals(results.length, 1);
-    assertFalse(results[0]);
+    result = admin.mergeSwitch(true, false);
+    regions = admin.getRegions(t.getName());
+    assertFalse(result);
     f = admin.mergeRegionsAsync(regions.get(0).getEncodedNameAsBytes(),
       regions.get(1).getEncodedNameAsBytes(), true);
     f.get(10, TimeUnit.SECONDS);
-    count = admin.getTableRegions(tableName).size();
+    count = admin.getRegions(tableName).size();
     assertTrue((postSplitCount / 2 /*Merge*/) == count);
     admin.close();
   }
@@ -147,24 +146,22 @@ public class TestSplitOrMergeStatus {
   @Test
   public void testMultiSwitches() throws IOException {
     Admin admin = TEST_UTIL.getAdmin();
-    boolean[] switches = admin.setSplitOrMergeEnabled(false, false,
-      MasterSwitchType.SPLIT, MasterSwitchType.MERGE);
-    for (boolean s : switches){
-      assertTrue(s);
-    }
-    assertFalse(admin.isSplitOrMergeEnabled(MasterSwitchType.SPLIT));
-    assertFalse(admin.isSplitOrMergeEnabled(MasterSwitchType.MERGE));
+    assertTrue(admin.splitSwitch(false, false));
+    assertTrue(admin.mergeSwitch(false, false));
+
+    assertFalse(admin.isSplitEnabled());
+    assertFalse(admin.isMergeEnabled());
     admin.close();
   }
 
   private void initSwitchStatus(Admin admin) throws IOException {
-    if (!admin.isSplitOrMergeEnabled(MasterSwitchType.SPLIT)) {
-      admin.setSplitOrMergeEnabled(true, false, MasterSwitchType.SPLIT);
+    if (!admin.isSplitEnabled()) {
+      admin.splitSwitch(true, false);
     }
-    if (!admin.isSplitOrMergeEnabled(MasterSwitchType.MERGE)) {
-      admin.setSplitOrMergeEnabled(true, false, MasterSwitchType.MERGE);
+    if (!admin.isMergeEnabled()) {
+      admin.mergeSwitch(true, false);
     }
-    assertTrue(admin.isSplitOrMergeEnabled(MasterSwitchType.SPLIT));
-    assertTrue(admin.isSplitOrMergeEnabled(MasterSwitchType.MERGE));
+    assertTrue(admin.isSplitEnabled());
+    assertTrue(admin.isMergeEnabled());
   }
 }

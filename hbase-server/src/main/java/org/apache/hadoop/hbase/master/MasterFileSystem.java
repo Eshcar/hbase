@@ -20,8 +20,6 @@ package org.apache.hadoop.hbase.master;
 
 import java.io.IOException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -39,14 +37,20 @@ import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.fs.HFileSystem;
+import org.apache.hadoop.hbase.log.HBaseMarkers;
 import org.apache.hadoop.hbase.mob.MobConstants;
 import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
 import org.apache.hadoop.hbase.regionserver.HRegion;
+import org.apache.hadoop.hbase.replication.ReplicationUtils;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSTableDescriptors;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * This class abstracts a bunch of operations the HMaster needs to interact with
@@ -55,7 +59,7 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.Private
 public class MasterFileSystem {
-  private static final Log LOG = LogFactory.getLog(MasterFileSystem.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MasterFileSystem.class);
 
   /** Parameter name for HBase instance root directory permission*/
   public static final String HBASE_DIR_PERMS = "hbase.rootdir.perms";
@@ -97,11 +101,8 @@ public class MasterFileSystem {
 
   private boolean isSecurityEnabled;
 
-  private final MasterServices services;
-
-  public MasterFileSystem(MasterServices services) throws IOException {
-    this.conf = services.getConfiguration();
-    this.services = services;
+  public MasterFileSystem(Configuration conf) throws IOException {
+    this.conf = conf;
     // Set filesystem to be that of this.rootdir else we get complaints about
     // mismatched filesystems if hbase.rootdir is hdfs and fs.defaultFS is
     // default localfs.  Presumption is that rootdir is fully-qualified before
@@ -135,7 +136,6 @@ public class MasterFileSystem {
    * Idempotent.
    */
   private void createInitialFileSystemLayout() throws IOException {
-
     final String[] protectedSubDirs = new String[] {
         HConstants.BASE_NAMESPACE_DIR,
         HConstants.HFILE_ARCHIVE_DIRECTORY,
@@ -147,7 +147,8 @@ public class MasterFileSystem {
       HConstants.HREGION_LOGDIR_NAME,
       HConstants.HREGION_OLDLOGDIR_NAME,
       HConstants.CORRUPT_DIR_NAME,
-      WALProcedureStore.MASTER_PROCEDURE_LOGDIR
+      WALProcedureStore.MASTER_PROCEDURE_LOGDIR,
+      ReplicationUtils.REMOTE_WAL_DIR_NAME
     };
     // check if the root directory exists
     checkRootDir(this.rootdir, conf, this.fs);
@@ -194,7 +195,9 @@ public class MasterFileSystem {
     return this.fs;
   }
 
-  protected FileSystem getWALFileSystem() { return this.walFs; }
+  public FileSystem getWALFileSystem() {
+    return this.walFs;
+  }
 
   public Configuration getConfiguration() {
     return this.conf;
@@ -210,7 +213,16 @@ public class MasterFileSystem {
   /**
    * @return HBase root log dir.
    */
-  public Path getWALRootDir() { return this.walRootDir; }
+  public Path getWALRootDir() {
+    return this.walRootDir;
+  }
+
+  /**
+   * @return the directory for a give {@code region}.
+   */
+  public Path getRegionDir(RegionInfo region) {
+    return FSUtils.getRegionDir(FSUtils.getTableDir(getRootDir(), region.getTable()), region);
+  }
 
   /**
    * @return HBase temp dir.
@@ -227,13 +239,9 @@ public class MasterFileSystem {
   }
 
   /**
-   * Get the rootdir.  Make sure its wholesome and exists before returning.
-   * @param rd
-   * @param c
-   * @param fs
-   * @return hbase.rootdir (after checks for existence and bootstrapping if
-   * needed populating the directory with necessary bootup files).
-   * @throws IOException
+   * Get the rootdir. Make sure its wholesome and exists before returning.
+   * @return hbase.rootdir (after checks for existence and bootstrapping if needed populating the
+   *         directory with necessary bootup files).
    */
   private Path checkRootDir(final Path rd, final Configuration c, final FileSystem fs)
       throws IOException {
@@ -264,12 +272,13 @@ public class MasterFileSystem {
             HConstants.DEFAULT_VERSION_FILE_WRITE_ATTEMPTS));
       }
     } catch (DeserializationException de) {
-      LOG.fatal("Please fix invalid configuration for " + HConstants.HBASE_DIR, de);
+      LOG.error(HBaseMarkers.FATAL, "Please fix invalid configuration for "
+        + HConstants.HBASE_DIR, de);
       IOException ioe = new IOException();
       ioe.initCause(de);
       throw ioe;
     } catch (IllegalArgumentException iae) {
-      LOG.fatal("Please fix invalid configuration for "
+      LOG.error(HBaseMarkers.FATAL, "Please fix invalid configuration for "
         + HConstants.HBASE_DIR + " " + rd.toString(), iae);
       throw iae;
     }
@@ -299,16 +308,16 @@ public class MasterFileSystem {
    * Make sure the hbase temp directory exists and is empty.
    * NOTE that this method is only executed once just after the master becomes the active one.
    */
-  private void checkTempDir(final Path tmpdir, final Configuration c, final FileSystem fs)
+  @VisibleForTesting
+  void checkTempDir(final Path tmpdir, final Configuration c, final FileSystem fs)
       throws IOException {
     // If the temp directory exists, clear the content (left over, from the previous run)
     if (fs.exists(tmpdir)) {
       // Archive table in temp, maybe left over from failed deletion,
       // if not the cleaner will take care of them.
-      for (Path tabledir: FSUtils.getTableDirs(fs, tmpdir)) {
-        for (Path regiondir: FSUtils.getRegionDirs(fs, tabledir)) {
-          HFileArchiver.archiveRegion(fs, this.rootdir, tabledir, regiondir);
-        }
+      for (Path tableDir: FSUtils.getTableDirs(fs, tmpdir)) {
+        HFileArchiver.archiveRegions(c, fs, this.rootdir, tableDir,
+          FSUtils.getRegionDirs(fs, tableDir));
       }
       if (!fs.delete(tmpdir, true)) {
         throw new IOException("Unable to clean the temp directory: " + tmpdir);
@@ -444,7 +453,7 @@ public class MasterFileSystem {
   public void stop() {
   }
 
-  public void logFileSystemState(Log log) throws IOException {
+  public void logFileSystemState(Logger log) throws IOException {
     FSUtils.logFileSystemState(fs, rootdir, log);
   }
 }

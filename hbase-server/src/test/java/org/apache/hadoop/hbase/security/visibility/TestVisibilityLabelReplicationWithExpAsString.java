@@ -24,20 +24,17 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.security.PrivilegedExceptionAction;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Tag;
-import org.apache.hadoop.hbase.TagUtil;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
@@ -54,12 +51,20 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({ SecurityTests.class, MediumTests.class })
 public class TestVisibilityLabelReplicationWithExpAsString extends TestVisibilityLabelsReplication {
-  private static final Log LOG = LogFactory
-      .getLog(TestVisibilityLabelReplicationWithExpAsString.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestVisibilityLabelReplicationWithExpAsString.class);
+
+  private static final Logger LOG = LoggerFactory
+      .getLogger(TestVisibilityLabelReplicationWithExpAsString.class);
 
   @Override
   @Before
@@ -161,6 +166,7 @@ public class TestVisibilityLabelReplicationWithExpAsString extends TestVisibilit
       InterruptedException {
     PrivilegedExceptionAction<Void> scanAction = new PrivilegedExceptionAction<Void>() {
 
+      @Override
       public Void run() throws Exception {
         try (Connection connection = ConnectionFactory.createConnection(conf1);
              Table table2 = connection.getTable(TABLE_NAME)) {
@@ -181,7 +187,7 @@ public class TestVisibilityLabelReplicationWithExpAsString extends TestVisibilit
           boolean foundNonVisTag = false;
           for(Tag t : TestCoprocessorForTagsAtSink.tags) {
             if(t.getType() == NON_VIS_TAG_TYPE) {
-              assertEquals(TEMP, Bytes.toString(TagUtil.cloneValue(t)));
+              assertEquals(TEMP, Bytes.toString(Tag.cloneValue(t)));
               foundNonVisTag = true;
               break;
             }

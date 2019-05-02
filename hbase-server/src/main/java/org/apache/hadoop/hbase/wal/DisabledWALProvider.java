@@ -26,18 +26,19 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl.WriteEntry;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // imports for things that haven't moved from regionserver.wal yet.
 
@@ -50,13 +51,12 @@ import org.apache.yetus.audience.InterfaceAudience;
 @InterfaceAudience.Private
 class DisabledWALProvider implements WALProvider {
 
-  private static final Log LOG = LogFactory.getLog(DisabledWALProvider.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DisabledWALProvider.class);
 
   WAL disabled;
 
   @Override
-  public void init(final WALFactory factory, final Configuration conf,
-      final List<WALActionsListener> listeners, String providerId) throws IOException {
+  public void init(WALFactory factory, Configuration conf, String providerId) throws IOException {
     if (null != disabled) {
       throw new IllegalStateException("WALProvider.init should only be called once.");
     }
@@ -74,7 +74,7 @@ class DisabledWALProvider implements WALProvider {
   }
 
   @Override
-  public WAL getWAL(final byte[] identifier, byte[] namespace) throws IOException {
+  public WAL getWAL(RegionInfo region) throws IOException {
     return disabled;
   }
 
@@ -119,7 +119,7 @@ class DisabledWALProvider implements WALProvider {
     public byte[][] rollWriter() {
       if (!listeners.isEmpty()) {
         for (WALActionsListener listener : listeners) {
-          listener.logRollRequested(false);
+          listener.logRollRequested(WALActionsListener.RollRequestReason.ERROR);
         }
         for (WALActionsListener listener : listeners) {
           try {
@@ -161,8 +161,15 @@ class DisabledWALProvider implements WALProvider {
     }
 
     @Override
-    public long append(RegionInfo info, WALKey key, WALEdit edits, boolean inMemstore)
+    public long append(RegionInfo info, WALKeyImpl key, WALEdit edits, boolean inMemstore)
         throws IOException {
+      WriteEntry writeEntry = key.getMvcc().begin();
+      if (!edits.isReplay()) {
+        for (Cell cell : edits.getCells()) {
+          PrivateCellUtil.setSequenceId(cell, writeEntry.getWriteNumber());
+        }
+      }
+      key.setWriteEntry(writeEntry);
       if (!this.listeners.isEmpty()) {
         final long start = System.nanoTime();
         long len = 0;
@@ -185,7 +192,7 @@ class DisabledWALProvider implements WALProvider {
     public void sync() {
       if (!this.listeners.isEmpty()) {
         for (WALActionsListener listener : this.listeners) {
-          listener.postSync(0l, 0);
+          listener.postSync(0L, 0);
         }
       }
     }
@@ -195,6 +202,7 @@ class DisabledWALProvider implements WALProvider {
       sync();
     }
 
+    @Override
     public Long startCacheFlush(final byte[] encodedRegionName, Map<byte[], Long>
         flushedFamilyNamesToSeq) {
       return startCacheFlush(encodedRegionName, flushedFamilyNamesToSeq.keySet());
@@ -248,5 +256,10 @@ class DisabledWALProvider implements WALProvider {
   @Override
   public long getLogFileSize() {
     return 0;
+  }
+
+  @Override
+  public void addWALActionsListener(WALActionsListener listener) {
+    disabled.registerWALActionsListener(listener);
   }
 }

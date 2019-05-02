@@ -18,6 +18,8 @@
  */
 package org.apache.hadoop.hbase.client;
 
+import static org.apache.hadoop.hbase.client.ConnectionUtils.checkHasFamilies;
+
 // DO NOT MAKE USE OF THESE IMPORTS! THEY ARE HERE FOR COPROCESSOR ENDPOINTS ONLY.
 // Internally, we use shaded protobuf. This below are part of our public API.
 //SEE ABOVE NOTE!
@@ -25,40 +27,6 @@ import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.google.protobuf.Service;
 import com.google.protobuf.ServiceException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CompareOperator;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionLocation;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValueUtil;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.yetus.audience.InterfaceStability;
-import org.apache.hadoop.hbase.client.coprocessor.Batch;
-import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
-import org.apache.hadoop.hbase.filter.BinaryComparator;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
-import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
-import org.apache.hadoop.hbase.ipc.RpcControllerFactory;
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
-import org.apache.hadoop.hbase.shaded.protobuf.ResponseConverter;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MultiRequest;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MutateRequest;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MutateResponse;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.RegionAction;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.CompareType;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.Pair;
-import org.apache.hadoop.hbase.util.ReflectionUtils;
-import org.apache.hadoop.hbase.util.Threads;
-
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.util.ArrayList;
@@ -73,8 +41,38 @@ import java.util.concurrent.Future;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.CompareOperator;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HRegionLocation;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.coprocessor.Batch;
+import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
+import org.apache.hadoop.hbase.filter.BinaryComparator;
+import org.apache.hadoop.hbase.io.TimeRange;
+import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
+import org.apache.hadoop.hbase.ipc.RpcControllerFactory;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.util.ReflectionUtils;
+import org.apache.hadoop.hbase.util.Threads;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.yetus.audience.InterfaceStability;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static org.apache.hadoop.hbase.client.ConnectionUtils.checkHasFamilies;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
+import org.apache.hadoop.hbase.shaded.protobuf.ResponseConverter;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MultiRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MutateRequest;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.MutateResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos.RegionAction;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.CompareType;
 
 /**
  * An implementation of {@link Table}. Used to communicate with a single HBase table.
@@ -102,7 +100,7 @@ import static org.apache.hadoop.hbase.client.ConnectionUtils.checkHasFamilies;
 @InterfaceAudience.Private
 @InterfaceStability.Stable
 public class HTable implements Table {
-  private static final Log LOG = LogFactory.getLog(HTable.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HTable.class);
   private static final Consistency DEFAULT_CONSISTENCY = Consistency.STRONG;
   private final ClusterConnection connection;
   private final TableName tableName;
@@ -156,15 +154,12 @@ public class HTable implements Table {
    * @param pool ExecutorService to be used.
    */
   @InterfaceAudience.Private
-  protected HTable(final ClusterConnection connection,
+  protected HTable(final ConnectionImplementation connection,
       final TableBuilderBase builder,
       final RpcRetryingCallerFactory rpcCallerFactory,
       final RpcControllerFactory rpcControllerFactory,
       final ExecutorService pool) {
-    if (connection == null || connection.isClosed()) {
-      throw new IllegalArgumentException("Connection is null or closed.");
-    }
-    this.connection = connection;
+    this.connection = Preconditions.checkNotNull(connection, "connection is null");
     this.configuration = connection.getConfiguration();
     this.connConfiguration = connection.getConnectionConfiguration();
     if (pool == null) {
@@ -206,9 +201,6 @@ public class HTable implements Table {
     return conf.getInt(ConnectionConfiguration.MAX_KEYVALUE_SIZE_KEY, -1);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public Configuration getConfiguration() {
     return configuration;
@@ -227,19 +219,6 @@ public class HTable implements Table {
   @VisibleForTesting
   protected Connection getConnection() {
     return this.connection;
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public HTableDescriptor getTableDescriptor() throws IOException {
-    HTableDescriptor htd = HBaseAdmin.getHTableDescriptor(tableName, connection, rpcCallerFactory,
-      rpcControllerFactory, operationTimeoutMs, readRpcTimeoutMs);
-    if (htd != null) {
-      return new ImmutableHTableDescriptor(htd);
-    }
-    return null;
   }
 
   @Override
@@ -361,9 +340,6 @@ public class HTable implements Table {
     return getScanner(scan);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public Result get(final Get get) throws IOException {
     return get(get, get.isCheckExistenceOnly());
@@ -404,9 +380,6 @@ public class HTable implements Table {
     return callable.call(operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public Result[] get(List<Get> gets) throws IOException {
     if (gets.size() == 1) {
@@ -428,9 +401,6 @@ public class HTable implements Table {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public void batch(final List<? extends Row> actions, final Object[] results)
       throws InterruptedException, IOException {
@@ -471,9 +441,6 @@ public class HTable implements Table {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public <R> void batchCallback(
     final List<? extends Row> actions, final Object[] results, final Batch.Callback<R> callback)
@@ -504,44 +471,23 @@ public class HTable implements Table {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
-  public void delete(final Delete delete)
-  throws IOException {
-    CancellableRegionServerCallable<SingleResponse> callable =
-        new CancellableRegionServerCallable<SingleResponse>(
-            connection, getName(), delete.getRow(), this.rpcControllerFactory.newController(),
-            writeRpcTimeoutMs, new RetryingTimeTracker().start(), delete.getPriority()) {
+  public void delete(final Delete delete) throws IOException {
+    ClientServiceCallable<Void> callable =
+        new ClientServiceCallable<Void>(this.connection, getName(), delete.getRow(),
+            this.rpcControllerFactory.newController(), delete.getPriority()) {
       @Override
-      protected SingleResponse rpcCall() throws Exception {
-        MutateRequest request = RequestConverter.buildMutateRequest(
-          getLocation().getRegionInfo().getRegionName(), delete);
-        MutateResponse response = doMutate(request);
-        return ResponseConverter.getResult(request, response, getRpcControllerCellScanner());
+      protected Void rpcCall() throws Exception {
+        MutateRequest request = RequestConverter
+            .buildMutateRequest(getLocation().getRegionInfo().getRegionName(), delete);
+        doMutate(request);
+        return null;
       }
     };
-    List<Delete> rows = Collections.singletonList(delete);
-    AsyncProcessTask task = AsyncProcessTask.newBuilder()
-            .setPool(pool)
-            .setTableName(tableName)
-            .setRowAccess(rows)
-            .setCallable(callable)
-            .setRpcTimeout(writeRpcTimeoutMs)
-            .setOperationTimeout(operationTimeoutMs)
-            .setSubmittedRows(AsyncProcessTask.SubmittedRows.ALL)
-            .build();
-    AsyncRequestFuture ars = multiAp.submit(task);
-    ars.waitUntilDone();
-    if (ars.hasError()) {
-      throw ars.getErrors();
-    }
+    rpcCallerFactory.<Void>newCaller(this.writeRpcTimeoutMs)
+        .callWithRetries(callable, this.operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public void delete(final List<Delete> deletes)
   throws IOException {
@@ -564,33 +510,24 @@ public class HTable implements Table {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   * @throws IOException
-   */
   @Override
   public void put(final Put put) throws IOException {
     validatePut(put);
     ClientServiceCallable<Void> callable =
         new ClientServiceCallable<Void>(this.connection, getName(), put.getRow(),
             this.rpcControllerFactory.newController(), put.getPriority()) {
-          @Override
-          protected Void rpcCall() throws Exception {
-            MutateRequest request =
-                RequestConverter.buildMutateRequest(getLocation().getRegionInfo().getRegionName(),
-                  put);
-            doMutate(request);
-            return null;
-          }
-        };
+      @Override
+      protected Void rpcCall() throws Exception {
+        MutateRequest request =
+            RequestConverter.buildMutateRequest(getLocation().getRegionInfo().getRegionName(), put);
+        doMutate(request);
+        return null;
+      }
+    };
     rpcCallerFactory.<Void> newCaller(this.writeRpcTimeoutMs).callWithRetries(callable,
-      this.operationTimeoutMs);
+        this.operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   * @throws IOException
-   */
   @Override
   public void put(final List<Put> puts) throws IOException {
     for (Put put : puts) {
@@ -604,9 +541,6 @@ public class HTable implements Table {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public void mutateRow(final RowMutations rm) throws IOException {
     CancellableRegionServerCallable<MultiResponse> callable =
@@ -648,9 +582,6 @@ public class HTable implements Table {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public Result append(final Append append) throws IOException {
     checkHasFamilies(append);
@@ -670,9 +601,6 @@ public class HTable implements Table {
         callWithRetries(callable, this.operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public Result increment(final Increment increment) throws IOException {
     checkHasFamilies(increment);
@@ -692,9 +620,6 @@ public class HTable implements Table {
         this.operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public long incrementColumnValue(final byte [] row, final byte [] family,
       final byte [] qualifier, final long amount)
@@ -702,9 +627,6 @@ public class HTable implements Table {
     return incrementColumnValue(row, family, qualifier, amount, Durability.SYNC_WAL);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public long incrementColumnValue(final byte [] row, final byte [] family,
       final byte [] qualifier, final long amount, final Durability durability)
@@ -737,135 +659,99 @@ public class HTable implements Table {
         callWithRetries(callable, this.operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
-  public boolean checkAndPut(final byte [] row,
-      final byte [] family, final byte [] qualifier, final byte [] value,
-      final Put put)
-  throws IOException {
-    return checkAndPut(row, family, qualifier, CompareOp.EQUAL, value, put);
+  @Deprecated
+  public boolean checkAndPut(final byte [] row, final byte [] family, final byte [] qualifier,
+      final byte [] value, final Put put) throws IOException {
+    return doCheckAndPut(row, family, qualifier, CompareOperator.EQUAL.name(), value, null, put);
   }
 
-  private boolean doCheckAndPut(final byte [] row, final byte [] family,
-                                final byte [] qualifier, final String opName,
-                                final byte [] value, final Put put)
-  throws IOException {
+  @Override
+  @Deprecated
+  public boolean checkAndPut(final byte [] row, final byte [] family, final byte [] qualifier,
+      final CompareOperator op, final byte [] value, final Put put) throws IOException {
+    // The name of the operators in CompareOperator are intentionally those of the
+    // operators in the filter's CompareOp enum.
+    return doCheckAndPut(row, family, qualifier, op.name(), value, null, put);
+  }
+
+  private boolean doCheckAndPut(final byte[] row, final byte[] family, final byte[] qualifier,
+    final String opName, final byte[] value, final TimeRange timeRange, final Put put)
+    throws IOException {
     ClientServiceCallable<Boolean> callable =
-    new ClientServiceCallable<Boolean>(this.connection, getName(), row,
-    this.rpcControllerFactory.newController(), put.getPriority()) {
+        new ClientServiceCallable<Boolean>(this.connection, getName(), row,
+            this.rpcControllerFactory.newController(), put.getPriority()) {
       @Override
       protected Boolean rpcCall() throws Exception {
         CompareType compareType = CompareType.valueOf(opName);
         MutateRequest request = RequestConverter.buildMutateRequest(
-        getLocation().getRegionInfo().getRegionName(), row, family, qualifier,
-        new BinaryComparator(value), compareType, put);
+            getLocation().getRegionInfo().getRegionName(), row, family, qualifier,
+            new BinaryComparator(value), compareType, timeRange, put);
         MutateResponse response = doMutate(request);
         return Boolean.valueOf(response.getProcessed());
       }
     };
-    return rpcCallerFactory.<Boolean> newCaller(this.writeRpcTimeoutMs).
-    callWithRetries(callable, this.operationTimeoutMs);
+    return rpcCallerFactory.<Boolean> newCaller(this.writeRpcTimeoutMs)
+        .callWithRetries(callable, this.operationTimeoutMs);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
-  public boolean checkAndPut(final byte [] row, final byte [] family,
-      final byte [] qualifier, final CompareOp compareOp, final byte [] value,
-      final Put put)
-  throws IOException {
-    return doCheckAndPut(row, family, qualifier, compareOp.name(), value, put);
+  @Deprecated
+  public boolean checkAndDelete(final byte[] row, final byte[] family, final byte[] qualifier,
+    final byte[] value, final Delete delete) throws IOException {
+    return doCheckAndDelete(row, family, qualifier, CompareOperator.EQUAL.name(), value, null,
+      delete);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
-  public boolean checkAndPut(final byte [] row, final byte [] family,
-                             final byte [] qualifier, final CompareOperator op,
-                             final byte [] value, final Put put)
-  throws IOException {
-    // The name of the operators in CompareOperator are intentionally those of the
-    // operators in the filter's CompareOp enum.
-    return doCheckAndPut(row, family, qualifier, op.name(), value, put);
+  @Deprecated
+  public boolean checkAndDelete(final byte[] row, final byte[] family, final byte[] qualifier,
+    final CompareOperator op, final byte[] value, final Delete delete) throws IOException {
+    return doCheckAndDelete(row, family, qualifier, op.name(), value, null, delete);
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public boolean checkAndDelete(final byte [] row, final byte [] family, final byte [] qualifier,
-      final byte [] value, final Delete delete) throws IOException {
-    return checkAndDelete(row, family, qualifier, CompareOp.EQUAL, value, delete);
-  }
-
-  private boolean doCheckAndDelete(final byte [] row, final byte [] family,
-                                   final byte [] qualifier, final String opName,
-                                   final byte [] value, final Delete delete)
-  throws IOException {
+  private boolean doCheckAndDelete(final byte[] row, final byte[] family, final byte[] qualifier,
+    final String opName, final byte[] value, final TimeRange timeRange, final Delete delete)
+    throws IOException {
     CancellableRegionServerCallable<SingleResponse> callable =
-    new CancellableRegionServerCallable<SingleResponse>(
-    this.connection, getName(), row, this.rpcControllerFactory.newController(), writeRpcTimeoutMs,
+      new CancellableRegionServerCallable<SingleResponse>(this.connection, getName(), row,
+        this.rpcControllerFactory.newController(), writeRpcTimeoutMs,
         new RetryingTimeTracker().start(), delete.getPriority()) {
-      @Override
-      protected SingleResponse rpcCall() throws Exception {
-        CompareType compareType = CompareType.valueOf(opName);
-        MutateRequest request = RequestConverter.buildMutateRequest(
-        getLocation().getRegionInfo().getRegionName(), row, family, qualifier,
-        new BinaryComparator(value), compareType, delete);
-        MutateResponse response = doMutate(request);
-        return ResponseConverter.getResult(request, response, getRpcControllerCellScanner());
-      }
-    };
+        @Override
+        protected SingleResponse rpcCall() throws Exception {
+          CompareType compareType = CompareType.valueOf(opName);
+          MutateRequest request = RequestConverter
+            .buildMutateRequest(getLocation().getRegionInfo().getRegionName(), row, family,
+              qualifier, new BinaryComparator(value), compareType, timeRange, delete);
+          MutateResponse response = doMutate(request);
+          return ResponseConverter.getResult(request, response, getRpcControllerCellScanner());
+        }
+      };
     List<Delete> rows = Collections.singletonList(delete);
     Object[] results = new Object[1];
-    AsyncProcessTask task = AsyncProcessTask.newBuilder()
-    .setPool(pool)
-    .setTableName(tableName)
-    .setRowAccess(rows)
-    .setCallable(callable)
-    // TODO any better timeout?
-    .setRpcTimeout(Math.max(readRpcTimeoutMs, writeRpcTimeoutMs))
-    .setOperationTimeout(operationTimeoutMs)
-    .setSubmittedRows(AsyncProcessTask.SubmittedRows.ALL)
-    .setResults(results)
-    .build();
+    AsyncProcessTask task =
+      AsyncProcessTask.newBuilder().setPool(pool).setTableName(tableName).setRowAccess(rows)
+        .setCallable(callable)
+        // TODO any better timeout?
+        .setRpcTimeout(Math.max(readRpcTimeoutMs, writeRpcTimeoutMs))
+        .setOperationTimeout(operationTimeoutMs)
+        .setSubmittedRows(AsyncProcessTask.SubmittedRows.ALL).setResults(results).build();
     AsyncRequestFuture ars = multiAp.submit(task);
     ars.waitUntilDone();
     if (ars.hasError()) {
       throw ars.getErrors();
     }
-    return ((SingleResponse.Entry)results[0]).isProcessed();
+    return ((SingleResponse.Entry) results[0]).isProcessed();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
-  public boolean checkAndDelete(final byte [] row, final byte [] family,
-      final byte [] qualifier, final CompareOp compareOp, final byte [] value,
-      final Delete delete)
-  throws IOException {
-    return doCheckAndDelete(row, family, qualifier, compareOp.name(), value, delete);
+  public CheckAndMutateBuilder checkAndMutate(byte[] row, byte[] family) {
+    return new CheckAndMutateBuilderImpl(row, family);
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public boolean checkAndDelete(final byte [] row, final byte [] family,
-                                final byte [] qualifier, final CompareOperator op,
-                                final byte [] value, final Delete delete)
-  throws IOException {
-    return doCheckAndDelete(row, family, qualifier, op.name(), value, delete);
-  }
-
-  private boolean doCheckAndMutate(final byte [] row, final byte [] family, final byte [] qualifier,
-                                final String opName, final byte [] value, final RowMutations rm)
-  throws IOException {
+  private boolean doCheckAndMutate(final byte[] row, final byte[] family, final byte[] qualifier,
+    final String opName, final byte[] value, final TimeRange timeRange, final RowMutations rm)
+    throws IOException {
     CancellableRegionServerCallable<MultiResponse> callable =
     new CancellableRegionServerCallable<MultiResponse>(connection, getName(), rm.getRow(),
     rpcControllerFactory.newController(), writeRpcTimeoutMs, new RetryingTimeTracker().start(),
@@ -873,18 +759,18 @@ public class HTable implements Table {
       @Override
       protected MultiResponse rpcCall() throws Exception {
         CompareType compareType = CompareType.valueOf(opName);
-        MultiRequest request = RequestConverter.buildMutateRequest(
-        getLocation().getRegionInfo().getRegionName(), row, family, qualifier,
-        new BinaryComparator(value), compareType, rm);
+        MultiRequest request = RequestConverter
+          .buildMutateRequest(getLocation().getRegionInfo().getRegionName(), row, family, qualifier,
+            new BinaryComparator(value), compareType, timeRange, rm);
         ClientProtos.MultiResponse response = doMulti(request);
         ClientProtos.RegionActionResult res = response.getRegionActionResultList().get(0);
         if (res.hasException()) {
           Throwable ex = ProtobufUtil.toException(res.getException());
           if (ex instanceof IOException) {
-            throw (IOException)ex;
+            throw (IOException) ex;
           }
-          throw new IOException("Failed to checkAndMutate row: "+
-          Bytes.toStringBinary(rm.getRow()), ex);
+          throw new IOException(
+            "Failed to checkAndMutate row: " + Bytes.toStringBinary(rm.getRow()), ex);
         }
         return ResponseConverter.getResults(request, response, getRpcControllerCellScanner());
       }
@@ -915,29 +801,13 @@ public class HTable implements Table {
     return ((Result)results[0]).getExists();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
+  @Deprecated
   public boolean checkAndMutate(final byte [] row, final byte [] family, final byte [] qualifier,
-    final CompareOp compareOp, final byte [] value, final RowMutations rm)
-  throws IOException {
-    return doCheckAndMutate(row, family, qualifier, compareOp.name(), value, rm);
+      final CompareOperator op, final byte [] value, final RowMutations rm) throws IOException {
+    return doCheckAndMutate(row, family, qualifier, op.name(), value, null, rm);
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public boolean checkAndMutate(final byte [] row, final byte [] family, final byte [] qualifier,
-                                final CompareOperator op, final byte [] value, final RowMutations rm)
-  throws IOException {
-    return doCheckAndMutate(row, family, qualifier, op.name(), value, rm);
-  }
-
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public boolean exists(final Get get) throws IOException {
     Result r = get(get, true);
@@ -1014,24 +884,8 @@ public class HTable implements Table {
   }
 
   // validate for well-formedness
-  public void validatePut(final Put put) throws IllegalArgumentException {
-    validatePut(put, connConfiguration.getMaxKeyValueSize());
-  }
-
-  // validate for well-formedness
-  public static void validatePut(Put put, int maxKeyValueSize) throws IllegalArgumentException {
-    if (put.isEmpty()) {
-      throw new IllegalArgumentException("No columns to insert");
-    }
-    if (maxKeyValueSize > 0) {
-      for (List<Cell> list : put.getFamilyCellMap().values()) {
-        for (Cell cell : list) {
-          if (KeyValueUtil.length(cell) > maxKeyValueSize) {
-            throw new IllegalArgumentException("KeyValue size too large");
-          }
-        }
-      }
-    }
+  private void validatePut(final Put put) throws IllegalArgumentException {
+    ConnectionUtils.validatePut(put, connConfiguration.getMaxKeyValueSize());
   }
 
   /**
@@ -1047,20 +901,14 @@ public class HTable implements Table {
    * This is a power user function: avoid unless you know the ramifications.
    */
   public void clearRegionCache() {
-    this.connection.clearRegionCache();
+    this.connection.clearRegionLocationCache();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public CoprocessorRpcChannel coprocessorService(byte[] row) {
     return new RegionCoprocessorRpcChannel(connection, tableName, row);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public <T extends Service, R> Map<byte[],R> coprocessorService(final Class<T> service,
       byte[] startKey, byte[] endKey, final Batch.Call<T,R> callable)
@@ -1078,9 +926,6 @@ public class HTable implements Table {
     return results;
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public <T extends Service, R> void coprocessorService(final Class<T> service,
       byte[] startKey, byte[] endKey, final Batch.Call<T,R> callable,
@@ -1223,9 +1068,6 @@ public class HTable implements Table {
     return results;
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public <R extends Message> void batchCoprocessorService(
       final Descriptors.MethodDescriptor methodDescriptor, final Message request,
@@ -1269,10 +1111,9 @@ public class HTable implements Table {
     final List<String> callbackErrorServers = new ArrayList<>();
     Object[] results = new Object[execs.size()];
 
-    AsyncProcess asyncProcess =
-        new AsyncProcess(connection, configuration,
-            RpcRetryingCallerFactory.instantiate(configuration, connection.getStatisticsTracker()),
-            true, RpcControllerFactory.instantiate(configuration));
+    AsyncProcess asyncProcess = new AsyncProcess(connection, configuration,
+        RpcRetryingCallerFactory.instantiate(configuration, connection.getStatisticsTracker()),
+        RpcControllerFactory.instantiate(configuration));
 
     Callback<ClientProtos.CoprocessorServiceResult> resultsCallback
     = (byte[] region, byte[] row, ClientProtos.CoprocessorServiceResult serviceResult) -> {
@@ -1316,7 +1157,74 @@ public class HTable implements Table {
     }
   }
 
+  @Override
   public RegionLocator getRegionLocator() {
     return this.locator;
+  }
+
+  private class CheckAndMutateBuilderImpl implements CheckAndMutateBuilder {
+
+    private final byte[] row;
+    private final byte[] family;
+    private byte[] qualifier;
+    private TimeRange timeRange;
+    private CompareOperator op;
+    private byte[] value;
+
+    CheckAndMutateBuilderImpl(byte[] row, byte[] family) {
+      this.row = Preconditions.checkNotNull(row, "row is null");
+      this.family = Preconditions.checkNotNull(family, "family is null");
+    }
+
+    @Override
+    public CheckAndMutateBuilder qualifier(byte[] qualifier) {
+      this.qualifier = Preconditions.checkNotNull(qualifier, "qualifier is null. Consider using" +
+          " an empty byte array, or just do not call this method if you want a null qualifier");
+      return this;
+    }
+
+    @Override
+    public CheckAndMutateBuilder timeRange(TimeRange timeRange) {
+      this.timeRange = timeRange;
+      return this;
+    }
+
+    @Override
+    public CheckAndMutateBuilder ifNotExists() {
+      this.op = CompareOperator.EQUAL;
+      this.value = null;
+      return this;
+    }
+
+    @Override
+    public CheckAndMutateBuilder ifMatches(CompareOperator compareOp, byte[] value) {
+      this.op = Preconditions.checkNotNull(compareOp, "compareOp is null");
+      this.value = Preconditions.checkNotNull(value, "value is null");
+      return this;
+    }
+
+    private void preCheck() {
+      Preconditions.checkNotNull(op, "condition is null. You need to specify the condition by" +
+          " calling ifNotExists/ifEquals/ifMatches before executing the request");
+    }
+
+    @Override
+    public boolean thenPut(Put put) throws IOException {
+      validatePut(put);
+      preCheck();
+      return doCheckAndPut(row, family, qualifier, op.name(), value, timeRange, put);
+    }
+
+    @Override
+    public boolean thenDelete(Delete delete) throws IOException {
+      preCheck();
+      return doCheckAndDelete(row, family, qualifier, op.name(), value, timeRange, delete);
+    }
+
+    @Override
+    public boolean thenMutate(RowMutations mutation) throws IOException {
+      preCheck();
+      return doCheckAndMutate(row, family, qualifier, op.name(), value, timeRange, mutation);
+    }
   }
 }

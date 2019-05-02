@@ -89,10 +89,12 @@ public class ExplicitColumnTracker implements ColumnTracker {
   /**
    * Done when there are no more columns to match against.
    */
+  @Override
   public boolean done() {
     return this.index >= columns.length;
   }
 
+  @Override
   public ColumnCount getColumnHint() {
     return this.column;
   }
@@ -182,6 +184,7 @@ public class ExplicitColumnTracker implements ColumnTracker {
   }
 
   // Called between every row.
+  @Override
   public void reset() {
     this.index = 0;
     this.column = this.columns[this.index];
@@ -207,12 +210,7 @@ public class ExplicitColumnTracker implements ColumnTracker {
     return timestamp < oldestStamp;
   }
 
-  /**
-   * This method is used to inform the column tracker that we are done with this column. We may get
-   * this information from external filters or timestamp range and we then need to indicate this
-   * information to tracker. It is required only in case of ExplicitColumnTracker.
-   * @param cell
-   */
+  @Override
   public void doneWithColumn(Cell cell) {
     while (this.column != null) {
       int compare = CellUtil.compareQualifiers(cell, column.getBuffer(), column.getOffset(),
@@ -245,6 +243,7 @@ public class ExplicitColumnTracker implements ColumnTracker {
     }
   }
 
+  @Override
   public boolean isDone(long timestamp) {
     return minVersions <= 0 && isExpired(timestamp);
   }

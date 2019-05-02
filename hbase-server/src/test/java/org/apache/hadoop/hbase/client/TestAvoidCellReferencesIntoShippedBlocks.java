@@ -26,10 +26,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparatorImpl;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
@@ -57,15 +57,21 @@ import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Iterables;
+import org.apache.hbase.thirdparty.com.google.common.collect.Iterables;
 
 @Category({ LargeTests.class, ClientTests.class })
 public class TestAvoidCellReferencesIntoShippedBlocks {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestAvoidCellReferencesIntoShippedBlocks.class);
+
   protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   static byte[][] ROWS = new byte[2][];
   private static byte[] ROW = Bytes.toBytes("testRow");
@@ -136,7 +142,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
       CacheConfig cacheConf = store.getCacheConfig();
       cacheConf.setCacheDataOnWrite(true);
       cacheConf.setEvictOnClose(true);
-      final BlockCache cache = cacheConf.getBlockCache();
+      final BlockCache cache = cacheConf.getBlockCache().get();
       // insert data. 5 Rows are added
       Put put = new Put(ROW);
       put.addColumn(FAMILY, QUALIFIER, data);
@@ -189,7 +195,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
       try (ResultScanner scanner = table.getScanner(s)) {
         count = Iterables.size(scanner);
       }
-      assertEquals("Count all the rows ", count, 6);
+      assertEquals("Count all the rows ", 6, count);
       // all the cache is loaded
       // trigger a major compaction
       ScannerThread scannerThread = new ScannerThread(table, cache);
@@ -200,7 +206,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
       try (ResultScanner scanner = table.getScanner(s)) {
         count = Iterables.size(scanner);
       }
-      assertEquals("Count all the rows ", count, 6);
+      assertEquals("Count all the rows ", 6, count);
     } finally {
       table.close();
     }
@@ -215,6 +221,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
       this.cache = cache;
     }
 
+    @Override
     public void run() {
       Scan s = new Scan().withStartRow(ROW4).withStopRow(ROW5).setCaching(1);
       try {
@@ -299,7 +306,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
       CacheConfig cacheConf = store.getCacheConfig();
       cacheConf.setCacheDataOnWrite(true);
       cacheConf.setEvictOnClose(true);
-      final BlockCache cache = cacheConf.getBlockCache();
+      final BlockCache cache = cacheConf.getBlockCache().get();
       // insert data. 5 Rows are added
       Put put = new Put(ROW);
       put.addColumn(FAMILY, QUALIFIER, data);
@@ -346,7 +353,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
       try (ResultScanner scanner = table.getScanner(s)) {
         count = Iterables.size(scanner);
       }
-      assertEquals("Count all the rows ", count, 6);
+      assertEquals("Count all the rows ", 6, count);
 
       // Scan from cache
       s = new Scan();
@@ -379,7 +386,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
               iterator.next();
               refBlockCount++;
             }
-            assertEquals("One block should be there ", refBlockCount, 1);
+            assertEquals("One block should be there ", 1, refBlockCount);
             // Rescan to prepopulate the data
             // cache this row.
             Scan s1 = new Scan();
@@ -392,24 +399,28 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
             try {
               scanner = table.getScanner(s1);
               int count = Iterables.size(scanner);
-              assertEquals("Count the rows", count, 2);
-              iterator = cache.iterator();
-              List<BlockCacheKey> newCacheList = new ArrayList<>();
-              while (iterator.hasNext()) {
-                CachedBlock next = iterator.next();
-                BlockCacheKey cacheKey = new BlockCacheKey(next.getFilename(), next.getOffset());
-                newCacheList.add(cacheKey);
-              }
+              assertEquals("Count the rows", 2, count);
               int newBlockRefCount = 0;
-              for (BlockCacheKey key : cacheList) {
-                if (newCacheList.contains(key)) {
-                  newBlockRefCount++;
+              List<BlockCacheKey> newCacheList = new ArrayList<>();
+              while (true) {
+                newBlockRefCount = 0;
+                newCacheList.clear();
+                iterator = cache.iterator();
+                while (iterator.hasNext()) {
+                  CachedBlock next = iterator.next();
+                  BlockCacheKey cacheKey = new BlockCacheKey(next.getFilename(), next.getOffset());
+                  newCacheList.add(cacheKey);
+                }
+                for (BlockCacheKey key : cacheList) {
+                  if (newCacheList.contains(key)) {
+                    newBlockRefCount++;
+                  }
+                }
+                if (newBlockRefCount == 6) {
+                  break;
                 }
               }
-
-              assertEquals("old blocks should still be found ", newBlockRefCount, 6);
               latch.countDown();
-
             } catch (IOException e) {
             }
           }
@@ -423,7 +434,7 @@ public class TestAvoidCellReferencesIntoShippedBlocks {
           }
         }
       }
-      assertEquals("Count should give all rows ", count, 10);
+      assertEquals("Count should give all rows ", 10, count);
     } finally {
       table.close();
     }

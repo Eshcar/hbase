@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.commons.cli.CommandLine;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
@@ -37,6 +36,8 @@ import org.apache.hadoop.hbase.util.LoadTestTool;
 import org.apache.hadoop.util.ToolRunner;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import org.apache.hbase.thirdparty.org.apache.commons.cli.CommandLine;
 
 /**
  * Integration Test for MOB ingest.
@@ -110,7 +111,7 @@ public class IntegrationTestIngestWithMOB extends IntegrationTestIngest {
   @Test
   public void testIngest() throws Exception {
     runIngestTest(JUNIT_RUN_TIME, 100, 10, 1024, 10, 20);
-  };
+  }
 
   @Override
   protected void initTable() throws IOException {
@@ -119,7 +120,7 @@ public class IntegrationTestIngestWithMOB extends IntegrationTestIngest {
     TableName tableName = getTablename();
     try (Connection connection = ConnectionFactory.createConnection();
          Admin admin = connection.getAdmin()) {
-      HTableDescriptor tableDesc = admin.getTableDescriptor(tableName);
+      HTableDescriptor tableDesc = new HTableDescriptor(admin.getDescriptor(tableName));
       LOG.info("Disabling table " + getTablename());
       admin.disableTable(tableName);
       ColumnFamilyDescriptor mobColumn = tableDesc.getColumnFamily(mobColumnFamily);

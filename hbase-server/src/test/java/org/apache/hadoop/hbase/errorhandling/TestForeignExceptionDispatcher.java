@@ -20,13 +20,15 @@ package org.apache.hadoop.hbase.errorhandling;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test that we propagate errors through an dispatcher exactly once via different failure
@@ -34,7 +36,12 @@ import org.mockito.Mockito;
  */
 @Category({MasterTests.class, SmallTests.class})
 public class TestForeignExceptionDispatcher {
-  private static final Log LOG = LogFactory.getLog(TestForeignExceptionDispatcher.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestForeignExceptionDispatcher.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestForeignExceptionDispatcher.class);
 
   /**
    * Exception thrown from the test

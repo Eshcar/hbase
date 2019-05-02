@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.mapreduce;
 
 import static org.junit.Assert.assertEquals;
@@ -26,10 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
@@ -42,19 +38,23 @@ import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.Job;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Rule;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test the rowcounter map reduce job.
  */
 @Category({MapReduceTests.class, LargeTests.class})
 public class TestRowCounter {
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().
-      withTimeout(this.getClass()).withLookingForStuckThread(true).build();
-  private static final Log LOG = LogFactory.getLog(TestRowCounter.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRowCounter.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestRowCounter.class);
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private final static String TABLE_NAME = "testRowCounter";
   private final static String TABLE_NAME_TS_RANGE = "testRowCounter_ts_range";
@@ -363,13 +363,7 @@ public class TestRowCounter {
       } catch (SecurityException e) {
         assertEquals(-1, newSecurityManager.getExitCode());
         assertTrue(data.toString().contains("Wrong number of parameters:"));
-        assertTrue(data.toString().contains(
-            "Usage: RowCounter [options] <tablename> " +
-            "[--starttime=[start] --endtime=[end] " +
-            "[--range=[startKey],[endKey][;[startKey],[endKey]...]] " +
-            "[<column1> <column2>...]"));
-        assertTrue(data.toString().contains("-Dhbase.client.scanner.caching=100"));
-        assertTrue(data.toString().contains("-Dmapreduce.map.speculative=false"));
+        assertUsageContent(data.toString());
       }
       data.reset();
       try {
@@ -383,18 +377,22 @@ public class TestRowCounter {
         assertTrue(data.toString().contains(
             "Please specify range in such format as \"--range=a,b\" or, with only one boundary," +
             " \"--range=,b\" or \"--range=a,\""));
-        assertTrue(data.toString().contains(
-            "Usage: RowCounter [options] <tablename> " +
-            "[--starttime=[start] --endtime=[end] " +
-            "[--range=[startKey],[endKey][;[startKey],[endKey]...]] " +
-            "[<column1> <column2>...]"));
+        assertUsageContent(data.toString());
       }
 
     } finally {
       System.setErr(oldPrintStream);
       System.setSecurityManager(SECURITY_MANAGER);
     }
+  }
 
+  private void assertUsageContent(String usage) {
+    assertTrue(usage.contains("Usage: hbase rowcounter [options] <tablename> "
+        + "[--starttime=<start> --endtime=<end>] "
+        + "[--range=[startKey],[endKey][;[startKey],[endKey]...]] [<column1> <column2>...]"));
+    assertTrue(usage.contains("For performance consider the following options:"));
+    assertTrue(usage.contains("-Dhbase.client.scanner.caching=100"));
+    assertTrue(usage.contains("-Dmapreduce.map.speculative=false"));
   }
 
 }

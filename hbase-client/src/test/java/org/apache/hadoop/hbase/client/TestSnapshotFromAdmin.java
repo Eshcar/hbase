@@ -21,26 +21,28 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.ipc.HBaseRpcController;
 import org.apache.hadoop.hbase.ipc.RpcControllerFactory;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsSnapshotDoneResponse;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SnapshotResponse;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.RpcController;
+import org.apache.hbase.thirdparty.com.google.protobuf.RpcController;
+
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsSnapshotDoneResponse;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.SnapshotResponse;
 
 /**
  * Test snapshot logic from the client
@@ -48,7 +50,11 @@ import org.apache.hadoop.hbase.shaded.com.google.protobuf.RpcController;
 @Category({SmallTests.class, ClientTests.class})
 public class TestSnapshotFromAdmin {
 
-  private static final Log LOG = LogFactory.getLog(TestSnapshotFromAdmin.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSnapshotFromAdmin.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotFromAdmin.class);
 
   @Rule
   public TestName name = new TestName();
@@ -58,7 +64,7 @@ public class TestSnapshotFromAdmin {
    * passed from the server ensures the correct overall waiting for the snapshot to finish.
    * @throws Exception
    */
-  @Test(timeout = 60000)
+  @Test
   public void testBackoffLogic() throws Exception {
     final int pauseTime = 100;
     final int maxWaitTime =
@@ -71,7 +77,7 @@ public class TestSnapshotFromAdmin {
       ignoreExpectedTime += HConstants.RETRY_BACKOFF[i] * pauseTime;
     }
     // the correct wait time, capping at the maxTime/tries + fudge room
-    final long time = pauseTime * 3 + ((maxWaitTime / numRetries) * 3) + 300;
+    final long time = pauseTime * 3L + ((maxWaitTime / numRetries) * 3) + 300L;
     assertTrue("Capped snapshot wait time isn't less that the uncapped backoff time "
         + "- further testing won't prove anything.", time < ignoreExpectedTime);
 
@@ -86,7 +92,7 @@ public class TestSnapshotFromAdmin {
     // mock the master admin to our mock
     MasterKeepAliveConnection mockMaster = Mockito.mock(MasterKeepAliveConnection.class);
     Mockito.when(mockConnection.getConfiguration()).thenReturn(conf);
-    Mockito.when(mockConnection.getKeepAliveMasterService()).thenReturn(mockMaster);
+    Mockito.when(mockConnection.getMaster()).thenReturn(mockMaster);
     // we need a real retrying caller
     RpcRetryingCallerFactory callerFactory = new RpcRetryingCallerFactory(conf);
     RpcControllerFactory controllerFactory = Mockito.mock(RpcControllerFactory.class);
@@ -157,7 +163,7 @@ public class TestSnapshotFromAdmin {
 
     // mock the master connection
     MasterKeepAliveConnection master = Mockito.mock(MasterKeepAliveConnection.class);
-    Mockito.when(mockConnection.getKeepAliveMasterService()).thenReturn(master);
+    Mockito.when(mockConnection.getMaster()).thenReturn(master);
     SnapshotResponse response = SnapshotResponse.newBuilder().setExpectedTimeout(0).build();
     Mockito.when(
       master.snapshot((RpcController) Mockito.any(), Mockito.any()))

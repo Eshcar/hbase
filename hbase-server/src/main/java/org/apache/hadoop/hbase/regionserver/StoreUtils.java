@@ -24,12 +24,12 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility functions for region server storage layer.
@@ -37,7 +37,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 @InterfaceAudience.Private
 public class StoreUtils {
 
-  private static final Log LOG = LogFactory.getLog(StoreUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(StoreUtils.class);
 
   /**
    * Creates a deterministic hash code for store file collection.
@@ -61,7 +61,7 @@ public class StoreUtils {
   public static long getLowestTimestamp(Collection<HStoreFile> candidates) throws IOException {
     long minTs = Long.MAX_VALUE;
     for (HStoreFile storeFile : candidates) {
-      minTs = Math.min(minTs, storeFile.getModificationTimeStamp());
+      minTs = Math.min(minTs, storeFile.getModificationTimestamp());
     }
     return minTs;
   }
@@ -120,7 +120,7 @@ public class StoreUtils {
     if (comparator.compareRows(midKey, firstKey) == 0 ||
         comparator.compareRows(midKey, lastKey) == 0) {
       if (LOG.isDebugEnabled()) {
-        LOG.debug("cannot split because midkey is the same as first or last row");
+        LOG.debug("cannot split {} because midkey is the same as first or last row", file);
       }
       return Optional.empty();
     }

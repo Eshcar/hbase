@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -24,33 +23,38 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.testclassification.MapReduceTests;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+import org.apache.hadoop.hbase.testclassification.MapReduceTests;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.ImmutableList;
+import org.apache.hbase.thirdparty.com.google.common.collect.ImmutableList;
 
 @Category({MapReduceTests.class, SmallTests.class})
 public class TestGroupingTableMap {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestGroupingTableMap.class);
 
   @Test
   @SuppressWarnings({ "deprecation", "unchecked" })
@@ -68,9 +72,12 @@ public class TestGroupingTableMap {
 
       byte[] row = {};
       List<Cell> keyValues = ImmutableList.<Cell>of(
-          new KeyValue(row, "familyA".getBytes(), "qualifierA".getBytes(), Bytes.toBytes("1111")),
-          new KeyValue(row, "familyA".getBytes(), "qualifierA".getBytes(), Bytes.toBytes("2222")),
-          new KeyValue(row, "familyB".getBytes(), "qualifierB".getBytes(), Bytes.toBytes("3333")));
+          new KeyValue(row, Bytes.toBytes("familyA"), Bytes.toBytes("qualifierA"),
+              Bytes.toBytes("1111")),
+          new KeyValue(row, Bytes.toBytes("familyA"), Bytes.toBytes("qualifierA"),
+              Bytes.toBytes("2222")),
+          new KeyValue(row, Bytes.toBytes("familyB"), Bytes.toBytes("qualifierB"),
+              Bytes.toBytes("3333")));
       when(result.listCells()).thenReturn(keyValues);
       OutputCollector<ImmutableBytesWritable, Result> outputCollectorMock =
           mock(OutputCollector.class);
@@ -98,9 +105,12 @@ public class TestGroupingTableMap {
 
       byte[] row = {};
       List<Cell> keyValues = ImmutableList.<Cell>of(
-          new KeyValue(row, "familyA".getBytes(), "qualifierA".getBytes(), Bytes.toBytes("1111")),
-          new KeyValue(row, "familyB".getBytes(), "qualifierB".getBytes(), Bytes.toBytes("2222")),
-          new KeyValue(row, "familyC".getBytes(), "qualifierC".getBytes(), Bytes.toBytes("3333")));
+          new KeyValue(row, Bytes.toBytes("familyA"), Bytes.toBytes("qualifierA"),
+              Bytes.toBytes("1111")),
+          new KeyValue(row, Bytes.toBytes("familyB"), Bytes.toBytes("qualifierB"),
+              Bytes.toBytes("2222")),
+          new KeyValue(row, Bytes.toBytes("familyC"), Bytes.toBytes("qualifierC"),
+              Bytes.toBytes("3333")));
       when(result.listCells()).thenReturn(keyValues);
       OutputCollector<ImmutableBytesWritable, Result> outputCollectorMock =
           mock(OutputCollector.class);
@@ -133,8 +143,10 @@ public class TestGroupingTableMap {
       final byte[] secondPartKeyValue = Bytes.toBytes("35245142671437");
       byte[] row = {};
       List<Cell> cells = ImmutableList.<Cell>of(
-          new KeyValue(row, "familyA".getBytes(), "qualifierA".getBytes(), firstPartKeyValue),
-          new KeyValue(row, "familyB".getBytes(), "qualifierB".getBytes(), secondPartKeyValue));
+          new KeyValue(row, Bytes.toBytes("familyA"), Bytes.toBytes("qualifierA"),
+              firstPartKeyValue),
+          new KeyValue(row, Bytes.toBytes("familyB"), Bytes.toBytes("qualifierB"),
+              secondPartKeyValue));
       when(result.listCells()).thenReturn(cells);
 
       final AtomicBoolean outputCollected = new AtomicBoolean();
@@ -142,7 +154,7 @@ public class TestGroupingTableMap {
           new OutputCollector<ImmutableBytesWritable, Result>() {
         @Override
         public void collect(ImmutableBytesWritable arg, Result result) throws IOException {
-          assertArrayEquals(org.apache.hadoop.hbase.shaded.com.google.common.primitives.
+          assertArrayEquals(org.apache.hbase.thirdparty.com.google.common.primitives.
             Bytes.concat(firstPartKeyValue, bSeparator,
               secondPartKeyValue), arg.copyBytes());
           outputCollected.set(true);
@@ -157,7 +169,7 @@ public class TestGroupingTableMap {
       final byte[] secondPartValue = Bytes.toBytes("4678456942345");
       byte[][] data = { firstPartValue, secondPartValue };
       ImmutableBytesWritable byteWritable = gTableMap.createGroupKey(data);
-      assertArrayEquals(org.apache.hadoop.hbase.shaded.com.google.common.primitives.
+      assertArrayEquals(org.apache.hbase.thirdparty.com.google.common.primitives.
         Bytes.concat(firstPartValue,
           bSeparator, secondPartValue), byteWritable.get());
     } finally {

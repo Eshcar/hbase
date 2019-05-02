@@ -28,28 +28,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.client.SnapshotDescription;
 import org.apache.hadoop.hbase.client.SnapshotType;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.snapshot.SnapshotManager;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
-import org.apache.hadoop.hbase.client.SnapshotDescription;
 import org.apache.hadoop.hbase.regionserver.ConstantSizeRegionSplitPolicy;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -60,7 +54,11 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos;
 
 /**
  * Test creating/using/deleting snapshots from the client
@@ -72,10 +70,12 @@ import org.junit.rules.TestRule;
  */
 @Category({RegionServerTests.class, LargeTests.class})
 public class TestFlushSnapshotFromClient {
-  private static final Log LOG = LogFactory.getLog(TestFlushSnapshotFromClient.class);
+
   @ClassRule
-  public static final TestRule timeout =
-      CategoryBasedTimeout.forClass(TestFlushSnapshotFromClient.class);
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFlushSnapshotFromClient.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestFlushSnapshotFromClient.class);
 
   protected static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
   protected static final int NUM_RS = 2;
@@ -186,7 +186,7 @@ public class TestFlushSnapshotFromClient {
 
     // take a snapshot of the enabled table
     String snapshotString = "skipFlushTableSnapshot";
-    byte[] snapshot = Bytes.toBytes(snapshotString);
+    String snapshot = snapshotString;
     admin.snapshot(snapshotString, TABLE_NAME, SnapshotType.SKIPFLUSH);
     LOG.debug("Snapshot completed.");
 
@@ -254,13 +254,13 @@ public class TestFlushSnapshotFromClient {
     // make sure the table doesn't exist
     boolean fail = false;
     do {
-    try {
-      admin.getTableDescriptor(tableName);
-      fail = true;
-      LOG.error("Table:" + tableName + " already exists, checking a new name");
-      tableName = TableName.valueOf(tableName+"!");
-    } catch (TableNotFoundException e) {
-      fail = false;
+      try {
+        admin.getDescriptor(tableName);
+        fail = true;
+        LOG.error("Table:" + tableName + " already exists, checking a new name");
+        tableName = TableName.valueOf(tableName + "!");
+      } catch (TableNotFoundException e) {
+        fail = false;
       }
     } while (fail);
 
@@ -280,7 +280,7 @@ public class TestFlushSnapshotFromClient {
         .setType(SnapshotProtos.SnapshotDescription.Type.FLUSH).build();
 
     // take the snapshot async
-    admin.takeSnapshotAsync(
+    admin.snapshotAsync(
       new SnapshotDescription("asyncSnapshot", TABLE_NAME, SnapshotType.FLUSH));
 
     // constantly loop, looking for the snapshot to complete
@@ -311,14 +311,15 @@ public class TestFlushSnapshotFromClient {
     SnapshotTestingUtils.waitForTableToBeOnline(UTIL, cloneBeforeMergeName);
 
     // Merge two regions
-    List<HRegionInfo> regions = admin.getTableRegions(TABLE_NAME);
-    Collections.sort(regions, new Comparator<HRegionInfo>() {
-      public int compare(HRegionInfo r1, HRegionInfo r2) {
+    List<RegionInfo> regions = admin.getRegions(TABLE_NAME);
+    Collections.sort(regions, new Comparator<RegionInfo>() {
+      @Override
+      public int compare(RegionInfo r1, RegionInfo r2) {
         return Bytes.compareTo(r1.getStartKey(), r2.getStartKey());
       }
     });
 
-    int numRegions = admin.getTableRegions(TABLE_NAME).size();
+    int numRegions = admin.getRegions(TABLE_NAME).size();
     int numRegionsAfterMerge = numRegions - 2;
     admin.mergeRegionsAsync(regions.get(1).getEncodedNameAsBytes(),
         regions.get(2).getEncodedNameAsBytes(), true);
@@ -327,7 +328,7 @@ public class TestFlushSnapshotFromClient {
 
     // Verify that there's one region less
     waitRegionsAfterMerge(numRegionsAfterMerge);
-    assertEquals(numRegionsAfterMerge, admin.getTableRegions(TABLE_NAME).size());
+    assertEquals(numRegionsAfterMerge, admin.getRegions(TABLE_NAME).size());
 
     // Clone the table
     TableName cloneAfterMergeName = TableName.valueOf("cloneAfterMerge");
@@ -352,14 +353,15 @@ public class TestFlushSnapshotFromClient {
     SnapshotTestingUtils.loadData(UTIL, TABLE_NAME, numRows, TEST_FAM);
 
     // Merge two regions
-    List<HRegionInfo> regions = admin.getTableRegions(TABLE_NAME);
-    Collections.sort(regions, new Comparator<HRegionInfo>() {
-      public int compare(HRegionInfo r1, HRegionInfo r2) {
+    List<RegionInfo> regions = admin.getRegions(TABLE_NAME);
+    Collections.sort(regions, new Comparator<RegionInfo>() {
+      @Override
+      public int compare(RegionInfo r1, RegionInfo r2) {
         return Bytes.compareTo(r1.getStartKey(), r2.getStartKey());
       }
     });
 
-    int numRegions = admin.getTableRegions(TABLE_NAME).size();
+    int numRegions = admin.getRegions(TABLE_NAME).size();
     int numRegionsAfterMerge = numRegions - 2;
     admin.mergeRegionsAsync(regions.get(1).getEncodedNameAsBytes(),
         regions.get(2).getEncodedNameAsBytes(), true);
@@ -367,7 +369,7 @@ public class TestFlushSnapshotFromClient {
         regions.get(5).getEncodedNameAsBytes(), true);
 
     waitRegionsAfterMerge(numRegionsAfterMerge);
-    assertEquals(numRegionsAfterMerge, admin.getTableRegions(TABLE_NAME).size());
+    assertEquals(numRegionsAfterMerge, admin.getRegions(TABLE_NAME).size());
 
     // Take a snapshot
     String snapshotName = "snapshotAfterMerge";
@@ -434,7 +436,7 @@ public class TestFlushSnapshotFromClient {
         try {
           LOG.info("Submitting snapshot request: " + ClientSnapshotDescriptionUtils
               .toString(ProtobufUtil.createHBaseProtosSnapshotDesc(ss)));
-          admin.takeSnapshotAsync(ss);
+          admin.snapshotAsync(ss);
         } catch (Exception e) {
           LOG.info("Exception during snapshot request: " + ClientSnapshotDescriptionUtils.toString(
             ProtobufUtil.createHBaseProtosSnapshotDesc(ss))
@@ -444,7 +446,7 @@ public class TestFlushSnapshotFromClient {
             .toString(ProtobufUtil.createHBaseProtosSnapshotDesc(ss)));
         toBeSubmitted.countDown();
       }
-    };
+    }
 
     // build descriptions
     SnapshotDescription[] descs = new SnapshotDescription[ssNum];
@@ -512,7 +514,7 @@ public class TestFlushSnapshotFromClient {
       throws IOException, InterruptedException {
     // Verify that there's one region less
     long startTime = System.currentTimeMillis();
-    while (admin.getTableRegions(TABLE_NAME).size() != numRegionsAfterMerge) {
+    while (admin.getRegions(TABLE_NAME).size() != numRegionsAfterMerge) {
       // This may be flaky... if after 15sec the merge is not complete give up
       // it will fail in the assertEquals(numRegionsAfterMerge).
       if ((System.currentTimeMillis() - startTime) > 15000)

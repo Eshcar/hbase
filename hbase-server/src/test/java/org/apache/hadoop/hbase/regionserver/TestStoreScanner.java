@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.regionserver;
 
 import static org.apache.hadoop.hbase.CellUtil.createCell;
@@ -36,19 +34,16 @@ import java.util.NavigableSet;
 import java.util.OptionalInt;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeepDeletedCells;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.ColumnCountGetFilter;
@@ -57,20 +52,25 @@ import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdge;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManagerTestHelper;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // Can't be small as it plays with EnvironmentEdgeManager
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestStoreScanner {
-  private static final Log LOG = LogFactory.getLog(TestStoreScanner.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestStoreScanner.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestStoreScanner.class);
   @Rule public TestName name = new TestName();
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().withTimeout(this.getClass()).
-      withLookingForStuckThread(true).build();
   private static final String CF_STR = "cf";
   private static final byte[] CF = Bytes.toBytes(CF_STR);
   static Configuration CONF = HBaseConfiguration.create();
@@ -164,14 +164,22 @@ public class TestStoreScanner {
         new KeyValueScanner[] { new KeyValueScanFixture(CellComparator.getInstance(), CELL_GRID) }));
     }
 
+    @Override
     protected void resetKVHeap(List<? extends KeyValueScanner> scanners,
         CellComparator comparator) throws IOException {
       if (count == null) {
         count = new AtomicInteger(0);
       }
-      heap = new KeyValueHeapWithCount(scanners, comparator, count);
+      heap = newKVHeap(scanners, comparator);
     }
 
+    @Override
+    protected KeyValueHeap newKVHeap(List<? extends KeyValueScanner> scanners,
+        CellComparator comparator) throws IOException {
+      return new KeyValueHeapWithCount(scanners, comparator, count);
+    }
+
+    @Override
     protected boolean trySkipToNextRow(Cell cell) throws IOException {
       boolean optimized = super.trySkipToNextRow(cell);
       LOG.info("Cell=" + cell + ", nextIndex=" + CellUtil.toString(getNextIndexedKey(), false)
@@ -182,6 +190,7 @@ public class TestStoreScanner {
       return optimized;
     }
 
+    @Override
     protected boolean trySkipToNextColumn(Cell cell) throws IOException {
       boolean optimized = super.trySkipToNextColumn(cell);
       LOG.info("Cell=" + cell + ", nextIndex=" + CellUtil.toString(getNextIndexedKey(), false)
@@ -203,7 +212,7 @@ public class TestStoreScanner {
                       PrivateCellUtil.createFirstOnRow(CELL_GRID[CELL_GRID_BLOCK3_BOUNDARY]):
                         PrivateCellUtil.createFirstOnRow(CELL_GRID[CELL_GRID_BLOCK2_BOUNDARY]);
     }
-  };
+  }
 
   private static final int CELL_WITH_VERSIONS_BLOCK2_BOUNDARY = 4;
 
@@ -227,6 +236,7 @@ public class TestStoreScanner {
               new KeyValueScanFixture(CellComparator.getInstance(), CELL_WITH_VERSIONS) }));
     }
 
+    @Override
     protected boolean trySkipToNextColumn(Cell cell) throws IOException {
       boolean optimized = super.trySkipToNextColumn(cell);
       LOG.info("Cell=" + cell + ", nextIndex=" + CellUtil.toString(getNextIndexedKey(), false)
@@ -243,7 +253,7 @@ public class TestStoreScanner {
       return PrivateCellUtil
           .createFirstOnRow(CELL_WITH_VERSIONS[CELL_WITH_VERSIONS_BLOCK2_BOUNDARY]);
     }
-  };
+  }
 
   private static class CellWithVersionsNoOptimizeStoreScanner extends StoreScanner {
     // Count of how often optimize is called and of how often it does an optimize.
@@ -255,6 +265,7 @@ public class TestStoreScanner {
               new KeyValueScanFixture(CellComparator.getInstance(), CELL_WITH_VERSIONS) }));
     }
 
+    @Override
     protected boolean trySkipToNextColumn(Cell cell) throws IOException {
       boolean optimized = super.trySkipToNextColumn(cell);
       LOG.info("Cell=" + cell + ", nextIndex=" + CellUtil.toString(getNextIndexedKey(), false)
@@ -269,7 +280,7 @@ public class TestStoreScanner {
     public Cell getNextIndexedKey() {
       return null;
     }
-  };
+  }
 
   @Test
   public void testWithColumnCountGetFilter() throws Exception {
@@ -884,6 +895,7 @@ public class TestStoreScanner {
     try {
       final long now = System.currentTimeMillis();
       EnvironmentEdgeManagerTestHelper.injectEdge(new EnvironmentEdge() {
+        @Override
         public long currentTime() {
           return now;
         }

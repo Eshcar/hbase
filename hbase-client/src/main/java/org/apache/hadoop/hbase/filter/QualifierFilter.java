@@ -16,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.filter;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * This filter is used to filter based on the column qualifier. It takes an
@@ -46,20 +45,6 @@ import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferE
  */
 @InterfaceAudience.Public
 public class QualifierFilter extends CompareFilter {
-
-  /**
-   * Constructor.
-   * @param op the compare op for column qualifier matching
-   * @param qualifierComparator the comparator for column qualifier matching
-   * @deprecated Since 2.0.0. Will be removed in 3.0.0.
-   * Use {@link #QualifierFilter(CompareOperator, ByteArrayComparable)} instead.
-   */
-  @Deprecated
-  public QualifierFilter(final CompareOp op,
-      final ByteArrayComparable qualifierComparator) {
-    super(op, qualifierComparator);
-  }
-
   /**
    * Constructor.
    * @param op the compare op for column qualifier matching
@@ -78,11 +63,8 @@ public class QualifierFilter extends CompareFilter {
 
   @Override
   public ReturnCode filterCell(final Cell c) {
-    int qualifierLength = c.getQualifierLength();
-    if (qualifierLength > 0) {
-      if (compareQualifier(getCompareOperator(), this.comparator, c)) {
-        return ReturnCode.SKIP;
-      }
+    if (compareQualifier(getCompareOperator(), this.comparator, c)) {
+      return ReturnCode.SKIP;
     }
     return ReturnCode.INCLUDE;
   }
@@ -97,6 +79,7 @@ public class QualifierFilter extends CompareFilter {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte [] toByteArray() {
     FilterProtos.QualifierFilter.Builder builder =
       FilterProtos.QualifierFilter.newBuilder();
@@ -135,10 +118,21 @@ public class QualifierFilter extends CompareFilter {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof QualifierFilter)) return false;
 
     return super.areSerializedFieldsEqual(o);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
   }
 }

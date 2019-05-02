@@ -17,11 +17,14 @@
  */
 package org.apache.hadoop.hbase.client;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,14 +41,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.RegionObserver;
+import org.apache.hadoop.hbase.regionserver.NoSuchColumnFamilyException;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -53,6 +57,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -64,6 +69,10 @@ import org.junit.runners.Parameterized.Parameters;
 @Category({ LargeTests.class, ClientTests.class })
 public class TestAsyncTableBatch {
 
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestAsyncTableBatch.class);
+
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
 
   private static TableName TABLE_NAME = TableName.valueOf("async");
@@ -71,12 +80,15 @@ public class TestAsyncTableBatch {
   private static byte[] FAMILY = Bytes.toBytes("cf");
 
   private static byte[] CQ = Bytes.toBytes("cq");
+  private static byte[] CQ1 = Bytes.toBytes("cq1");
 
   private static int COUNT = 1000;
 
   private static AsyncConnection CONN;
 
   private static byte[][] SPLIT_KEYS;
+
+  private static int MAX_KEY_VALUE_SIZE = 64 * 1024;
 
   @Parameter(0)
   public String tableType;
@@ -102,6 +114,8 @@ public class TestAsyncTableBatch {
 
   @BeforeClass
   public static void setUp() throws Exception {
+    TEST_UTIL.getConfiguration().setInt(ConnectionConfiguration.MAX_KEYVALUE_SIZE_KEY,
+      MAX_KEY_VALUE_SIZE);
     TEST_UTIL.startMiniCluster(3);
     SPLIT_KEYS = new byte[8][];
     for (int i = 111; i < 999; i += 111) {
@@ -178,19 +192,50 @@ public class TestAsyncTableBatch {
   }
 
   @Test
-  public void testMixed() throws InterruptedException, ExecutionException {
+  public void testWithRegionServerFailover() throws Exception {
     AsyncTable<?> table = tableGetter.apply(TABLE_NAME);
-    table.putAll(IntStream.range(0, 5)
+    table.putAll(IntStream.range(0, COUNT)
+        .mapToObj(i -> new Put(getRow(i)).addColumn(FAMILY, CQ, Bytes.toBytes(i)))
+        .collect(Collectors.toList())).get();
+    TEST_UTIL.getMiniHBaseCluster().getRegionServer(0).abort("Aborting for tests");
+    Thread.sleep(100);
+    table.putAll(IntStream.range(COUNT, 2 * COUNT)
+        .mapToObj(i -> new Put(getRow(i)).addColumn(FAMILY, CQ, Bytes.toBytes(i)))
+        .collect(Collectors.toList())).get();
+    List<Result> results = table.getAll(
+      IntStream.range(0, 2 * COUNT).mapToObj(i -> new Get(getRow(i))).collect(Collectors.toList()))
+        .get();
+    assertEquals(2 * COUNT, results.size());
+    results.forEach(r -> assertFalse(r.isEmpty()));
+    table.deleteAll(IntStream.range(0, 2 * COUNT).mapToObj(i -> new Delete(getRow(i)))
+        .collect(Collectors.toList())).get();
+    results = table.getAll(
+      IntStream.range(0, 2 * COUNT).mapToObj(i -> new Get(getRow(i))).collect(Collectors.toList()))
+        .get();
+    assertEquals(2 * COUNT, results.size());
+    results.forEach(r -> assertTrue(r.isEmpty()));
+  }
+
+  @Test
+  public void testMixed() throws InterruptedException, ExecutionException, IOException {
+    AsyncTable<?> table = tableGetter.apply(TABLE_NAME);
+    table.putAll(IntStream.range(0, 7)
         .mapToObj(i -> new Put(Bytes.toBytes(i)).addColumn(FAMILY, CQ, Bytes.toBytes((long) i)))
         .collect(Collectors.toList())).get();
     List<Row> actions = new ArrayList<>();
     actions.add(new Get(Bytes.toBytes(0)));
-    actions.add(new Put(Bytes.toBytes(1)).addColumn(FAMILY, CQ, Bytes.toBytes((long) 2)));
+    actions.add(new Put(Bytes.toBytes(1)).addColumn(FAMILY, CQ, Bytes.toBytes(2L)));
     actions.add(new Delete(Bytes.toBytes(2)));
     actions.add(new Increment(Bytes.toBytes(3)).addColumn(FAMILY, CQ, 1));
     actions.add(new Append(Bytes.toBytes(4)).addColumn(FAMILY, CQ, Bytes.toBytes(4)));
+    RowMutations rm = new RowMutations(Bytes.toBytes(5));
+    rm.add((Mutation) new Put(Bytes.toBytes(5)).addColumn(FAMILY, CQ, Bytes.toBytes(100L)));
+    rm.add((Mutation) new Put(Bytes.toBytes(5)).addColumn(FAMILY, CQ1, Bytes.toBytes(200L)));
+    actions.add(rm);
+    actions.add(new Get(Bytes.toBytes(6)));
+
     List<Object> results = table.batchAll(actions).get();
-    assertEquals(5, results.size());
+    assertEquals(7, results.size());
     Result getResult = (Result) results.get(0);
     assertEquals(0, Bytes.toLong(getResult.getValue(FAMILY, CQ)));
     assertEquals(2, Bytes.toLong(table.get(new Get(Bytes.toBytes(1))).get().getValue(FAMILY, CQ)));
@@ -202,6 +247,12 @@ public class TestAsyncTableBatch {
     assertEquals(12, appendValue.length);
     assertEquals(4, Bytes.toLong(appendValue));
     assertEquals(4, Bytes.toInt(appendValue, 8));
+    assertEquals(100,
+      Bytes.toLong(table.get(new Get(Bytes.toBytes(5))).get().getValue(FAMILY, CQ)));
+    assertEquals(200,
+      Bytes.toLong(table.get(new Get(Bytes.toBytes(5))).get().getValue(FAMILY, CQ1)));
+    getResult = (Result) results.get(6);
+    assertEquals(6, Bytes.toLong(getResult.getValue(FAMILY, CQ)));
   }
 
   public static final class ErrorInjectObserver implements RegionCoprocessor, RegionObserver {
@@ -224,7 +275,7 @@ public class TestAsyncTableBatch {
   public void testPartialSuccess() throws IOException, InterruptedException, ExecutionException {
     Admin admin = TEST_UTIL.getAdmin();
     TableDescriptor htd = TableDescriptorBuilder.newBuilder(admin.getDescriptor(TABLE_NAME))
-        .addCoprocessor(ErrorInjectObserver.class.getName()).build();
+        .setCoprocessor(ErrorInjectObserver.class.getName()).build();
     admin.modifyTable(htd);
     AsyncTable<?> table = tableGetter.apply(TABLE_NAME);
     table.putAll(Arrays.asList(SPLIT_KEYS).stream().map(k -> new Put(k).addColumn(FAMILY, CQ, k))
@@ -236,8 +287,50 @@ public class TestAsyncTableBatch {
     }
     try {
       futures.get(SPLIT_KEYS.length - 1).get();
+      fail();
     } catch (ExecutionException e) {
       assertThat(e.getCause(), instanceOf(RetriesExhaustedException.class));
+    }
+  }
+
+  @Test
+  public void testPartialSuccessOnSameRegion() throws InterruptedException, ExecutionException {
+    AsyncTable<?> table = tableGetter.apply(TABLE_NAME);
+    List<CompletableFuture<Object>> futures = table.batch(Arrays.asList(
+      new Put(Bytes.toBytes("put")).addColumn(Bytes.toBytes("not-exists"), CQ,
+        Bytes.toBytes("bad")),
+      new Increment(Bytes.toBytes("inc")).addColumn(FAMILY, CQ, 1),
+      new Put(Bytes.toBytes("put")).addColumn(FAMILY, CQ, Bytes.toBytes("good"))));
+    try {
+      futures.get(0).get();
+      fail();
+    } catch (ExecutionException e) {
+      assertThat(e.getCause(), instanceOf(RetriesExhaustedException.class));
+      assertThat(e.getCause().getCause(), instanceOf(NoSuchColumnFamilyException.class));
+    }
+    assertEquals(1, Bytes.toLong(((Result) futures.get(1).get()).getValue(FAMILY, CQ)));
+    assertTrue(((Result) futures.get(2).get()).isEmpty());
+    assertEquals("good",
+      Bytes.toString(table.get(new Get(Bytes.toBytes("put"))).get().getValue(FAMILY, CQ)));
+  }
+
+  @Test
+  public void testInvalidPut() {
+    AsyncTable<?> table = tableGetter.apply(TABLE_NAME);
+    try {
+      table.batch(Arrays.asList(new Delete(Bytes.toBytes(0)), new Put(Bytes.toBytes(0))));
+      fail("Should fail since the put does not contain any cells");
+    } catch (IllegalArgumentException e) {
+      assertThat(e.getMessage(), containsString("No columns to insert"));
+    }
+
+    try {
+      table.batch(
+        Arrays.asList(new Put(Bytes.toBytes(0)).addColumn(FAMILY, CQ, new byte[MAX_KEY_VALUE_SIZE]),
+          new Delete(Bytes.toBytes(0))));
+      fail("Should fail since the put exceeds the max key value size");
+    } catch (IllegalArgumentException e) {
+      assertThat(e.getMessage(), containsString("KeyValue size too large"));
     }
   }
 }

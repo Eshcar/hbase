@@ -32,8 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.ServerName;
@@ -45,11 +43,12 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Maps;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
+import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 
 /**
  * FavoredNodesManager is responsible for maintaining favored nodes info in internal cache and
@@ -64,7 +63,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
 @InterfaceAudience.Private
 public class FavoredNodesManager {
 
-  private static final Log LOG = LogFactory.getLog(FavoredNodesManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FavoredNodesManager.class);
 
   private FavoredNodesPlan globalFavoredNodesAssignmentPlan;
   private Map<ServerName, List<RegionInfo>> primaryRSToRegionMap;
@@ -270,21 +269,25 @@ public class FavoredNodesManager {
     return result;
   }
 
-  public synchronized void deleteFavoredNodesForRegions(Collection<RegionInfo> regionInfoList) {
-    for (RegionInfo hri : regionInfoList) {
-      List<ServerName> favNodes = getFavoredNodes(hri);
-      if (favNodes != null) {
-        if (primaryRSToRegionMap.containsKey(favNodes.get(PRIMARY.ordinal()))) {
-          primaryRSToRegionMap.get(favNodes.get(PRIMARY.ordinal())).remove(hri);
-        }
-        if (secondaryRSToRegionMap.containsKey(favNodes.get(SECONDARY.ordinal()))) {
-          secondaryRSToRegionMap.get(favNodes.get(SECONDARY.ordinal())).remove(hri);
-        }
-        if (teritiaryRSToRegionMap.containsKey(favNodes.get(TERTIARY.ordinal()))) {
-          teritiaryRSToRegionMap.get(favNodes.get(TERTIARY.ordinal())).remove(hri);
-        }
-        globalFavoredNodesAssignmentPlan.removeFavoredNodes(hri);
+  public synchronized void deleteFavoredNodesForRegion(RegionInfo regionInfo) {
+    List<ServerName> favNodes = getFavoredNodes(regionInfo);
+    if (favNodes != null) {
+      if (primaryRSToRegionMap.containsKey(favNodes.get(PRIMARY.ordinal()))) {
+        primaryRSToRegionMap.get(favNodes.get(PRIMARY.ordinal())).remove(regionInfo);
       }
+      if (secondaryRSToRegionMap.containsKey(favNodes.get(SECONDARY.ordinal()))) {
+        secondaryRSToRegionMap.get(favNodes.get(SECONDARY.ordinal())).remove(regionInfo);
+      }
+      if (teritiaryRSToRegionMap.containsKey(favNodes.get(TERTIARY.ordinal()))) {
+        teritiaryRSToRegionMap.get(favNodes.get(TERTIARY.ordinal())).remove(regionInfo);
+      }
+      globalFavoredNodesAssignmentPlan.removeFavoredNodes(regionInfo);
+    }
+  }
+
+  public synchronized void deleteFavoredNodesForRegions(Collection<RegionInfo> regionInfoList) {
+    for (RegionInfo regionInfo : regionInfoList) {
+      deleteFavoredNodesForRegion(regionInfo);
     }
   }
 

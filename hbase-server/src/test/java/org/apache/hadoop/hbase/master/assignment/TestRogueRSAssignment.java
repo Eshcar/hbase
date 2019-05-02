@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,27 +17,26 @@
  */
 package org.apache.hadoop.hbase.master.assignment;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import static org.hamcrest.core.Is.isA;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+import java.io.IOException;
+import java.util.List;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.YouAreDeadException;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.procedure.MasterProcedureConstants;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -46,25 +44,35 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.List;
+import org.apache.hbase.thirdparty.com.google.protobuf.ServiceException;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 
-import static org.hamcrest.core.Is.isA;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClusterStatusProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos;
 
 /**
  * Tests to verify master/ assignment manager functionality against rogue RS
  */
 @Category({MasterTests.class, MediumTests.class})
 public class TestRogueRSAssignment {
-  private static final Log LOG = LogFactory.getLog(TestRogueRSAssignment.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRogueRSAssignment.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestRogueRSAssignment.class);
 
   @Rule
   public final TestName name = new TestName();
@@ -117,7 +125,7 @@ public class TestRogueRSAssignment {
   @Before
   public void setup() throws IOException {
     // Turn off balancer
-    admin.setBalancerRunning(false, true);
+    admin.balancerSwitch(false, true);
   }
 
   @After
@@ -127,14 +135,18 @@ public class TestRogueRSAssignment {
       UTIL.deleteTable(td.getTableName());
     }
     // Turn on balancer
-    admin.setBalancerRunning(true, false);
+    admin.balancerSwitch(true, false);
   }
 
-  @Test(timeout = 120000)
+  /**
+   * Ignore this test, see HBASE-21421
+   */
+  @Test
+  @Ignore
   public void testReportRSWithWrongRegion() throws Exception {
     final TableName tableName = TableName.valueOf(this.name.getMethodName());
 
-    List<HRegionInfo> tableRegions = createTable(tableName);
+    List<RegionInfo> tableRegions = createTable(tableName);
 
     final ServerName sn = ServerName.parseVersionedServerName(
         ServerName.valueOf("1.example.org", 1, System.currentTimeMillis()).getVersionedBytes());
@@ -152,7 +164,7 @@ public class TestRogueRSAssignment {
   }
 
   private RegionServerStatusProtos.RegionServerReportRequest.Builder
-      makeRSReportRequestWithRegions(final ServerName sn, HRegionInfo... regions) {
+      makeRSReportRequestWithRegions(final ServerName sn, RegionInfo... regions) {
     ClusterStatusProtos.ServerLoad.Builder sl = ClusterStatusProtos.ServerLoad.newBuilder();
     for (int i = 0; i < regions.length; i++) {
       HBaseProtos.RegionSpecifier.Builder rs = HBaseProtos.RegionSpecifier.newBuilder();
@@ -170,9 +182,9 @@ public class TestRogueRSAssignment {
               .setLoad(sl);
   }
 
-  private List<HRegionInfo> createTable(final TableName tableName) throws Exception {
+  private List<RegionInfo> createTable(final TableName tableName) throws Exception {
     TableDescriptorBuilder tdBuilder = TableDescriptorBuilder.newBuilder(tableName);
-    tdBuilder.addColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY).build());
+    tdBuilder.setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY).build());
 
     byte[][] rows = new byte[initialRegionCount - 1][];
     for (int i = 0; i < rows.length; ++i) {
@@ -182,10 +194,10 @@ public class TestRogueRSAssignment {
     return assertRegionCount(tableName, initialRegionCount);
   }
 
-  private List<HRegionInfo> assertRegionCount(final TableName tableName, final int nregions)
+  private List<RegionInfo> assertRegionCount(final TableName tableName, final int nregions)
       throws Exception {
     UTIL.waitUntilNoRegionsInTransition();
-    List<HRegionInfo> tableRegions = admin.getTableRegions(tableName);
+    List<RegionInfo> tableRegions = admin.getRegions(tableName);
     assertEquals(nregions, tableRegions.size());
     return tableRegions;
   }

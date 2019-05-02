@@ -36,8 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -50,14 +48,17 @@ import org.apache.hadoop.hbase.SplitLogCounters;
 import org.apache.hadoop.hbase.Stoppable;
 import org.apache.hadoop.hbase.coordination.SplitLogManagerCoordination;
 import org.apache.hadoop.hbase.coordination.SplitLogManagerCoordination.SplitLogManagerDetails;
+import org.apache.hadoop.hbase.log.HBaseMarkers;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
 import org.apache.hadoop.hbase.monitoring.TaskMonitor;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
+import org.apache.hadoop.hbase.util.HasThread;
 import org.apache.hadoop.hbase.wal.AbstractFSWALProvider;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Distributes the task of log splitting to the available region servers.
@@ -90,7 +91,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTe
  */
 @InterfaceAudience.Private
 public class SplitLogManager {
-  private static final Log LOG = LogFactory.getLog(SplitLogManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SplitLogManager.class);
 
   private final MasterServices server;
 
@@ -120,7 +121,12 @@ public class SplitLogManager {
       throws IOException {
     this.server = master;
     this.conf = conf;
-    this.choreService = new ChoreService(master.getServerName() + "_splitLogManager_");
+    // Get Server Thread name. Sometimes the Server is mocked so may not implement HasThread.
+    // For example, in tests.
+    String name = master instanceof HasThread? ((HasThread)master).getName():
+        master.getServerName().toShortString();
+    this.choreService =
+        new ChoreService(name + ".splitLogManager.");
     if (server.getCoordinatedStateManager() != null) {
       SplitLogManagerCoordination coordination = getSplitLogManagerCoordination();
       Set<String> failedDeletions = Collections.synchronizedSet(new HashSet<String>());
@@ -168,7 +174,7 @@ public class SplitLogManager {
       }
       FileStatus[] logfiles = FSUtils.listStatus(fs, logDir, filter);
       if (logfiles == null || logfiles.length == 0) {
-        LOG.info(logDir + " is empty dir, no logs to split");
+        LOG.info("{} dir is empty, no logs to split.", logDir);
       } else {
         Collections.addAll(fileStatus, logfiles);
       }
@@ -229,29 +235,33 @@ public class SplitLogManager {
       PathFilter filter) throws IOException {
     MonitoredTask status = TaskMonitor.get().createStatus("Doing distributed log split in " +
       logDirs + " for serverName=" + serverNames);
-    FileStatus[] logfiles = getFileList(logDirs, filter);
-    status.setStatus("Checking directory contents...");
-    SplitLogCounters.tot_mgr_log_split_batch_start.increment();
-    LOG.info("Started splitting " + logfiles.length + " logs in " + logDirs +
-      " for " + serverNames);
-    long t = EnvironmentEdgeManager.currentTime();
     long totalSize = 0;
-    TaskBatch batch = new TaskBatch();
-    for (FileStatus lf : logfiles) {
-      // TODO If the log file is still being written to - which is most likely
-      // the case for the last log file - then its length will show up here
-      // as zero. The size of such a file can only be retrieved after
-      // recover-lease is done. totalSize will be under in most cases and the
-      // metrics that it drives will also be under-reported.
-      totalSize += lf.getLen();
-      String pathToLog = FSUtils.removeWALRootPath(lf.getPath(), conf);
-      if (!enqueueSplitTask(pathToLog, batch)) {
-        throw new IOException("duplicate log split scheduled for " + lf.getPath());
+    TaskBatch batch = null;
+    long startTime = 0;
+    FileStatus[] logfiles = getFileList(logDirs, filter);
+    if (logfiles.length != 0) {
+      status.setStatus("Checking directory contents...");
+      SplitLogCounters.tot_mgr_log_split_batch_start.increment();
+      LOG.info("Started splitting " + logfiles.length + " logs in " + logDirs +
+          " for " + serverNames);
+      startTime = EnvironmentEdgeManager.currentTime();
+      batch = new TaskBatch();
+      for (FileStatus lf : logfiles) {
+        // TODO If the log file is still being written to - which is most likely
+        // the case for the last log file - then its length will show up here
+        // as zero. The size of such a file can only be retrieved after
+        // recover-lease is done. totalSize will be under in most cases and the
+        // metrics that it drives will also be under-reported.
+        totalSize += lf.getLen();
+        String pathToLog = FSUtils.removeWALRootPath(lf.getPath(), conf);
+        if (!enqueueSplitTask(pathToLog, batch)) {
+          throw new IOException("duplicate log split scheduled for " + lf.getPath());
+        }
       }
+      waitForSplittingCompletion(batch, status);
     }
-    waitForSplittingCompletion(batch, status);
 
-    if (batch.done != batch.installed) {
+    if (batch != null && batch.done != batch.installed) {
       batch.isDead = true;
       SplitLogCounters.tot_mgr_log_split_batch_err.increment();
       LOG.warn("error while splitting logs in " + logDirs + " installed = " + batch.installed
@@ -279,10 +289,10 @@ public class SplitLogManager {
       }
       SplitLogCounters.tot_mgr_log_split_batch_success.increment();
     }
-    String msg =
-        "finished splitting (more than or equal to) " + totalSize + " bytes in " + batch.installed
-            + " log files in " + logDirs + " in "
-            + (EnvironmentEdgeManager.currentTime() - t) + "ms";
+    String msg = "Finished splitting (more than or equal to) " + totalSize +
+        " bytes in " + ((batch == null)? 0: batch.installed) +
+        " log files in " + logDirs + " in " +
+        ((startTime == 0)? startTime: (EnvironmentEdgeManager.currentTime() - startTime)) + "ms";
     status.markComplete(msg);
     LOG.info(msg);
     return totalSize;
@@ -415,7 +425,7 @@ public class SplitLogManager {
           batch.installed++;
           return null;
         }
-        LOG.fatal("Logic error. Deleted task still present in tasks map");
+        LOG.error(HBaseMarkers.FATAL, "Logic error. Deleted task still present in tasks map");
         assert false : "Deleted task still present in tasks map";
         return t;
       }
@@ -442,7 +452,7 @@ public class SplitLogManager {
       }
       deadWorkers.add(workerName);
     }
-    LOG.info("dead splitlog worker " + workerName);
+    LOG.info("Dead splitlog worker {}", workerName);
   }
 
   void handleDeadWorkers(Set<ServerName> serverNames) {
@@ -637,7 +647,7 @@ public class SplitLogManager {
   public enum TerminationStatus {
     IN_PROGRESS("in_progress"), SUCCESS("success"), FAILURE("failure"), DELETED("deleted");
 
-    String statusMsg;
+    final String statusMsg;
 
     TerminationStatus(String msg) {
       statusMsg = msg;

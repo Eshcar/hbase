@@ -41,8 +41,7 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.Private
 public class AdaptiveMemStoreCompactionStrategy extends MemStoreCompactionStrategy{
-
-  private static final String name = "ADAPTIVE";
+  private static final String NAME = "ADAPTIVE";
   public static final String ADAPTIVE_COMPACTION_THRESHOLD_KEY =
       "hbase.hregion.compacting.memstore.adaptive.compaction.threshold";
   private static final double ADAPTIVE_COMPACTION_THRESHOLD_DEFAULT = 0.5;
@@ -73,12 +72,13 @@ public class AdaptiveMemStoreCompactionStrategy extends MemStoreCompactionStrate
       if(r < compactionProbability) {
         numCellsInVersionedList = versionedList.getNumOfCells();
         compacted = true;
-        return compact(versionedList, name+" (compaction probability="+compactionProbability+")");
+        return compact(versionedList,
+            getName() + " (compaction probability=" + compactionProbability + ")");
       }
     }
     compacted = false;
     return simpleMergeOrFlatten(versionedList,
-        name+" (compaction probability="+compactionProbability+")");
+        getName() + " (compaction probability=" + compactionProbability + ")");
   }
 
   @Override
@@ -101,12 +101,19 @@ public class AdaptiveMemStoreCompactionStrategy extends MemStoreCompactionStrate
   public void resetStats() {
     compactionProbability = initialCompactionProbability;
   }
+
+  @Override
   protected Action getMergingAction() {
     return Action.MERGE_COUNT_UNIQUE_KEYS;
   }
 
+  @Override
   protected Action getFlattenAction() {
     return Action.FLATTEN;
   }
 
+  @Override
+  protected  String getName() {
+    return NAME;
+  }
 }

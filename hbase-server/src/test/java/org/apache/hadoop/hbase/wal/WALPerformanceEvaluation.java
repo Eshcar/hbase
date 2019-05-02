@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,35 +20,37 @@ package org.apache.hadoop.hbase.wal;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
+import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricFilter;
+import com.codahale.metrics.MetricRegistry;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MockRegionServerServices;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.RegionInfoBuilder;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.io.crypto.KeyProviderForTesting;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.LogRoller;
@@ -70,12 +72,8 @@ import org.apache.htrace.core.Sampler;
 import org.apache.htrace.core.TraceScope;
 import org.apache.htrace.core.Tracer;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricFilter;
-import com.codahale.metrics.MetricRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // imports for things that haven't moved from regionserver.wal yet.
 
@@ -86,7 +84,9 @@ import com.codahale.metrics.MetricRegistry;
  */
 @InterfaceAudience.Private
 public final class WALPerformanceEvaluation extends Configured implements Tool {
-  private static final Log LOG = LogFactory.getLog(WALPerformanceEvaluation.class.getName());
+  private static final Logger LOG =
+      LoggerFactory.getLogger(WALPerformanceEvaluation.class);
+
   private final MetricRegistry metrics = new MetricRegistry();
   private final Meter syncMeter =
     metrics.meter(name(WALPerformanceEvaluation.class, "syncMeter", "syncs"));
@@ -115,7 +115,6 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
   @Override
   public void setConf(Configuration conf) {
     super.setConf(conf);
-    TEST_UTIL = new HBaseTestingUtility(conf);
   }
 
   /**
@@ -129,11 +128,10 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
     private final boolean noSync;
     private final HRegion region;
     private final int syncInterval;
-    private final HTableDescriptor htd;
     private final Sampler loopSampler;
     private final NavigableMap<byte[], Integer> scopes;
 
-    WALPutBenchmark(final HRegion region, final HTableDescriptor htd,
+    WALPutBenchmark(final HRegion region, final TableDescriptor htd,
         final long numIterations, final boolean noSync, final int syncInterval,
         final double traceFreq) {
       this.numIterations = numIterations;
@@ -141,9 +139,8 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
       this.syncInterval = syncInterval;
       this.numFamilies = htd.getColumnFamilyCount();
       this.region = region;
-      this.htd = htd;
       scopes = new TreeMap<>(Bytes.BYTES_COMPARATOR);
-      for(byte[] fam : htd.getFamiliesKeys()) {
+      for(byte[] fam : htd.getColumnFamilyNames()) {
         scopes.put(fam, 0);
       }
       String spanReceivers = getConf().get("hbase.trace.spanreceiver.classes");
@@ -183,10 +180,10 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
             long now = System.nanoTime();
             Put put = setupPut(rand, key, value, numFamilies);
             WALEdit walEdit = new WALEdit();
-            addFamilyMapToWALEdit(put.getFamilyCellMap(), walEdit);
+            walEdit.add(put.getFamilyCellMap());
             RegionInfo hri = region.getRegionInfo();
-            final WALKey logkey =
-                new WALKey(hri.getEncodedNameAsBytes(), hri.getTable(), now, mvcc, scopes);
+            final WALKeyImpl logkey =
+                new WALKeyImpl(hri.getEncodedNameAsBytes(), hri.getTable(), now, mvcc, scopes);
             wal.append(hri, logkey, walEdit, true);
             if (!this.noSync) {
               if (++lastSync >= this.syncInterval) {
@@ -197,8 +194,6 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
             latencyHistogram.update(System.nanoTime() - now);
           }
         }
-        long totalTime = (System.currentTimeMillis() - startTime);
-        logBenchmarkResult(Thread.currentThread().getName(), numIterations, totalTime);
       } catch (Exception e) {
         LOG.error(getClass().getSimpleName() + " Thread failed", e);
       }
@@ -303,11 +298,15 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
     // In regionserver, number of handlers == number of threads.
     getConf().setInt(HConstants.REGION_SERVER_HANDLER_COUNT, numThreads);
 
+    if (rootRegionDir == null) {
+      TEST_UTIL = new HBaseTestingUtility(getConf());
+      rootRegionDir = TEST_UTIL.getDataTestDirOnTestFS("WALPerformanceEvaluation");
+    }
     // Run WAL Performance Evaluation
     // First set the fs from configs.  In case we are on hadoop1
     FSUtils.setFsDefault(getConf(), FSUtils.getRootDir(getConf()));
     FileSystem fs = FileSystem.get(getConf());
-    LOG.info("FileSystem: " + fs);
+    LOG.info("FileSystem={}, rootDir={}", fs, rootRegionDir);
 
     SpanReceiverHost receiverHost = trace ? SpanReceiverHost.getInstance(getConf()) : null;
     final Sampler sampler = trace ? Sampler.ALWAYS : Sampler.NEVER;
@@ -315,13 +314,10 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
     TraceScope scope = TraceUtil.createTrace("WALPerfEval");
 
     try {
-      if (rootRegionDir == null) {
-        rootRegionDir = TEST_UTIL.getDataTestDirOnTestFS("WALPerformanceEvaluation");
-      }
-      rootRegionDir = rootRegionDir.makeQualified(fs);
+      rootRegionDir = rootRegionDir.makeQualified(fs.getUri(), fs.getWorkingDirectory());
       cleanRegionRootDir(fs, rootRegionDir);
       FSUtils.setRootDir(getConf(), rootRegionDir);
-      final WALFactory wals = new WALFactory(getConf(), null, "wals");
+      final WALFactory wals = new WALFactory(getConf(), "wals");
       final HRegion[] regions = new HRegion[numRegions];
       final Runnable[] benchmarks = new Runnable[numRegions];
       final MockRegionServerServices mockServices = new MockRegionServerServices(getConf());
@@ -332,7 +328,7 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
         for(int i = 0; i < numRegions; i++) {
           // Initialize Table Descriptor
           // a table per desired region means we can avoid carving up the key space
-          final HTableDescriptor htd = createHTableDescriptor(i, numFamilies);
+          final TableDescriptor htd = createHTableDescriptor(i, numFamilies);
           regions[i] = openRegion(fs, rootRegionDir, htd, wals, roll, roller);
           benchmarks[i] = TraceUtil.wrap(new WALPutBenchmark(regions[i], htd, numIterations, noSync,
               syncInterval, traceFreq), "");
@@ -399,14 +395,14 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
     return(0);
   }
 
-  private static HTableDescriptor createHTableDescriptor(final int regionNum,
+  private static TableDescriptor createHTableDescriptor(final int regionNum,
       final int numFamilies) {
-    HTableDescriptor htd = new HTableDescriptor(TableName.valueOf(TABLE_NAME + ":" + regionNum));
-    for (int i = 0; i < numFamilies; ++i) {
-      HColumnDescriptor colDef = new HColumnDescriptor(FAMILY_PREFIX + i);
-      htd.addFamily(colDef);
-    }
-    return htd;
+    TableDescriptorBuilder builder =
+        TableDescriptorBuilder.newBuilder(TableName.valueOf(TABLE_NAME + ":" + regionNum));
+    IntStream.range(0, numFamilies)
+        .mapToObj(i -> ColumnFamilyDescriptorBuilder.of(FAMILY_PREFIX + i))
+        .forEachOrdered(builder::setColumnFamily);
+    return builder.build();
   }
 
   /**
@@ -430,7 +426,7 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
           break;
         }
         count++;
-        long seqid = e.getKey().getLogSeqNum();
+        long seqid = e.getKey().getSequenceId();
         if (sequenceIds.containsKey(Bytes.toString(e.getKey().getEncodedRegionName()))) {
           // sequenceIds should be increasing for every regions
           if (sequenceIds.get(Bytes.toString(e.getKey().getEncodedRegionName())) >= seqid) {
@@ -493,17 +489,16 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
 
   private final Set<WAL> walsListenedTo = new HashSet<>();
 
-  private HRegion openRegion(final FileSystem fs, final Path dir, final HTableDescriptor htd,
+  private HRegion openRegion(final FileSystem fs, final Path dir, final TableDescriptor htd,
       final WALFactory wals, final long whenToRoll, final LogRoller roller) throws IOException {
     // Initialize HRegion
     RegionInfo regionInfo = RegionInfoBuilder.newBuilder(htd.getTableName()).build();
     // Initialize WAL
-    final WAL wal =
-        wals.getWAL(regionInfo.getEncodedNameAsBytes(), regionInfo.getTable().getNamespace());
+    final WAL wal = wals.getWAL(regionInfo);
     // If we haven't already, attach a listener to this wal to handle rolls and metrics.
     if (walsListenedTo.add(wal)) {
       roller.addWAL(wal);
-      wal.registerWALActionsListener(new WALActionsListener.Base() {
+      wal.registerWALActionsListener(new WALActionsListener() {
         private int appends = 0;
 
         @Override
@@ -563,15 +558,6 @@ public final class WALPerformanceEvaluation extends Configured implements Tool {
       }
     }
     return put;
-  }
-
-  private void addFamilyMapToWALEdit(Map<byte[], List<Cell>> familyMap,
-      WALEdit walEdit) {
-    for (List<Cell> edits : familyMap.values()) {
-      for (Cell cell : edits) {
-        walEdit.add(cell);
-      }
-    }
   }
 
   private long runBenchmark(Runnable[] runnable, final int numThreads) throws InterruptedException {

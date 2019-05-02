@@ -71,6 +71,11 @@ public class MetricsRegionServerWrapperStub implements MetricsRegionServerWrappe
   }
 
   @Override
+  public double getStoreFileSizeGrowthRate() {
+    return 50.0;
+  }
+
+  @Override
   public long getMaxStoreFileAge() {
     return 2;
   }
@@ -101,6 +106,11 @@ public class MetricsRegionServerWrapperStub implements MetricsRegionServerWrappe
   }
 
   @Override
+  public double getReadRequestsRatePerSecond() {
+    return 10.0;
+  }
+
+  @Override
   public long getTotalRowActionRequestCount() {
     return getReadRequestsCount() + getWriteRequestsCount();
   }
@@ -111,6 +121,11 @@ public class MetricsRegionServerWrapperStub implements MetricsRegionServerWrappe
   }
 
   @Override
+  public long getCpRequestsCount() {
+    return 998;
+  }
+
+  @Override
   public long getFilteredReadRequestsCount() {
     return 1997;
   }
@@ -118,6 +133,11 @@ public class MetricsRegionServerWrapperStub implements MetricsRegionServerWrappe
   @Override
   public long getWriteRequestsCount() {
     return 707;
+  }
+
+  @Override
+  public double getWriteRequestsRatePerSecond() {
+    return 10.0;
   }
 
   @Override
@@ -207,7 +227,7 @@ public class MetricsRegionServerWrapperStub implements MetricsRegionServerWrappe
 
   @Override
   public long getMemStoreLimit() {
-	  return 419;
+    return 419;
   }
 
   @Override

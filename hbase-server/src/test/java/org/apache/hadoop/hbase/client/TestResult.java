@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.client;
 
 import static org.apache.hadoop.hbase.HBaseTestCase.assertByteEquals;
@@ -26,25 +24,29 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
-
 import junit.framework.TestCase;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.junit.ClassRule;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({SmallTests.class, ClientTests.class})
 public class TestResult extends TestCase {
 
-  private static final Log LOG = LogFactory.getLog(TestResult.class.getName());
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestResult.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestResult.class.getName());
 
   static KeyValue[] genKVs(final byte[] row, final byte[] family,
                            final byte[] value,
@@ -194,7 +196,7 @@ public class TestResult extends TestCase {
       loadValueBuffer.clear();
       r.loadValue(family, qf, loadValueBuffer);
       loadValueBuffer.flip();
-      assertEquals(ByteBuffer.wrap(Bytes.add(value, Bytes.toBytes(i))), loadValueBuffer);
+      assertEquals(loadValueBuffer, ByteBuffer.wrap(Bytes.add(value, Bytes.toBytes(i))));
       assertEquals(ByteBuffer.wrap(Bytes.add(value, Bytes.toBytes(i))),
           r.getValueAsByteBuffer(family, qf));
     }
@@ -219,7 +221,7 @@ public class TestResult extends TestCase {
       loadValueBuffer.clear();
       r.loadValue(family, qf, loadValueBuffer);
       loadValueBuffer.flip();
-      assertEquals(ByteBuffer.wrap(Bytes.add(value, Bytes.toBytes(i))), loadValueBuffer);
+      assertEquals(loadValueBuffer, ByteBuffer.wrap(Bytes.add(value, Bytes.toBytes(i))));
       assertEquals(ByteBuffer.wrap(Bytes.add(value, Bytes.toBytes(i))),
           r.getValueAsByteBuffer(family, qf));
     }

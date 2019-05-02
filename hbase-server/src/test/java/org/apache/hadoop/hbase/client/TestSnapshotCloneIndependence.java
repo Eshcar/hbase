@@ -15,22 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.client;
 
 import java.util.List;
 import java.util.regex.Pattern;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.master.snapshot.SnapshotManager;
@@ -50,18 +45,20 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test to verify that the cloned table is independent of the table from which it was cloned
  */
 @Category({LargeTests.class, ClientTests.class})
 public class TestSnapshotCloneIndependence {
-  private static final Log LOG = LogFactory.getLog(TestSnapshotCloneIndependence.class);
 
   @ClassRule
-  public static final TestRule timeout =
-      CategoryBasedTimeout.forClass(TestSnapshotCloneIndependence.class);
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSnapshotCloneIndependence.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotCloneIndependence.class);
 
   @Rule
   public TestName testName = new TestName();
@@ -82,7 +79,7 @@ public class TestSnapshotCloneIndependence {
   private TableName cloneTableName;
   private int countOriginalTable;
   String snapshotNameAsString;
-  byte[] snapshotName;
+  String snapshotName;
 
   /**
    * Setup the config for the cluster and start it
@@ -129,7 +126,7 @@ public class TestSnapshotCloneIndependence {
     originalTableName = TableName.valueOf("test" + testName.getMethodName());
     cloneTableName = TableName.valueOf("test-clone-" + originalTableName);
     snapshotNameAsString = "snapshot_" + originalTableName;
-    snapshotName = Bytes.toBytes(snapshotNameAsString);
+    snapshotName = snapshotNameAsString;
 
     originalTable = createTable(originalTableName, TEST_FAM);
     loadData(originalTable, TEST_FAM);
@@ -299,21 +296,21 @@ public class TestSnapshotCloneIndependence {
    */
   private void runTestRegionOperationsIndependent() throws Exception {
     // Verify that region information is the same pre-split
-    ((ClusterConnection) UTIL.getConnection()).clearRegionCache();
-    List<HRegionInfo> originalTableHRegions = admin.getTableRegions(originalTableName);
+    UTIL.getConnection().clearRegionLocationCache();
+    List<RegionInfo> originalTableHRegions = admin.getRegions(originalTableName);
 
     final int originalRegionCount = originalTableHRegions.size();
-    final int cloneTableRegionCount = admin.getTableRegions(cloneTableName).size();
+    final int cloneTableRegionCount = admin.getRegions(cloneTableName).size();
     Assert.assertEquals(
       "The number of regions in the cloned table is different than in the original table.",
       originalRegionCount, cloneTableRegionCount);
 
     // Split a region on the parent table
-    admin.splitRegion(originalTableHRegions.get(0).getRegionName());
+    admin.splitRegionAsync(originalTableHRegions.get(0).getRegionName()).get();
     waitOnSplit(UTIL.getConnection(), originalTable, originalRegionCount);
 
     // Verify that the cloned table region is not split
-    final int cloneTableRegionCount2 = admin.getTableRegions(cloneTableName).size();
+    final int cloneTableRegionCount2 = admin.getRegions(cloneTableName).size();
     Assert.assertEquals(
       "The number of regions in the cloned table changed though none of its regions were split.",
       cloneTableRegionCount, cloneTableRegionCount2);
@@ -337,8 +334,9 @@ public class TestSnapshotCloneIndependence {
     // get a description of the cloned table
     // get a list of its families
     // assert that the family is there
-    HTableDescriptor originalTableDescriptor = originalTable.getTableDescriptor();
-    HTableDescriptor clonedTableDescriptor = admin.getTableDescriptor(cloneTableName);
+    HTableDescriptor originalTableDescriptor = new HTableDescriptor(originalTable.getDescriptor());
+    HTableDescriptor clonedTableDescriptor =
+      new HTableDescriptor(admin.getDescriptor(cloneTableName));
 
     Assert.assertTrue("The original family was not found. There is something wrong. ",
       originalTableDescriptor.hasFamily(TEST_FAM));

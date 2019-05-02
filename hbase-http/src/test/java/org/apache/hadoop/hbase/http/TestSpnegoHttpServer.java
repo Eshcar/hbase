@@ -1,12 +1,13 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to you under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,22 +17,17 @@
  */
 package org.apache.hadoop.hbase.http;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.Principal;
 import java.security.PrivilegedExceptionAction;
 import java.util.Set;
-
 import javax.security.auth.Subject;
 import javax.security.auth.kerberos.KerberosTicket;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.http.TestHttpServer.EchoServlet;
 import org.apache.hadoop.hbase.http.resource.JerseyResource;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
@@ -48,8 +44,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.config.Lookup;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.SPNegoSchemeFactory;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.HttpClients;
@@ -63,8 +57,11 @@ import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test class for SPNEGO authentication on the HttpServer. Uses Kerby's MiniKDC and Apache
@@ -72,7 +69,11 @@ import org.junit.experimental.categories.Category;
  */
 @Category({MiscTests.class, SmallTests.class})
 public class TestSpnegoHttpServer extends HttpServerFunctionalTest {
-  private static final Log LOG = LogFactory.getLog(TestSpnegoHttpServer.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSpnegoHttpServer.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestSpnegoHttpServer.class);
   private static final String KDC_SERVER_HOST = "localhost";
   private static final String CLIENT_PRINCIPAL = "client";
 
@@ -206,35 +207,35 @@ public class TestSpnegoHttpServer extends HttpServerFunctionalTest {
     final String principalName = clientPrincipals.iterator().next().getName();
 
     // Run this code, logged in as the subject (the client)
-    HttpResponse resp = Subject.doAs(clientSubject,
-        new PrivilegedExceptionAction<HttpResponse>() {
-      @Override
-      public HttpResponse run() throws Exception {
-        // Logs in with Kerberos via GSS
-        GSSManager gssManager = GSSManager.getInstance();
-        // jGSS Kerberos login constant
-        Oid oid = new Oid("1.2.840.113554.1.2.2");
-        GSSName gssClient = gssManager.createName(principalName, GSSName.NT_USER_NAME);
-        GSSCredential credential = gssManager.createCredential(gssClient,
-            GSSCredential.DEFAULT_LIFETIME, oid, GSSCredential.INITIATE_ONLY);
+    HttpResponse resp = Subject.doAs(clientSubject, new PrivilegedExceptionAction<HttpResponse>() {
+        @Override
+        public HttpResponse run() throws Exception {
+          // Logs in with Kerberos via GSS
+          GSSManager gssManager = GSSManager.getInstance();
+          // jGSS Kerberos login constant
+          Oid oid = new Oid("1.2.840.113554.1.2.2");
+          GSSName gssClient = gssManager.createName(principalName, GSSName.NT_USER_NAME);
+          GSSCredential credential = gssManager.createCredential(gssClient,
+              GSSCredential.DEFAULT_LIFETIME, oid, GSSCredential.INITIATE_ONLY);
 
-        HttpClientContext context = HttpClientContext.create();
-        Lookup<AuthSchemeProvider> authRegistry = RegistryBuilder.<AuthSchemeProvider>create()
-            .register(AuthSchemes.SPNEGO, new SPNegoSchemeFactory(true, true))
-            .build();
+          HttpClientContext context = HttpClientContext.create();
+          Lookup<AuthSchemeProvider> authRegistry = RegistryBuilder.<AuthSchemeProvider>create()
+              .register(AuthSchemes.SPNEGO, new SPNegoSchemeFactory(true, true))
+              .build();
 
-        HttpClient client = HttpClients.custom().setDefaultAuthSchemeRegistry(authRegistry).build();
-        BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-        credentialsProvider.setCredentials(AuthScope.ANY, new KerberosCredentials(credential));
+          HttpClient client = HttpClients.custom().setDefaultAuthSchemeRegistry(authRegistry)
+                  .build();
+          BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+          credentialsProvider.setCredentials(AuthScope.ANY, new KerberosCredentials(credential));
 
-        URL url = new URL(getServerURL(server), "/echo?a=b");
-        context.setTargetHost(new HttpHost(url.getHost(), url.getPort()));
-        context.setCredentialsProvider(credentialsProvider);
-        context.setAuthSchemeRegistry(authRegistry);
+          URL url = new URL(getServerURL(server), "/echo?a=b");
+          context.setTargetHost(new HttpHost(url.getHost(), url.getPort()));
+          context.setCredentialsProvider(credentialsProvider);
+          context.setAuthSchemeRegistry(authRegistry);
 
-        HttpGet get = new HttpGet(url.toURI());
-        return client.execute(get, context);
-      }
+          HttpGet get = new HttpGet(url.toURI());
+          return client.execute(get, context);
+        }
     });
 
     assertNotNull(resp);

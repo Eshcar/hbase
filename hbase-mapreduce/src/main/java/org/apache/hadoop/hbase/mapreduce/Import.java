@@ -33,8 +33,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
@@ -48,6 +46,7 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
+import org.apache.hadoop.hbase.util.MapReduceExtendedCell;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Admin;
@@ -63,7 +62,6 @@ import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.MapReduceCell;
 import org.apache.hadoop.hbase.zookeeper.ZKClusterId;
 import org.apache.hadoop.io.RawComparator;
 import org.apache.hadoop.io.WritableComparable;
@@ -79,6 +77,8 @@ import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -86,7 +86,7 @@ import org.apache.zookeeper.KeeperException;
  */
 @InterfaceAudience.Public
 public class Import extends Configured implements Tool {
-  private static final Log LOG = LogFactory.getLog(Import.class);
+  private static final Logger LOG = LoggerFactory.getLogger(Import.class);
   final static String NAME = "import";
   public final static String CF_RENAME_PROP = "HBASE_IMPORTER_RENAME_CFS";
   public final static String BULK_OUTPUT_CONF_KEY = "import.bulk.output";
@@ -145,6 +145,8 @@ public class Import extends Configured implements Tool {
     }
 
     @Override
+    @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "EQ_COMPARETO_USE_OBJECT_EQUALS",
+        justification = "This is wrong, yes, but we should be purging Writables, not fixing them")
     public int compareTo(CellWritableComparable o) {
       return CellComparator.getInstance().compare(this.kv, o.kv);
     }
@@ -180,7 +182,7 @@ public class Import extends Configured implements Tool {
       int index = 0;
       for (Cell kv : kvs) {
         context.write(new ImmutableBytesWritable(CellUtil.cloneRow(kv)),
-          new MapReduceCell(kv));
+          new MapReduceExtendedCell(kv));
         if (++index % 100 == 0)
           context.setStatus("Wrote " + index + " KeyValues, "
               + "and the rowkey whose is being wrote is " + Bytes.toString(kv.getRowArray()));
@@ -192,7 +194,7 @@ public class Import extends Configured implements Tool {
       extends TableMapper<CellWritableComparable, Cell> {
     private Map<byte[], byte[]> cfRenameMap;
     private Filter filter;
-    private static final Log LOG = LogFactory.getLog(CellImporter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CellImporter.class);
 
     /**
      * @param row  The current table row key.
@@ -220,7 +222,8 @@ public class Import extends Configured implements Tool {
           }
         }
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        LOG.error("Interrupted while emitting Cell", e);
+        Thread.currentThread().interrupt();
       }
     }
 
@@ -256,7 +259,7 @@ public class Import extends Configured implements Tool {
   public static class CellImporter extends TableMapper<ImmutableBytesWritable, Cell> {
     private Map<byte[], byte[]> cfRenameMap;
     private Filter filter;
-    private static final Log LOG = LogFactory.getLog(CellImporter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CellImporter.class);
 
     /**
      * @param row  The current table row key.
@@ -280,11 +283,12 @@ public class Import extends Configured implements Tool {
             kv = filterKv(filter, kv);
             // skip if we filtered it out
             if (kv == null) continue;
-            context.write(row, new MapReduceCell(convertKv(kv, cfRenameMap)));
+            context.write(row, new MapReduceExtendedCell(convertKv(kv, cfRenameMap)));
           }
         }
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        LOG.error("Interrupted while emitting Cell", e);
+        Thread.currentThread().interrupt();
       }
     }
 
@@ -317,7 +321,8 @@ public class Import extends Configured implements Tool {
       try {
         writeResult(row, value, context);
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        LOG.error("Interrupted while writing result", e);
+        Thread.currentThread().interrupt();
       }
     }
 
@@ -540,7 +545,7 @@ public class Import extends Configured implements Tool {
         if(srcAndDest.length != 2) {
             continue;
         }
-        cfRenameMap.put(srcAndDest[0].getBytes(), srcAndDest[1].getBytes());
+        cfRenameMap.put(Bytes.toBytes(srcAndDest[0]), Bytes.toBytes(srcAndDest[1]));
       }
     }
     return cfRenameMap;
@@ -631,7 +636,7 @@ public class Import extends Configured implements Tool {
         Path outputDir = new Path(hfileOutPath);
         FileOutputFormat.setOutputPath(job, outputDir);
         job.setMapOutputKeyClass(CellWritableComparable.class);
-        job.setMapOutputValueClass(MapReduceCell.class);
+        job.setMapOutputValueClass(MapReduceExtendedCell.class);
         job.getConfiguration().setClass("mapreduce.job.output.key.comparator.class",
             CellWritableComparable.CellWritableComparator.class,
             RawComparator.class);
@@ -642,7 +647,7 @@ public class Import extends Configured implements Tool {
         job.setPartitionerClass(CellWritableComparablePartitioner.class);
         job.setNumReduceTasks(regionLocator.getStartKeys().length);
         TableMapReduceUtil.addDependencyJarsForClasses(job.getConfiguration(),
-            org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions.class);
+            org.apache.hbase.thirdparty.com.google.common.base.Preconditions.class);
       }
     } else if (hfileOutPath != null) {
       LOG.info("writing to hfiles for bulk load.");
@@ -654,10 +659,10 @@ public class Import extends Configured implements Tool {
         Path outputDir = new Path(hfileOutPath);
         FileOutputFormat.setOutputPath(job, outputDir);
         job.setMapOutputKeyClass(ImmutableBytesWritable.class);
-        job.setMapOutputValueClass(MapReduceCell.class);
+        job.setMapOutputValueClass(MapReduceExtendedCell.class);
         HFileOutputFormat2.configureIncrementalLoad(job, table.getDescriptor(), regionLocator);
         TableMapReduceUtil.addDependencyJarsForClasses(job.getConfiguration(),
-            org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions.class);
+            org.apache.hbase.thirdparty.com.google.common.base.Preconditions.class);
       }
     } else {
       LOG.info("writing directly to table from Mapper.");

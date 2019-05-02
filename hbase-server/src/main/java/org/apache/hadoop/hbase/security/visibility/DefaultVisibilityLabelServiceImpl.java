@@ -28,6 +28,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,25 +40,26 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ArrayBackedTag;
 import org.apache.hadoop.hbase.AuthUtil;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.ExtendedCellBuilder;
+import org.apache.hadoop.hbase.ExtendedCellBuilderFactory;
 import org.apache.hadoop.hbase.HConstants.OperationStatusCode;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.TagType;
 import org.apache.hadoop.hbase.TagUtil;
-import org.apache.hadoop.hbase.coprocessor.HasRegionServerServices;
-import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.coprocessor.HasRegionServerServices;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.io.util.StreamUtils;
@@ -68,11 +70,15 @@ import org.apache.hadoop.hbase.security.Superusers;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @InterfaceAudience.Private
 public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService {
-
-  private static final Log LOG = LogFactory.getLog(DefaultVisibilityLabelServiceImpl.class);
+  private static final Logger LOG =
+      LoggerFactory.getLogger(DefaultVisibilityLabelServiceImpl.class);
 
   // "system" label is having an ordinal value 1.
   private static final int SYSTEM_LABEL_ORDINAL = 1;
@@ -205,8 +211,16 @@ public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService
   protected void addSystemLabel(Region region, Map<String, Integer> labels,
       Map<String, List<Integer>> userAuths) throws IOException {
     if (!labels.containsKey(SYSTEM_LABEL)) {
-      Put p = new Put(Bytes.toBytes(SYSTEM_LABEL_ORDINAL));
-      p.addImmutable(LABELS_TABLE_FAMILY, LABEL_QUALIFIER, Bytes.toBytes(SYSTEM_LABEL));
+      byte[] row = Bytes.toBytes(SYSTEM_LABEL_ORDINAL);
+      Put p = new Put(row);
+      p.add(CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY)
+                    .setRow(row)
+                    .setFamily(LABELS_TABLE_FAMILY)
+                    .setQualifier(LABEL_QUALIFIER)
+                    .setTimestamp(p.getTimestamp())
+                    .setType(Type.Put)
+                    .setValue(Bytes.toBytes(SYSTEM_LABEL))
+                    .build());
       region.put(p);
       labels.put(SYSTEM_LABEL, SYSTEM_LABEL_ORDINAL);
     }
@@ -218,14 +232,24 @@ public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService
     OperationStatus[] finalOpStatus = new OperationStatus[labels.size()];
     List<Mutation> puts = new ArrayList<>(labels.size());
     int i = 0;
+    ExtendedCellBuilder builder = ExtendedCellBuilderFactory.create(CellBuilderType.SHALLOW_COPY);
     for (byte[] label : labels) {
       String labelStr = Bytes.toString(label);
       if (this.labelsCache.getLabelOrdinal(labelStr) > 0) {
         finalOpStatus[i] = new OperationStatus(OperationStatusCode.FAILURE,
             new LabelAlreadyExistsException("Label '" + labelStr + "' already exists"));
       } else {
-        Put p = new Put(Bytes.toBytes(ordinalCounter.get()));
-        p.addImmutable(LABELS_TABLE_FAMILY, LABEL_QUALIFIER, label, LABELS_TABLE_TAGS);
+        byte[] row = Bytes.toBytes(ordinalCounter.get());
+        Put p = new Put(row);
+        p.add(builder.clear()
+              .setRow(row)
+              .setFamily(LABELS_TABLE_FAMILY)
+              .setQualifier(LABEL_QUALIFIER)
+              .setTimestamp(p.getTimestamp())
+              .setType(Type.Put)
+              .setValue(label)
+              .setTags(TagUtil.fromList(Arrays.asList(LABELS_TABLE_TAGS)))
+              .build());
         if (LOG.isDebugEnabled()) {
           LOG.debug("Adding the label " + labelStr);
         }
@@ -246,6 +270,7 @@ public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService
     OperationStatus[] finalOpStatus = new OperationStatus[authLabels.size()];
     List<Mutation> puts = new ArrayList<>(authLabels.size());
     int i = 0;
+    ExtendedCellBuilder builder = ExtendedCellBuilderFactory.create(CellBuilderType.SHALLOW_COPY);
     for (byte[] auth : authLabels) {
       String authStr = Bytes.toString(auth);
       int labelOrdinal = this.labelsCache.getLabelOrdinal(authStr);
@@ -254,8 +279,17 @@ public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService
         finalOpStatus[i] = new OperationStatus(OperationStatusCode.FAILURE,
             new InvalidLabelException("Label '" + authStr + "' doesn't exists"));
       } else {
-        Put p = new Put(Bytes.toBytes(labelOrdinal));
-        p.addImmutable(LABELS_TABLE_FAMILY, user, DUMMY_VALUE, LABELS_TABLE_TAGS);
+        byte[] row = Bytes.toBytes(labelOrdinal);
+        Put p = new Put(row);
+        p.add(builder.clear()
+            .setRow(row)
+            .setFamily(LABELS_TABLE_FAMILY)
+            .setQualifier(user)
+            .setTimestamp(p.getTimestamp())
+            .setType(Cell.Type.Put)
+            .setValue(DUMMY_VALUE)
+            .setTags(TagUtil.fromList(Arrays.asList(LABELS_TABLE_TAGS)))
+            .build());
         puts.add(p);
       }
       i++;
@@ -473,7 +507,7 @@ public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService
         authLabels = (authLabels == null) ? new ArrayList<>() : authLabels;
         authorizations = new Authorizations(authLabels);
       } catch (Throwable t) {
-        LOG.error(t);
+        LOG.error(t.toString(), t);
         throw new IOException(t);
       }
     }
@@ -606,7 +640,7 @@ public class DefaultVisibilityLabelServiceImpl implements VisibilityLabelService
       for (Tag tag : deleteVisTags) {
         matchFound = false;
         for (Tag givenTag : putVisTags) {
-          if (TagUtil.matchingValue(tag, givenTag)) {
+          if (Tag.matchingValue(tag, givenTag)) {
             matchFound = true;
             break;
           }

@@ -38,8 +38,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -51,6 +49,8 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.io.FSDataInputStreamWrapper;
 import org.apache.hadoop.hbase.io.MetricsIO;
@@ -60,7 +60,7 @@ import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding;
 import org.apache.hadoop.hbase.protobuf.ProtobufMagic;
 import org.apache.hadoop.hbase.regionserver.CellSink;
 import org.apache.hadoop.hbase.regionserver.ShipperListener;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.BytesBytesPair;
@@ -70,8 +70,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.io.Writable;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
 
 /**
  * File format for hbase.
@@ -140,7 +140,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
 @InterfaceAudience.Private
 public class HFile {
   // LOG is being used in HFileBlock and CheckSumUtil
-  static final Log LOG = LogFactory.getLog(HFile.class);
+  static final Logger LOG = LoggerFactory.getLogger(HFile.class);
 
   /**
    * Maximum length of key in HFile.
@@ -332,8 +332,8 @@ public class HFile {
         try {
           ostream.setDropBehind(shouldDropBehind && cacheConf.shouldDropBehindCompaction());
         } catch (UnsupportedOperationException uoe) {
-          if (LOG.isTraceEnabled()) LOG.trace("Unable to set drop behind on " + path, uoe);
-          else if (LOG.isDebugEnabled()) LOG.debug("Unable to set drop behind on " + path);
+          LOG.trace("Unable to set drop behind on {}", path, uoe);
+          LOG.debug("Unable to set drop behind on {}", path.getName());
         }
       }
       return new HFileWriterImpl(conf, cacheConf, path, ostream, comparator, fileContext);
@@ -356,9 +356,7 @@ public class HFile {
    */
   public static final WriterFactory getWriterFactoryNoCache(Configuration
        conf) {
-    Configuration tempConf = new Configuration(conf);
-    tempConf.setFloat(HConstants.HFILE_BLOCK_CACHE_SIZE_KEY, 0.0f);
-    return HFile.getWriterFactory(conf, new CacheConfig(tempConf));
+    return HFile.getWriterFactory(conf, CacheConfig.DISABLED);
   }
 
   /**

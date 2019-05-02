@@ -29,9 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -42,25 +39,32 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsPermission;
-
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
 
 /**
  * Utility methods for interacting with the underlying file system.
+ * <p/>
+ * Note that {@link #setStoragePolicy(FileSystem, Path, String)} is tested in TestFSUtils and
+ * pre-commit will run the hbase-server tests if there's code change in this class. See
+ * <a href="https://issues.apache.org/jira/browse/HBASE-20838">HBASE-20838</a> for more details.
  */
 @InterfaceAudience.Private
 public abstract class CommonFSUtils {
-  private static final Log LOG = LogFactory.getLog(CommonFSUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CommonFSUtils.class);
 
   /** Parameter name for HBase WAL directory */
   public static final String HBASE_WAL_DIR = "hbase.wal.dir";
+
+  /** Parameter to disable stream capability enforcement checks */
+  public static final String UNSAFE_STREAM_CAPABILITY_ENFORCE = "hbase.unsafe.stream.capability.enforce";
 
   /** Full access permissions (starting point for a umask) */
   public static final String FULL_RWX_PERMISSIONS = "777";
@@ -356,7 +360,7 @@ public abstract class CommonFSUtils {
   public static Path getRootDir(final Configuration c) throws IOException {
     Path p = new Path(c.get(HConstants.HBASE_DIR));
     FileSystem fs = p.getFileSystem(c);
-    return p.makeQualified(fs);
+    return p.makeQualified(fs.getUri(), fs.getWorkingDirectory());
   }
 
   public static void setRootDir(final Configuration c, final Path root) throws IOException {
@@ -384,7 +388,7 @@ public abstract class CommonFSUtils {
       return getRootDir(c);
     }
     FileSystem fs = p.getFileSystem(c);
-    return p.makeQualified(fs);
+    return p.makeQualified(fs.getUri(), fs.getWorkingDirectory());
   }
 
   @VisibleForTesting
@@ -394,18 +398,54 @@ public abstract class CommonFSUtils {
 
   public static FileSystem getWALFileSystem(final Configuration c) throws IOException {
     Path p = getWALRootDir(c);
-    return p.getFileSystem(c);
+    FileSystem fs = p.getFileSystem(c);
+    // hadoop-core does fs caching, so need to propogate this if set
+    String enforceStreamCapability = c.get(UNSAFE_STREAM_CAPABILITY_ENFORCE);
+    if (enforceStreamCapability != null) {
+      fs.getConf().set(UNSAFE_STREAM_CAPABILITY_ENFORCE, enforceStreamCapability);
+    }
+    return fs;
   }
 
   private static boolean isValidWALRootDir(Path walDir, final Configuration c) throws IOException {
     Path rootDir = getRootDir(c);
-    if (walDir != rootDir) {
-      if (walDir.toString().startsWith(rootDir.toString() + "/")) {
+    FileSystem fs = walDir.getFileSystem(c);
+    Path qualifiedWalDir = walDir.makeQualified(fs.getUri(), fs.getWorkingDirectory());
+    if (!qualifiedWalDir.equals(rootDir)) {
+      if (qualifiedWalDir.toString().startsWith(rootDir.toString() + "/")) {
         throw new IllegalStateException("Illegal WAL directory specified. " +
             "WAL directories are not permitted to be under the root directory if set.");
       }
     }
     return true;
+  }
+
+  /**
+   * Returns the WAL region directory based on the given table name and region name
+   * @param conf configuration to determine WALRootDir
+   * @param tableName Table that the region is under
+   * @param encodedRegionName Region name used for creating the final region directory
+   * @return the region directory used to store WALs under the WALRootDir
+   * @throws IOException if there is an exception determining the WALRootDir
+   */
+  public static Path getWALRegionDir(final Configuration conf,
+      final TableName tableName, final String encodedRegionName)
+      throws IOException {
+    return new Path(getWALTableDir(conf, tableName),
+        encodedRegionName);
+  }
+
+  /**
+   * Returns the Table directory under the WALRootDir for the specified table name
+   * @param conf configuration used to get the WALRootDir
+   * @param tableName Table to get the directory for
+   * @return a path to the WAL table directory for the specified table
+   * @throws IOException if there is an exception determining the WALRootDir
+   */
+  public static Path getWALTableDir(final Configuration conf, final TableName tableName)
+      throws IOException {
+    return new Path(new Path(getWALRootDir(conf), tableName.getNamespaceAsString()),
+        tableName.getQualifierAsString());
   }
 
   /**
@@ -446,36 +486,6 @@ public abstract class CommonFSUtils {
         new Path(namespace)));
   }
 
-  /**
-   * Sets storage policy for given path according to config setting.
-   * If the passed path is a directory, we'll set the storage policy for all files
-   * created in the future in said directory. Note that this change in storage
-   * policy takes place at the FileSystem level; it will persist beyond this RS's lifecycle.
-   * If we're running on a FileSystem implementation that doesn't support the given storage policy
-   * (or storage policies at all), then we'll issue a log message and continue.
-   *
-   * See http://hadoop.apache.org/docs/r2.6.0/hadoop-project-dist/hadoop-hdfs/ArchivalStorage.html
-   *
-   * @param fs We only do anything it implements a setStoragePolicy method
-   * @param conf used to look up storage policy with given key; not modified.
-   * @param path the Path whose storage policy is to be set
-   * @param policyKey Key to use pulling a policy from Configuration:
-   *   e.g. HConstants.WAL_STORAGE_POLICY (hbase.wal.storage.policy).
-   * @param defaultPolicy if the configured policy is equal to this policy name, we will skip
-   *   telling the FileSystem to set a storage policy.
-   */
-  public static void setStoragePolicy(final FileSystem fs, final Configuration conf,
-      final Path path, final String policyKey, final String defaultPolicy) {
-    String storagePolicy = conf.get(policyKey, defaultPolicy).toUpperCase(Locale.ROOT);
-    if (storagePolicy.equals(defaultPolicy)) {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("default policy of " + defaultPolicy + " requested, exiting early.");
-      }
-      return;
-    }
-    setStoragePolicy(fs, path, storagePolicy);
-  }
-
   // this mapping means that under a federated FileSystem implementation, we'll
   // only log the first failure from any of the underlying FileSystems at WARN and all others
   // will be at DEBUG.
@@ -500,33 +510,63 @@ public abstract class CommonFSUtils {
    */
   public static void setStoragePolicy(final FileSystem fs, final Path path,
       final String storagePolicy) {
+    try {
+      setStoragePolicy(fs, path, storagePolicy, false);
+    } catch (IOException e) {
+      // should never arrive here
+      LOG.warn("We have chosen not to throw exception but some unexpectedly thrown out", e);
+    }
+  }
+
+  static void setStoragePolicy(final FileSystem fs, final Path path, final String storagePolicy,
+      boolean throwException) throws IOException {
     if (storagePolicy == null) {
       if (LOG.isTraceEnabled()) {
         LOG.trace("We were passed a null storagePolicy, exiting early.");
       }
       return;
     }
-    final String trimmedStoragePolicy = storagePolicy.trim();
+    String trimmedStoragePolicy = storagePolicy.trim();
     if (trimmedStoragePolicy.isEmpty()) {
       if (LOG.isTraceEnabled()) {
         LOG.trace("We were passed an empty storagePolicy, exiting early.");
       }
       return;
+    } else {
+      trimmedStoragePolicy = trimmedStoragePolicy.toUpperCase(Locale.ROOT);
     }
-    invokeSetStoragePolicy(fs, path, trimmedStoragePolicy);
+    if (trimmedStoragePolicy.equals(HConstants.DEFER_TO_HDFS_STORAGE_POLICY)) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("We were passed the defer-to-hdfs policy {}, exiting early.",
+          trimmedStoragePolicy);
+      }
+      return;
+    }
+    try {
+      invokeSetStoragePolicy(fs, path, trimmedStoragePolicy);
+    } catch (IOException e) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Failed to invoke set storage policy API on FS", e);
+      }
+      if (throwException) {
+        throw e;
+      }
+    }
   }
 
   /*
    * All args have been checked and are good. Run the setStoragePolicy invocation.
    */
   private static void invokeSetStoragePolicy(final FileSystem fs, final Path path,
-      final String storagePolicy) {
+      final String storagePolicy) throws IOException {
     Method m = null;
+    Exception toThrow = null;
     try {
       m = fs.getClass().getDeclaredMethod("setStoragePolicy",
         new Class<?>[] { Path.class, String.class });
       m.setAccessible(true);
     } catch (NoSuchMethodException e) {
+      toThrow = e;
       final String msg = "FileSystem doesn't support setStoragePolicy; HDFS-6584, HDFS-9345 " +
           "not available. This is normal and expected on earlier Hadoop versions.";
       if (!warningMap.containsKey(fs)) {
@@ -537,6 +577,7 @@ public abstract class CommonFSUtils {
       }
       m = null;
     } catch (SecurityException e) {
+      toThrow = e;
       final String msg = "No access to setStoragePolicy on FileSystem from the SecurityManager; " +
           "HDFS-6584, HDFS-9345 not available. This is unusual and probably warrants an email " +
           "to the user@hbase mailing list. Please be sure to include a link to your configs, and " +
@@ -557,6 +598,7 @@ public abstract class CommonFSUtils {
           LOG.debug("Set storagePolicy=" + storagePolicy + " for path=" + path);
         }
       } catch (Exception e) {
+        toThrow = e;
         // This swallows FNFE, should we be throwing it? seems more likely to indicate dev
         // misuse than a runtime problem with HDFS.
         if (!warningMap.containsKey(fs)) {
@@ -594,6 +636,9 @@ public abstract class CommonFSUtils {
           }
         }
       }
+    }
+    if (toThrow != null) {
+      throw new IOException(toThrow);
     }
   }
 
@@ -731,18 +776,18 @@ public abstract class CommonFSUtils {
    * @param LOG log to output information
    * @throws IOException if an unexpected exception occurs
    */
-  public static void logFileSystemState(final FileSystem fs, final Path root, Log LOG)
+  public static void logFileSystemState(final FileSystem fs, final Path root, Logger LOG)
       throws IOException {
-    LOG.debug("Current file system:");
+    LOG.debug("File system contents for path " + root);
     logFSTree(LOG, fs, root, "|-");
   }
 
   /**
    * Recursive helper to log the state of the FS
    *
-   * @see #logFileSystemState(FileSystem, Path, Log)
+   * @see #logFileSystemState(FileSystem, Path, Logger)
    */
-  private static void logFSTree(Log LOG, final FileSystem fs, final Path root, String prefix)
+  private static void logFSTree(Logger LOG, final FileSystem fs, final Path root, String prefix)
       throws IOException {
     FileStatus[] files = listStatus(fs, root, null);
     if (files == null) {
@@ -802,6 +847,133 @@ public abstract class CommonFSUtils {
     // But short circuit buffer size is normally not set.  Put in place the hbase wanted size.
     int hbaseSize = conf.getInt("hbase." + dfsKey, defaultSize);
     conf.setIfUnset(dfsKey, Integer.toString(hbaseSize));
+  }
+
+  private static class DfsBuilderUtility {
+    static Class<?> dfsClass = null;
+    static Method createMethod;
+    static Method overwriteMethod;
+    static Method bufferSizeMethod;
+    static Method blockSizeMethod;
+    static Method recursiveMethod;
+    static Method replicateMethod;
+    static Method replicationMethod;
+    static Method buildMethod;
+    static boolean allMethodsPresent = false;
+
+    static {
+      String dfsName = "org.apache.hadoop.hdfs.DistributedFileSystem";
+      String builderName = dfsName + "$HdfsDataOutputStreamBuilder";
+      Class<?> builderClass = null;
+
+      try {
+        dfsClass = Class.forName(dfsName);
+      } catch (ClassNotFoundException e) {
+        LOG.debug("{} not available, will not use builder API for file creation.", dfsName);
+      }
+      try {
+        builderClass = Class.forName(builderName);
+      } catch (ClassNotFoundException e) {
+        LOG.debug("{} not available, will not use builder API for file creation.", builderName);
+      }
+
+      if (dfsClass != null && builderClass != null) {
+        try {
+          createMethod = dfsClass.getMethod("createFile", Path.class);
+          overwriteMethod = builderClass.getMethod("overwrite", boolean.class);
+          bufferSizeMethod = builderClass.getMethod("bufferSize", int.class);
+          blockSizeMethod = builderClass.getMethod("blockSize", long.class);
+          recursiveMethod = builderClass.getMethod("recursive");
+          replicateMethod = builderClass.getMethod("replicate");
+          replicationMethod = builderClass.getMethod("replication", short.class);
+          buildMethod = builderClass.getMethod("build");
+
+          allMethodsPresent = true;
+          LOG.debug("Using builder API via reflection for DFS file creation.");
+        } catch (NoSuchMethodException e) {
+          LOG.debug("Could not find method on builder; will use old DFS API for file creation {}",
+              e.getMessage());
+        }
+      }
+    }
+
+    /**
+     * Attempt to use builder API via reflection to create a file with the given parameters and
+     * replication enabled.
+     */
+    static FSDataOutputStream createHelper(FileSystem fs, Path path, boolean overwritable,
+        int bufferSize, short replication, long blockSize, boolean isRecursive) throws IOException {
+      if (allMethodsPresent && dfsClass.isInstance(fs)) {
+        try {
+          Object builder;
+
+          builder = createMethod.invoke(fs, path);
+          builder = overwriteMethod.invoke(builder, overwritable);
+          builder = bufferSizeMethod.invoke(builder, bufferSize);
+          builder = blockSizeMethod.invoke(builder, blockSize);
+          if (isRecursive) {
+            builder = recursiveMethod.invoke(builder);
+          }
+          builder = replicateMethod.invoke(builder);
+          builder = replicationMethod.invoke(builder, replication);
+          return (FSDataOutputStream) buildMethod.invoke(builder);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+          // Should have caught this failure during initialization, so log full trace here
+          LOG.warn("Couldn't use reflection with builder API", e);
+        }
+      }
+
+      if (isRecursive) {
+        return fs.create(path, overwritable, bufferSize, replication, blockSize, null);
+      }
+      return fs.createNonRecursive(path, overwritable, bufferSize, replication, blockSize, null);
+    }
+
+    /**
+     * Attempt to use builder API via reflection to create a file with the given parameters and
+     * replication enabled.
+     */
+    static FSDataOutputStream createHelper(FileSystem fs, Path path, boolean overwritable)
+        throws IOException {
+      if (allMethodsPresent && dfsClass.isInstance(fs)) {
+        try {
+          Object builder;
+
+          builder = createMethod.invoke(fs, path);
+          builder = overwriteMethod.invoke(builder, overwritable);
+          builder = replicateMethod.invoke(builder);
+          return (FSDataOutputStream) buildMethod.invoke(builder);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+          // Should have caught this failure during initialization, so log full trace here
+          LOG.warn("Couldn't use reflection with builder API", e);
+        }
+      }
+
+      return fs.create(path, overwritable);
+    }
+  }
+
+  /**
+   * Attempt to use builder API via reflection to create a file with the given parameters and
+   * replication enabled.
+   * <p>
+   * Will not attempt to enable replication when passed an HFileSystem.
+   */
+  public static FSDataOutputStream createForWal(FileSystem fs, Path path, boolean overwritable)
+      throws IOException {
+    return DfsBuilderUtility.createHelper(fs, path, overwritable);
+  }
+
+  /**
+   * Attempt to use builder API via reflection to create a file with the given parameters and
+   * replication enabled.
+   * <p>
+   * Will not attempt to enable replication when passed an HFileSystem.
+   */
+  public static FSDataOutputStream createForWal(FileSystem fs, Path path, boolean overwritable,
+      int bufferSize, short replication, long blockSize, boolean isRecursive) throws IOException {
+    return DfsBuilderUtility.createHelper(fs, path, overwritable, bufferSize, replication,
+        blockSize, isRecursive);
   }
 
   // Holder singleton idiom. JVM spec ensures this will be run at most once per Classloader, and

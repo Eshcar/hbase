@@ -1,38 +1,41 @@
 /**
- * Copyright The Apache Software Foundation
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with this
- * work for additional information regarding copyright ownership. The ASF
- * licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.hadoop.hbase.io.hfile.bucket;
 
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.io.hfile.bucket.TestByteBufferIOEngine.BufferGrabbingDeserializer;
 import org.apache.hadoop.hbase.nio.ByteBuff;
 import org.apache.hadoop.hbase.testclassification.IOTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -41,6 +44,10 @@ import org.junit.experimental.categories.Category;
  */
 @Category({IOTests.class, SmallTests.class})
 public class TestFileIOEngine {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFileIOEngine.class);
 
   private static final long TOTAL_CAPACITY = 6 * 1024 * 1024; // 6 MB
   private static final String[] FILE_PATHS = {"testFileIOEngine1", "testFileIOEngine2",
@@ -118,5 +125,37 @@ public class TestFileIOEngine {
     fileIOEngine.read(0, 0, deserializer);
     ByteBuff data2 = deserializer.getDeserializedByteBuff();
     assertArrayEquals(data1, data2.array());
+  }
+
+  @Test
+  public void testClosedChannelException() throws IOException {
+    fileIOEngine.closeFileChannels();
+    int len = 5;
+    long offset = 0L;
+    byte[] data1 = new byte[len];
+    for (int j = 0; j < data1.length; ++j) {
+      data1[j] = (byte) (Math.random() * 255);
+    }
+    fileIOEngine.write(ByteBuffer.wrap(data1), offset);
+    BufferGrabbingDeserializer deserializer = new BufferGrabbingDeserializer();
+    fileIOEngine.read(offset, len, deserializer);
+    ByteBuff data2 = deserializer.getDeserializedByteBuff();
+    assertArrayEquals(data1, data2.array());
+  }
+
+  @Test
+  public void testRefreshFileConnection() throws IOException {
+    FileChannel[] fileChannels = fileIOEngine.getFileChannels();
+    FileChannel fileChannel = fileChannels[0];
+    assertNotNull(fileChannel);
+    fileChannel.close();
+    fileIOEngine.refreshFileConnection(0, new IOException("Test Exception"));
+    FileChannel[] reopenedFileChannels = fileIOEngine.getFileChannels();
+    FileChannel reopenedFileChannel = reopenedFileChannels[0];
+    assertNotEquals(fileChannel, reopenedFileChannel);
+    assertEquals(fileChannels.length, reopenedFileChannels.length);
+    for (int i = 1; i < fileChannels.length; i++) {
+      assertEquals(fileChannels[i], reopenedFileChannels[i]);
+    }
   }
 }

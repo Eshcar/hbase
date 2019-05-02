@@ -20,7 +20,6 @@ package org.apache.hadoop.hbase.regionserver;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -29,17 +28,19 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Stoppable;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.client.RegionInfoBuilder;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -47,6 +48,7 @@ import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.wal.WALFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -59,6 +61,11 @@ import org.mockito.Mockito;
  */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestCompactionArchiveConcurrentClose {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestCompactionArchiveConcurrentClose.class);
+
   public HBaseTestingUtility testUtil;
 
   private Path testDir;
@@ -85,10 +92,10 @@ public class TestCompactionArchiveConcurrentClose {
     byte[] col = Bytes.toBytes("c");
     byte[] val = Bytes.toBytes("val");
 
-    final TableName tableName = TableName.valueOf(name.getMethodName());
-    HTableDescriptor htd = new HTableDescriptor(tableName);
-    htd.addFamily(new HColumnDescriptor(fam));
-    HRegionInfo info = new HRegionInfo(tableName, null, null, false);
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    TableDescriptor htd = TableDescriptorBuilder.newBuilder(tableName)
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.of(fam)).build();
+    RegionInfo info = RegionInfoBuilder.newBuilder(tableName).build();
     HRegion region = initHRegion(htd, info);
     RegionServerServices rss = mock(RegionServerServices.class);
     List<HRegion> regions = new ArrayList<>();
@@ -125,6 +132,7 @@ public class TestCompactionArchiveConcurrentClose {
 
     // now run the cleaner with a concurrent close
     Thread cleanerThread = new Thread() {
+      @Override
       public void run() {
         cleaner.chore();
       }
@@ -138,6 +146,7 @@ public class TestCompactionArchiveConcurrentClose {
     }
     final AtomicReference<Exception> closeException = new AtomicReference<>();
     Thread closeThread = new Thread() {
+      @Override
       public void run() {
         // wait for the chore to complete and call close
         try {
@@ -157,20 +166,17 @@ public class TestCompactionArchiveConcurrentClose {
     }
   }
 
-  private HRegion initHRegion(HTableDescriptor htd, HRegionInfo info)
-      throws IOException {
+  private HRegion initHRegion(TableDescriptor htd, RegionInfo info) throws IOException {
     Configuration conf = testUtil.getConfiguration();
     Path tableDir = FSUtils.getTableDir(testDir, htd.getTableName());
 
-    HRegionFileSystem fs = new WaitingHRegionFileSystem(conf, tableDir.getFileSystem(conf),
-        tableDir, info);
+    HRegionFileSystem fs =
+        new WaitingHRegionFileSystem(conf, tableDir.getFileSystem(conf), tableDir, info);
     ChunkCreator.initialize(MemStoreLABImpl.CHUNK_SIZE_DEFAULT, false, 0, 0, 0, null);
     final Configuration walConf = new Configuration(conf);
     FSUtils.setRootDir(walConf, tableDir);
-    final WALFactory wals = new WALFactory(walConf, null, "log_" + info.getEncodedName());
-    HRegion region =
-        new HRegion(fs, wals.getWAL(info.getEncodedNameAsBytes(), info.getTable().getNamespace()),
-            conf, htd, null);
+    final WALFactory wals = new WALFactory(walConf, "log_" + info.getEncodedName());
+    HRegion region = new HRegion(fs, wals.getWAL(info), conf, htd, null);
 
     region.initialize();
 
@@ -180,7 +186,7 @@ public class TestCompactionArchiveConcurrentClose {
   private class WaitingHRegionFileSystem extends HRegionFileSystem {
 
     public WaitingHRegionFileSystem(final Configuration conf, final FileSystem fs,
-        final Path tableDir, final HRegionInfo regionInfo) {
+        final Path tableDir, final RegionInfo regionInfo) {
       super(conf, fs, tableDir, regionInfo);
     }
 

@@ -1,5 +1,4 @@
 /**
-
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.regionserver;
 
 import static org.junit.Assert.*;
@@ -25,11 +23,8 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
@@ -40,21 +35,22 @@ import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Consistency;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.RpcRetryingCallerImpl;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.replication.regionserver.TestRegionReplicaReplicationEndpoint;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.JVMClusterUtil.RegionServerThread;
 import org.apache.hadoop.hbase.util.ServerRegionReplicaUtil;
 import org.apache.hadoop.hbase.util.Threads;
-import org.apache.hadoop.hbase.util.JVMClusterUtil.RegionServerThread;
-import org.apache.log4j.Level;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests failover of secondary region replicas.
@@ -62,11 +58,12 @@ import org.junit.rules.TestName;
 @Category(LargeTests.class)
 public class TestRegionReplicaFailover {
 
-  private static final Log LOG = LogFactory.getLog(TestRegionReplicaReplicationEndpoint.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRegionReplicaFailover.class);
 
-  static {
-    ((Log4JLogger)RpcRetryingCallerImpl.LOG).getLogger().setLevel(Level.ALL);
-  }
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestRegionReplicaReplicationEndpoint.class);
 
   private static final HBaseTestingUtility HTU = new HBaseTestingUtility();
 
@@ -111,7 +108,7 @@ public class TestRegionReplicaFailover {
    * Tests the case where a newly created table with region replicas and no data, the secondary
    * region replicas are available to read immediately.
    */
-  @Test(timeout = 60000)
+  @Test
   public void testSecondaryRegionWithEmptyRegion() throws IOException {
     // Create a new table with region replication, don't put any data. Test that the secondary
     // region replica is available to read.
@@ -130,7 +127,7 @@ public class TestRegionReplicaFailover {
    * (enable/disable table, etc) makes the region replicas readable.
    * @throws IOException
    */
-  @Test(timeout = 60000)
+  @Test
   public void testSecondaryRegionWithNonEmptyRegion() throws IOException {
     // Create a new table with region replication and load some data
     // than disable and enable the table again and verify the data from secondary
@@ -149,7 +146,7 @@ public class TestRegionReplicaFailover {
   /**
    * Tests the case where killing a primary region with unflushed data recovers
    */
-  @Test (timeout = 120000)
+  @Test
   public void testPrimaryRegionKill() throws Exception {
     try (Connection connection = ConnectionFactory.createConnection(HTU.getConfiguration());
         Table table = connection.getTable(htd.getTableName())) {
@@ -212,7 +209,7 @@ public class TestRegionReplicaFailover {
    * Tests the case where killing a secondary region with unflushed data recovers, and the replica
    * becomes available to read again shortly.
    */
-  @Test (timeout = 120000)
+  @Test
   public void testSecondaryRegionKill() throws Exception {
     try (Connection connection = ConnectionFactory.createConnection(HTU.getConfiguration());
         Table table = connection.getTable(htd.getTableName())) {
@@ -253,7 +250,7 @@ public class TestRegionReplicaFailover {
    * new writes while one of the secondaries is killed. Verification is done for both of the
    * secondary replicas.
    */
-  @Test (timeout = 120000)
+  @Test
   public void testSecondaryRegionKillWhilePrimaryIsAcceptingWrites() throws Exception {
     try (Connection connection = ConnectionFactory.createConnection(HTU.getConfiguration());
         Table table = connection.getTable(htd.getTableName());
@@ -300,7 +297,7 @@ public class TestRegionReplicaFailover {
           } catch (Throwable e) {
             ex.compareAndSet(null, e);
           }
-        };
+        }
       };
 
       aborter.start();
@@ -325,7 +322,7 @@ public class TestRegionReplicaFailover {
    * Tests the case where we are creating a table with a lot of regions and replicas. Opening region
    * replicas should not block handlers on RS indefinitely.
    */
-  @Test (timeout = 120000)
+  @Test
   public void testLotsOfRegionReplicas() throws IOException {
     int numRegions = NB_SERVERS * 20;
     int regionReplication = 10;

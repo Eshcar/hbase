@@ -25,11 +25,10 @@ import java.lang.reflect.Modifier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 
 /**
@@ -40,7 +39,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTe
  */
 @InterfaceAudience.Private
 public class ClassSize {
-  private static final Log LOG = LogFactory.getLog(ClassSize.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ClassSize.class);
 
   /** Array overhead */
   public static final int ARRAY;
@@ -173,7 +172,7 @@ public class ClassSize {
     }
 
     long sizeOfByteArray(int len) {
-      return align(arrayHeaderSize() + len);
+      return align(ARRAY + len);
     }
   }
 
@@ -197,7 +196,7 @@ public class ClassSize {
         return (int) UnsafeAccess.theUnsafe.objectFieldOffset(
           HeaderSize.class.getDeclaredField("a"));
       } catch (NoSuchFieldException | SecurityException e) {
-        LOG.error(e);
+        LOG.error(e.toString(), e);
       }
       return super.headerSize();
     }
@@ -218,7 +217,7 @@ public class ClassSize {
     @Override
     @SuppressWarnings("static-access")
     long sizeOfByteArray(int len) {
-      return align(arrayHeaderSize() + len * UnsafeAccess.theUnsafe.ARRAY_BYTE_INDEX_SCALE);
+      return align(ARRAY + len * UnsafeAccess.theUnsafe.ARRAY_BYTE_INDEX_SCALE);
     }
   }
 

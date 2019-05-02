@@ -19,26 +19,27 @@ package org.apache.hadoop.hbase.zookeeper;
 
 import java.io.IOException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.LoadBalancerProtos;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.zookeeper.KeeperException;
 
 /**
  * Tracks the load balancer state up in ZK
  */
 @InterfaceAudience.Private
 public class LoadBalancerTracker extends ZKNodeTracker {
-  private static final Log LOG = LogFactory.getLog(LoadBalancerTracker.class);
+  private static final Logger LOG = LoggerFactory.getLogger(LoadBalancerTracker.class);
 
   public LoadBalancerTracker(ZKWatcher watcher,
       Abortable abortable) {
-    super(watcher, watcher.znodePaths.balancerZNode, abortable);
+    super(watcher, watcher.getZNodePaths().balancerZNode, abortable);
   }
 
   /**
@@ -57,18 +58,20 @@ public class LoadBalancerTracker extends ZKNodeTracker {
   }
 
   /**
-   * Set the balancer on/off
-   * @param balancerOn
-   * @throws KeeperException
+   * Set the balancer on/off.
+   *
+   * @param balancerOn true if the balancher should be on, false otherwise
+   * @throws KeeperException if a ZooKeeper operation fails
    */
   public void setBalancerOn(boolean balancerOn) throws KeeperException {
-  byte [] upData = toByteArray(balancerOn);
+    byte [] upData = toByteArray(balancerOn);
+
     try {
-      ZKUtil.setData(watcher, watcher.znodePaths.balancerZNode, upData);
+      ZKUtil.setData(watcher, watcher.getZNodePaths().balancerZNode, upData);
     } catch(KeeperException.NoNodeException nne) {
-      ZKUtil.createAndWatch(watcher, watcher.znodePaths.balancerZNode, upData);
+      ZKUtil.createAndWatch(watcher, watcher.getZNodePaths().balancerZNode, upData);
     }
-    super.nodeDataChanged(watcher.znodePaths.balancerZNode);
+    super.nodeDataChanged(watcher.getZNodePaths().balancerZNode);
   }
 
   private byte [] toByteArray(boolean isBalancerOn) {
@@ -79,7 +82,7 @@ public class LoadBalancerTracker extends ZKNodeTracker {
   }
 
   private LoadBalancerProtos.LoadBalancerState parseFrom(byte [] pbBytes)
-  throws DeserializationException {
+    throws DeserializationException {
     ProtobufUtil.expectPBMagicPrefix(pbBytes);
     LoadBalancerProtos.LoadBalancerState.Builder builder =
       LoadBalancerProtos.LoadBalancerState.newBuilder();

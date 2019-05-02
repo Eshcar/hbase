@@ -18,12 +18,12 @@
  */
 package org.apache.hadoop.hbase.master;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.ClusterStatus;
+import org.apache.hadoop.hbase.ClusterMetrics;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.Stoppable;
@@ -31,8 +31,6 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.conf.ConfigurationObserver;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Makes decisions about the placement and movement of Regions across
@@ -55,13 +53,12 @@ public interface LoadBalancer extends Configurable, Stoppable, ConfigurationObse
    * By default, it carries no tables.
    * TODO: Add any | system as flags to indicate what it can do.
    */
-  public static final String TABLES_ON_MASTER = "hbase.balancer.tablesOnMaster";
+  String TABLES_ON_MASTER = "hbase.balancer.tablesOnMaster";
 
   /**
    * Master carries system tables.
    */
-  public static final String SYSTEM_TABLES_ON_MASTER =
-    "hbase.balancer.tablesOnMaster.systemTablesOnly";
+  String SYSTEM_TABLES_ON_MASTER = "hbase.balancer.tablesOnMaster.systemTablesOnly";
 
   // Used to signal to the caller that the region(s) cannot be assigned
   // We deliberately use 'localhost' so the operation will fail fast
@@ -71,7 +68,7 @@ public interface LoadBalancer extends Configurable, Stoppable, ConfigurationObse
    * Set the current cluster status.  This allows a LoadBalancer to map host name to a server
    * @param st
    */
-  void setClusterStatus(ClusterStatus st);
+  void setClusterMetrics(ClusterMetrics st);
 
   /**
    * Pass RegionStates and allow balancer to set the current cluster load.
@@ -158,7 +155,16 @@ public interface LoadBalancer extends Configurable, Stoppable, ConfigurationObse
    * Notification that config has changed
    * @param conf
    */
+  @Override
   void onConfigurationChange(Configuration conf);
+
+  /**
+   * If balancer needs to do initialization after Master has started up, lets do that here.
+   */
+  void postMasterStartupInitialize();
+
+  /*Updates balancer status tag reported to JMX*/
+  void updateBalancerStatus(boolean status);
 
   /**
    * @return true if Master carries regions
@@ -169,5 +175,9 @@ public interface LoadBalancer extends Configurable, Stoppable, ConfigurationObse
 
   static boolean isSystemTablesOnlyOnMaster(Configuration conf) {
     return conf.getBoolean(SYSTEM_TABLES_ON_MASTER, false);
+  }
+
+  static boolean isMasterCanHostUserRegions(Configuration conf) {
+    return isTablesOnMaster(conf) && !isSystemTablesOnlyOnMaster(conf);
   }
 }

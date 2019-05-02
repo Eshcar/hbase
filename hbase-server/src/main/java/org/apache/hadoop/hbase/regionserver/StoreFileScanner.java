@@ -94,6 +94,7 @@ public class StoreFileScanner implements KeyValueScanner {
     this.hasMVCCInfo = hasMVCC;
     this.scannerOrder = scannerOrder;
     this.canOptimizeForNonNullColumn = canOptimizeForNonNullColumn;
+    this.reader.incrementRefCount();
   }
 
   boolean isPrimaryReplica() {
@@ -137,16 +138,26 @@ public class StoreFileScanner implements KeyValueScanner {
       file.initReader();
       sortedFiles.add(file);
     }
-    for (int i = 0, n = files.size(); i < n; i++) {
-      HStoreFile sf = sortedFiles.remove();
-      StoreFileScanner scanner;
-      if (usePread) {
-        scanner = sf.getPreadScanner(cacheBlocks, readPt, i, canOptimizeForNonNullColumn);
-      } else {
-        scanner = sf.getStreamScanner(canUseDrop, cacheBlocks, isCompaction, readPt, i,
-          canOptimizeForNonNullColumn);
+    boolean succ = false;
+    try {
+      for (int i = 0, n = files.size(); i < n; i++) {
+        HStoreFile sf = sortedFiles.remove();
+        StoreFileScanner scanner;
+        if (usePread) {
+          scanner = sf.getPreadScanner(cacheBlocks, readPt, i, canOptimizeForNonNullColumn);
+        } else {
+          scanner = sf.getStreamScanner(canUseDrop, cacheBlocks, isCompaction, readPt, i,
+              canOptimizeForNonNullColumn);
+        }
+        scanners.add(scanner);
       }
-      scanners.add(scanner);
+      succ = true;
+    } finally {
+      if (!succ) {
+        for (StoreFileScanner scanner : scanners) {
+          scanner.close();
+        }
+      }
     }
     return scanners;
   }
@@ -177,14 +188,17 @@ public class StoreFileScanner implements KeyValueScanner {
     return scanners;
   }
 
+  @Override
   public String toString() {
     return "StoreFileScanner[" + hfs.toString() + ", cur=" + cur + "]";
   }
 
+  @Override
   public Cell peek() {
     return cur;
   }
 
+  @Override
   public Cell next() throws IOException {
     Cell retKey = cur;
 
@@ -205,6 +219,7 @@ public class StoreFileScanner implements KeyValueScanner {
     return retKey;
   }
 
+  @Override
   public boolean seek(Cell key) throws IOException {
     if (seekCount != null) seekCount.increment();
 
@@ -232,6 +247,7 @@ public class StoreFileScanner implements KeyValueScanner {
     }
   }
 
+  @Override
   public boolean reseek(Cell key) throws IOException {
     if (seekCount != null) seekCount.increment();
 
@@ -288,6 +304,7 @@ public class StoreFileScanner implements KeyValueScanner {
     return true;
   }
 
+  @Override
   public void close() {
     if (closed) return;
     cur = null;

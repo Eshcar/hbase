@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -63,6 +61,8 @@ import org.apache.hadoop.util.LineReader;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /*
  * The CompactionTool allows to execute a compaction specifying a:
@@ -74,20 +74,18 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.TOOLS)
 public class CompactionTool extends Configured implements Tool {
-  private static final Log LOG = LogFactory.getLog(CompactionTool.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CompactionTool.class);
 
   private final static String CONF_TMP_DIR = "hbase.tmp.dir";
   private final static String CONF_COMPACT_ONCE = "hbase.compactiontool.compact.once";
   private final static String CONF_COMPACT_MAJOR = "hbase.compactiontool.compact.major";
   private final static String CONF_DELETE_COMPACTED = "hbase.compactiontool.delete";
-  private final static String CONF_COMPLETE_COMPACTION = "hbase.hstore.compaction.complete";
 
   /**
    * Class responsible to execute the Compaction on the specified path.
    * The path can be a table, region or family directory.
    */
   private static class CompactionWorker {
-    private final boolean keepCompactedFiles;
     private final boolean deleteCompacted;
     private final Configuration conf;
     private final FileSystem fs;
@@ -95,7 +93,6 @@ public class CompactionTool extends Configured implements Tool {
 
     public CompactionWorker(final FileSystem fs, final Configuration conf) {
       this.conf = conf;
-      this.keepCompactedFiles = !conf.getBoolean(CONF_COMPLETE_COMPACTION, true);
       this.deleteCompacted = conf.getBoolean(CONF_DELETE_COMPACTED, false);
       this.tmpDir = new Path(conf.get(CONF_TMP_DIR));
       this.fs = fs;
@@ -169,13 +166,15 @@ public class CompactionTool extends Configured implements Tool {
         List<HStoreFile> storeFiles =
             store.compact(compaction.get(), NoLimitThroughputController.INSTANCE, null);
         if (storeFiles != null && !storeFiles.isEmpty()) {
-          if (keepCompactedFiles && deleteCompacted) {
+          if (deleteCompacted) {
             for (HStoreFile storeFile: storeFiles) {
               fs.delete(storeFile.getPath(), false);
             }
           }
         }
       } while (store.needsCompaction() && !compactOnce);
+      //We need to close the store properly, to make sure it will archive compacted files
+      store.close();
     }
 
     /**
@@ -192,7 +191,7 @@ public class CompactionTool extends Configured implements Tool {
         }
       };
       HRegion region = new HRegion(regionFs, null, conf, htd, null);
-      return new HStore(region, htd.getColumnFamily(Bytes.toBytes(familyName)), conf);
+      return new HStore(region, htd.getColumnFamily(Bytes.toBytes(familyName)), conf, false);
     }
   }
 
@@ -458,16 +457,15 @@ public class CompactionTool extends Configured implements Tool {
     System.err.println();
     System.err.println("Note: -D properties will be applied to the conf used. ");
     System.err.println("For example: ");
-    System.err.println(" To preserve input files, pass -D"+CONF_COMPLETE_COMPACTION+"=false");
     System.err.println(" To stop delete of compacted file, pass -D"+CONF_DELETE_COMPACTED+"=false");
     System.err.println(" To set tmp dir, pass -D"+CONF_TMP_DIR+"=ALTERNATE_DIR");
     System.err.println();
     System.err.println("Examples:");
     System.err.println(" To compact the full 'TestTable' using MapReduce:");
-    System.err.println(" $ hbase " + this.getClass().getName() + " -mapred hdfs:///hbase/data/default/TestTable");
+    System.err.println(" $ hbase " + this.getClass().getName() + " -mapred hdfs://hbase/data/default/TestTable");
     System.err.println();
     System.err.println(" To compact column family 'x' of the table 'TestTable' region 'abc':");
-    System.err.println(" $ hbase " + this.getClass().getName() + " hdfs:///hbase/data/default/TestTable/abc/x");
+    System.err.println(" $ hbase " + this.getClass().getName() + " hdfs://hbase/data/default/TestTable/abc/x");
   }
 
   public static void main(String[] args) throws Exception {

@@ -1,6 +1,4 @@
-/*
- * Copyright The Apache Software Foundation
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -25,12 +23,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-
+import org.apache.hadoop.hbase.CompareOperator;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.testclassification.MediumTests;
-import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.TableExistsException;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotFoundException;
@@ -42,13 +39,15 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm;
+import org.apache.hadoop.hbase.testclassification.MediumTests;
+import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -58,6 +57,11 @@ import org.junit.experimental.categories.Category;
  * w.r.t. essential column family optimization
  */
 public class TestSCVFWithMiniCluster {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSCVFWithMiniCluster.class);
+
   private static final TableName HBASE_TABLE_NAME = TableName.valueOf("TestSCVFWithMiniCluster");
 
   private static final byte[] FAMILY_A = Bytes.toBytes("a");
@@ -118,11 +122,11 @@ public class TestSCVFWithMiniCluster {
      * We want to filter out from the scan all rows that do not have the column 'a:foo' with value
      * 'false'. Only row with key '1' should be returned in the scan.
      */
-    scanFilter = new SingleColumnValueFilter(FAMILY_A, QUALIFIER_FOO, CompareOp.EQUAL,
+    scanFilter = new SingleColumnValueFilter(FAMILY_A, QUALIFIER_FOO, CompareOperator.EQUAL,
       new BinaryComparator(Bytes.toBytes("false")));
     ((SingleColumnValueFilter) scanFilter).setFilterIfMissing(true);
   }
-  
+
   @AfterClass
   public static void tearDown() throws Exception {
     htable.close();

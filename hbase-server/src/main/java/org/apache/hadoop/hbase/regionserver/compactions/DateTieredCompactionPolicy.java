@@ -25,8 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HDFSBlocksDistribution;
@@ -38,12 +36,13 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Iterators;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.PeekingIterator;
-import org.apache.hadoop.hbase.shaded.com.google.common.math.LongMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.collect.Iterators;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.PeekingIterator;
+import org.apache.hbase.thirdparty.com.google.common.math.LongMath;
 
 /**
  * HBASE-15181 This is a simple implementation of date-based tiered compaction similar to
@@ -65,7 +64,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.math.LongMath;
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
 public class DateTieredCompactionPolicy extends SortedCompactionPolicy {
 
-  private static final Log LOG = LogFactory.getLog(DateTieredCompactionPolicy.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DateTieredCompactionPolicy.class);
 
   private final RatioBasedCompactionPolicy compactionPolicyPerWindow;
 
@@ -109,6 +108,7 @@ public class DateTieredCompactionPolicy extends SortedCompactionPolicy {
     }
   }
 
+  @Override
   public boolean shouldPerformMajorCompaction(Collection<HStoreFile> filesToCompact)
       throws IOException {
     long mcTime = getNextMajorCompactTime(filesToCompact);

@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.master.procedure;
 
 import static org.junit.Assert.assertEquals;
@@ -25,39 +24,42 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotDisabledException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.SnapshotDescription;
 import org.apache.hadoop.hbase.procedure2.Procedure;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility;
-import org.apache.hadoop.hbase.client.SnapshotDescription;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos;
 import org.apache.hadoop.hbase.snapshot.SnapshotTestingUtils;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos;
 
 @Category({MasterTests.class, MediumTests.class})
 public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
-  private static final Log LOG = LogFactory.getLog(TestRestoreSnapshotProcedure.class);
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().withTimeout(this.getClass()).
-      withLookingForStuckThread(true).build();
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRestoreSnapshotProcedure.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestRestoreSnapshotProcedure.class);
 
   protected final TableName snapshotTableName = TableName.valueOf("testRestoreSnapshot");
   protected final byte[] CF1 = Bytes.toBytes("cf1");
@@ -97,7 +99,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
 
   private void setupSnapshotAndUpdateTable() throws Exception {
     long tid = System.currentTimeMillis();
-    final byte[] snapshotName = Bytes.toBytes("snapshot-" + tid);
+    final String snapshotName = "snapshot-" + tid;
     Admin admin = UTIL.getAdmin();
     // create Table
     SnapshotTestingUtils.createTable(UTIL, snapshotTableName, getNumReplicas(), CF1, CF2);
@@ -106,7 +108,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
     SnapshotTestingUtils.loadData(UTIL, snapshotTableName, rowCountCF2, CF2);
     SnapshotTestingUtils.verifyRowCount(UTIL, snapshotTableName, rowCountCF1 + rowCountCF2);
 
-    snapshotHTD = admin.getTableDescriptor(snapshotTableName);
+    snapshotHTD = new HTableDescriptor(admin.getDescriptor(snapshotTableName));
 
     admin.disableTable(snapshotTableName);
     // take a snapshot
@@ -126,7 +128,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
     SnapshotTestingUtils.loadData(UTIL, snapshotTableName, rowCountCF3, CF3);
     SnapshotTestingUtils.loadData(UTIL, snapshotTableName, rowCountCF4, CF4);
     SnapshotTestingUtils.loadData(UTIL, snapshotTableName, rowCountCF1addition, CF1);
-    HTableDescriptor currentHTD = admin.getTableDescriptor(snapshotTableName);
+    HTableDescriptor currentHTD = new HTableDescriptor(admin.getDescriptor(snapshotTableName));
     assertTrue(currentHTD.hasFamily(CF1));
     assertFalse(currentHTD.hasFamily(CF2));
     assertTrue(currentHTD.hasFamily(CF3));
@@ -146,7 +148,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
     return htd;
   }
 
-  @Test(timeout=600000)
+  @Test
   public void testRestoreSnapshot() throws Exception {
     final ProcedureExecutor<MasterProcedureEnv> procExec = getMasterProcedureExecutor();
 
@@ -158,7 +160,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
     validateSnapshotRestore();
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testRestoreSnapshotToDifferentTable() throws Exception {
     final ProcedureExecutor<MasterProcedureEnv> procExec = getMasterProcedureExecutor();
     final TableName restoredTableName = TableName.valueOf(name.getMethodName());
@@ -173,7 +175,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
       ProcedureTestingUtility.getExceptionCause(result) instanceof TableNotFoundException);
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testRestoreSnapshotToEnabledTable() throws Exception {
     final ProcedureExecutor<MasterProcedureEnv> procExec = getMasterProcedureExecutor();
 
@@ -193,7 +195,7 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
     }
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testRecoveryAndDoubleExecution() throws Exception {
     final ProcedureExecutor<MasterProcedureEnv> procExec = getMasterProcedureExecutor();
 
@@ -214,7 +216,8 @@ public class TestRestoreSnapshotProcedure extends TestTableDDLProcedureBase {
     try {
       UTIL.getAdmin().enableTable(snapshotTableName);
 
-      HTableDescriptor currentHTD = UTIL.getAdmin().getTableDescriptor(snapshotTableName);
+      HTableDescriptor currentHTD =
+        new HTableDescriptor(UTIL.getAdmin().getDescriptor(snapshotTableName));
       assertTrue(currentHTD.hasFamily(CF1));
       assertTrue(currentHTD.hasFamily(CF2));
       assertFalse(currentHTD.hasFamily(CF3));

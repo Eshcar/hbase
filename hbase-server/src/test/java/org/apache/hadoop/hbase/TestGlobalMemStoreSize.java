@@ -1,8 +1,7 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional infomation
+ * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
@@ -24,9 +23,6 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.RegionLocator;
@@ -38,10 +34,13 @@ import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
 import org.apache.hadoop.hbase.util.Threads;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 
@@ -51,11 +50,16 @@ import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
  */
 @Category({MiscTests.class, MediumTests.class})
 public class TestGlobalMemStoreSize {
-  private static final Log LOG = LogFactory.getLog(TestGlobalMemStoreSize.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestGlobalMemStoreSize.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestGlobalMemStoreSize.class);
   private static int regionServerNum = 4;
   private static int regionNum = 16;
-  // total region num = region num + root and meta regions
-  private static int totalRegionNum = regionNum+2;
+  // total region num = region num + meta regions
+  private static int totalRegionNum = regionNum + 1;
 
   private HBaseTestingUtility TEST_UTIL;
   private MiniHBaseCluster cluster;
@@ -74,7 +78,7 @@ public class TestGlobalMemStoreSize {
     LOG.info("Starting cluster");
     Configuration conf = HBaseConfiguration.create();
     TEST_UTIL = new HBaseTestingUtility(conf);
-    TEST_UTIL.startMiniCluster(1, regionServerNum);
+    TEST_UTIL.startMiniCluster(regionServerNum);
     cluster = TEST_UTIL.getHBaseCluster();
     LOG.info("Waiting for active/ready master");
     cluster.waitForActiveAndReadyMaster();
@@ -95,7 +99,7 @@ public class TestGlobalMemStoreSize {
       long globalMemStoreSize = 0;
       for (RegionInfo regionInfo :
           ProtobufUtil.getOnlineRegions(null, server.getRSRpcServices())) {
-        globalMemStoreSize += server.getRegion(regionInfo.getEncodedName()).getMemStoreSize();
+        globalMemStoreSize += server.getRegion(regionInfo.getEncodedName()).getMemStoreDataSize();
       }
       assertEquals(server.getRegionServerAccounting().getGlobalMemStoreDataSize(),
         globalMemStoreSize);
@@ -126,7 +130,7 @@ public class TestGlobalMemStoreSize {
         for (RegionInfo regionInfo :
             ProtobufUtil.getOnlineRegions(null, server.getRSRpcServices())) {
           HRegion r = server.getRegion(regionInfo.getEncodedName());
-          long l = r.getMemStoreSize();
+          long l = r.getMemStoreDataSize();
           if (l > 0) {
             // Only meta could have edits at this stage.  Give it another flush
             // clear them.

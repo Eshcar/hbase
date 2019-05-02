@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.OptionalLong;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.regionserver.DateTieredMultiFileWriter;
@@ -32,6 +30,8 @@ import org.apache.hadoop.hbase.regionserver.StoreUtils;
 import org.apache.hadoop.hbase.regionserver.throttle.ThroughputController;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This compactor will generate StoreFile for different time ranges.
@@ -39,7 +39,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 @InterfaceAudience.Private
 public class DateTieredCompactor extends AbstractMultiOutputCompactor<DateTieredMultiFileWriter> {
 
-  private static final Log LOG = LogFactory.getLog(DateTieredCompactor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DateTieredCompactor.class);
 
   public DateTieredCompactor(Configuration conf, HStore store) {
     super(conf, store);
@@ -78,6 +78,6 @@ public class DateTieredCompactor extends AbstractMultiOutputCompactor<DateTiered
   @Override
   protected List<Path> commitWriter(DateTieredMultiFileWriter writer, FileDetails fd,
       CompactionRequestImpl request) throws IOException {
-    return writer.commitWriters(fd.maxSeqId, request.isAllFiles());
+    return writer.commitWriters(fd.maxSeqId, request.isAllFiles(), request.getFiles());
   }
 }

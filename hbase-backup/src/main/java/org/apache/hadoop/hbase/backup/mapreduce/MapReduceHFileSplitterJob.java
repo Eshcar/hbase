@@ -19,8 +19,6 @@ package org.apache.hadoop.hbase.backup.mapreduce;
 
 import java.io.IOException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -38,7 +36,7 @@ import org.apache.hadoop.hbase.mapreduce.HFileInputFormat;
 import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat2;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.hbase.util.MapReduceCell;
+import org.apache.hadoop.hbase.util.MapReduceExtendedCell;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -47,6 +45,8 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A tool to split HFiles into new region boundaries as a MapReduce job. The tool generates HFiles
@@ -54,7 +54,7 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.Private
 public class MapReduceHFileSplitterJob extends Configured implements Tool {
-  private static final Log LOG = LogFactory.getLog(MapReduceHFileSplitterJob.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MapReduceHFileSplitterJob.class);
   final static String NAME = "HFileSplitterJob";
   public final static String BULK_OUTPUT_CONF_KEY = "hfile.bulk.output";
   public final static String TABLES_KEY = "hfile.input.tables";
@@ -78,7 +78,8 @@ public class MapReduceHFileSplitterJob extends Configured implements Tool {
     @Override
     public void map(NullWritable key, Cell value, Context context)
         throws IOException, InterruptedException {
-      context.write(new ImmutableBytesWritable(CellUtil.cloneRow(value)), new MapReduceCell(value));
+      context.write(new ImmutableBytesWritable(CellUtil.cloneRow(value)),
+          new MapReduceExtendedCell(value));
     }
 
     @Override
@@ -113,16 +114,16 @@ public class MapReduceHFileSplitterJob extends Configured implements Tool {
       job.setReducerClass(CellSortReducer.class);
       Path outputDir = new Path(hfileOutPath);
       FileOutputFormat.setOutputPath(job, outputDir);
-      job.setMapOutputValueClass(MapReduceCell.class);
+      job.setMapOutputValueClass(MapReduceExtendedCell.class);
       try (Connection conn = ConnectionFactory.createConnection(conf);
           Table table = conn.getTable(tableName);
           RegionLocator regionLocator = conn.getRegionLocator(tableName)) {
-          HFileOutputFormat2.configureIncrementalLoad(job, table.getDescriptor(), regionLocator);
+        HFileOutputFormat2.configureIncrementalLoad(job, table.getDescriptor(), regionLocator);
       }
       LOG.debug("success configuring load incremental job");
 
       TableMapReduceUtil.addDependencyJars(job.getConfiguration(),
-        org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions.class);
+        org.apache.hbase.thirdparty.com.google.common.base.Preconditions.class);
     } else {
       throw new IOException("No bulk output directory specified");
     }
@@ -163,7 +164,7 @@ public class MapReduceHFileSplitterJob extends Configured implements Tool {
   public int run(String[] args) throws Exception {
     if (args.length < 2) {
       usage("Wrong number of arguments: " + args.length);
-      System.exit(-1);
+      return -1;
     }
     Job job = createSubmittableJob(args);
     int result = job.waitForCompletion(true) ? 0 : 1;

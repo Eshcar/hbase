@@ -18,11 +18,11 @@
 
 package org.apache.hadoop.hbase.master.procedure;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import static org.junit.Assert.assertTrue;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility;
@@ -30,10 +30,11 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import static org.junit.Assert.assertTrue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class TestTableDDLProcedureBase {
-  private static final Log LOG = LogFactory.getLog(TestTableDDLProcedureBase.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestTableDDLProcedureBase.class);
   protected static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
   private static void setupConf(Configuration conf) {
@@ -63,7 +64,7 @@ public abstract class TestTableDDLProcedureBase {
   @After
   public void tearDown() throws Exception {
     resetProcExecutorTestingKillFlag();
-    for (HTableDescriptor htd: UTIL.getAdmin().listTables()) {
+    for (TableDescriptor htd : UTIL.getAdmin().listTableDescriptors()) {
       LOG.info("Tear down, remove table=" + htd.getTableName());
       UTIL.deleteTable(htd.getTableName());
     }

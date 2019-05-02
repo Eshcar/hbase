@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.security.token;
 
 import static org.junit.Assert.assertEquals;
@@ -25,11 +24,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.CountDownLatch;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Abortable;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
@@ -38,8 +35,11 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test the synchronization of token authentication master keys through
@@ -47,7 +47,12 @@ import org.junit.experimental.categories.Category;
  */
 @Category({SecurityTests.class, LargeTests.class})
 public class TestZKSecretWatcher {
-  private static final Log LOG = LogFactory.getLog(TestZKSecretWatcher.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestZKSecretWatcher.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestZKSecretWatcher.class);
   private static HBaseTestingUtility TEST_UTIL;
   private static AuthenticationTokenSecretManager KEY_MASTER;
   private static AuthenticationTokenSecretManagerForTest KEY_SLAVE;
@@ -56,11 +61,13 @@ public class TestZKSecretWatcher {
 
   private static class MockAbortable implements Abortable {
     private boolean abort;
+    @Override
     public void abort(String reason, Throwable e) {
       LOG.info("Aborting: "+reason, e);
       abort = true;
     }
 
+    @Override
     public boolean isAborted() {
       return abort;
     }

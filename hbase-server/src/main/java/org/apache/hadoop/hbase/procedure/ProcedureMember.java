@@ -26,13 +26,13 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.DaemonThreadFactory;
 import org.apache.hadoop.hbase.errorhandling.ForeignException;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.MapMaker;
+import org.apache.hbase.thirdparty.com.google.common.collect.MapMaker;
 
 /**
  * Process to kick off and manage a running {@link Subprocedure} on a member. This is the
@@ -41,7 +41,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.MapMaker;
  */
 @InterfaceAudience.Private
 public class ProcedureMember implements Closeable {
-  private static final Log LOG = LogFactory.getLog(ProcedureMember.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ProcedureMember.class);
 
   final static long KEEP_ALIVE_MILLIS_DEFAULT = 5000;
 
@@ -119,6 +119,7 @@ public class ProcedureMember implements Closeable {
    *         could not be started. In the latter case, the subprocedure holds a reference to
    *         the exception that caused the failure.
    */
+  @SuppressWarnings("FutureReturnValueIgnored")
   public boolean submitSubprocedure(Subprocedure subproc) {
      // if the submitted subprocedure was null, bail.
     if (subproc == null) {

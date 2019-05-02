@@ -23,8 +23,8 @@ import java.util.UUID;
 
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.ClusterId;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
+import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.KeeperException;
 
 /**
@@ -61,11 +61,11 @@ public class ZKClusterId {
   }
 
   public static String readClusterIdZNode(ZKWatcher watcher)
-  throws KeeperException {
-    if (ZKUtil.checkExists(watcher, watcher.znodePaths.clusterIdZNode) != -1) {
+    throws KeeperException {
+    if (ZKUtil.checkExists(watcher, watcher.getZNodePaths().clusterIdZNode) != -1) {
       byte [] data;
       try {
-        data = ZKUtil.getData(watcher, watcher.znodePaths.clusterIdZNode);
+        data = ZKUtil.getData(watcher, watcher.getZNodePaths().clusterIdZNode);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         return null;
@@ -83,14 +83,14 @@ public class ZKClusterId {
 
   public static void setClusterId(ZKWatcher watcher, ClusterId id)
       throws KeeperException {
-    ZKUtil.createSetData(watcher, watcher.znodePaths.clusterIdZNode, id.toByteArray());
+    ZKUtil.createSetData(watcher, watcher.getZNodePaths().clusterIdZNode, id.toByteArray());
   }
 
   /**
    * Get the UUID for the provided ZK watcher. Doesn't handle any ZK exceptions
    * @param zkw watcher connected to an ensemble
    * @return the UUID read from zookeeper
-   * @throws KeeperException
+   * @throws KeeperException if a ZooKeeper operation fails
    */
   public static UUID getUUIDForCluster(ZKWatcher zkw) throws KeeperException {
     String uuid = readClusterIdZNode(zkw);

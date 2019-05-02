@@ -101,6 +101,11 @@ public class MetricsRegionWrapperStub implements MetricsRegionWrapper {
   }
 
   @Override
+  public long getCpRequestCount() {
+    return 108;
+  }
+
+  @Override
   public long getWriteRequestCount() {
     return 106;
   }
@@ -161,5 +166,10 @@ public class MetricsRegionWrapperStub implements MetricsRegionWrapper {
   @Override
   public long getMaxFlushQueueSize() {
     return 6;
+  }
+
+  @Override
+  public long getTotalRequestCount() {
+    return 0;
   }
 }

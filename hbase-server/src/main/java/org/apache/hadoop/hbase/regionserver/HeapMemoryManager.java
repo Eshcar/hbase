@@ -25,20 +25,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ChoreService;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.ScheduledChore;
 import org.apache.hadoop.hbase.Server;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.io.hfile.CacheConfig;
+import org.apache.hadoop.hbase.io.hfile.BlockCache;
+import org.apache.hadoop.hbase.io.hfile.CombinedBlockCache;
 import org.apache.hadoop.hbase.io.hfile.ResizableBlockCache;
 import org.apache.hadoop.hbase.io.util.MemorySizeUtil;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Manages tuning of Heap memory using <code>HeapMemoryTuner</code>. Most part of the heap memory is
@@ -47,7 +48,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTe
  */
 @InterfaceAudience.Private
 public class HeapMemoryManager {
-  private static final Log LOG = LogFactory.getLog(HeapMemoryManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HeapMemoryManager.class);
   private static final int CONVERT_TO_PERCENTAGE = 100;
   private static final int CLUSTER_MINIMUM_MEMORY_THRESHOLD =
     (int) (CONVERT_TO_PERCENTAGE * HConstants.HBASE_CLUSTER_MINIMUM_MEMORY_THRESHOLD);
@@ -105,20 +106,11 @@ public class HeapMemoryManager {
 
   private List<HeapMemoryTuneObserver> tuneObservers = new ArrayList<>();
 
-  public static HeapMemoryManager create(Configuration conf, FlushRequester memStoreFlusher,
-      Server server, RegionServerAccounting regionServerAccounting) {
-    ResizableBlockCache l1Cache = CacheConfig.getL1(conf);
-    if (l1Cache != null) {
-      return new HeapMemoryManager(l1Cache, memStoreFlusher, server, regionServerAccounting);
-    }
-    return null;
-  }
-
   @VisibleForTesting
-  HeapMemoryManager(ResizableBlockCache blockCache, FlushRequester memStoreFlusher,
+  HeapMemoryManager(BlockCache blockCache, FlushRequester memStoreFlusher,
                 Server server, RegionServerAccounting regionServerAccounting) {
     Configuration conf = server.getConfiguration();
-    this.blockCache = blockCache;
+    this.blockCache = toResizableBlockCache(blockCache);
     this.memStoreFlusher = memStoreFlusher;
     this.server = server;
     this.regionServerAccounting = regionServerAccounting;
@@ -128,6 +120,14 @@ public class HeapMemoryManager {
     this.heapOccupancyLowWatermark = conf.getFloat(HConstants.HEAP_OCCUPANCY_LOW_WATERMARK_KEY,
       HConstants.DEFAULT_HEAP_OCCUPANCY_LOW_WATERMARK);
     metricsHeapMemoryManager = new MetricsHeapMemoryManager();
+  }
+
+  private ResizableBlockCache toResizableBlockCache(BlockCache blockCache) {
+    if (blockCache instanceof CombinedBlockCache) {
+      return (ResizableBlockCache) ((CombinedBlockCache) blockCache).getFirstLevelCache();
+    } else {
+      return (ResizableBlockCache) blockCache;
+    }
   }
 
   private boolean doInit(Configuration conf) {
@@ -207,10 +207,10 @@ public class HeapMemoryManager {
   }
 
   public void start(ChoreService service) {
-      LOG.info("Starting HeapMemoryTuner chore.");
-      this.heapMemTunerChore = new HeapMemoryTunerChore();
-      service.scheduleChore(heapMemTunerChore);
-      if (tunerOn) {
+    LOG.info("Starting, tuneOn={}", this.tunerOn);
+    this.heapMemTunerChore = new HeapMemoryTunerChore();
+    service.scheduleChore(heapMemTunerChore);
+    if (tunerOn) {
       // Register HeapMemoryTuner as a memstore flush listener
       memStoreFlusher.registerFlushRequestListener(heapMemTunerChore);
     }
@@ -218,7 +218,7 @@ public class HeapMemoryManager {
 
   public void stop() {
     // The thread is Daemon. Just interrupting the ongoing process.
-    LOG.info("Stopping HeapMemoryTuner chore.");
+    LOG.info("Stopping");
     this.heapMemTunerChore.cancel(true);
   }
 

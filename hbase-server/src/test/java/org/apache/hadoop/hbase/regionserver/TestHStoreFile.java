@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,6 +17,9 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -30,28 +32,29 @@ import java.util.OptionalLong;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestCase;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
+import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.client.RegionInfoBuilder;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.HFileLink;
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
+import org.apache.hadoop.hbase.io.hfile.BlockCacheFactory;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.io.hfile.CacheStats;
 import org.apache.hadoop.hbase.io.hfile.HFileContext;
@@ -65,37 +68,43 @@ import org.apache.hadoop.hbase.util.BloomFilterFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ChecksumType;
 import org.apache.hadoop.hbase.util.FSUtils;
+import org.apache.hbase.thirdparty.com.google.common.base.Joiner;
+import org.apache.hbase.thirdparty.com.google.common.collect.Iterables;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Joiner;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Iterables;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test HStoreFile
  */
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestHStoreFile extends HBaseTestCase {
-  private static final Log LOG = LogFactory.getLog(TestHStoreFile.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestHStoreFile.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestHStoreFile.class);
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
-  private CacheConfig cacheConf =  new CacheConfig(TEST_UTIL.getConfiguration());
+  private CacheConfig cacheConf = new CacheConfig(TEST_UTIL.getConfiguration());
   private static String ROOT_DIR = TEST_UTIL.getDataTestDir("TestStoreFile").toString();
   private static final ChecksumType CKTYPE = ChecksumType.CRC32C;
   private static final int CKBYTES = 512;
   private static String TEST_FAMILY = "cf";
 
+  @Override
   @Before
   public void setUp() throws Exception {
     super.setUp();
   }
 
+  @Override
   @After
   public void tearDown() throws Exception {
     super.tearDown();
@@ -203,6 +212,35 @@ public class TestHStoreFile extends HBaseTestCase {
     }
     assertTrue(Bytes.equals(kv.getRowArray(), kv.getRowOffset(), kv.getRowLength(), finalRow, 0,
       finalRow.length));
+  }
+
+  @Test
+  public void testStoreFileReference() throws Exception {
+    final RegionInfo hri =
+        RegionInfoBuilder.newBuilder(TableName.valueOf("testStoreFileReference")).build();
+    HRegionFileSystem regionFs = HRegionFileSystem.createRegionOnFileSystem(conf, fs,
+      new Path(testDir, hri.getTable().getNameAsString()), hri);
+    HFileContext meta = new HFileContextBuilder().withBlockSize(8 * 1024).build();
+
+    // Make a store file and write data to it.
+    StoreFileWriter writer = new StoreFileWriter.Builder(conf, cacheConf, this.fs)
+        .withFilePath(regionFs.createTempName()).withFileContext(meta).build();
+    writeStoreFile(writer);
+    Path hsfPath = regionFs.commitStoreFile(TEST_FAMILY, writer.getPath());
+    writer.close();
+
+    HStoreFile file = new HStoreFile(this.fs, hsfPath, conf, cacheConf, BloomType.NONE, true);
+    file.initReader();
+    StoreFileReader r = file.getReader();
+    assertNotNull(r);
+    StoreFileScanner scanner =
+        new StoreFileScanner(r, mock(HFileScanner.class), false, false, 0, 0, false);
+
+    // Verify after instantiating scanner refCount is increased
+    assertTrue("Verify file is being referenced", file.isReferencedInReads());
+    scanner.close();
+    // Verify after closing scanner refCount is decreased
+    assertFalse("Verify file is not being referenced", file.isReferencedInReads());
   }
 
   @Test
@@ -506,8 +544,8 @@ public class TestHStoreFile extends HBaseTestCase {
     long now = System.currentTimeMillis();
     for (int i = 0; i < 2000; i += 2) {
       String row = String.format(localFormatter, i);
-      KeyValue kv = new KeyValue(row.getBytes(), "family".getBytes(),
-        "col".getBytes(), now, "value".getBytes());
+      KeyValue kv = new KeyValue(Bytes.toBytes(row), Bytes.toBytes("family"),
+        Bytes.toBytes("col"), now, Bytes.toBytes("value"));
       writer.append(kv);
     }
     writer.close();
@@ -524,12 +562,13 @@ public class TestHStoreFile extends HBaseTestCase {
     for (int i = 0; i < 2000; i++) {
       String row = String.format(localFormatter, i);
       TreeSet<byte[]> columns = new TreeSet<>(Bytes.BYTES_COMPARATOR);
-      columns.add("family:col".getBytes());
+      columns.add(Bytes.toBytes("family:col"));
 
-      Scan scan = new Scan(row.getBytes(),row.getBytes());
-      scan.addColumn("family".getBytes(), "family:col".getBytes());
+      Scan scan = new Scan(Bytes.toBytes(row),Bytes.toBytes(row));
+      scan.addColumn(Bytes.toBytes("family"), Bytes.toBytes("family:col"));
       HStore store = mock(HStore.class);
-      when(store.getColumnFamilyDescriptor()).thenReturn(ColumnFamilyDescriptorBuilder.of("family"));
+      when(store.getColumnFamilyDescriptor())
+          .thenReturn(ColumnFamilyDescriptorBuilder.of("family"));
       boolean exists = scanner.shouldUseScanner(scan, store, Long.MIN_VALUE);
       if (i % 2 == 0) {
         if (!exists) falseNeg++;
@@ -593,8 +632,8 @@ public class TestHStoreFile extends HBaseTestCase {
     long now = System.currentTimeMillis();
     for (int i = 0; i < 2000; i += 2) {
       String row = String.format(localFormatter, i);
-      KeyValue kv = new KeyValue(row.getBytes(), "family".getBytes(),
-          "col".getBytes(), now, KeyValue.Type.DeleteFamily, "value".getBytes());
+      KeyValue kv = new KeyValue(Bytes.toBytes(row), Bytes.toBytes("family"),
+          Bytes.toBytes("col"), now, KeyValue.Type.DeleteFamily, Bytes.toBytes("value"));
       writer.append(kv);
     }
     writer.close();
@@ -697,9 +736,8 @@ public class TestHStoreFile extends HBaseTestCase {
           String row = String.format(localFormatter, i);
           String col = String.format(localFormatter, j);
           for (int k= 0; k < versions; ++k) { // versions
-            KeyValue kv = new KeyValue(row.getBytes(),
-              "family".getBytes(), ("col" + col).getBytes(),
-                now-k, Bytes.toBytes((long)-1));
+            KeyValue kv = new KeyValue(Bytes.toBytes(row), Bytes.toBytes("family"),
+                Bytes.toBytes("col" + col), now-k, Bytes.toBytes(-1L));
             writer.append(kv);
           }
         }
@@ -711,10 +749,11 @@ public class TestHStoreFile extends HBaseTestCase {
       reader.loadFileInfo();
       reader.loadBloomfilter();
       StoreFileScanner scanner = getStoreFileScanner(reader, false, false);
-      assertEquals(expKeys[x], reader.generalBloomFilter.getKeyCount());
+      assertEquals(expKeys[x], reader.getGeneralBloomFilter().getKeyCount());
 
       HStore store = mock(HStore.class);
-      when(store.getColumnFamilyDescriptor()).thenReturn(ColumnFamilyDescriptorBuilder.of("family"));
+      when(store.getColumnFamilyDescriptor())
+          .thenReturn(ColumnFamilyDescriptorBuilder.of("family"));
       // check false positives rate
       int falsePos = 0;
       int falseNeg = 0;
@@ -723,10 +762,10 @@ public class TestHStoreFile extends HBaseTestCase {
           String row = String.format(localFormatter, i);
           String col = String.format(localFormatter, j);
           TreeSet<byte[]> columns = new TreeSet<>(Bytes.BYTES_COMPARATOR);
-          columns.add(("col" + col).getBytes());
+          columns.add(Bytes.toBytes("col" + col));
 
-          Scan scan = new Scan(row.getBytes(),row.getBytes());
-          scan.addColumn("family".getBytes(), ("col"+col).getBytes());
+          Scan scan = new Scan(Bytes.toBytes(row),Bytes.toBytes(row));
+          scan.addColumn(Bytes.toBytes("family"), Bytes.toBytes(("col"+col)));
 
           boolean exists =
               scanner.shouldUseScanner(scan, store, Long.MIN_VALUE);
@@ -886,7 +925,6 @@ public class TestHStoreFile extends HBaseTestCase {
     scan.setTimeRange(27, 50);
     scan.setColumnFamilyTimeRange(family, 7, 50);
     assertTrue(scanner.shouldUseScanner(scan, store, Long.MIN_VALUE));
-
   }
 
   @Test
@@ -897,7 +935,7 @@ public class TestHStoreFile extends HBaseTestCase {
     Path baseDir = new Path(new Path(testDir, "7e0102"),"twoCOWEOC");
 
     // Grab the block cache and get the initial hit/miss counts
-    BlockCache bc = new CacheConfig(conf).getBlockCache();
+    BlockCache bc = BlockCacheFactory.createBlockCache(conf);
     assertNotNull(bc);
     CacheStats cs = bc.getStats();
     long startHit = cs.getHitCount();
@@ -906,7 +944,7 @@ public class TestHStoreFile extends HBaseTestCase {
 
     // Let's write a StoreFile with three blocks, with cache on write off
     conf.setBoolean(CacheConfig.CACHE_BLOCKS_ON_WRITE_KEY, false);
-    CacheConfig cacheConf = new CacheConfig(conf);
+    CacheConfig cacheConf = new CacheConfig(conf, bc);
     Path pathCowOff = new Path(baseDir, "123456789");
     StoreFileWriter writer = writeStoreFile(conf, cacheConf, pathCowOff, 3);
     HStoreFile hsf = new HStoreFile(this.fs, writer.getPath(), conf, cacheConf,
@@ -929,7 +967,7 @@ public class TestHStoreFile extends HBaseTestCase {
 
     // Now write a StoreFile with three blocks, with cache on write on
     conf.setBoolean(CacheConfig.CACHE_BLOCKS_ON_WRITE_KEY, true);
-    cacheConf = new CacheConfig(conf);
+    cacheConf = new CacheConfig(conf, bc);
     Path pathCowOn = new Path(baseDir, "123456788");
     writer = writeStoreFile(conf, cacheConf, pathCowOn, 3);
     hsf = new HStoreFile(this.fs, writer.getPath(), conf, cacheConf,
@@ -987,7 +1025,7 @@ public class TestHStoreFile extends HBaseTestCase {
 
     // Let's close the first file with evict on close turned on
     conf.setBoolean("hbase.rs.evictblocksonclose", true);
-    cacheConf = new CacheConfig(conf);
+    cacheConf = new CacheConfig(conf, bc);
     hsf = new HStoreFile(this.fs, pathCowOff, conf, cacheConf, BloomType.NONE, true);
     hsf.initReader();
     reader = hsf.getReader();
@@ -1001,7 +1039,7 @@ public class TestHStoreFile extends HBaseTestCase {
 
     // Let's close the second file with evict on close turned off
     conf.setBoolean("hbase.rs.evictblocksonclose", false);
-    cacheConf = new CacheConfig(conf);
+    cacheConf = new CacheConfig(conf, bc);
     hsf = new HStoreFile(this.fs, pathCowOn, conf, cacheConf, BloomType.NONE, true);
     hsf.initReader();
     reader = hsf.getReader();

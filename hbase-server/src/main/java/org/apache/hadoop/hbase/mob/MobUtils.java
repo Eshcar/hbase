@@ -27,6 +27,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -35,8 +36,6 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -78,6 +77,8 @@ import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The mob utilities
@@ -85,7 +86,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 @InterfaceAudience.Private
 public final class MobUtils {
 
-  private static final Log LOG = LogFactory.getLog(MobUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MobUtils.class);
   private final static long WEEKLY_THRESHOLD_MULTIPLIER = 7;
   private final static long MONTHLY_THRESHOLD_MULTIPLIER = 4 * WEEKLY_THRESHOLD_MULTIPLIER;
 
@@ -175,8 +176,10 @@ public final class MobUtils {
    */
   public static boolean isMobReferenceCell(Cell cell) {
     if (cell.getTagsLength() > 0) {
-      Tag tag = PrivateCellUtil.getTag(cell, TagType.MOB_REFERENCE_TAG_TYPE);
-      return tag != null;
+      Optional<Tag> tag = PrivateCellUtil.getTag(cell, TagType.MOB_REFERENCE_TAG_TYPE);
+      if (tag.isPresent()) {
+        return true;
+      }
     }
     return false;
   }
@@ -188,7 +191,10 @@ public final class MobUtils {
    */
   public static Tag getTableNameTag(Cell cell) {
     if (cell.getTagsLength() > 0) {
-      return PrivateCellUtil.getTag(cell, TagType.MOB_TABLE_NAME_TAG_TYPE);
+      Optional<Tag> tag = PrivateCellUtil.getTag(cell, TagType.MOB_TABLE_NAME_TAG_TYPE);
+      if (tag.isPresent()) {
+        return tag.get();
+      }
     }
     return null;
   }
@@ -361,7 +367,17 @@ public final class MobUtils {
    */
   public static Path getMobHome(Configuration conf) {
     Path hbaseDir = new Path(conf.get(HConstants.HBASE_DIR));
-    return new Path(hbaseDir, MobConstants.MOB_DIR_NAME);
+    return getMobHome(hbaseDir);
+  }
+
+  /**
+   * Gets the root dir of the mob files under the qualified HBase root dir.
+   * It's {rootDir}/mobdir.
+   * @param rootDir The qualified path of HBase root directory.
+   * @return The root dir of the mob file.
+   */
+  public static Path getMobHome(Path rootDir) {
+    return new Path(rootDir, MobConstants.MOB_DIR_NAME);
   }
 
   /**
@@ -378,14 +394,36 @@ public final class MobUtils {
   }
 
   /**
+   * Gets the table dir of the mob files under the qualified HBase root dir.
+   * It's {rootDir}/mobdir/data/${namespace}/${tableName}
+   * @param rootDir The qualified path of HBase root directory.
+   * @param tableName The name of table.
+   * @return The table dir of the mob file.
+   */
+  public static Path getMobTableDir(Path rootDir, TableName tableName) {
+    return FSUtils.getTableDir(getMobHome(rootDir), tableName);
+  }
+
+  /**
    * Gets the region dir of the mob files.
-   * It's {HBASE_DIR}/mobdir/{namespace}/{tableName}/{regionEncodedName}.
+   * It's {HBASE_DIR}/mobdir/data/{namespace}/{tableName}/{regionEncodedName}.
    * @param conf The current configuration.
    * @param tableName The current table name.
    * @return The region dir of the mob files.
    */
   public static Path getMobRegionPath(Configuration conf, TableName tableName) {
-    Path tablePath = FSUtils.getTableDir(getMobHome(conf), tableName);
+    return getMobRegionPath(new Path(conf.get(HConstants.HBASE_DIR)), tableName);
+  }
+
+  /**
+   * Gets the region dir of the mob files under the specified root dir.
+   * It's {rootDir}/mobdir/data/{namespace}/{tableName}/{regionEncodedName}.
+   * @param rootDir The qualified path of HBase root directory.
+   * @param tableName The current table name.
+   * @return The region dir of the mob files.
+   */
+  public static Path getMobRegionPath(Path rootDir, TableName tableName) {
+    Path tablePath = FSUtils.getTableDir(getMobHome(rootDir), tableName);
     RegionInfo regionInfo = getMobRegionInfo(tableName);
     return new Path(tablePath, regionInfo.getEncodedName());
   }

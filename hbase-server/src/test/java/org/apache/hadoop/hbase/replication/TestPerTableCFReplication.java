@@ -1,6 +1,4 @@
-/*
- * Copyright The Apache Software Foundation
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,15 +17,15 @@
  */
 package org.apache.hadoop.hbase.replication;
 
+import static org.junit.Assert.*;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
@@ -45,7 +43,6 @@ import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.client.replication.ReplicationAdmin;
 import org.apache.hadoop.hbase.client.replication.ReplicationPeerConfigUtil;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ReplicationProtos;
 import org.apache.hadoop.hbase.testclassification.FlakeyTests;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -53,17 +50,24 @@ import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static org.junit.Assert.*;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ReplicationProtos;
 
 @Category({FlakeyTests.class, LargeTests.class})
 public class TestPerTableCFReplication {
 
-  private static final Log LOG = LogFactory.getLog(TestPerTableCFReplication.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestPerTableCFReplication.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestPerTableCFReplication.class);
 
   private static Configuration conf1;
   private static Configuration conf2;
@@ -367,7 +371,7 @@ public class TestPerTableCFReplication {
     assertTrue(tabCFsMap.get(tableName3).contains("cf3"));
   }
 
-  @Test(timeout=300000)
+  @Test
   public void testPerTableCFReplication() throws Exception {
     LOG.info("testPerTableCFReplication");
     ReplicationAdmin replicationAdmin = new ReplicationAdmin(conf1);
@@ -404,6 +408,7 @@ public class TestPerTableCFReplication {
       // A. add cluster2/cluster3 as peers to cluster1
       ReplicationPeerConfig rpc2 = new ReplicationPeerConfig();
       rpc2.setClusterKey(utility2.getClusterKey());
+      rpc2.setReplicateAllUserTables(false);
       Map<TableName, List<String>> tableCFs = new HashMap<>();
       tableCFs.put(tabCName, null);
       tableCFs.put(tabBName, new ArrayList<>());
@@ -413,6 +418,7 @@ public class TestPerTableCFReplication {
 
       ReplicationPeerConfig rpc3 = new ReplicationPeerConfig();
       rpc3.setClusterKey(utility3.getClusterKey());
+      rpc3.setReplicateAllUserTables(false);
       tableCFs.clear();
       tableCFs.put(tabAName, null);
       tableCFs.put(tabBName, new ArrayList<>());
@@ -518,7 +524,7 @@ public class TestPerTableCFReplication {
       connection2.close();
       connection3.close();
     }
- }
+  }
 
   private void ensureRowNotReplicated(byte[] row, byte[] fam, Table... tables) throws IOException {
     Get get = new Get(row);
@@ -580,8 +586,8 @@ public class TestPerTableCFReplication {
           replicatedToAll = false;
           break;
         } else {
-          assertEquals(res.size(), 1);
-          assertArrayEquals(res.value(), val);
+          assertEquals(1, res.size());
+          assertArrayEquals(val, res.value());
         }
       }
       if (replicatedToAll) {

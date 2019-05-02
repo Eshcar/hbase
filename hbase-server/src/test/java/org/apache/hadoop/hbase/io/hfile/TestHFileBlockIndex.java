@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.io.hfile;
 
 import static org.junit.Assert.assertEquals;
@@ -34,9 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -44,11 +39,12 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.CellComparatorImpl;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseCommonTestingUtility;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.io.compress.Compression;
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm;
@@ -63,15 +59,22 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 @Category({IOTests.class, MediumTests.class})
 public class TestHFileBlockIndex {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestHFileBlockIndex.class);
 
   @Parameters
   public static Collection<Object[]> compressionAlgorithms() {
@@ -82,7 +85,7 @@ public class TestHFileBlockIndex {
     this.compr = compr;
   }
 
-  private static final Log LOG = LogFactory.getLog(TestHFileBlockIndex.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestHFileBlockIndex.class);
 
   private static final int NUM_DATA_BLOCKS = 1000;
   private static final HBaseTestingUtility TEST_UTIL =
@@ -199,7 +202,7 @@ public class TestHFileBlockIndex {
 
   private void readIndex(boolean useTags) throws IOException {
     long fileSize = fs.getFileStatus(path).getLen();
-    LOG.info("Size of " + path + ": " + fileSize);
+    LOG.info("Size of {}: {} compression={}", path, fileSize, compr.toString());
 
     FSDataInputStream istream = fs.open(path);
     HFileContext meta = new HFileContextBuilder()
@@ -273,7 +276,7 @@ public class TestHFileBlockIndex {
         new HFileBlockIndex.BlockIndexWriter(hbw, null, null);
 
     for (int i = 0; i < NUM_DATA_BLOCKS; ++i) {
-      hbw.startWriting(BlockType.DATA).write(String.valueOf(rand.nextInt(1000)).getBytes());
+      hbw.startWriting(BlockType.DATA).write(Bytes.toBytes(String.valueOf(rand.nextInt(1000))));
       long blockOffset = outputStream.getPos();
       hbw.writeHeaderAndData(outputStream);
 
@@ -521,67 +524,58 @@ public class TestHFileBlockIndex {
   * @throws IOException
   */
   @Test
- public void testMidKeyOnLeafIndexBlockBoundary() throws IOException {
-   Path hfilePath = new Path(TEST_UTIL.getDataTestDir(),
-       "hfile_for_midkey");
-   int maxChunkSize = 512;
-   conf.setInt(HFileBlockIndex.MAX_CHUNK_SIZE_KEY, maxChunkSize);
-   // should open hfile.block.index.cacheonwrite
-   conf.setBoolean(CacheConfig.CACHE_INDEX_BLOCKS_ON_WRITE_KEY, true);
+  public void testMidKeyOnLeafIndexBlockBoundary() throws IOException {
+    Path hfilePath = new Path(TEST_UTIL.getDataTestDir(), "hfile_for_midkey");
+    int maxChunkSize = 512;
+    conf.setInt(HFileBlockIndex.MAX_CHUNK_SIZE_KEY, maxChunkSize);
+    // should open hfile.block.index.cacheonwrite
+    conf.setBoolean(CacheConfig.CACHE_INDEX_BLOCKS_ON_WRITE_KEY, true);
+    CacheConfig cacheConf = new CacheConfig(conf, BlockCacheFactory.createBlockCache(conf));
+    BlockCache blockCache = cacheConf.getBlockCache().get();
+    // Evict all blocks that were cached-on-write by the previous invocation.
+    blockCache.evictBlocksByHfileName(hfilePath.getName());
+    // Write the HFile
+    HFileContext meta =
+        new HFileContextBuilder().withBlockSize(SMALL_BLOCK_SIZE).withCompression(Algorithm.NONE)
+            .withDataBlockEncoding(DataBlockEncoding.NONE).build();
+    HFile.Writer writer =
+        HFile.getWriterFactory(conf, cacheConf).withPath(fs, hfilePath).withFileContext(meta)
+            .create();
+    Random rand = new Random(19231737);
+    byte[] family = Bytes.toBytes("f");
+    byte[] qualifier = Bytes.toBytes("q");
+    int kvNumberToBeWritten = 16;
+    // the new generated hfile will contain 2 leaf-index blocks and 16 data blocks,
+    // midkey is just on the boundary of the first leaf-index block
+    for (int i = 0; i < kvNumberToBeWritten; ++i) {
+      byte[] row = RandomKeyValueUtil.randomOrderedFixedLengthKey(rand, i, 30);
 
-   CacheConfig cacheConf = new CacheConfig(conf);
-   BlockCache blockCache = cacheConf.getBlockCache();
-   // Evict all blocks that were cached-on-write by the previous invocation.
-   blockCache.evictBlocksByHfileName(hfilePath.getName());
-   // Write the HFile
-   {
-     HFileContext meta = new HFileContextBuilder()
-                         .withBlockSize(SMALL_BLOCK_SIZE)
-                         .withCompression(Algorithm.NONE)
-                         .withDataBlockEncoding(DataBlockEncoding.NONE)
-                         .build();
-     HFile.Writer writer =
-           HFile.getWriterFactory(conf, cacheConf)
-               .withPath(fs, hfilePath)
-               .withFileContext(meta)
-               .create();
-     Random rand = new Random(19231737);
-     byte[] family = Bytes.toBytes("f");
-     byte[] qualifier = Bytes.toBytes("q");
-     int kvNumberToBeWritten = 16;
-     // the new generated hfile will contain 2 leaf-index blocks and 16 data blocks,
-     // midkey is just on the boundary of the first leaf-index block
-     for (int i = 0; i < kvNumberToBeWritten; ++i) {
-       byte[] row = RandomKeyValueUtil.randomOrderedFixedLengthKey(rand, i, 30);
+      // Key will be interpreted by KeyValue.KEY_COMPARATOR
+      KeyValue kv = new KeyValue(row, family, qualifier, EnvironmentEdgeManager.currentTime(),
+          RandomKeyValueUtil.randomFixedLengthValue(rand, SMALL_BLOCK_SIZE));
+      writer.append(kv);
+    }
+    writer.close();
 
-       // Key will be interpreted by KeyValue.KEY_COMPARATOR
-       KeyValue kv =
-             new KeyValue(row, family, qualifier, EnvironmentEdgeManager.currentTime(),
-                 RandomKeyValueUtil.randomFixedLengthValue(rand, SMALL_BLOCK_SIZE));
-       writer.append(kv);
-     }
-     writer.close();
-   }
+    // close hfile.block.index.cacheonwrite
+    conf.setBoolean(CacheConfig.CACHE_INDEX_BLOCKS_ON_WRITE_KEY, false);
 
-   // close hfile.block.index.cacheonwrite
-   conf.setBoolean(CacheConfig.CACHE_INDEX_BLOCKS_ON_WRITE_KEY, false);
+    // Read the HFile
+    HFile.Reader reader = HFile.createReader(fs, hfilePath, cacheConf, true, conf);
 
-   // Read the HFile
-   HFile.Reader reader = HFile.createReader(fs, hfilePath, cacheConf, true, conf);
+    boolean hasArrayIndexOutOfBoundsException = false;
+    try {
+      // get the mid-key.
+      reader.midKey();
+    } catch (ArrayIndexOutOfBoundsException e) {
+      hasArrayIndexOutOfBoundsException = true;
+    } finally {
+      reader.close();
+    }
 
-   boolean hasArrayIndexOutOfBoundsException = false;
-   try {
-     // get the mid-key.
-     reader.midKey();
-   } catch (ArrayIndexOutOfBoundsException e) {
-     hasArrayIndexOutOfBoundsException = true;
-   } finally {
-     reader.close();
-   }
-
-   // to check if ArrayIndexOutOfBoundsException occurred
-   assertFalse(hasArrayIndexOutOfBoundsException);
- }
+    // to check if ArrayIndexOutOfBoundsException occurred
+    assertFalse(hasArrayIndexOutOfBoundsException);
+  }
 
   /**
    * Testing block index through the HFile writer/reader APIs. Allows to test
@@ -594,8 +588,8 @@ public class TestHFileBlockIndex {
   public void testHFileWriterAndReader() throws IOException {
     Path hfilePath = new Path(TEST_UTIL.getDataTestDir(),
         "hfile_for_block_index");
-    CacheConfig cacheConf = new CacheConfig(conf);
-    BlockCache blockCache = cacheConf.getBlockCache();
+    CacheConfig cacheConf = new CacheConfig(conf, BlockCacheFactory.createBlockCache(conf));
+    BlockCache blockCache = cacheConf.getBlockCache().get();
 
     for (int testI = 0; testI < INDEX_CHUNK_SIZES.length; ++testI) {
       int indexBlockSize = INDEX_CHUNK_SIZES[testI];
@@ -741,12 +735,12 @@ public class TestHFileBlockIndex {
         valueRead);
   }
 
-  @Test(timeout=10000)
+  @Test
   public void testIntermediateLevelIndicesWithLargeKeys() throws IOException {
     testIntermediateLevelIndicesWithLargeKeys(16);
   }
 
-  @Test(timeout=10000)
+  @Test
   public void testIntermediateLevelIndicesWithLargeKeysWithMinNumEntries() throws IOException {
     // because of the large rowKeys, we will end up with a 50-level block index without sanity check
     testIntermediateLevelIndicesWithLargeKeys(2);

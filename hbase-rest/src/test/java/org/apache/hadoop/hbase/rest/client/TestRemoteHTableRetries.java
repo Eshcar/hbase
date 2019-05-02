@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -29,18 +29,19 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.regex.Pattern;
-
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.testclassification.RestTests;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.testclassification.RestTests;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -49,6 +50,10 @@ import org.junit.experimental.categories.Category;
  */
 @Category({RestTests.class, SmallTests.class})
 public class TestRemoteHTableRetries {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRemoteHTableRetries.class);
 
   private static final int SLEEP_TIME = 50;
   private static final int RETRIES = 3;
@@ -152,7 +157,8 @@ public class TestRemoteHTableRetries {
       public void run() throws Exception {
         Put put = new Put(ROW_1);
         put.addColumn(COLUMN_1, QUALIFIER_1, VALUE_1);
-        remoteTable.checkAndPut(ROW_1, COLUMN_1, QUALIFIER_1, VALUE_1, put );
+        remoteTable.checkAndMutate(ROW_1, COLUMN_1).qualifier(QUALIFIER_1)
+            .ifEquals(VALUE_1).thenPut(put);
       }
     });
     verify(client, times(RETRIES)).put(anyString(), anyString(), any());
@@ -166,7 +172,9 @@ public class TestRemoteHTableRetries {
         Put put = new Put(ROW_1);
         put.addColumn(COLUMN_1, QUALIFIER_1, VALUE_1);
         Delete delete= new Delete(ROW_1);
-        remoteTable.checkAndDelete(ROW_1, COLUMN_1, QUALIFIER_1,  VALUE_1, delete );
+        //remoteTable.checkAndDelete(ROW_1, COLUMN_1, QUALIFIER_1,  VALUE_1, delete );
+        remoteTable.checkAndMutate(ROW_1, COLUMN_1).qualifier(QUALIFIER_1)
+            .ifEquals(VALUE_1).thenDelete(delete);
       }
     });
   }

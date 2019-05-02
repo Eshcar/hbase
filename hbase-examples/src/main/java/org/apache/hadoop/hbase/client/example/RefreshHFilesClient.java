@@ -19,9 +19,11 @@
 
 package org.apache.hadoop.hbase.client.example;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.io.Closeable;
+import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
@@ -31,16 +33,19 @@ import org.apache.hadoop.hbase.client.coprocessor.Batch;
 import org.apache.hadoop.hbase.ipc.CoprocessorRpcUtils.BlockingRpcCallback;
 import org.apache.hadoop.hbase.ipc.ServerRpcController;
 import org.apache.hadoop.hbase.protobuf.generated.RefreshHFilesProtos;
-
-import java.io.Closeable;
-import java.io.IOException;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This client class is for invoking the refresh HFile function deployed on the
  * Region Server side via the RefreshHFilesService.
  */
-public class RefreshHFilesClient implements Closeable {
-  private static final Log LOG = LogFactory.getLog(RefreshHFilesClient.class);
+@InterfaceAudience.Private
+public class RefreshHFilesClient extends Configured implements Tool, Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(RefreshHFilesClient.class);
   private final Connection connection;
 
   /**
@@ -91,5 +96,29 @@ public class RefreshHFilesClient implements Closeable {
                                }
                              });
     LOG.debug("Done refreshing HFiles");
+  }
+
+  @Override
+  public int run(String[] args) throws Exception {
+    if (args.length != 1) {
+      String message = "When there are multiple HBase clusters are sharing a common root dir, "
+          + "especially for read replica cluster (see detail in HBASE-18477), please consider to "
+          + "use this tool manually sync the flushed HFiles from the source cluster.";
+      message += "\nUsage: " + this.getClass().getName() + " tableName";
+      System.out.println(message);
+      return -1;
+    }
+    final TableName tableName = TableName.valueOf(args[0]);
+    try {
+      refreshHFiles(tableName);
+    } catch (Throwable t) {
+      LOG.error("Refresh HFiles from table " + tableName.getNameAsString() + "  failed: ", t);
+      return -1;
+    }
+    return 0;
+  }
+
+  public static void main(String[] args) throws Exception {
+    ToolRunner.run(new RefreshHFilesClient(HBaseConfiguration.create()), args);
   }
 }

@@ -27,14 +27,14 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeepDeletedCells;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
@@ -48,6 +48,7 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManagerTestHelper;
 import org.apache.hadoop.hbase.util.IncrementingEnvironmentEdge;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -55,6 +56,11 @@ import org.junit.rules.TestName;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestKeepDeletes {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestKeepDeletes.class);
+
   HBaseTestingUtility hbu = HBaseTestingUtility.createLocalHTU();
   private final byte[] T0 = Bytes.toBytes("0");
   private final byte[] T1 = Bytes.toBytes("1");
@@ -68,7 +74,7 @@ public class TestKeepDeletes {
   private final byte[] c1 = COLUMNS[1];
 
   @Rule public TestName name = new TestName();
-  
+
   @Before
   public void setUp() throws Exception {
     /* HBASE-6832: [WINDOWS] Tests should use explicit timestamp for Puts, and not rely on
@@ -126,7 +132,7 @@ public class TestKeepDeletes {
 
     // get something *before* the delete marker
     Get g = new Get(T1);
-    g.setMaxVersions();
+    g.readAllVersions();
     g.setTimeRange(0L, ts+2);
     Result r = region.get(g);
     checkResult(r, c0, c0, T2,T1);
@@ -250,7 +256,7 @@ public class TestKeepDeletes {
     region.put(p);
 
     Get gOne = new Get(T1);
-    gOne.setMaxVersions();
+    gOne.readAllVersions();
     gOne.setTimeRange(0L, ts + 1);
     Result rOne = region.get(gOne);
     assertFalse(rOne.isEmpty());
@@ -262,7 +268,7 @@ public class TestKeepDeletes {
 
     // "past" get does not see rows behind delete marker
     Get g = new Get(T1);
-    g.setMaxVersions();
+    g.readAllVersions();
     g.setTimeRange(0L, ts+1);
     Result r = region.get(g);
     assertTrue(r.isEmpty());
@@ -848,7 +854,7 @@ public class TestKeepDeletes {
     region.delete(d);
 
     Get g = new Get(T1);
-    g.setMaxVersions();
+    g.readAllVersions();
     g.setTimeRange(0L, ts-2);
     Result r = region.get(g);
     checkResult(r, c0, c0, T1,T0);
@@ -940,7 +946,7 @@ public class TestKeepDeletes {
       long time, byte[]... vals) throws IOException {
     Get g = new Get(row);
     g.addColumn(fam, col);
-    g.setMaxVersions();
+    g.readAllVersions();
     g.setTimeRange(0L, time);
     Result r = region.get(g);
     checkResult(r, fam, col, vals);

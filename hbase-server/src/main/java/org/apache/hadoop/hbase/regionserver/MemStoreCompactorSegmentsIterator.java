@@ -25,15 +25,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparator;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorException;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.io.Closeables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.io.Closeables;
 
 /**
  * The MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator
@@ -41,8 +40,8 @@ import org.apache.hadoop.hbase.shaded.com.google.common.io.Closeables;
  */
 @InterfaceAudience.Private
 public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator {
-
-  private static final Log LOG = LogFactory.getLog(MemStoreCompactorSegmentsIterator.class);
+  private static final Logger LOG =
+      LoggerFactory.getLogger(MemStoreCompactorSegmentsIterator.class);
 
   private final List<Cell> kvs = new ArrayList<>();
   private boolean hasMore = true;
@@ -57,10 +56,7 @@ public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator 
     super(compactionKVMax);
 
     List<KeyValueScanner> scanners = new ArrayList<KeyValueScanner>();
-    // create the list of scanners to traverse over all the data
-    // no dirty reads here as these are immutable segments
-    int order = segments.size();
-    AbstractMemStore.addToScanners(segments, Integer.MAX_VALUE, order, scanners);
+    AbstractMemStore.addToScanners(segments, Integer.MAX_VALUE, scanners);
     // build the scanner based on Query Matcher
     // reinitialize the compacting scanner for each instance of iterator
     compactingScanner = createScanner(store, scanners);
@@ -84,6 +80,7 @@ public class MemStoreCompactorSegmentsIterator extends MemStoreSegmentsIterator 
     return kvsIterator.next();
   }
 
+  @Override
   public void close() {
     try {
       compactingScanner.close();

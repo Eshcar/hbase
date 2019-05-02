@@ -21,7 +21,9 @@ package org.apache.hadoop.hbase.replication.regionserver;
 import org.apache.hadoop.metrics2.lib.MutableFastCounter;
 import org.apache.hadoop.metrics2.lib.MutableGaugeLong;
 import org.apache.hadoop.metrics2.lib.MutableHistogram;
+import org.apache.yetus.audience.InterfaceAudience;
 
+@InterfaceAudience.Private
 public class MetricsReplicationGlobalSourceSource implements MetricsReplicationSourceSource{
   private static final String KEY_PREFIX = "source.";
 
@@ -30,12 +32,10 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
   private final MutableHistogram ageOfLastShippedOpHist;
   private final MutableGaugeLong sizeOfLogQueueGauge;
   private final MutableFastCounter logReadInEditsCounter;
-  private final MutableFastCounter logEditsFilteredCounter;
+  private final MutableFastCounter walEditsFilteredCounter;
   private final MutableFastCounter shippedBatchesCounter;
   private final MutableFastCounter shippedOpsCounter;
   private final MutableFastCounter shippedBytesCounter;
-  @Deprecated
-  private final MutableFastCounter shippedKBsCounter;
   private final MutableFastCounter logReadInBytesCounter;
   private final MutableFastCounter shippedHFilesCounter;
   private final MutableGaugeLong sizeOfHFileRefsQueueGauge;
@@ -46,6 +46,7 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
   private final MutableFastCounter repeatedFileBytes;
   private final MutableFastCounter completedWAL;
   private final MutableFastCounter completedRecoveryQueue;
+  private final MutableFastCounter failedRecoveryQueue;
 
   public MetricsReplicationGlobalSourceSource(MetricsReplicationSourceImpl rms) {
     this.rms = rms;
@@ -58,28 +59,31 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
 
     shippedOpsCounter = rms.getMetricsRegistry().getCounter(SOURCE_SHIPPED_OPS, 0L);
 
-    shippedKBsCounter = rms.getMetricsRegistry().getCounter(SOURCE_SHIPPED_KBS, 0L);
-
     shippedBytesCounter = rms.getMetricsRegistry().getCounter(SOURCE_SHIPPED_BYTES, 0L);
 
     logReadInBytesCounter = rms.getMetricsRegistry().getCounter(SOURCE_LOG_READ_IN_BYTES, 0L);
 
     logReadInEditsCounter = rms.getMetricsRegistry().getCounter(SOURCE_LOG_READ_IN_EDITS, 0L);
 
-    logEditsFilteredCounter = rms.getMetricsRegistry().getCounter(SOURCE_LOG_EDITS_FILTERED, 0L);
+    walEditsFilteredCounter = rms.getMetricsRegistry().getCounter(SOURCE_LOG_EDITS_FILTERED, 0L);
 
     shippedHFilesCounter = rms.getMetricsRegistry().getCounter(SOURCE_SHIPPED_HFILES, 0L);
 
     sizeOfHFileRefsQueueGauge =
         rms.getMetricsRegistry().getGauge(SOURCE_SIZE_OF_HFILE_REFS_QUEUE, 0L);
 
-    unknownFileLengthForClosedWAL = rms.getMetricsRegistry().getCounter(SOURCE_CLOSED_LOGS_WITH_UNKNOWN_LENGTH, 0L);
+    unknownFileLengthForClosedWAL = rms.getMetricsRegistry()
+            .getCounter(SOURCE_CLOSED_LOGS_WITH_UNKNOWN_LENGTH, 0L);
     uncleanlyClosedWAL = rms.getMetricsRegistry().getCounter(SOURCE_UNCLEANLY_CLOSED_LOGS, 0L);
-    uncleanlyClosedSkippedBytes = rms.getMetricsRegistry().getCounter(SOURCE_UNCLEANLY_CLOSED_IGNORED_IN_BYTES, 0L);
+    uncleanlyClosedSkippedBytes = rms.getMetricsRegistry()
+            .getCounter(SOURCE_UNCLEANLY_CLOSED_IGNORED_IN_BYTES, 0L);
     restartWALReading = rms.getMetricsRegistry().getCounter(SOURCE_RESTARTED_LOG_READING, 0L);
     repeatedFileBytes = rms.getMetricsRegistry().getCounter(SOURCE_REPEATED_LOG_FILE_BYTES, 0L);
     completedWAL = rms.getMetricsRegistry().getCounter(SOURCE_COMPLETED_LOGS, 0L);
-    completedRecoveryQueue = rms.getMetricsRegistry().getCounter(SOURCE_COMPLETED_RECOVERY_QUEUES, 0L);
+    completedRecoveryQueue = rms.getMetricsRegistry()
+            .getCounter(SOURCE_COMPLETED_RECOVERY_QUEUES, 0L);
+    failedRecoveryQueue = rms.getMetricsRegistry()
+            .getCounter(SOURCE_FAILED_RECOVERY_QUEUES, 0L);
   }
 
   @Override public void setLastShippedAge(long age) {
@@ -99,7 +103,7 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
   }
 
   @Override public void incrLogEditsFiltered(long size) {
-    logEditsFilteredCounter.incr(size);
+    walEditsFilteredCounter.incr(size);
   }
 
   @Override public void incrBatchesShipped(int batches) {
@@ -112,23 +116,6 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
 
   @Override public void incrShippedBytes(long size) {
     shippedBytesCounter.incr(size);
-    // obtained value maybe smaller than 1024. We should make sure that KB count
-    // eventually picks up even from multiple smaller updates.
-    incrementKBsCounter(shippedBytesCounter, shippedKBsCounter);
-  }
-
-  static void incrementKBsCounter(MutableFastCounter bytesCounter, MutableFastCounter kbsCounter) {
-    // Following code should be thread-safe.
-    long delta = 0;
-    while(true) {
-      long bytes = bytesCounter.value();
-      delta = (bytes / 1024) - kbsCounter.value();
-      if (delta > 0) {
-        kbsCounter.incr(delta);
-      } else {
-        break;
-      }
-    }
   }
 
   @Override public void incrLogReadInBytes(long size) {
@@ -190,7 +177,10 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
   public void incrCompletedRecoveryQueue() {
     completedRecoveryQueue.incr(1L);
   }
-
+  @Override
+  public void incrFailedRecoveryQueue() {
+    failedRecoveryQueue.incr(1L);
+  }
   @Override
   public void init() {
     rms.init();
@@ -244,5 +234,20 @@ public class MetricsReplicationGlobalSourceSource implements MetricsReplicationS
   @Override
   public String getMetricsName() {
     return rms.getMetricsName();
+  }
+
+  @Override
+  public long getWALEditsRead() {
+    return this.logReadInEditsCounter.value();
+  }
+
+  @Override
+  public long getShippedOps() {
+    return this.shippedOpsCounter.value();
+  }
+
+  @Override
+  public long getEditsFiltered() {
+    return this.walEditsFilteredCounter.value();
   }
 }

@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -27,12 +27,10 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.ClusterStatus;
-import org.apache.hadoop.hbase.ClusterStatus.Option;
+import org.apache.hadoop.hbase.ClusterMetrics;
+import org.apache.hadoop.hbase.ClusterMetrics.Option;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
@@ -57,21 +55,29 @@ import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
-import org.junit.experimental.categories.Category;
-import org.junit.rules.TestName;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Maps;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
 
 @Category(LargeTests.class)
 public class TestFavoredStochasticBalancerPickers extends BalancerTestBase {
 
-  private static final Log LOG = LogFactory.getLog(TestFavoredStochasticBalancerPickers.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFavoredStochasticBalancerPickers.class);
+
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestFavoredStochasticBalancerPickers.class);
 
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static final int SLAVES = 6;
@@ -103,7 +109,7 @@ public class TestFavoredStochasticBalancerPickers extends BalancerTestBase {
     TEST_UTIL.getHBaseCluster().waitForActiveAndReadyMaster(120*1000);
     cluster = TEST_UTIL.getMiniHBaseCluster();
     admin = TEST_UTIL.getAdmin();
-    admin.setBalancerRunning(false, true);
+    admin.balancerSwitch(false, true);
   }
 
   @After
@@ -120,7 +126,7 @@ public class TestFavoredStochasticBalancerPickers extends BalancerTestBase {
         ColumnFamilyDescriptorBuilder.newBuilder(HConstants.CATALOG_FAMILY).build();
     TableDescriptor desc = TableDescriptorBuilder
         .newBuilder(tableName)
-        .addColumnFamily(columnFamilyDescriptor)
+        .setColumnFamily(columnFamilyDescriptor)
         .build();
     admin.createTable(desc, Bytes.toBytes("aaa"), Bytes.toBytes("zzz"), REGIONS);
     TEST_UTIL.waitUntilAllRegionsAssigned(tableName);
@@ -146,8 +152,7 @@ public class TestFavoredStochasticBalancerPickers extends BalancerTestBase {
     RegionStates rst = master.getAssignmentManager().getRegionStates();
     for (int i = 0; i < regionsToMove; i++) {
       final RegionInfo regionInfo = hris.get(i);
-      admin.move(regionInfo.getEncodedNameAsBytes(),
-          Bytes.toBytes(mostLoadedServer.getServerName()));
+      admin.move(regionInfo.getEncodedNameAsBytes(), mostLoadedServer);
       LOG.info("Moving region: " + hris.get(i).getRegionNameAsString() + " to " + mostLoadedServer);
       TEST_UTIL.waitFor(60000, new Waiter.Predicate<Exception>() {
         @Override
@@ -169,14 +174,14 @@ public class TestFavoredStochasticBalancerPickers extends BalancerTestBase {
     TEST_UTIL.getHBaseCluster().startRegionServerAndWait(60000);
 
     Map<ServerName, List<RegionInfo>> serverAssignments = Maps.newHashMap();
-    ClusterStatus status = admin.getClusterStatus(EnumSet.of(Option.LIVE_SERVERS));
-    for (ServerName sn : status.getServers()) {
+    ClusterMetrics status = admin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS));
+    for (ServerName sn : status.getLiveServerMetrics().keySet()) {
       if (!ServerName.isSameAddress(sn, masterServerName)) {
         serverAssignments.put(sn, getTableRegionsFromServer(tableName, sn));
       }
     }
     RegionLocationFinder regionFinder = new RegionLocationFinder();
-    regionFinder.setClusterStatus(admin.getClusterStatus(EnumSet.of(Option.LIVE_SERVERS)));
+    regionFinder.setClusterMetrics(admin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS)));
     regionFinder.setConf(conf);
     regionFinder.setServices(TEST_UTIL.getMiniHBaseCluster().getMaster());
     Cluster cluster = new Cluster(serverAssignments, null, regionFinder, new RackManager(conf));

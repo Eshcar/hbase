@@ -52,6 +52,10 @@ message RegionState {
     MERGING_NEW = 14;  // new region to be created when RS merges two
                        // daughter regions but hasn't be created yet, or
                        // master doesn't know it's already created
+    ABNORMALLY_CLOSED = 15;// the region is CLOSED because of a RS crash. Usually it is the same
+                       // with CLOSED, but for some operations such as merge/split, we can not
+                       // apply it to a region in this state, as it may lead to data loss as we
+                       // may have some data in recovered edits.
   }
 }
 
@@ -139,6 +143,9 @@ message RegionLoad {
 
   /** the current total filtered read requests made to region */
   optional uint64 filtered_read_requests_count = 19;
+
+  /** the current total coprocessor requests made to region */
+  optional uint64 cp_requests_count = 20;
 }
 
 /* Server-level protobufs */
@@ -154,6 +161,13 @@ message ReplicationLoadSource {
   required uint32 sizeOfLogQueue = 3;
   required uint64 timeStampOfLastShippedOp = 4;
   required uint64 replicationLag = 5;
+  optional uint64 timeStampOfNextToReplicate=6;
+  optional string queueId = 7;
+  optional bool recovered = 8;
+  optional bool running = 9;
+  optional bool editsSinceRestart = 10;
+  optional uint64 editsRead = 11;
+  optional uint64 oPsShipped = 12;
 }
 
 message ServerLoad {
@@ -225,6 +239,7 @@ message ClusterStatus {
   repeated ServerName backup_masters = 8;
   optional bool balancer_on = 9;
   optional int32 master_info_port = 10 [default = -1];
+  repeated ServerName servers_name = 11;
 }
 
 enum Option {
@@ -238,4 +253,5 @@ enum Option {
   REGIONS_IN_TRANSITION = 7;
   BALANCER_ON = 8;
   MASTER_INFO_PORT = 9;
+  SERVERS_NAME = 10;
 }

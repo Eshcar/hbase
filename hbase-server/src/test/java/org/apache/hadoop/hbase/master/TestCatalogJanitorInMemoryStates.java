@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -25,11 +24,9 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.concurrent.ExecutionException;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.MetaMockingUtil;
@@ -51,17 +48,22 @@ import org.apache.hadoop.hbase.util.PairOfSameType;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({MasterTests.class, MediumTests.class})
 public class TestCatalogJanitorInMemoryStates {
-  private static final Log LOG = LogFactory.getLog(TestCatalogJanitorInMemoryStates.class);
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().
-     withTimeout(this.getClass()).withLookingForStuckThread(true).build();
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestCatalogJanitorInMemoryStates.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestCatalogJanitorInMemoryStates.class);
   @Rule public final TestName name = new TestName();
   protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static byte [] ROW = Bytes.toBytes("testRow");
@@ -89,14 +91,15 @@ public class TestCatalogJanitorInMemoryStates {
   /**
    * Test clearing a split parent from memory.
    */
-  @Test(timeout = 180000)
-  public void testInMemoryParentCleanup() throws IOException, InterruptedException {
+  @Test
+  public void testInMemoryParentCleanup()
+      throws IOException, InterruptedException, ExecutionException {
     final AssignmentManager am = TEST_UTIL.getHBaseCluster().getMaster().getAssignmentManager();
     final ServerManager sm = TEST_UTIL.getHBaseCluster().getMaster().getServerManager();
     final CatalogJanitor janitor = TEST_UTIL.getHBaseCluster().getMaster().getCatalogJanitor();
 
     Admin admin = TEST_UTIL.getAdmin();
-    admin.enableCatalogJanitor(false);
+    admin.catalogJanitorSwitch(false);
 
     final TableName tableName = TableName.valueOf(name.getMethodName());
     Table t = TEST_UTIL.createTable(tableName, FAMILY);
@@ -128,19 +131,18 @@ public class TestCatalogJanitorInMemoryStates {
 
   }
 
-  /*
- * Splits a region
- * @param t Region to split.
- * @return List of region locations
- * @throws IOException, InterruptedException
- */
+  /**
+   * Splits a region
+   * @param t Region to split.
+   * @return List of region locations
+   */
   private List<HRegionLocation> splitRegion(final RegionInfo r)
-      throws IOException, InterruptedException {
+      throws IOException, InterruptedException, ExecutionException {
     List<HRegionLocation> locations = new ArrayList<>();
     // Split this table in two.
     Admin admin = TEST_UTIL.getAdmin();
     Connection connection = TEST_UTIL.getConnection();
-    admin.splitRegion(r.getEncodedNameAsBytes());
+    admin.splitRegionAsync(r.getEncodedNameAsBytes()).get();
     admin.close();
     PairOfSameType<RegionInfo> regions = waitOnDaughters(r);
     if (regions != null) {

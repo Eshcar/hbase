@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -33,8 +34,6 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -43,6 +42,8 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Put;
@@ -53,7 +54,6 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.UserProvider;
 import org.apache.hadoop.hbase.security.token.TokenUtil;
-import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.RegionSplitter;
 import org.apache.hadoop.hbase.zookeeper.ZKConfig;
@@ -70,7 +70,7 @@ import com.codahale.metrics.MetricRegistry;
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @InterfaceAudience.Public
 public class TableMapReduceUtil {
-  private static final Log LOG = LogFactory.getLog(TableMapReduceUtil.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TableMapReduceUtil.class);
 
   /**
    * Use this before submitting a TableMap job. It will appropriately set up
@@ -345,22 +345,20 @@ public class TableMapReduceUtil {
   }
 
   /**
-   * Sets up the job for reading from a table snapshot. It bypasses hbase servers
-   * and read directly from snapshot files.
-   *
+   * Sets up the job for reading from a table snapshot. It bypasses hbase servers and read directly
+   * from snapshot files.
    * @param snapshotName The name of the snapshot (of a table) to read from.
-   * @param scan  The scan instance with the columns, time range etc.
-   * @param mapper  The mapper class to use.
-   * @param outputKeyClass  The class of the output key.
-   * @param outputValueClass  The class of the output value.
-   * @param job  The current job to adjust.  Make sure the passed job is
-   * carrying all necessary HBase configuration.
-   * @param addDependencyJars upload HBase jars and jars for any of the configured
-   *           job classes via the distributed cache (tmpjars).
-   *
+   * @param scan The scan instance with the columns, time range etc.
+   * @param mapper The mapper class to use.
+   * @param outputKeyClass The class of the output key.
+   * @param outputValueClass The class of the output value.
+   * @param job The current job to adjust. Make sure the passed job is carrying all necessary HBase
+   *          configuration.
+   * @param addDependencyJars upload HBase jars and jars for any of the configured job classes via
+   *          the distributed cache (tmpjars).
    * @param tmpRestoreDir a temporary directory to copy the snapshot files into. Current user should
-   * have write permissions to this directory, and this should not be a subdirectory of rootdir.
-   * After the job is finished, restore directory can be deleted.
+   *          have write permissions to this directory, and this should not be a subdirectory of
+   *          rootdir. After the job is finished, restore directory can be deleted.
    * @throws IOException When setting up the details fails.
    * @see TableSnapshotInputFormat
    */
@@ -369,10 +367,10 @@ public class TableMapReduceUtil {
       Class<?> outputKeyClass,
       Class<?> outputValueClass, Job job,
       boolean addDependencyJars, Path tmpRestoreDir)
-  throws IOException {
+      throws IOException {
     TableSnapshotInputFormat.setInput(job, snapshotName, tmpRestoreDir);
-    initTableMapperJob(snapshotName, scan, mapper, outputKeyClass,
-        outputValueClass, job, addDependencyJars, false, TableSnapshotInputFormat.class);
+    initTableMapperJob(snapshotName, scan, mapper, outputKeyClass, outputValueClass, job,
+      addDependencyJars, false, TableSnapshotInputFormat.class);
     resetCacheConfig(job.getConfiguration());
   }
 
@@ -599,7 +597,7 @@ public class TableMapReduceUtil {
    */
   public static String convertScanToString(Scan scan) throws IOException {
     ClientProtos.Scan proto = ProtobufUtil.toScan(scan);
-    return Base64.encodeBytes(proto.toByteArray());
+    return Bytes.toString(Base64.getEncoder().encode(proto.toByteArray()));
   }
 
   /**
@@ -610,7 +608,7 @@ public class TableMapReduceUtil {
    * @throws IOException When reading the scan instance fails.
    */
   public static Scan convertStringToScan(String base64) throws IOException {
-    byte [] decoded = Base64.decode(base64);
+    byte [] decoded = Base64.getDecoder().decode(base64);
     return ProtobufUtil.toScan(ClientProtos.Scan.parseFrom(decoded));
   }
 
@@ -810,20 +808,19 @@ public class TableMapReduceUtil {
       org.apache.hadoop.hbase.ipc.RpcServer.class,                   // hbase-server
       org.apache.hadoop.hbase.CompatibilityFactory.class,            // hbase-hadoop-compat
       org.apache.hadoop.hbase.mapreduce.JobUtil.class,               // hbase-hadoop2-compat
-      org.apache.hadoop.hbase.mapreduce.TableMapper.class,           // hbase-mapreduce
+      org.apache.hadoop.hbase.mapreduce.TableMapper.class,           // hbase-server
       org.apache.hadoop.hbase.metrics.impl.FastLongHistogram.class,  // hbase-metrics
       org.apache.hadoop.hbase.metrics.Snapshot.class,                // hbase-metrics-api
       org.apache.zookeeper.ZooKeeper.class,
-      org.apache.hadoop.hbase.shaded.io.netty.channel.Channel.class,
+      org.apache.hbase.thirdparty.io.netty.channel.Channel.class,
       com.google.protobuf.Message.class,
-      org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations.class,
-      org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists.class,
+      org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations.class,
+      org.apache.hbase.thirdparty.com.google.common.collect.Lists.class,
       org.apache.htrace.core.Tracer.class,
       com.codahale.metrics.MetricRegistry.class,
       org.apache.commons.lang3.ArrayUtils.class,
-      com.fasterxml.jackson.databind.ObjectMapper.class,
-      com.fasterxml.jackson.core.Versioned.class,
-      com.fasterxml.jackson.annotation.JsonView.class);
+      org.apache.hbase.thirdparty.com.google.gson.Gson.class,
+      org.apache.hadoop.hbase.zookeeper.ZKWatcher.class);
   }
 
   /**
@@ -964,7 +961,7 @@ public class TableMapReduceUtil {
     }
 
     LOG.debug(String.format("For class %s, using jar %s", my_class.getName(), jar));
-    return new Path(jar).makeQualified(fs);
+    return new Path(jar).makeQualified(fs.getUri(), fs.getWorkingDirectory());
   }
 
   /**

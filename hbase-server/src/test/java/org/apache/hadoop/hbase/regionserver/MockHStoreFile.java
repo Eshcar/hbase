@@ -26,12 +26,10 @@ import java.util.TreeMap;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellBuilder;
 import org.apache.hadoop.hbase.CellBuilderFactory;
 import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HDFSBlocksDistribution;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -113,11 +111,13 @@ public class MockHStoreFile extends HStoreFile {
     this.entryCount = entryCount;
   }
 
+  @Override
   public OptionalLong getMinimumTimestamp() {
     return timeRangeTracker == null ? OptionalLong.empty()
         : OptionalLong.of(timeRangeTracker.getMin());
   }
 
+  @Override
   public OptionalLong getMaximumTimestamp() {
     return timeRangeTracker == null ? OptionalLong.empty()
         : OptionalLong.of(timeRangeTracker.getMax());
@@ -135,6 +135,11 @@ public class MockHStoreFile extends HStoreFile {
 
   @Override
   public long getModificationTimeStamp() {
+    return getModificationTimestamp();
+  }
+
+  @Override
+  public long getModificationTimestamp() {
     return modificationTime;
   }
 
@@ -192,7 +197,7 @@ public class MockHStoreFile extends HStoreFile {
       public Optional<Cell> getLastKey() {
         if (splitPoint != null) {
           return Optional.of(CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
-              .setType(CellBuilder.DataType.Put)
+              .setType(Cell.Type.Put)
               .setRow(Arrays.copyOf(splitPoint, splitPoint.length + 1)).build());
         } else {
           return Optional.empty();
@@ -203,7 +208,7 @@ public class MockHStoreFile extends HStoreFile {
       public Optional<Cell> midKey() throws IOException {
         if (splitPoint != null) {
           return Optional.of(CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
-              .setType(CellBuilder.DataType.Put).setRow(splitPoint).build());
+              .setType(Cell.Type.Put).setRow(splitPoint).build());
         } else {
           return Optional.empty();
         }
@@ -213,7 +218,7 @@ public class MockHStoreFile extends HStoreFile {
       public Optional<Cell> getFirstKey() {
         if (splitPoint != null) {
           return Optional.of(CellBuilderFactory.create(CellBuilderType.DEEP_COPY)
-              .setType(CellBuilder.DataType.Put).setRow(splitPoint, 0, splitPoint.length - 1)
+              .setType(Cell.Type.Put).setRow(splitPoint, 0, splitPoint.length - 1)
               .build());
         } else {
           return Optional.empty();

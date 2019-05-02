@@ -21,11 +21,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 import java.io.UnsupportedEncodingException;
-
 import javax.crypto.SecretKey;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.testclassification.SecurityTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
@@ -33,25 +34,29 @@ import org.mockito.Mockito;
 @Category({SecurityTests.class, SmallTests.class})
 public class TestAuthenticationKey {
 
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestAuthenticationKey.class);
+
   @Test
   public void test() throws UnsupportedEncodingException {
     SecretKey secret = Mockito.mock(SecretKey.class);
-    Mockito.when(secret.getEncoded()).thenReturn("secret".getBytes("UTF-8"));
+    Mockito.when(secret.getEncoded()).thenReturn(Bytes.toBytes("secret"));
 
     AuthenticationKey key = new AuthenticationKey(0, 1234, secret);
     assertEquals(key.hashCode(), new AuthenticationKey(0, 1234, secret).hashCode());
     assertEquals(key, new AuthenticationKey(0, 1234, secret));
-    
+
     AuthenticationKey otherID = new AuthenticationKey(1, 1234, secret);
     assertNotEquals(key.hashCode(), otherID.hashCode());
     assertNotEquals(key, otherID);
-    
+
     AuthenticationKey otherExpiry = new AuthenticationKey(0, 8765, secret);
     assertNotEquals(key.hashCode(), otherExpiry.hashCode());
     assertNotEquals(key, otherExpiry);
-    
+
     SecretKey other = Mockito.mock(SecretKey.class);
-    Mockito.when(secret.getEncoded()).thenReturn("other".getBytes("UTF-8"));
+    Mockito.when(secret.getEncoded()).thenReturn(Bytes.toBytes("other"));
 
     AuthenticationKey otherSecret = new AuthenticationKey(0, 1234, other);
     assertNotEquals(key.hashCode(), otherSecret.hashCode());

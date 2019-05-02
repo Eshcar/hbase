@@ -17,18 +17,25 @@
  */
 package org.apache.hadoop.hbase.http;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import javax.servlet.http.HttpServletRequest;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
 
 @Category({MiscTests.class, SmallTests.class})
 public class TestHtmlQuoting {
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestHtmlQuoting.class);
 
   @Test public void testNeedsQuoting() throws Exception {
     assertTrue(HtmlQuoting.needsQuoting("abcde>"));
@@ -67,7 +74,6 @@ public class TestHtmlQuoting {
     }
     runRoundTrip(buffer.toString());
   }
-
 
   @Test
   public void testRequestQuoting() throws Exception {

@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.regionserver;
 
 import static org.junit.Assert.assertFalse;
@@ -23,15 +22,16 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.List;
+import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
+import org.apache.hadoop.hbase.StartMiniClusterOption;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Durability;
@@ -60,24 +60,25 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import java.io.IOException;
-import java.util.Optional;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests around regionserver shutdown and abort
  */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestRegionServerAbort {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRegionServerAbort.class);
+
   private static final byte[] FAMILY_BYTES = Bytes.toBytes("f");
 
-  private static final Log LOG = LogFactory.getLog(TestRegionServerAbort.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestRegionServerAbort.class);
 
   private HBaseTestingUtility testUtil;
   private Configuration conf;
@@ -100,7 +101,8 @@ public class TestRegionServerAbort {
 
     testUtil.startMiniZKCluster();
     dfsCluster = testUtil.startMiniDFSCluster(2);
-    cluster = testUtil.startMiniHBaseCluster(1, 2);
+    StartMiniClusterOption option = StartMiniClusterOption.builder().numRegionServers(2).build();
+    cluster = testUtil.startMiniHBaseCluster(option);
   }
 
   @After
@@ -143,11 +145,10 @@ public class TestRegionServerAbort {
     put.addColumn(FAMILY_BYTES, Bytes.toBytes("c"), new byte[]{});
     put.setAttribute(StopBlockingRegionObserver.DO_ABORT, new byte[]{1});
 
-    table.put(put);
-    // should have triggered an abort due to FileNotFoundException
-
-    // verify that the regionserver is stopped
+    List<HRegion> regions = cluster.findRegionsForTable(tableName);
     HRegion firstRegion = cluster.findRegionsForTable(tableName).get(0);
+    table.put(put);
+    // Verify that the regionserver is stopped
     assertNotNull(firstRegion);
     assertNotNull(firstRegion.getRegionServerServices());
     LOG.info("isAborted = " + firstRegion.getRegionServerServices().isAborted());

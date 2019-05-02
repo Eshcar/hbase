@@ -19,10 +19,8 @@ package org.apache.hadoop.hbase.coprocessor.example;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellBuilder;
-import org.apache.hadoop.hbase.CellBuilder.DataType;
 import org.apache.hadoop.hbase.CellBuilderFactory;
 import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellUtil;
@@ -38,10 +36,12 @@ import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionLifeCycleTracker;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * This RegionObserver replaces the values of Puts from one value to another on compaction.
  */
+@InterfaceAudience.Private
 public class ValueRewritingObserver implements RegionObserver, RegionCoprocessor {
   public static final String ORIGINAL_VALUE_KEY =
       "hbase.examples.coprocessor.value.rewrite.orig";
@@ -89,7 +89,7 @@ public class ValueRewritingObserver implements RegionObserver, RegionCoprocessor
               cellBuilder.setFamily(CellUtil.cloneFamily(c));
               cellBuilder.setQualifier(CellUtil.cloneQualifier(c));
               cellBuilder.setTimestamp(c.getTimestamp());
-              cellBuilder.setType(DataType.Put);
+              cellBuilder.setType(Cell.Type.Put);
               // Make sure each cell gets a unique value
               byte[] clonedValue = new byte[replacedValue.length];
               System.arraycopy(replacedValue, 0, clonedValue, 0, replacedValue.length);

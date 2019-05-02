@@ -19,6 +19,7 @@ package org.apache.hadoop.hbase.mapreduce;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
@@ -33,20 +34,21 @@ import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.ImportTsv.TsvParser.BadTsvLineException;
 import org.apache.hadoop.hbase.security.visibility.CellVisibility;
 import org.apache.hadoop.hbase.security.visibility.InvalidLabelException;
-import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.Mapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Write table content out to files in hdfs.
  */
 @InterfaceAudience.Public
 public class TsvImporterMapper
-extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put>
-{
+    extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
+  private static final Logger LOG = LoggerFactory.getLogger(TsvImporterMapper.class);
 
   /** Timestamp for all inserted rows */
   protected long ts;
@@ -127,7 +129,7 @@ extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put>
     if (separator == null) {
       separator = ImportTsv.DEFAULT_SEPARATOR;
     } else {
-      separator = new String(Base64.decode(separator));
+      separator = new String(Base64.getDecoder().decode(separator));
     }
     // Should never get 0 as we are setting this to a valid value in job
     // configuration.
@@ -199,7 +201,8 @@ extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put>
       }
       throw new IOException(badLine);
     } catch (InterruptedException e) {
-      e.printStackTrace();
+      LOG.error("Interrupted while emitting put", e);
+      Thread.currentThread().interrupt();
     }
   }
 

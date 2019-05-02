@@ -23,18 +23,19 @@ import static org.apache.hadoop.hbase.util.Bytes.len;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Objects;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
 import org.apache.hadoop.hbase.util.Bytes;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
 
 /**
  * This filter is used for selecting only those keys with columns that are
@@ -149,8 +150,7 @@ public class ColumnRangeFilter extends FilterBase {
 
     int cmpMax = CellUtil.compareQualifiers(c, this.maxColumn, 0, this.maxColumn.length);
 
-    if (this.maxColumnInclusive && cmpMax <= 0 ||
-        !this.maxColumnInclusive && cmpMax < 0) {
+    if ((this.maxColumnInclusive && cmpMax <= 0) || (!this.maxColumnInclusive && cmpMax < 0)) {
       return ReturnCode.INCLUDE;
     }
 
@@ -176,6 +176,7 @@ public class ColumnRangeFilter extends FilterBase {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte [] toByteArray() {
     FilterProtos.ColumnRangeFilter.Builder builder =
       FilterProtos.ColumnRangeFilter.newBuilder();
@@ -208,19 +209,23 @@ public class ColumnRangeFilter extends FilterBase {
   }
 
   /**
-   * @param other
-   * @return true if and only if the fields of the filter that are serialized
-   * are equal to the corresponding fields in other.  Used for testing.
+   * @param o filter to serialize.
+   * @return true if and only if the fields of the filter that are serialized are equal to the
+   *         corresponding fields in other. Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
-   if (o == this) return true;
-   if (!(o instanceof ColumnRangeFilter)) return false;
-
-   ColumnRangeFilter other = (ColumnRangeFilter)o;
-   return Bytes.equals(this.getMinColumn(),other.getMinColumn())
-     && this.getMinColumnInclusive() == other.getMinColumnInclusive()
-     && Bytes.equals(this.getMaxColumn(), other.getMaxColumn())
-     && this.getMaxColumnInclusive() == other.getMaxColumnInclusive();
+    if (o == this) {
+      return true;
+    }
+    if (!(o instanceof ColumnRangeFilter)) {
+      return false;
+    }
+    ColumnRangeFilter other = (ColumnRangeFilter) o;
+    return Bytes.equals(this.getMinColumn(), other.getMinColumn())
+        && this.getMinColumnInclusive() == other.getMinColumnInclusive()
+        && Bytes.equals(this.getMaxColumn(), other.getMaxColumn())
+        && this.getMaxColumnInclusive() == other.getMaxColumnInclusive();
   }
 
   @Override
@@ -234,5 +239,16 @@ public class ColumnRangeFilter extends FilterBase {
         + (this.minColumnInclusive ? "[" : "(") + Bytes.toStringBinary(this.minColumn)
         + ", " + Bytes.toStringBinary(this.maxColumn)
         + (this.maxColumnInclusive ? "]" : ")");
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Bytes.hashCode(getMinColumn()), getMinColumnInclusive(),
+      Bytes.hashCode(getMaxColumn()), getMaxColumnInclusive());
   }
 }

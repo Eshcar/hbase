@@ -18,19 +18,21 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
-import org.apache.hadoop.hbase.exceptions.IllegalArgumentIOException;
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.MemoryCompactionPolicy;
-import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.hadoop.hbase.exceptions.IllegalArgumentIOException;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * The ongoing MemStore Compaction manager, dispatches a solo running compaction and interrupts
@@ -55,7 +57,7 @@ public class MemStoreCompactor {
           + ClassSize.ATOMIC_BOOLEAN    // isInterrupted (the internals)
       );
 
-  private static final Log LOG = LogFactory.getLog(MemStoreCompactor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MemStoreCompactor.class);
   private CompactingMemStore compactingMemStore;
 
   // a static version of the segment list from the pipeline
@@ -78,6 +80,11 @@ public class MemStoreCompactor {
         compactingMemStore.getFamilyName());
   }
 
+  @Override
+  public String toString() {
+    return this.strategy + ", compactionCellMax=" + this.compactionKVMax;
+  }
+
   /**----------------------------------------------------------------------
    * The request to dispatch the compaction asynchronous task.
    * The method returns true if compaction was successfully dispatched, or false if there
@@ -91,11 +98,9 @@ public class MemStoreCompactor {
     // get a snapshot of the list of the segments from the pipeline,
     // this local copy of the list is marked with specific version
     versionedList = compactingMemStore.getImmutableSegments();
-
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Starting the In-Memory Compaction for store "
-          + compactingMemStore.getStore().getColumnFamilyName());
-    }
+    LOG.trace("Speculative compaction starting on {}/{}",
+        compactingMemStore.getStore().getHRegion().getRegionInfo().getEncodedName(),
+        compactingMemStore.getStore().getColumnFamilyName());
     HStore store = compactingMemStore.getStore();
     RegionCoprocessorHost cpHost = store.getCoprocessorHost();
     if (cpHost != null) {
@@ -142,20 +147,19 @@ public class MemStoreCompactor {
   private void doCompaction() {
     ImmutableSegment result = null;
     boolean resultSwapped = false;
-    if (isInterrupted.get()) {      // if the entire process is interrupted cancel flattening
-      return;           // the compaction also doesn't start when interrupted
-    }
-
     MemStoreCompactionStrategy.Action nextStep = strategy.getAction(versionedList);
-    boolean merge =
-        (nextStep == MemStoreCompactionStrategy.Action.MERGE ||
-            nextStep == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUE_KEYS);
+    boolean merge = (nextStep == MemStoreCompactionStrategy.Action.MERGE ||
+        nextStep == MemStoreCompactionStrategy.Action.MERGE_COUNT_UNIQUE_KEYS);
     try {
+      if (isInterrupted.get()) {      // if the entire process is interrupted cancel flattening
+        return;           // the compaction also doesn't start when interrupted
+      }
+
       if (nextStep == MemStoreCompactionStrategy.Action.NOOP) {
         return;
       }
-      if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN ||
-          nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUE_KEYS) {
+      if (nextStep == MemStoreCompactionStrategy.Action.FLATTEN
+          || nextStep == MemStoreCompactionStrategy.Action.FLATTEN_COUNT_UNIQUE_KEYS) {
         // some Segment in the pipeline is with SkipList index, make it flat
         compactingMemStore.flattenOneSegment(versionedList.getVersion(), nextStep);
         return;
@@ -169,8 +173,8 @@ public class MemStoreCompactor {
 
       // Substitute the pipeline with one segment
       if (!isInterrupted.get()) {
-        if (resultSwapped = compactingMemStore.swapCompactedSegments(
-            versionedList, result, merge)) {
+        resultSwapped = compactingMemStore.swapCompactedSegments(versionedList, result, merge);
+        if (resultSwapped) {
           // update compaction strategy
           strategy.updateStats(result);
           // update the wal so it can be truncated and not get too long
@@ -178,8 +182,8 @@ public class MemStoreCompactor {
         }
       }
     } catch (IOException e) {
-      LOG.debug("Interrupting the MemStore in-memory compaction for store "
-          + compactingMemStore.getFamilyName());
+      LOG.trace("Interrupting in-memory compaction for store={}",
+          compactingMemStore.getFamilyName());
       Thread.currentThread().interrupt();
     } finally {
       // For the MERGE case, if the result was created, but swap didn't happen,
@@ -190,6 +194,7 @@ public class MemStoreCompactor {
         result.close();
       }
       releaseResources();
+      compactingMemStore.setInMemoryCompactionCompleted();
     }
 
   }
@@ -203,10 +208,14 @@ public class MemStoreCompactor {
 
     ImmutableSegment result = null;
     MemStoreSegmentsIterator iterator = null;
+    List<ImmutableSegment> segments = versionedList.getStoreSegments();
+    for (ImmutableSegment s : segments) {
+      s.waitForUpdates(); // to ensure all updates preceding s in-memory flush have completed
+    }
 
     switch (action) {
       case COMPACT:
-        iterator = new MemStoreCompactorSegmentsIterator(versionedList.getStoreSegments(),
+        iterator = new MemStoreCompactorSegmentsIterator(segments,
             compactingMemStore.getComparator(),
             compactionKVMax, compactingMemStore.getStore());
 
@@ -218,13 +227,12 @@ public class MemStoreCompactor {
       case MERGE:
       case MERGE_COUNT_UNIQUE_KEYS:
         iterator =
-            new MemStoreMergerSegmentsIterator(versionedList.getStoreSegments(),
+            new MemStoreMergerSegmentsIterator(segments,
             compactingMemStore.getComparator(), compactionKVMax);
 
         result = SegmentFactory.instance().createImmutableSegmentByMerge(
           compactingMemStore.getConfiguration(), compactingMemStore.getComparator(), iterator,
-          versionedList.getNumOfCells(), versionedList.getStoreSegments(),
-          compactingMemStore.getIndexType(), action);
+          versionedList.getNumOfCells(), segments, compactingMemStore.getIndexType(), action);
         iterator.close();
         break;
       default:

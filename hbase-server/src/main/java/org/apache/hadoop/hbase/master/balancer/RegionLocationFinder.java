@@ -27,11 +27,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.ClusterStatus;
+import org.apache.hadoop.hbase.ClusterMetrics;
 import org.apache.hadoop.hbase.HDFSBlocksDistribution;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
@@ -42,16 +39,17 @@ import org.apache.hadoop.hbase.master.assignment.AssignmentManager;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.yetus.audience.InterfaceAudience;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.cache.CacheBuilder;
-import org.apache.hadoop.hbase.shaded.com.google.common.cache.CacheLoader;
-import org.apache.hadoop.hbase.shaded.com.google.common.cache.LoadingCache;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.Futures;
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.ListenableFuture;
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.ListeningExecutorService;
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.MoreExecutors;
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.cache.CacheBuilder;
+import org.apache.hbase.thirdparty.com.google.common.cache.CacheLoader;
+import org.apache.hbase.thirdparty.com.google.common.cache.LoadingCache;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.Futures;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.ListenableFuture;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.ListeningExecutorService;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * This will find where data for a region is located in HDFS. It ranks
@@ -61,11 +59,11 @@ import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.ThreadFa
  */
 @InterfaceAudience.Private
 class RegionLocationFinder {
-  private static final Log LOG = LogFactory.getLog(RegionLocationFinder.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RegionLocationFinder.class);
   private static final long CACHE_TIME = 240 * 60 * 1000;
   private static final HDFSBlocksDistribution EMPTY_BLOCK_DISTRIBUTION = new HDFSBlocksDistribution();
   private Configuration conf;
-  private volatile ClusterStatus status;
+  private volatile ClusterMetrics status;
   private MasterServices services;
   private final ListeningExecutorService executor;
   // Do not scheduleFullRefresh at master startup
@@ -74,21 +72,22 @@ class RegionLocationFinder {
   private CacheLoader<RegionInfo, HDFSBlocksDistribution> loader =
       new CacheLoader<RegionInfo, HDFSBlocksDistribution>() {
 
-        public ListenableFuture<HDFSBlocksDistribution> reload(final RegionInfo hri,
-               HDFSBlocksDistribution oldValue) throws Exception {
-          return executor.submit(new Callable<HDFSBlocksDistribution>() {
-            @Override
-            public HDFSBlocksDistribution call() throws Exception {
-              return internalGetTopBlockLocation(hri);
-            }
-          });
-        }
-
+    @Override
+    public ListenableFuture<HDFSBlocksDistribution> reload(final RegionInfo hri,
+        HDFSBlocksDistribution oldValue) throws Exception {
+      return executor.submit(new Callable<HDFSBlocksDistribution>() {
         @Override
-        public HDFSBlocksDistribution load(RegionInfo key) throws Exception {
-          return internalGetTopBlockLocation(key);
+        public HDFSBlocksDistribution call() throws Exception {
+          return internalGetTopBlockLocation(hri);
         }
-      };
+      });
+    }
+
+    @Override
+    public HDFSBlocksDistribution load(RegionInfo key) throws Exception {
+      return internalGetTopBlockLocation(key);
+    }
+  };
 
   // The cache for where regions are located.
   private LoadingCache<RegionInfo, HDFSBlocksDistribution> cache = null;
@@ -106,7 +105,6 @@ class RegionLocationFinder {
 
   /**
    * Create a cache for region to list of servers
-   * @param time time to cache the locations
    * @return A new Cache.
    */
   private LoadingCache<RegionInfo, HDFSBlocksDistribution> createCache() {
@@ -127,7 +125,7 @@ class RegionLocationFinder {
     this.services = services;
   }
 
-  public void setClusterStatus(ClusterStatus status) {
+  public void setClusterMetrics(ClusterMetrics status) {
     long currentTime = EnvironmentEdgeManager.currentTime();
     this.status = status;
     if (currentTime > lastFullRefresh + (CACHE_TIME / 2)) {
@@ -194,7 +192,7 @@ class RegionLocationFinder {
    */
   protected HDFSBlocksDistribution internalGetTopBlockLocation(RegionInfo region) {
     try {
-      TableDescriptor tableDescriptor = getTableDescriptor(region.getTable());
+      TableDescriptor tableDescriptor = getDescriptor(region.getTable());
       if (tableDescriptor != null) {
         HDFSBlocksDistribution blocksDistribution =
             HRegion.computeHDFSBlocksDistribution(getConf(), tableDescriptor, region);
@@ -215,15 +213,14 @@ class RegionLocationFinder {
    * @return TableDescriptor
    * @throws IOException
    */
-  protected TableDescriptor getTableDescriptor(TableName tableName) throws IOException {
+  protected TableDescriptor getDescriptor(TableName tableName) throws IOException {
     TableDescriptor tableDescriptor = null;
     try {
       if (this.services != null && this.services.getTableDescriptors() != null) {
         tableDescriptor = this.services.getTableDescriptors().get(tableName);
       }
     } catch (FileNotFoundException fnfe) {
-      LOG.debug("FileNotFoundException during getTableDescriptors." + " Current table name = "
-          + tableName, fnfe);
+      LOG.debug("tableName={}", tableName, fnfe);
     }
 
     return tableDescriptor;
@@ -245,7 +242,7 @@ class RegionLocationFinder {
     }
 
     List<ServerName> topServerNames = new ArrayList<>();
-    Collection<ServerName> regionServers = status.getServers();
+    Collection<ServerName> regionServers = status.getLiveServerMetrics().keySet();
 
     // create a mapping from hostname to ServerName for fast lookup
     HashMap<String, List<ServerName>> hostToServerName = new HashMap<>();
@@ -279,8 +276,7 @@ class RegionLocationFinder {
         blockDistbn = cache.get(hri);
         return blockDistbn;
       } else {
-        LOG.debug("HDFSBlocksDistribution not found in cache for region "
-            + hri.getRegionNameAsString());
+        LOG.trace("HDFSBlocksDistribution not found in cache for {}", hri.getRegionNameAsString());
         blockDistbn = internalGetTopBlockLocation(hri);
         cache.put(hri, blockDistbn);
         return blockDistbn;

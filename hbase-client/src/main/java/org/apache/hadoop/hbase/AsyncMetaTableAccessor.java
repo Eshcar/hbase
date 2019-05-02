@@ -17,7 +17,7 @@
  */
 package org.apache.hadoop.hbase;
 
-import static org.apache.hadoop.hbase.TableName.META_TABLE_NAME;
+import static org.apache.hadoop.hbase.util.FutureUtils.addListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,9 +32,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.MetaTableAccessor.CollectingVisitor;
 import org.apache.hadoop.hbase.MetaTableAccessor.QueryType;
 import org.apache.hadoop.hbase.MetaTableAccessor.Visitor;
@@ -53,6 +50,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The asynchronous meta table accessor. Used to read/write region and assignment information store
@@ -62,7 +61,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 @InterfaceAudience.Private
 public class AsyncMetaTableAccessor {
 
-  private static final Log LOG = LogFactory.getLog(AsyncMetaTableAccessor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(AsyncMetaTableAccessor.class);
 
 
   /** The delimiter for meta columns for replicaIds &gt; 0 */
@@ -74,9 +73,6 @@ public class AsyncMetaTableAccessor {
 
   public static CompletableFuture<Boolean> tableExists(AsyncTable<?> metaTable,
       TableName tableName) {
-    if (tableName.equals(META_TABLE_NAME)) {
-      return CompletableFuture.completedFuture(true);
-    }
     return getTableState(metaTable, tableName).thenApply(Optional::isPresent);
   }
 
@@ -87,7 +83,7 @@ public class AsyncMetaTableAccessor {
     long time = EnvironmentEdgeManager.currentTime();
     try {
       get.setTimeRange(0, time);
-      metaTable.get(get).whenComplete((result, error) -> {
+      addListener(metaTable.get(get), (result, error) -> {
         if (error != null) {
           future.completeExceptionally(error);
           return;
@@ -115,16 +111,14 @@ public class AsyncMetaTableAccessor {
     CompletableFuture<Optional<HRegionLocation>> future = new CompletableFuture<>();
     try {
       RegionInfo parsedRegionInfo = MetaTableAccessor.parseRegionInfoFromRegionName(regionName);
-      metaTable.get(
-        new Get(MetaTableAccessor.getMetaKeyForRegion(parsedRegionInfo))
-            .addFamily(HConstants.CATALOG_FAMILY)).whenComplete(
-        (r, err) -> {
+      addListener(metaTable.get(new Get(MetaTableAccessor.getMetaKeyForRegion(parsedRegionInfo))
+        .addFamily(HConstants.CATALOG_FAMILY)), (r, err) -> {
           if (err != null) {
             future.completeExceptionally(err);
             return;
           }
-          future.complete(getRegionLocations(r).map(
-            locations -> locations.getRegionLocation(parsedRegionInfo.getReplicaId())));
+          future.complete(getRegionLocations(r)
+            .map(locations -> locations.getRegionLocation(parsedRegionInfo.getReplicaId())));
         });
     } catch (IOException parseEx) {
       LOG.warn("Failed to parse the passed region name: " + Bytes.toStringBinary(regionName));
@@ -142,34 +136,29 @@ public class AsyncMetaTableAccessor {
   public static CompletableFuture<Optional<HRegionLocation>> getRegionLocationWithEncodedName(
       AsyncTable<?> metaTable, byte[] encodedRegionName) {
     CompletableFuture<Optional<HRegionLocation>> future = new CompletableFuture<>();
-    metaTable.scanAll(new Scan().setReadType(ReadType.PREAD).addFamily(HConstants.CATALOG_FAMILY))
-        .whenComplete(
-          (results, err) -> {
-            if (err != null) {
-              future.completeExceptionally(err);
-              return;
-            }
-            String encodedRegionNameStr = Bytes.toString(encodedRegionName);
-            results
-                .stream()
-                .filter(result -> !result.isEmpty())
-                .filter(result -> MetaTableAccessor.getRegionInfo(result) != null)
-                .forEach(
-                  result -> {
-                    getRegionLocations(result).ifPresent(
-                      locations -> {
-                        for (HRegionLocation location : locations.getRegionLocations()) {
-                          if (location != null
-                              && encodedRegionNameStr.equals(location.getRegion()
-                                  .getEncodedName())) {
-                            future.complete(Optional.of(location));
-                            return;
-                          }
-                        }
-                      });
-                  });
-            future.complete(Optional.empty());
+    addListener(
+      metaTable
+        .scanAll(new Scan().setReadType(ReadType.PREAD).addFamily(HConstants.CATALOG_FAMILY)),
+      (results, err) -> {
+        if (err != null) {
+          future.completeExceptionally(err);
+          return;
+        }
+        String encodedRegionNameStr = Bytes.toString(encodedRegionName);
+        results.stream().filter(result -> !result.isEmpty())
+          .filter(result -> MetaTableAccessor.getRegionInfo(result) != null).forEach(result -> {
+            getRegionLocations(result).ifPresent(locations -> {
+              for (HRegionLocation location : locations.getRegionLocations()) {
+                if (location != null &&
+                  encodedRegionNameStr.equals(location.getRegion().getEncodedName())) {
+                  future.complete(Optional.of(location));
+                  return;
+                }
+              }
+            });
           });
+        future.complete(Optional.empty());
+      });
     return future;
   }
 
@@ -196,19 +185,18 @@ public class AsyncMetaTableAccessor {
   public static CompletableFuture<List<HRegionLocation>> getTableHRegionLocations(
       AsyncTable<AdvancedScanResultConsumer> metaTable, Optional<TableName> tableName) {
     CompletableFuture<List<HRegionLocation>> future = new CompletableFuture<>();
-    getTableRegionsAndLocations(metaTable, tableName, true).whenComplete(
-      (locations, err) -> {
-        if (err != null) {
-          future.completeExceptionally(err);
-        } else if (locations == null || locations.isEmpty()) {
-          future.complete(Collections.emptyList());
-        } else {
-          List<HRegionLocation> regionLocations = locations.stream()
-              .map(loc -> new HRegionLocation(loc.getFirst(), loc.getSecond()))
-              .collect(Collectors.toList());
-          future.complete(regionLocations);
-        }
-      });
+    addListener(getTableRegionsAndLocations(metaTable, tableName, true), (locations, err) -> {
+      if (err != null) {
+        future.completeExceptionally(err);
+      } else if (locations == null || locations.isEmpty()) {
+        future.complete(Collections.emptyList());
+      } else {
+        List<HRegionLocation> regionLocations =
+          locations.stream().map(loc -> new HRegionLocation(loc.getFirst(), loc.getSecond()))
+            .collect(Collectors.toList());
+        future.complete(regionLocations);
+      }
+    });
     return future;
   }
 
@@ -260,7 +248,7 @@ public class AsyncMetaTableAccessor {
       }
     };
 
-    scanMeta(metaTable, tableName, QueryType.REGION, visitor).whenComplete((v, error) -> {
+    addListener(scanMeta(metaTable, tableName, QueryType.REGION, visitor), (v, error) -> {
       if (error != null) {
         future.completeExceptionally(error);
         return;
@@ -303,8 +291,8 @@ public class AsyncMetaTableAccessor {
     startRow.ifPresent(scan::withStartRow);
     stopRow.ifPresent(scan::withStopRow);
 
-    if (LOG.isTraceEnabled()) {
-      LOG.trace("Scanning META" + " starting at row=" + Bytes.toStringBinary(scan.getStartRow())
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Scanning META" + " starting at row=" + Bytes.toStringBinary(scan.getStartRow())
           + " stopping at row=" + Bytes.toStringBinary(scan.getStopRow()) + " for max="
           + rowUpperLimit + " with caching=" + scan.getCaching());
     }
@@ -346,18 +334,25 @@ public class AsyncMetaTableAccessor {
 
     @Override
     public void onNext(Result[] results, ScanController controller) {
+      boolean terminateScan = false;
       for (Result result : results) {
         try {
           if (!visitor.visit(result)) {
-            controller.terminate();
+            terminateScan = true;
+            break;
           }
-        } catch (IOException e) {
+        } catch (Exception e) {
           future.completeExceptionally(e);
-          controller.terminate();
+          terminateScan = true;
+          break;
         }
         if (++currentRowCount >= rowUpperLimit) {
-          controller.terminate();
+          terminateScan = true;
+          break;
         }
+      }
+      if (terminateScan) {
+        controller.terminate();
       }
     }
   }
@@ -482,16 +477,17 @@ public class AsyncMetaTableAccessor {
       QueryType type) {
     return tableName.map((table) -> {
       switch (type) {
-      case REGION:
-        byte[] startRow = new byte[table.getName().length + 2];
-        System.arraycopy(table.getName(), 0, startRow, 0, table.getName().length);
-        startRow[startRow.length - 2] = HConstants.DELIMITER;
-        startRow[startRow.length - 1] = HConstants.DELIMITER;
-        return startRow;
-      case ALL:
-      case TABLE:
-      default:
-        return table.getName();
+        case REGION:
+        case REPLICATION:
+          byte[] startRow = new byte[table.getName().length + 2];
+          System.arraycopy(table.getName(), 0, startRow, 0, table.getName().length);
+          startRow[startRow.length - 2] = HConstants.DELIMITER;
+          startRow[startRow.length - 1] = HConstants.DELIMITER;
+          return startRow;
+        case ALL:
+        case TABLE:
+        default:
+          return table.getName();
       }
     });
   }
@@ -505,20 +501,21 @@ public class AsyncMetaTableAccessor {
     return tableName.map((table) -> {
       final byte[] stopRow;
       switch (type) {
-      case REGION:
-        stopRow = new byte[table.getName().length + 3];
-        System.arraycopy(table.getName(), 0, stopRow, 0, table.getName().length);
-        stopRow[stopRow.length - 3] = ' ';
-        stopRow[stopRow.length - 2] = HConstants.DELIMITER;
-        stopRow[stopRow.length - 1] = HConstants.DELIMITER;
-        break;
-      case ALL:
-      case TABLE:
-      default:
-        stopRow = new byte[table.getName().length + 1];
-        System.arraycopy(table.getName(), 0, stopRow, 0, table.getName().length);
-        stopRow[stopRow.length - 1] = ' ';
-        break;
+        case REGION:
+        case REPLICATION:
+          stopRow = new byte[table.getName().length + 3];
+          System.arraycopy(table.getName(), 0, stopRow, 0, table.getName().length);
+          stopRow[stopRow.length - 3] = ' ';
+          stopRow[stopRow.length - 2] = HConstants.DELIMITER;
+          stopRow[stopRow.length - 1] = HConstants.DELIMITER;
+          break;
+        case ALL:
+        case TABLE:
+        default:
+          stopRow = new byte[table.getName().length + 1];
+          System.arraycopy(table.getName(), 0, stopRow, 0, table.getName().length);
+          stopRow[stopRow.length - 1] = ' ';
+          break;
       }
       return stopRow;
     });

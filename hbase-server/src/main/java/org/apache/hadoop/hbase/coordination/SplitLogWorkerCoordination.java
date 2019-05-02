@@ -28,7 +28,7 @@ import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.SplitLogWorker;
 import org.apache.hadoop.hbase.regionserver.SplitLogWorker.TaskExecutor;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Coordinated operations for {@link SplitLogWorker} and
@@ -47,9 +47,6 @@ import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTe
  */
 @InterfaceAudience.Private
 public interface SplitLogWorkerCoordination {
-
-/* SplitLogWorker part */
-  int DEFAULT_MAX_SPLITTERS = 2;
 
   /**
    * Initialize internal values. This method should be used when corresponding SplitLogWorker

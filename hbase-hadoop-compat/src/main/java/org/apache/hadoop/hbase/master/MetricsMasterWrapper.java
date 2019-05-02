@@ -20,11 +20,14 @@ package org.apache.hadoop.hbase.master;
 
 import java.util.Map;
 import java.util.Map.Entry;
+import org.apache.hadoop.hbase.util.PairOfSameType;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * This is the interface that will expose information to hadoop1/hadoop2 implementations of the
  * MetricsMasterSource.
  */
+@InterfaceAudience.Private
 public interface MetricsMasterWrapper {
 
   /**
@@ -139,4 +142,11 @@ public interface MetricsMasterWrapper {
    * Get the time in Millis when the master finished initializing/becoming the active master
    */
   long getMasterInitializationTime();
+
+  /**
+   * Get the online and offline region counts
+   *
+   * @return pair of count for online regions and offline regions
+   */
+  PairOfSameType<Integer> getRegionCounts();
 }

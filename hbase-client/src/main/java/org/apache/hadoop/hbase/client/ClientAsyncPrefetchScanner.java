@@ -17,7 +17,7 @@
  */
 package org.apache.hadoop.hbase.client;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.hadoop.hbase.client.ConnectionUtils.calcEstimatedSize;
 
@@ -27,7 +27,6 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -146,7 +145,6 @@ public class ClientAsyncPrefetchScanner extends ClientSimpleScanner {
     // Rethrow the exception so the application can handle it.
     while (!exceptionsQueue.isEmpty()) {
       Exception first = exceptionsQueue.peek();
-      first.printStackTrace();
       if (first instanceof IOException) {
         throw (IOException) first;
       }

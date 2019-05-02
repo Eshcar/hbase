@@ -1,6 +1,4 @@
-/*
- * Copyright The Apache Software Foundation
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,9 +17,12 @@
  */
 package org.apache.hadoop.hbase.filter;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -30,24 +31,28 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.testclassification.FilterTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test if Scan.setRowPrefixFilter works as intended.
  */
 @Category({FilterTests.class, MediumTests.class})
 public class TestScanRowPrefix extends FilterTestingCluster {
-  private static final Log LOG = LogFactory
-      .getLog(TestScanRowPrefix.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestScanRowPrefix.class);
+
+  private static final Logger LOG = LoggerFactory
+      .getLogger(TestScanRowPrefix.class);
 
   @Rule
   public TestName name = new TestName();
@@ -80,14 +85,14 @@ public class TestScanRowPrefix extends FilterTestingCluster {
     for (byte[] rowId: rowIds) {
       Put p = new Put(rowId);
       // Use the rowId as the column qualifier
-      p.addColumn("F".getBytes(), rowId, "Dummy value".getBytes());
+      p.addColumn(Bytes.toBytes("F"), rowId, Bytes.toBytes("Dummy value"));
       table.put(p);
     }
 
     byte[] prefix0 = {};
     List<byte[]> expected0 = new ArrayList<>(16);
     expected0.addAll(Arrays.asList(rowIds)); // Expect all rows
-    
+
     byte[] prefix1 = {(byte) 0x12, (byte) 0x23};
     List<byte[]> expected1 = new ArrayList<>(16);
     expected1.add(rowIds[2]);

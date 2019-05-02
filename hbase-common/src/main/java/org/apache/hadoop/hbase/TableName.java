@@ -24,8 +24,8 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * Immutable POJO class for representing a table name.
@@ -80,9 +80,14 @@ public final class TableName implements Comparable<TableName> {
   public static final TableName META_TABLE_NAME =
       valueOf(NamespaceDescriptor.SYSTEM_NAMESPACE_NAME_STR, "meta");
 
-  /** The Namespace table's name. */
+  /**
+   * The Namespace table's name.
+   * @deprecated We have folded the data in namespace table into meta table, so do not use it any
+   *             more.
+   */
+  @Deprecated
   public static final TableName NAMESPACE_TABLE_NAME =
-      valueOf(NamespaceDescriptor.SYSTEM_NAMESPACE_NAME_STR, "namespace");
+    valueOf(NamespaceDescriptor.SYSTEM_NAMESPACE_NAME_STR, "namespace");
 
   public static final String OLD_META_STR = ".META.";
   public static final String OLD_ROOT_STR = "-ROOT-";
@@ -141,7 +146,7 @@ public final class TableName implements Comparable<TableName> {
     }
 
     int namespaceDelimIndex =
-      org.apache.hadoop.hbase.shaded.com.google.common.primitives.Bytes.lastIndexOf(tableName,
+      org.apache.hbase.thirdparty.com.google.common.primitives.Bytes.lastIndexOf(tableName,
         (byte) NAMESPACE_DELIM);
     if (namespaceDelimIndex < 0){
       isLegalTableQualifierName(tableName);
@@ -436,7 +441,7 @@ public final class TableName implements Comparable<TableName> {
     }
 
     int namespaceDelimIndex =
-      org.apache.hadoop.hbase.shaded.com.google.common.primitives.Bytes.lastIndexOf(fullName,
+      org.apache.hbase.thirdparty.com.google.common.primitives.Bytes.lastIndexOf(fullName,
         (byte) NAMESPACE_DELIM);
 
     if (namespaceDelimIndex < 0) {

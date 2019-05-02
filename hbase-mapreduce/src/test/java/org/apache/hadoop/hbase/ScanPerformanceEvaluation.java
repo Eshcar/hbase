@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.cli.CommandLine;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -47,7 +46,8 @@ import org.apache.hadoop.mapreduce.lib.output.NullOutputFormat;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Stopwatch;
+import org.apache.hbase.thirdparty.com.google.common.base.Stopwatch;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.CommandLine;
 
 /**
  * A simple performance evaluation tool for single client and MR scans
@@ -56,7 +56,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.base.Stopwatch;
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.TOOLS)
 public class ScanPerformanceEvaluation extends AbstractHBaseTool {
 
-  private static final String HBASE_COUNTER_GROUP_NAME = "HBase Counters";
+  private static final String HBASE_COUNTER_GROUP_NAME = "HBaseCounters";
 
   private String type;
   private String file;
@@ -175,7 +175,7 @@ public class ScanPerformanceEvaluation extends AbstractHBaseTool {
     table.close();
     connection.close();
 
-    ScanMetrics metrics = scan.getScanMetrics();
+    ScanMetrics metrics = scanner.getScanMetrics();
     long totalBytes = metrics.countOfBytesInResults.get();
     double throughput = (double)totalBytes / scanTimer.elapsed(TimeUnit.SECONDS);
     double throughputRows = (double)numRows / scanTimer.elapsed(TimeUnit.SECONDS);

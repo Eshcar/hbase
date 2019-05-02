@@ -21,7 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
@@ -38,11 +38,16 @@ import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({ CoprocessorTests.class, MediumTests.class })
 public class TestZooKeeperScanPolicyObserver {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestZooKeeperScanPolicyObserver.class);
 
   private static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
@@ -59,11 +64,11 @@ public class TestZooKeeperScanPolicyObserver {
     UTIL.startMiniCluster(3);
     UTIL.getAdmin()
         .createTable(TableDescriptorBuilder.newBuilder(NAME)
-            .addCoprocessor(ZooKeeperScanPolicyObserver.class.getName())
+            .setCoprocessor(ZooKeeperScanPolicyObserver.class.getName())
             .setValue(ZooKeeperScanPolicyObserver.ZK_ENSEMBLE_KEY,
               "localhost:" + UTIL.getZkCluster().getClientPort())
             .setValue(ZooKeeperScanPolicyObserver.ZK_SESSION_TIMEOUT_KEY, "2000")
-            .addColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY).build()).build());
+            .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(FAMILY).build()).build());
     TABLE = UTIL.getConnection().getTable(NAME);
   }
 

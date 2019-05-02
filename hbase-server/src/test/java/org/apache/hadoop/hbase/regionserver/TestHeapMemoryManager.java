@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -23,13 +22,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.ChoreService;
 import org.apache.hadoop.hbase.CoordinatedStateManager;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -37,6 +37,7 @@ import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.Waiter;
 import org.apache.hadoop.hbase.client.ClusterConnection;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
 import org.apache.hadoop.hbase.io.hfile.BlockCacheKey;
 import org.apache.hadoop.hbase.io.hfile.CacheStats;
@@ -48,13 +49,17 @@ import org.apache.hadoop.hbase.regionserver.HeapMemoryManager.TunerContext;
 import org.apache.hadoop.hbase.regionserver.HeapMemoryManager.TunerResult;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
-import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestHeapMemoryManager {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestHeapMemoryManager.class);
 
   private static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
@@ -643,8 +648,7 @@ public class TestHeapMemoryManager {
     }
 
     @Override
-    public void cacheBlock(BlockCacheKey cacheKey, Cacheable buf, boolean inMemory,
-        boolean cacheDataInL1) {
+    public void cacheBlock(BlockCacheKey cacheKey, Cacheable buf, boolean inMemory) {
 
     }
 
@@ -753,14 +757,15 @@ public class TestHeapMemoryManager {
     }
 
     @Override
-    public void requestFlush(HRegion region, boolean forceFlushAllStores,
+    public boolean requestFlush(HRegion region, boolean forceFlushAllStores,
         FlushLifeCycleTracker tracker) {
       this.listener.flushRequested(flushType, region);
+      return true;
     }
 
     @Override
-    public void requestDelayedFlush(HRegion region, long delay, boolean forceFlushAllStores) {
-
+    public boolean requestDelayedFlush(HRegion region, long delay, boolean forceFlushAllStores) {
+      return true;
     }
 
     @Override
@@ -828,11 +833,6 @@ public class TestHeapMemoryManager {
     }
 
     @Override
-    public MetaTableLocator getMetaTableLocator() {
-      return null;
-    }
-
-    @Override
     public ServerName getServerName() {
       return ServerName.valueOf("server1",4000,12345);
     }
@@ -856,6 +856,11 @@ public class TestHeapMemoryManager {
     @Override
     public boolean isStopping() {
       return false;
+    }
+
+    @Override
+    public Connection createConnection(Configuration conf) throws IOException {
+      return null;
     }
   }
 

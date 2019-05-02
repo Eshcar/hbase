@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.coprocessor;
 
 import static org.junit.Assert.assertFalse;
@@ -29,11 +28,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HRegionLocation;
@@ -66,16 +63,18 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.GetTableDescriptorsRequest;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.GetTableNamesRequest;
-
 
 /**
  * Tests invocation of the {@link org.apache.hadoop.hbase.coprocessor.MasterObserver}
@@ -83,13 +82,19 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.GetTableNa
  */
 @Category({CoprocessorTests.class, MediumTests.class})
 public class TestMasterObserver {
-  private static final Log LOG = LogFactory.getLog(TestMasterObserver.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMasterObserver.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestMasterObserver.class);
 
   public static CountDownLatch tableCreationLatch = new CountDownLatch(1);
   public static CountDownLatch tableDeletionLatch = new CountDownLatch(1);
 
   public static class CPMasterObserver implements MasterCoprocessor, MasterObserver {
 
+    private boolean preCreateTableRegionInfosCalled;
     private boolean preCreateTableCalled;
     private boolean postCreateTableCalled;
     private boolean preDeleteTableCalled;
@@ -182,6 +187,7 @@ public class TestMasterObserver {
     private boolean postLockHeartbeatCalled;
 
     public void resetStates() {
+      preCreateTableRegionInfosCalled = false;
       preCreateTableCalled = false;
       postCreateTableCalled = false;
       preDeleteTableCalled = false;
@@ -294,6 +300,14 @@ public class TestMasterObserver {
     }
 
     @Override
+    public TableDescriptor preCreateTableRegionsInfos(
+        ObserverContext<MasterCoprocessorEnvironment> ctx, TableDescriptor desc)
+        throws IOException {
+      preCreateTableRegionInfosCalled = true;
+      return desc;
+    }
+
+    @Override
     public void preCreateTable(ObserverContext<MasterCoprocessorEnvironment> env,
         TableDescriptor desc, RegionInfo[] regions) throws IOException {
       preCreateTableCalled = true;
@@ -306,11 +320,11 @@ public class TestMasterObserver {
     }
 
     public boolean wasCreateTableCalled() {
-      return preCreateTableCalled && postCreateTableCalled;
+      return preCreateTableRegionInfosCalled && preCreateTableCalled && postCreateTableCalled;
     }
 
     public boolean preCreateTableCalledOnly() {
-      return preCreateTableCalled && !postCreateTableCalled;
+      return preCreateTableRegionInfosCalled && preCreateTableCalled && !postCreateTableCalled;
     }
 
     @Override
@@ -359,14 +373,17 @@ public class TestMasterObserver {
     }
 
     @Override
-    public void preModifyTable(ObserverContext<MasterCoprocessorEnvironment> env,
-        TableName tableName, TableDescriptor htd) throws IOException {
+    public TableDescriptor preModifyTable(ObserverContext<MasterCoprocessorEnvironment> env,
+        TableName tableName, final TableDescriptor currentDescriptor,
+      final TableDescriptor newDescriptor) throws IOException {
       preModifyTableCalled = true;
+      return newDescriptor;
     }
 
     @Override
     public void postModifyTable(ObserverContext<MasterCoprocessorEnvironment> env,
-        TableName tableName, TableDescriptor htd) throws IOException {
+        TableName tableName, final TableDescriptor oldDescriptor,
+      final TableDescriptor currentDescriptor) throws IOException {
       postModifyTableCalled = true;
     }
 
@@ -420,13 +437,13 @@ public class TestMasterObserver {
 
     @Override
     public void preModifyNamespace(ObserverContext<MasterCoprocessorEnvironment> env,
-        NamespaceDescriptor ns) throws IOException {
+        NamespaceDescriptor currentNsDesc, NamespaceDescriptor newNsDesc) throws IOException {
       preModifyNamespaceCalled = true;
     }
 
     @Override
     public void postModifyNamespace(ObserverContext<MasterCoprocessorEnvironment> env,
-        NamespaceDescriptor ns) throws IOException {
+        NamespaceDescriptor oldNsDesc, NamespaceDescriptor currentNsDesc) throws IOException {
       postModifyNamespaceCalled = true;
     }
 
@@ -913,7 +930,8 @@ public class TestMasterObserver {
     public void preModifyTableAction(
         final ObserverContext<MasterCoprocessorEnvironment> env,
         final TableName tableName,
-        final TableDescriptor htd) throws IOException {
+        final TableDescriptor currentDescriptor,
+        final TableDescriptor newDescriptor) throws IOException {
       preModifyTableActionCalled = true;
     }
 
@@ -921,7 +939,8 @@ public class TestMasterObserver {
     public void postCompletedModifyTableAction(
         final ObserverContext<MasterCoprocessorEnvironment> env,
         final TableName tableName,
-        final TableDescriptor htd) throws IOException {
+        final TableDescriptor oldDescriptor,
+        final TableDescriptor currentDescriptor) throws IOException {
       postCompletedModifyTableActionCalled = true;
     }
 
@@ -933,6 +952,7 @@ public class TestMasterObserver {
       return preModifyTableActionCalled && !postCompletedModifyTableActionCalled;
     }
 
+    @Override
     public void preEnableTableAction(
         final ObserverContext<MasterCoprocessorEnvironment> ctx, final TableName tableName)
         throws IOException {
@@ -1236,11 +1256,11 @@ public class TestMasterObserver {
   }
 
   private static HBaseTestingUtility UTIL = new HBaseTestingUtility();
-  private static byte[] TEST_SNAPSHOT = Bytes.toBytes("observed_snapshot");
+  private static String TEST_SNAPSHOT = "observed_snapshot";
   private static TableName TEST_CLONE = TableName.valueOf("observed_clone");
   private static byte[] TEST_FAMILY = Bytes.toBytes("fam1");
-  private static byte[] TEST_FAMILY2 = Bytes.toBytes("fam2");
-  @Rule public TestName name = new TestName();
+  @Rule
+  public TestName name = new TestName();
 
   @BeforeClass
   public static void setupBeforeClass() throws Exception {
@@ -1256,7 +1276,7 @@ public class TestMasterObserver {
     UTIL.shutdownMiniCluster();
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testStarted() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
 
@@ -1275,7 +1295,7 @@ public class TestMasterObserver {
         cp.wasStartMasterCalled());
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testTableOperations() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
     final TableName tableName = TableName.valueOf(name.getMethodName());
@@ -1404,7 +1424,7 @@ public class TestMasterObserver {
     }
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testSnapshotOperations() throws Exception {
     final TableName tableName = TableName.valueOf(name.getMethodName());
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
@@ -1465,7 +1485,7 @@ public class TestMasterObserver {
     }
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testNamespaceOperations() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
     String testNamespace = "observed_ns";
@@ -1487,10 +1507,10 @@ public class TestMasterObserver {
 
   private void modifyTableSync(Admin admin, TableName tableName, HTableDescriptor htd)
       throws IOException {
-    admin.modifyTable(tableName, htd);
+    admin.modifyTable(htd);
     //wait until modify table finishes
     for (int t = 0; t < 100; t++) { //10 sec timeout
-      HTableDescriptor td = admin.getTableDescriptor(htd.getTableName());
+      HTableDescriptor td = new HTableDescriptor(admin.getDescriptor(htd.getTableName()));
       if (td.equals(htd)) {
         break;
       }
@@ -1498,7 +1518,7 @@ public class TestMasterObserver {
     }
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testRegionTransitionOperations() throws Exception {
     final TableName tableName = TableName.valueOf(name.getMethodName());
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
@@ -1524,7 +1544,7 @@ public class TestMasterObserver {
       assertNotNull("Found a non-null entry", firstGoodPair);
       LOG.info("Found " + firstGoodPair.toString());
       // Try to force a move
-      Collection<ServerName> servers = master.getClusterStatus().getServers();
+      Collection<ServerName> servers = master.getClusterMetrics().getLiveServerMetrics().keySet();
       String destName = null;
       String serverNameForFirstRegion = firstGoodPair.getServerName().toString();
       LOG.info("serverNameForFirstRegion=" + serverNameForFirstRegion);
@@ -1587,7 +1607,7 @@ public class TestMasterObserver {
     }
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testTableDescriptorsEnumeration() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
 
@@ -1604,7 +1624,7 @@ public class TestMasterObserver {
       cp.wasGetTableDescriptorsCalled());
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testTableNamesEnumeration() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
 
@@ -1619,7 +1639,7 @@ public class TestMasterObserver {
       cp.wasGetTableNamesCalled());
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testAbortProcedureOperation() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
 
@@ -1634,7 +1654,7 @@ public class TestMasterObserver {
       cp.wasAbortProcedureCalled());
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testGetProceduresOperation() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
 
@@ -1649,7 +1669,7 @@ public class TestMasterObserver {
       cp.wasGetProceduresCalled());
   }
 
-  @Test (timeout=180000)
+  @Test
   public void testGetLocksOperation() throws Exception {
     MiniHBaseCluster cluster = UTIL.getHBaseCluster();
 

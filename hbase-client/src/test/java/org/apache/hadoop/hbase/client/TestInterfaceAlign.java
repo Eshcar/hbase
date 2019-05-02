@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.client;
 
 import static org.junit.Assert.assertTrue;
@@ -24,22 +22,24 @@ import static org.junit.Assert.assertTrue;
 import java.io.Closeable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Abortable;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({ ClientTests.class, SmallTests.class })
 public class TestInterfaceAlign {
 
-  private static final Log LOG = LogFactory.getLog(TestInterfaceAlign.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+    HBaseClassTestRule.forClass(TestInterfaceAlign.class);
 
   /**
    * Test methods name match up
@@ -51,12 +51,11 @@ public class TestInterfaceAlign {
 
     // Remove some special methods
     adminMethodNames.remove("getOperationTimeout");
+    adminMethodNames.remove("getSyncWaitTimeout");
     adminMethodNames.remove("getConnection");
     adminMethodNames.remove("getConfiguration");
     adminMethodNames.removeAll(getMethodNames(Abortable.class));
     adminMethodNames.removeAll(getMethodNames(Closeable.class));
-    // TODO: Remove this after HBASE-19139
-    adminMethodNames.remove("clearBlockCache");
 
     adminMethodNames.forEach(method -> {
       boolean contains = asyncAdminMethodNames.contains(method);
@@ -75,8 +74,10 @@ public class TestInterfaceAlign {
   }
 
   private <T> List<String> getMethodNames(Class<T> c) {
-    return Arrays.asList(c.getDeclaredMethods()).stream().filter(m -> !isDeprecated(m))
-        .map(Method::getName).distinct().collect(Collectors.toList());
+    // DON'T use the getDeclaredMethods as we want to check the Public APIs only.
+    return Arrays.asList(c.getMethods()).stream().filter(m -> !isDeprecated(m))
+      .filter(m -> !Modifier.isStatic(m.getModifiers())).map(Method::getName).distinct()
+      .collect(Collectors.toList());
   }
 
   private boolean isDeprecated(Method method) {

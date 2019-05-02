@@ -20,13 +20,18 @@
 FROM maven:3.5-jdk-8
 
 RUN apt-get -q update && apt-get -q install --no-install-recommends -y \
+       git \
        bats \
        findbugs \
        libperl-critic-perl \
        pylint \
        python-dateutil \
        rsync \
+       make \
+       gcc \
+       libc6-dev \
        ruby \
+       ruby-dev \
        shellcheck \
        wget \
        && \

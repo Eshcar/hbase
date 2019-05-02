@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,15 +19,14 @@
 package org.apache.hadoop.hbase.zookeeper;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.curator.shaded.com.google.common.base.Stopwatch;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeperMain;
+
 
 /**
  * Tool for running ZookeeperMain from HBase by  reading a ZooKeeper server
@@ -48,26 +46,20 @@ public class ZKMainServer {
    */
   private static class HACK_UNTIL_ZOOKEEPER_1897_ZooKeeperMain extends ZooKeeperMain {
     public HACK_UNTIL_ZOOKEEPER_1897_ZooKeeperMain(String[] args)
-    throws IOException, InterruptedException {
+      throws IOException, InterruptedException {
       super(args);
       // Make sure we are connected before we proceed. Can take a while on some systems. If we
       // run the command without being connected, we get ConnectionLoss KeeperErrorConnection...
-      Stopwatch stopWatch = Stopwatch.createStarted();
-      while (!this.zk.getState().isConnected()) {
-        Thread.sleep(1);
-        if (stopWatch.elapsed(TimeUnit.SECONDS) > 10) {
-          throw new InterruptedException("Failed connect after waiting " +
-              stopWatch.elapsed(TimeUnit.SECONDS) + "seconds; state=" + this.zk.getState() +
-              "; " + this.zk);
-        }
-      }
+      // Make it 30seconds. We dont' have a config in this context and zk doesn't have
+      // a timeout until after connection. 30000ms is default for zk.
+      ZooKeeperHelper.ensureConnectedZooKeeper(this.zk, 30000);
     }
 
     /**
      * Run the command-line args passed.  Calls System.exit when done.
-     * @throws KeeperException
-     * @throws IOException
-     * @throws InterruptedException
+     * @throws KeeperException if an unexpected ZooKeeper exception happens
+     * @throws IOException in case of a network failure
+     * @throws InterruptedException if the ZooKeeper client closes
      */
     void runCmdLine() throws KeeperException, IOException, InterruptedException {
       processCmd(this.cl);
@@ -76,22 +68,26 @@ public class ZKMainServer {
   }
 
   /**
-   * @param args
+   * @param args the arguments to check
    * @return True if argument strings have a '-server' in them.
    */
-  private static boolean hasServer(final String args[]) {
+  private static boolean hasServer(final String[] args) {
     return args.length > 0 && args[0].equals(SERVER_ARG);
   }
 
   /**
-   * @param args
+   * @param args the arguments to check for command-line arguments
    * @return True if command-line arguments were passed.
    */
-  private static boolean hasCommandLineArguments(final String args[]) {
+  private static boolean hasCommandLineArguments(final String[] args) {
     if (hasServer(args)) {
-      if (args.length < 2) throw new IllegalStateException("-server param but no value");
+      if (args.length < 2) {
+        throw new IllegalStateException("-server param but no value");
+      }
+
       return args.length > 2;
     }
+
     return args.length > 0;
   }
 
@@ -99,7 +95,7 @@ public class ZKMainServer {
    * Run the tool.
    * @param args Command line arguments. First arg is path to zookeepers file.
    */
-  public static void main(String args[]) throws Exception {
+  public static void main(String[] args) throws Exception {
     String [] newArgs = args;
     if (!hasServer(args)) {
       // Add the zk ensemble from configuration if none passed on command-line.

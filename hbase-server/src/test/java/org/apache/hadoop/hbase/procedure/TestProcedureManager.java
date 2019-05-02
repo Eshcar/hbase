@@ -21,23 +21,26 @@ import static org.junit.Assert.assertArrayEquals;
 
 import java.io.IOException;
 import java.util.HashMap;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.testclassification.MasterTests;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.testclassification.MasterTests;
+import org.apache.hadoop.hbase.testclassification.MediumTests;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-@Category({MasterTests.class, SmallTests.class})
+@Category({MasterTests.class, MediumTests.class})
 public class TestProcedureManager {
 
-  private static final Log LOG = LogFactory.getLog(TestProcedureManager.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestProcedureManager.class);
+
   private static final int NUM_RS = 2;
   private static HBaseTestingUtility util = new HBaseTestingUtility();
 
@@ -63,9 +66,9 @@ public class TestProcedureManager {
   public void testSimpleProcedureManager() throws IOException {
     Admin admin = util.getAdmin();
 
-    byte[] result = admin.execProcedureWithRet(SimpleMasterProcedureManager.SIMPLE_SIGNATURE,
+    byte[] result = admin.execProcedureWithReturn(SimpleMasterProcedureManager.SIMPLE_SIGNATURE,
         "mytest", new HashMap<>());
     assertArrayEquals("Incorrect return data from execProcedure",
-      SimpleMasterProcedureManager.SIMPLE_DATA.getBytes(), result);
+        Bytes.toBytes(SimpleMasterProcedureManager.SIMPLE_DATA), result);
   }
 }

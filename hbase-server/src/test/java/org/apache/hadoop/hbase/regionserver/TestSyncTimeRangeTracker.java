@@ -20,22 +20,29 @@ package org.apache.hadoop.hbase.regionserver;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.ThreadLocalRandom;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestSyncTimeRangeTracker extends TestSimpleTimeRangeTracker {
 
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSyncTimeRangeTracker.class);
+
   private static final int NUM_KEYS = 10000000;
   private static final int NUM_OF_THREADS = 20;
 
+  @Override
   protected TimeRangeTracker getTimeRangeTracker() {
     return TimeRangeTracker.create(TimeRangeTracker.Type.SYNC);
   }
 
+  @Override
   protected TimeRangeTracker getTimeRangeTracker(long min, long max) {
     return TimeRangeTracker.create(TimeRangeTracker.Type.SYNC, min, max);
   }
@@ -77,7 +84,7 @@ public class TestSyncTimeRangeTracker extends TestSimpleTimeRangeTracker {
     assertTrue(trr.getMin() == 0);
   }
 
-  class RandomTestData {
+  static class RandomTestData {
     private long[] keys = new long[NUM_KEYS];
     private long min = Long.MAX_VALUE;
     private long max = 0;
@@ -107,7 +114,7 @@ public class TestSyncTimeRangeTracker extends TestSimpleTimeRangeTracker {
     }
   }
 
-  class TrtUpdateRunnable implements Runnable {
+  static class TrtUpdateRunnable implements Runnable {
 
     private TimeRangeTracker trt;
     private RandomTestData data;
@@ -116,6 +123,7 @@ public class TestSyncTimeRangeTracker extends TestSimpleTimeRangeTracker {
       this.data = data;
     }
 
+    @Override
     public void run() {
       for (long key : data.keys) {
         trt.includeTimestamp(key);

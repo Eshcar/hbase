@@ -31,16 +31,12 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.apache.commons.cli.CommandLine;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.ClusterStatus.Option;
+import org.apache.hadoop.hbase.ClusterMetrics.Option;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.IntegrationTestBase;
@@ -88,9 +84,11 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Joiner;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.base.Joiner;
+import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.CommandLine;
 
 /**
  * Test Bulk Load and MR on a distributed cluster.
@@ -128,7 +126,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.Sets;
 @Category(IntegrationTests.class)
 public class IntegrationTestBulkLoad extends IntegrationTestBase {
 
-  private static final Log LOG = LogFactory.getLog(IntegrationTestBulkLoad.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IntegrationTestBulkLoad.class);
 
   private static final byte[] CHAIN_FAM = Bytes.toBytes("L");
   private static final byte[] SORT_FAM  = Bytes.toBytes("S");
@@ -197,7 +195,7 @@ public class IntegrationTestBulkLoad extends IntegrationTestBase {
             Thread.sleep(sleepTime.get());
           }
         } catch (InterruptedException e1) {
-          LOG.error(e1);
+          LOG.error(e1.toString(), e1);
         }
       }
     }
@@ -214,7 +212,7 @@ public class IntegrationTestBulkLoad extends IntegrationTestBase {
     Admin admin = util.getAdmin();
     TableDescriptor desc = admin.getDescriptor(t);
     TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(desc);
-    builder.addCoprocessor(SlowMeCoproScanOperations.class.getName());
+    builder.setCoprocessor(SlowMeCoproScanOperations.class.getName());
     HBaseTestingUtility.modifyTableSync(admin, builder.build());
   }
 
@@ -672,9 +670,9 @@ public class IntegrationTestBulkLoad extends IntegrationTestBase {
       LOG.error("Failure in chain verification: " + msg);
       try (Connection connection = ConnectionFactory.createConnection(context.getConfiguration());
           Admin admin = connection.getAdmin()) {
-        LOG.error("cluster status:\n" + admin.getClusterStatus());
+        LOG.error("cluster metrics:\n" + admin.getClusterMetrics());
         LOG.error("table regions:\n"
-            + Joiner.on("\n").join(admin.getTableRegions(table)));
+            + Joiner.on("\n").join(admin.getRegions(table)));
       }
     }
   }
@@ -758,8 +756,8 @@ public class IntegrationTestBulkLoad extends IntegrationTestBase {
     if (util.isDistributedCluster()) {
       util.getConfiguration().setIfUnset(NUM_MAPS_KEY,
           Integer.toString(util.getAdmin()
-                               .getClusterStatus(EnumSet.of(Option.LIVE_SERVERS))
-                               .getServersSize() * 10)
+                               .getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS))
+                               .getLiveServerMetrics().size() * 10)
       );
       util.getConfiguration().setIfUnset(NUM_IMPORT_ROUNDS_KEY, "5");
     } else {

@@ -20,12 +20,8 @@ package org.apache.hadoop.hbase.rest;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
-
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.StreamingOutput;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.client.Result;
@@ -34,9 +30,13 @@ import org.apache.hadoop.hbase.rest.model.CellModel;
 import org.apache.hadoop.hbase.rest.model.CellSetModel;
 import org.apache.hadoop.hbase.rest.model.RowModel;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+@InterfaceAudience.Private
 public class ProtobufStreamingOutput implements StreamingOutput {
-  private static final Log LOG = LogFactory.getLog(ProtobufStreamingOutput.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ProtobufStreamingOutput.class);
 
   private String contentType;
   private ResultScanner resultScanner;

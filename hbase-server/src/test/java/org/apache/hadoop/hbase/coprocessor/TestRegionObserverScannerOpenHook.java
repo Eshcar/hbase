@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.coprocessor;
 
 import static org.junit.Assert.assertEquals;
@@ -26,13 +24,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.Coprocessor;
-import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -71,6 +68,7 @@ import org.apache.hadoop.hbase.testclassification.CoprocessorTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WAL;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -78,6 +76,11 @@ import org.junit.rules.TestName;
 
 @Category({CoprocessorTests.class, MediumTests.class})
 public class TestRegionObserverScannerOpenHook {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRegionObserverScannerOpenHook.class);
+
   private static HBaseTestingUtility UTIL = new HBaseTestingUtility();
   static final Path DIR = UTIL.getDataTestDir();
 
@@ -205,7 +208,8 @@ public class TestRegionObserverScannerOpenHook {
     byte[] A = Bytes.toBytes("A");
     byte[][] FAMILIES = new byte[][] { A };
 
-    Configuration conf = HBaseConfiguration.create();
+    // Use new HTU to not overlap with the DFS cluster started in #CompactionStacking
+    Configuration conf = new HBaseTestingUtility().getConfiguration();
     HRegion region = initHRegion(TABLE, getClass().getName(), conf, FAMILIES);
     RegionCoprocessorHost h = region.getCoprocessorHost();
     h.load(NoDataFromScan.class, Coprocessor.PRIORITY_HIGHEST, conf);
@@ -230,7 +234,8 @@ public class TestRegionObserverScannerOpenHook {
     byte[] A = Bytes.toBytes("A");
     byte[][] FAMILIES = new byte[][] { A };
 
-    Configuration conf = HBaseConfiguration.create();
+    // Use new HTU to not overlap with the DFS cluster started in #CompactionStacking
+    Configuration conf = new HBaseTestingUtility().getConfiguration();
     HRegion region = initHRegion(TABLE, getClass().getName(), conf, FAMILIES);
     RegionCoprocessorHost h = region.getCoprocessorHost();
     h.load(NoDataFromFlush.class, Coprocessor.PRIORITY_HIGHEST, conf);

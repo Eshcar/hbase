@@ -24,9 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.MetaTableAccessor;
@@ -43,12 +40,17 @@ import org.apache.hadoop.hbase.procedure.Procedure;
 import org.apache.hadoop.hbase.procedure.ProcedureCoordinator;
 import org.apache.hadoop.hbase.procedure.ProcedureCoordinatorRpcs;
 import org.apache.hadoop.hbase.procedure.ZKProcedureCoordinator;
+import org.apache.hadoop.hbase.security.User;
+import org.apache.hadoop.hbase.security.access.AccessChecker;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ProcedureDescription;
 
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
@@ -65,14 +67,14 @@ public class MasterFlushTableProcedureManager extends MasterProcedureManager {
       "hbase.flush.procedure.master.threads";
   private static final int FLUSH_PROC_POOL_THREADS_DEFAULT = 1;
 
-  private static final Log LOG = LogFactory.getLog(MasterFlushTableProcedureManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MasterFlushTableProcedureManager.class);
 
   private MasterServices master;
   private ProcedureCoordinator coordinator;
   private Map<TableName, Procedure> procMap = new HashMap<>();
   private boolean stopped;
 
-  public MasterFlushTableProcedureManager() {};
+  public MasterFlushTableProcedureManager() {}
 
   @Override
   public void stop(String why) {
@@ -129,7 +131,7 @@ public class MasterFlushTableProcedureManager extends MasterProcedureManager {
     List<Pair<RegionInfo, ServerName>> regionsAndLocations;
 
     if (TableName.META_TABLE_NAME.equals(tableName)) {
-      regionsAndLocations = new MetaTableLocator().getMetaRegionsAndLocations(
+      regionsAndLocations = MetaTableLocator.getMetaRegionsAndLocations(
         master.getZooKeeper());
     } else {
       regionsAndLocations = MetaTableAccessor.getTableRegionsAndLocations(
@@ -180,6 +182,13 @@ public class MasterFlushTableProcedureManager extends MasterProcedureManager {
       monitor.receive(ee);
     }
     monitor.rethrowException();
+  }
+
+  @Override
+  public void checkPermissions(ProcedureDescription desc, AccessChecker accessChecker, User user)
+      throws IOException {
+    // Done by AccessController as part of preTableFlush coprocessor hook (legacy code path).
+    // In future, when we AC is removed for good, that check should be moved here.
   }
 
   @Override

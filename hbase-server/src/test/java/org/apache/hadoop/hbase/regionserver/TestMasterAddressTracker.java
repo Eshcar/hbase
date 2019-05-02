@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -24,10 +23,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.Semaphore;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.zookeeper.MasterAddressTracker;
@@ -36,14 +34,22 @@ import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.rules.TestName;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestMasterAddressTracker {
-  private static final Log LOG = LogFactory.getLog(TestMasterAddressTracker.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMasterAddressTracker.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestMasterAddressTracker.class);
 
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
 
@@ -82,7 +88,7 @@ public class TestMasterAddressTracker {
       throws Exception {
     ZKWatcher zk = new ZKWatcher(TEST_UTIL.getConfiguration(),
         name.getMethodName(), null);
-    ZKUtil.createAndFailSilent(zk, zk.znodePaths.baseZNode);
+    ZKUtil.createAndFailSilent(zk, zk.getZNodePaths().baseZNode);
 
     // Should not have a master yet
     MasterAddressTracker addressTracker = new MasterAddressTracker(zk, null);
@@ -91,12 +97,14 @@ public class TestMasterAddressTracker {
     zk.registerListener(addressTracker);
 
     // Use a listener to capture when the node is actually created
-    NodeCreationListener listener = new NodeCreationListener(zk, zk.znodePaths.masterAddressZNode);
+    NodeCreationListener listener = new NodeCreationListener(zk,
+            zk.getZNodePaths().masterAddressZNode);
     zk.registerListener(listener);
 
     if (sn != null) {
       LOG.info("Creating master node");
-      MasterAddressTracker.setMasterAddress(zk, zk.znodePaths.masterAddressZNode, sn, infoPort);
+      MasterAddressTracker.setMasterAddress(zk, zk.getZNodePaths().masterAddressZNode,
+              sn, infoPort);
 
       // Wait for the node to be created
       LOG.info("Waiting for master address manager to be notified");
@@ -157,7 +165,7 @@ public class TestMasterAddressTracker {
   }
 
   public static class NodeCreationListener extends ZKListener {
-    private static final Log LOG = LogFactory.getLog(NodeCreationListener.class);
+    private static final Logger LOG = LoggerFactory.getLogger(NodeCreationListener.class);
 
     private Semaphore lock;
     private String node;

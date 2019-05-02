@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.filter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Objects;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
@@ -29,9 +30,9 @@ import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
 import org.apache.hadoop.hbase.util.Bytes;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 
 /**
  * A filter, based on the ColumnCountGetFilter, takes two arguments: limit and offset.
@@ -168,6 +169,7 @@ public class ColumnPaginationFilter extends FilterBase {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte [] toByteArray() {
     FilterProtos.ColumnPaginationFilter.Builder builder =
       FilterProtos.ColumnPaginationFilter.newBuilder();
@@ -207,6 +209,7 @@ public class ColumnPaginationFilter extends FilterBase {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof ColumnPaginationFilter)) return false;
@@ -227,5 +230,16 @@ public class ColumnPaginationFilter extends FilterBase {
     }
     return String.format("%s (%d, %d)", this.getClass().getSimpleName(),
         this.limit, this.offset);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return columnOffset == null ? Objects.hash(this.limit, this.offset) :
+      Objects.hash(this.limit, Bytes.hashCode(this.columnOffset));
   }
 }

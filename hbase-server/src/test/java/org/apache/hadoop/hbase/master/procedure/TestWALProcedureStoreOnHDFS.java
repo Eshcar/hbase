@@ -15,38 +15,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.master.procedure;
-
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility;
-import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility.TestProcedure;
-import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
-import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
-import org.apache.hadoop.hbase.testclassification.MasterTests;
-import org.apache.hadoop.hbase.testclassification.LargeTests;
-import org.apache.hadoop.hbase.util.Threads;
-import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hdfs.server.datanode.DataNode;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.log.HBaseMarkers;
+import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility;
+import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility.TestProcedure;
+import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
+import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
+import org.apache.hadoop.hbase.testclassification.LargeTests;
+import org.apache.hadoop.hbase.testclassification.MasterTests;
+import org.apache.hadoop.hbase.util.CommonFSUtils;
+import org.apache.hadoop.hbase.util.Threads;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.server.datanode.DataNode;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Category({MasterTests.class, LargeTests.class})
 public class TestWALProcedureStoreOnHDFS {
-  private static final Log LOG = LogFactory.getLog(TestWALProcedureStoreOnHDFS.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestWALProcedureStoreOnHDFS.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestWALProcedureStoreOnHDFS.class);
 
   protected static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
@@ -58,7 +63,7 @@ public class TestWALProcedureStoreOnHDFS {
 
     @Override
     public void abortProcess() {
-      LOG.fatal("Abort the Procedure Store");
+      LOG.error(HBaseMarkers.FATAL, "Abort the Procedure Store");
       store.stop(true);
     }
   };
@@ -78,16 +83,19 @@ public class TestWALProcedureStoreOnHDFS {
 
   // No @Before because some tests need to do additional config first
   private void setupDFS() throws Exception {
+    Configuration conf = UTIL.getConfiguration();
     MiniDFSCluster dfs = UTIL.startMiniDFSCluster(3);
+    CommonFSUtils.setWALRootDir(conf, new Path(conf.get("fs.defaultFS"), "/tmp/wal"));
 
     Path logDir = new Path(new Path(dfs.getFileSystem().getUri()), "/test-logs");
-    store = ProcedureTestingUtility.createWalStore(UTIL.getConfiguration(), logDir);
+    store = ProcedureTestingUtility.createWalStore(conf, logDir);
     store.registerListener(stopProcedureListener);
     store.start(8);
     store.recoverLease();
   }
 
-  @After
+  // No @After
+  @SuppressWarnings("JUnit4TearDownNotRun")
   public void tearDown() throws Exception {
     store.stop(false);
     UTIL.getDFSCluster().getFileSystem().delete(store.getWALDir(), true);
@@ -99,7 +107,7 @@ public class TestWALProcedureStoreOnHDFS {
     }
   }
 
-  @Test(timeout=60000, expected=RuntimeException.class)
+  @Test(expected=RuntimeException.class)
   public void testWalAbortOnLowReplication() throws Exception {
     setupDFS();
 
@@ -118,7 +126,7 @@ public class TestWALProcedureStoreOnHDFS {
     assertFalse(store.isRunning());
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testWalAbortOnLowReplicationWithQueuedWriters() throws Exception {
     setupDFS();
 
@@ -134,7 +142,7 @@ public class TestWALProcedureStoreOnHDFS {
     final AtomicInteger reCount = new AtomicInteger(0);
     Thread[] thread = new Thread[store.getNumThreads() * 2 + 1];
     for (int i = 0; i < thread.length; ++i) {
-      final long procId = i + 1;
+      final long procId = i + 1L;
       thread[i] = new Thread(() -> {
         try {
           LOG.debug("[S] INSERT " + procId);
@@ -162,7 +170,7 @@ public class TestWALProcedureStoreOnHDFS {
                                    reCount.get() < thread.length);
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testWalRollOnLowReplication() throws Exception {
     UTIL.getConfiguration().setInt("dfs.namenode.replication.min", 1);
     setupDFS();

@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -24,9 +23,8 @@ import static org.apache.hadoop.hbase.HBaseTestingUtility.fam2;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestCase;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -41,21 +39,29 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test minor compactions
  */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestMinorCompaction {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMinorCompaction.class);
+
   @Rule public TestName name = new TestName();
-  private static final Log LOG = LogFactory.getLog(TestMinorCompaction.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(TestMinorCompaction.class.getName());
   private static final HBaseTestingUtility UTIL = HBaseTestingUtility.createLocalHTU();
   protected Configuration conf = UTIL.getConfiguration();
-  
+
   private HRegion r = null;
   private HTableDescriptor htd = null;
   private int compactionThreshold;
@@ -76,7 +82,8 @@ public class TestMinorCompaction {
     // Increment the least significant character so we get to next row.
     secondRowBytes[START_KEY_BYTES.length - 1]++;
     thirdRowBytes = START_KEY_BYTES.clone();
-    thirdRowBytes[START_KEY_BYTES.length - 1] += 2;
+    thirdRowBytes[START_KEY_BYTES.length - 1] =
+        (byte) (thirdRowBytes[START_KEY_BYTES.length - 1] + 2);
     col1 = Bytes.toBytes("column1");
     col2 = Bytes.toBytes("column2");
   }
@@ -174,9 +181,9 @@ public class TestMinorCompaction {
       r.flush(true);
     }
 
-    Result result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).setMaxVersions(100));
+    Result result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).readVersions(100));
     assertEquals(compactionThreshold, result.size());
-    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).setMaxVersions(100));
+    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).readVersions(100));
     assertEquals(compactionThreshold, result.size());
 
     // Now add deletes to memstore and then flush it.  That will put us over
@@ -186,10 +193,10 @@ public class TestMinorCompaction {
     r.delete(delete);
 
     // Make sure that we have only deleted family2 from secondRowBytes
-    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).setMaxVersions(100));
+    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).readVersions(100));
     assertEquals(expectedResultsAfterDelete, result.size());
     // but we still have firstrow
-    result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).setMaxVersions(100));
+    result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).readVersions(100));
     assertEquals(compactionThreshold, result.size());
 
     r.flush(true);
@@ -197,10 +204,10 @@ public class TestMinorCompaction {
     // Let us check again
 
     // Make sure that we have only deleted family2 from secondRowBytes
-    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).setMaxVersions(100));
+    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).readVersions(100));
     assertEquals(expectedResultsAfterDelete, result.size());
     // but we still have firstrow
-    result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).setMaxVersions(100));
+    result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).readVersions(100));
     assertEquals(compactionThreshold, result.size());
 
     // do a compaction
@@ -215,10 +222,10 @@ public class TestMinorCompaction {
     assertTrue("Was not supposed to be a major compaction", numFiles2 > 1);
 
     // Make sure that we have only deleted family2 from secondRowBytes
-    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).setMaxVersions(100));
+    result = r.get(new Get(secondRowBytes).addColumn(fam2, col2).readVersions(100));
     assertEquals(expectedResultsAfterDelete, result.size());
     // but we still have firstrow
-    result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).setMaxVersions(100));
+    result = r.get(new Get(firstRowBytes).addColumn(fam1, col1).readVersions(100));
     assertEquals(compactionThreshold, result.size());
   }
 }

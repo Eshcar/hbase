@@ -23,14 +23,13 @@ import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeyValue;
@@ -55,7 +54,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  */
 @InterfaceAudience.Private
 public class HalfStoreFileReader extends StoreFileReader {
-  private static final Log LOG = LogFactory.getLog(HalfStoreFileReader.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HalfStoreFileReader.class);
   final boolean top;
   // This is the key we split around.  Its the first possible entry on a row:
   // i.e. empty column and a timestamp of LATEST_TIMESTAMP.
@@ -129,35 +128,41 @@ public class HalfStoreFileReader extends StoreFileReader {
       final HFileScanner delegate = s;
       public boolean atEnd = false;
 
+      @Override
       public Cell getKey() {
         if (atEnd) return null;
         return delegate.getKey();
       }
 
+      @Override
       public String getKeyString() {
         if (atEnd) return null;
 
         return delegate.getKeyString();
       }
 
+      @Override
       public ByteBuffer getValue() {
         if (atEnd) return null;
 
         return delegate.getValue();
       }
 
+      @Override
       public String getValueString() {
         if (atEnd) return null;
 
         return delegate.getValueString();
       }
 
+      @Override
       public Cell getCell() {
         if (atEnd) return null;
 
         return delegate.getCell();
       }
 
+      @Override
       public boolean next() throws IOException {
         if (atEnd) return false;
 
@@ -200,10 +205,12 @@ public class HalfStoreFileReader extends StoreFileReader {
         return (this.delegate.getReader().getComparator().compare(splitCell, getKey())) > 0;
       }
 
+      @Override
       public org.apache.hadoop.hbase.io.hfile.HFile.Reader getReader() {
         return this.delegate.getReader();
       }
 
+      @Override
       public boolean isSeeked() {
         return this.delegate.isSeeked();
       }

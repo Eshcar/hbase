@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,9 +19,8 @@
 
 package org.apache.hadoop.hbase.coprocessor;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -199,7 +198,6 @@ public interface RegionObserver {
    * @param scanner the scanner over existing data used in the memstore segments being compact
    * @return the scanner to use during in memory compaction. Must be non-null.
    */
-  @NonNull
   default InternalScanner preMemStoreCompactionCompact(
       ObserverContext<RegionCoprocessorEnvironment> c, Store store, InternalScanner scanner)
       throws IOException {
@@ -220,6 +218,7 @@ public interface RegionObserver {
    * of candidates. If you remove all the candidates then the compaction will be canceled.
    * <p>Supports Coprocessor 'bypass' -- 'bypass' is how this method indicates that it changed
    * the passed in <code>candidates</code>.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * @param c the environment provided by the region server
    * @param store the store where compaction is being requested
    * @param candidates the store files currently available for compaction
@@ -309,7 +308,8 @@ public interface RegionObserver {
   /**
    * Called before the client performs a Get
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * @param c the environment provided by the region server
    * @param get the Get request
    * @param result The result to return to the client if default processing
@@ -334,7 +334,8 @@ public interface RegionObserver {
   /**
    * Called before the client tests for existence using a Get.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * @param c the environment provided by the region server
    * @param get the Get request
    * @param exists the result returned by the region server
@@ -360,7 +361,8 @@ public interface RegionObserver {
   /**
    * Called before the client stores a value.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'put' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -388,7 +390,8 @@ public interface RegionObserver {
   /**
    * Called before the client deletes a value.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'delete' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -403,7 +406,8 @@ public interface RegionObserver {
   /**
    * Called before the server updates the timestamp for version delete with latest timestamp.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * @param c the environment provided by the region server
    * @param mutation - the parent mutation associated with this delete cell
    * @param cell - The deleteColumn with latest version cell
@@ -495,7 +499,8 @@ public interface RegionObserver {
   /**
    * Called before checkAndPut.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'put' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -523,7 +528,8 @@ public interface RegionObserver {
    * Row will be locked for longer time. Trying to acquire lock on another row, within this,
    * can lead to potential deadlock.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'put' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -568,7 +574,8 @@ public interface RegionObserver {
   /**
    * Called before checkAndDelete.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'delete' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -595,7 +602,8 @@ public interface RegionObserver {
    * Row will be locked for longer time. Trying to acquire lock on another row, within this,
    * can lead to potential deadlock.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'delete' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -639,7 +647,8 @@ public interface RegionObserver {
   /**
    * Called before Append.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'append' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -659,7 +668,8 @@ public interface RegionObserver {
    * Row will be locked for longer time. Trying to acquire lock on another row, within this,
    * can lead to potential deadlock.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'append' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -690,7 +700,8 @@ public interface RegionObserver {
   /**
    * Called before Increment.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'increment' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -710,7 +721,8 @@ public interface RegionObserver {
    * Row will be locked for longer time. Trying to acquire lock on another row, within this,
    * can lead to potential deadlock.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells in 'increment' beyond the life of this invocation.
    * If need a Cell reference for later use, copy the cell and use that.
@@ -772,7 +784,8 @@ public interface RegionObserver {
   /**
    * Called before the client asks for the next row on a scanner.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * <p>
    * Note: Do not retain references to any Cells returned by scanner, beyond the life of this
    * invocation. If need a Cell reference for later use, copy the cell and use that.
@@ -836,7 +849,8 @@ public interface RegionObserver {
   /**
    * Called before the client closes a scanner.
    * <p>
-   * Call CoprocessorEnvironment#bypass to skip default actions
+   * Call CoprocessorEnvironment#bypass to skip default actions.
+   * If 'bypass' is set, we skip out on calling any subsequent chained coprocessors.
    * @param c the environment provided by the region server
    * @param s the scanner
    */
@@ -896,26 +910,16 @@ public interface RegionObserver {
   /**
    * Called before a {@link WALEdit}
    * replayed for this region.
-   * Do not amend the WALKey. It is InterfaceAudience.Private. Changing the WALKey will cause
-   * damage.
    * @param ctx the environment provided by the region server
-   * @deprecated Since hbase-2.0.0. No replacement. To be removed in hbase-3.0.0 and replaced
-   * with something that doesn't expose IntefaceAudience.Private classes.
    */
-  @Deprecated
   default void preWALRestore(ObserverContext<? extends RegionCoprocessorEnvironment> ctx,
     RegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {}
 
   /**
    * Called after a {@link WALEdit}
    * replayed for this region.
-   * Do not amend the WALKey. It is InterfaceAudience.Private. Changing the WALKey will cause
-   * damage.
    * @param ctx the environment provided by the region server
-   * @deprecated Since hbase-2.0.0. No replacement. To be removed in hbase-3.0.0 and replaced
-   * with something that doesn't expose IntefaceAudience.Private classes.
    */
-  @Deprecated
   default void postWALRestore(ObserverContext<? extends RegionCoprocessorEnvironment> ctx,
     RegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {}
 
@@ -958,13 +962,12 @@ public interface RegionObserver {
    * @param ctx the environment provided by the region server
    * @param stagingFamilyPaths pairs of { CF, HFile path } submitted for bulk load
    * @param finalPaths Map of CF to List of file paths for the loaded files
-   * @param hasLoaded whether the bulkLoad was successful
-   * @return the new value of hasLoaded
+   *   if the Map is not null, the bulkLoad was successful. Otherwise the bulk load failed.
+   *   bulkload is done by the time this hook is called.
    */
-  default boolean postBulkLoadHFile(ObserverContext<RegionCoprocessorEnvironment> ctx,
-      List<Pair<byte[], String>> stagingFamilyPaths, Map<byte[], List<Path>> finalPaths,
-      boolean hasLoaded) throws IOException {
-    return hasLoaded;
+  default void postBulkLoadHFile(ObserverContext<RegionCoprocessorEnvironment> ctx,
+      List<Pair<byte[], String>> stagingFamilyPaths, Map<byte[], List<Path>> finalPaths)
+          throws IOException {
   }
 
   /**
@@ -1027,10 +1030,56 @@ public interface RegionObserver {
    * @param oldCell old cell containing previous value
    * @param newCell the new cell containing the computed value
    * @return the new cell, possibly changed
+   * @deprecated Use {@link #postIncrementBeforeWAL} or {@link #postAppendBeforeWAL} instead.
    */
+  @Deprecated
   default Cell postMutationBeforeWAL(ObserverContext<RegionCoprocessorEnvironment> ctx,
       MutationType opType, Mutation mutation, Cell oldCell, Cell newCell) throws IOException {
     return newCell;
+  }
+
+  /**
+   * Called after a list of new cells has been created during an increment operation, but before
+   * they are committed to the WAL or memstore.
+   *
+   * @param ctx       the environment provided by the region server
+   * @param mutation  the current mutation
+   * @param cellPairs a list of cell pair. The first cell is old cell which may be null.
+   *                  And the second cell is the new cell.
+   * @return a list of cell pair, possibly changed.
+   */
+  default List<Pair<Cell, Cell>> postIncrementBeforeWAL(
+      ObserverContext<RegionCoprocessorEnvironment> ctx, Mutation mutation,
+      List<Pair<Cell, Cell>> cellPairs) throws IOException {
+    List<Pair<Cell, Cell>> resultPairs = new ArrayList<>(cellPairs.size());
+    for (Pair<Cell, Cell> pair : cellPairs) {
+      resultPairs.add(new Pair<>(pair.getFirst(),
+          postMutationBeforeWAL(ctx, MutationType.INCREMENT, mutation, pair.getFirst(),
+              pair.getSecond())));
+    }
+    return resultPairs;
+  }
+
+  /**
+   * Called after a list of new cells has been created during an append operation, but before
+   * they are committed to the WAL or memstore.
+   *
+   * @param ctx       the environment provided by the region server
+   * @param mutation  the current mutation
+   * @param cellPairs a list of cell pair. The first cell is old cell which may be null.
+   *                  And the second cell is the new cell.
+   * @return a list of cell pair, possibly changed.
+   */
+  default List<Pair<Cell, Cell>> postAppendBeforeWAL(
+      ObserverContext<RegionCoprocessorEnvironment> ctx, Mutation mutation,
+      List<Pair<Cell, Cell>> cellPairs) throws IOException {
+    List<Pair<Cell, Cell>> resultPairs = new ArrayList<>(cellPairs.size());
+    for (Pair<Cell, Cell> pair : cellPairs) {
+      resultPairs.add(new Pair<>(pair.getFirst(),
+          postMutationBeforeWAL(ctx, MutationType.INCREMENT, mutation, pair.getFirst(),
+              pair.getSecond())));
+    }
+    return resultPairs;
   }
 
   /**

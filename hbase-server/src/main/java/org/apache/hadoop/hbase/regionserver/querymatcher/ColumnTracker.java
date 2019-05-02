@@ -60,7 +60,7 @@ public interface ColumnTracker extends ShipperListener {
    * method based on the return type (INCLUDE) of this method. The values that can be returned by
    * this method are {@link MatchCode#INCLUDE}, {@link MatchCode#SEEK_NEXT_COL} and
    * {@link MatchCode#SEEK_NEXT_ROW}.
-   * @param cell
+   * @param cell a cell with the column to match against
    * @param type The type of the Cell
    * @return The match code instance.
    * @throws IOException in case there is an internal consistency problem caused by a data
@@ -77,7 +77,7 @@ public interface ColumnTracker extends ShipperListener {
    * Implementations which include all the columns could just return {@link MatchCode#INCLUDE} in
    * the {@link #checkColumn(Cell, byte)} method and perform all the operations in this
    * checkVersions method.
-   * @param cell
+   * @param cell a cell with the column to match against
    * @param timestamp The timestamp of the cell.
    * @param type the type of the key value (Put/Delete)
    * @param ignoreCount indicates if the KV needs to be excluded while counting (used during
@@ -126,4 +126,13 @@ public interface ColumnTracker extends ShipperListener {
    * @return <code>true</code> to early out based on timestamp.
    */
   boolean isDone(long timestamp);
+
+  /**
+   * This method is used to inform the column tracker that we are done with this column. We may get
+   * this information from external filters or timestamp range and we then need to indicate this
+   * information to tracker. It is currently implemented for ExplicitColumnTracker.
+   * @param cell
+   */
+  default void doneWithColumn(Cell cell) {
+  }
 }

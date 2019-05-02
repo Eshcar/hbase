@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HDFSBlocksDistribution;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
@@ -34,15 +34,21 @@ import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-@Category({MasterTests.class, SmallTests.class})
+@Category({MasterTests.class, MediumTests.class})
 public class TestRegionLocationFinder {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRegionLocationFinder.class);
+
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static MiniHBaseCluster cluster;
 
@@ -55,7 +61,7 @@ public class TestRegionLocationFinder {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    cluster = TEST_UTIL.startMiniCluster(1, ServerNum);
+    cluster = TEST_UTIL.startMiniCluster(ServerNum);
     table = TEST_UTIL.createTable(tableName, FAMILY, HBaseTestingUtility.KEYS_FOR_HBA_CREATE_TABLE);
     TEST_UTIL.waitTableAvailable(tableName, 1000);
     TEST_UTIL.loadTable(table, FAMILY);
@@ -69,7 +75,7 @@ public class TestRegionLocationFinder {
 
     finder.setConf(TEST_UTIL.getConfiguration());
     finder.setServices(cluster.getMaster());
-    finder.setClusterStatus(cluster.getMaster().getClusterStatus());
+    finder.setClusterMetrics(cluster.getMaster().getClusterMetrics());
   }
 
   @AfterClass

@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,6 +17,7 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import static org.apache.hadoop.hbase.HConstants.HBASE_SPLIT_WAL_MAX_SPLITTER;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
@@ -26,15 +26,15 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.ChoreService;
 import org.apache.hadoop.hbase.CoordinatedStateManager;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.Server;
@@ -43,34 +43,37 @@ import org.apache.hadoop.hbase.SplitLogCounters;
 import org.apache.hadoop.hbase.SplitLogTask;
 import org.apache.hadoop.hbase.Waiter;
 import org.apache.hadoop.hbase.client.ClusterConnection;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.coordination.ZkCoordinatedStateManager;
 import org.apache.hadoop.hbase.executor.ExecutorService;
 import org.apache.hadoop.hbase.executor.ExecutorType;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.CancelableProgressable;
-import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
 import org.apache.hadoop.hbase.zookeeper.ZKSplitLog;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.apache.hadoop.hbase.zookeeper.ZNodePaths;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestSplitLogWorker {
-  private static final Log LOG = LogFactory.getLog(TestSplitLogWorker.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSplitLogWorker.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestSplitLogWorker.class);
   private static final int WAIT_TIME = 15000;
   private final ServerName MANAGER = ServerName.valueOf("manager,1,1");
-  static {
-    Logger.getLogger("org.apache.hadoop.hbase").setLevel(Level.DEBUG);
-  }
   private final static HBaseTestingUtility TEST_UTIL =
     new HBaseTestingUtility();
   private DummyServer ds;
@@ -78,7 +81,7 @@ public class TestSplitLogWorker {
   private SplitLogWorker slw;
   private ExecutorService executorService;
 
-  class DummyServer implements Server {
+  static class DummyServer implements Server {
     private ZKWatcher zkw;
     private Configuration conf;
     private CoordinatedStateManager cm;
@@ -133,11 +136,6 @@ public class TestSplitLogWorker {
     }
 
     @Override
-    public MetaTableLocator getMetaTableLocator() {
-      return null;
-    }
-
-    @Override
     public ChoreService getChoreService() {
       return null;
     }
@@ -156,6 +154,11 @@ public class TestSplitLogWorker {
     @Override
     public boolean isStopping() {
       return false;
+    }
+
+    @Override
+    public Connection createConnection(Configuration conf) throws IOException {
+      return null;
     }
   }
 
@@ -196,16 +199,16 @@ public class TestSplitLogWorker {
     zkw = new ZKWatcher(TEST_UTIL.getConfiguration(),
         "split-log-worker-tests", null);
     ds = new DummyServer(zkw, conf);
-    ZKUtil.deleteChildrenRecursively(zkw, zkw.znodePaths.baseZNode);
-    ZKUtil.createAndFailSilent(zkw, zkw.znodePaths.baseZNode);
-    assertThat(ZKUtil.checkExists(zkw, zkw.znodePaths.baseZNode), not (is(-1)));
-    LOG.debug(zkw.znodePaths.baseZNode + " created");
-    ZKUtil.createAndFailSilent(zkw, zkw.znodePaths.splitLogZNode);
-    assertThat(ZKUtil.checkExists(zkw, zkw.znodePaths.splitLogZNode), not (is(-1)));
+    ZKUtil.deleteChildrenRecursively(zkw, zkw.getZNodePaths().baseZNode);
+    ZKUtil.createAndFailSilent(zkw, zkw.getZNodePaths().baseZNode);
+    assertThat(ZKUtil.checkExists(zkw, zkw.getZNodePaths().baseZNode), not(is(-1)));
+    LOG.debug(zkw.getZNodePaths().baseZNode + " created");
+    ZKUtil.createAndFailSilent(zkw, zkw.getZNodePaths().splitLogZNode);
+    assertThat(ZKUtil.checkExists(zkw, zkw.getZNodePaths().splitLogZNode), not(is(-1)));
 
-    LOG.debug(zkw.znodePaths.splitLogZNode + " created");
-    ZKUtil.createAndFailSilent(zkw, zkw.znodePaths.rsZNode);
-    assertThat(ZKUtil.checkExists(zkw, zkw.znodePaths.rsZNode), not (is(-1)));
+    LOG.debug(zkw.getZNodePaths().splitLogZNode + " created");
+    ZKUtil.createAndFailSilent(zkw, zkw.getZNodePaths().rsZNode);
+    assertThat(ZKUtil.checkExists(zkw, zkw.getZNodePaths().rsZNode), not(is(-1)));
 
     SplitLogCounters.resetCounters();
     executorService = new ExecutorService("TestSplitLogWorker");
@@ -239,7 +242,7 @@ public class TestSplitLogWorker {
 
   };
 
-  @Test(timeout=60000)
+  @Test
   public void testAcquireTaskAtStartup() throws Exception {
     LOG.info("testAcquireTaskAtStartup");
     SplitLogCounters.resetCounters();
@@ -275,7 +278,7 @@ public class TestSplitLogWorker {
     }
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testRaceForTask() throws Exception {
     LOG.info("testRaceForTask");
     SplitLogCounters.resetCounters();
@@ -309,7 +312,7 @@ public class TestSplitLogWorker {
     }
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testPreemptTask() throws Exception {
     LOG.info("testPreemptTask");
     SplitLogCounters.resetCounters();
@@ -342,7 +345,7 @@ public class TestSplitLogWorker {
     }
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testMultipleTasks() throws Exception {
     LOG.info("testMultipleTasks");
     SplitLogCounters.resetCounters();
@@ -386,7 +389,7 @@ public class TestSplitLogWorker {
     }
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testRescan() throws Exception {
     LOG.info("testRescan");
     SplitLogCounters.resetCounters();
@@ -422,15 +425,16 @@ public class TestSplitLogWorker {
     waitForCounter(SplitLogCounters.tot_wkr_preempt_task, 1, 2, WAIT_TIME);
     waitForCounter(SplitLogCounters.tot_wkr_task_acquired_rescan, 0, 1, WAIT_TIME);
 
-    List<String> nodes = ZKUtil.listChildrenNoWatch(zkw, zkw.znodePaths.splitLogZNode);
-    LOG.debug(nodes);
+    List<String> nodes = ZKUtil.listChildrenNoWatch(zkw, zkw.getZNodePaths().splitLogZNode);
+    LOG.debug(Objects.toString(nodes));
     int num = 0;
     for (String node : nodes) {
       num++;
       if (node.startsWith("RESCAN")) {
         String name = ZKSplitLog.getEncodedNodeName(zkw, node);
         String fn = ZKSplitLog.getFileName(name);
-        byte [] data = ZKUtil.getData(zkw, ZNodePaths.joinZNode(zkw.znodePaths.splitLogZNode, fn));
+        byte [] data = ZKUtil.getData(zkw,
+                ZNodePaths.joinZNode(zkw.getZNodePaths().splitLogZNode, fn));
         slt = SplitLogTask.parseFrom(data);
         assertTrue(slt.toString(), slt.isDone(SRV));
       }
@@ -438,7 +442,7 @@ public class TestSplitLogWorker {
     assertEquals(2, num);
   }
 
-  @Test(timeout=60000)
+  @Test
   public void testAcquireMultiTasks() throws Exception {
     LOG.info("testAcquireMultiTasks");
     SplitLogCounters.resetCounters();
@@ -446,7 +450,7 @@ public class TestSplitLogWorker {
     final ServerName RS = ServerName.valueOf("rs,1,1");
     final int maxTasks = 3;
     Configuration testConf = HBaseConfiguration.create(TEST_UTIL.getConfiguration());
-    testConf.setInt("hbase.regionserver.wal.max.splitters", maxTasks);
+    testConf.setInt(HBASE_SPLIT_WAL_MAX_SPLITTER, maxTasks);
     RegionServerServices mockedRS = getRegionServer(RS);
     for (int i = 0; i < maxTasks; i++) {
       zkw.getRecoverableZooKeeper().create(ZKSplitLog.getEncodedNodeName(zkw, TATAS + i),
@@ -473,7 +477,7 @@ public class TestSplitLogWorker {
    * RS
    * @throws Exception
    */
-  @Test(timeout=60000)
+  @Test
   public void testAcquireMultiTasksByAvgTasksPerRS() throws Exception {
     LOG.info("testAcquireMultiTasks");
     SplitLogCounters.resetCounters();
@@ -482,13 +486,13 @@ public class TestSplitLogWorker {
     final ServerName RS2 = ServerName.valueOf("rs,1,2");
     final int maxTasks = 3;
     Configuration testConf = HBaseConfiguration.create(TEST_UTIL.getConfiguration());
-    testConf.setInt("hbase.regionserver.wal.max.splitters", maxTasks);
+    testConf.setInt(HBASE_SPLIT_WAL_MAX_SPLITTER, maxTasks);
     RegionServerServices mockedRS = getRegionServer(RS);
 
     // create two RS nodes
-    String rsPath = ZNodePaths.joinZNode(zkw.znodePaths.rsZNode, RS.getServerName());
+    String rsPath = ZNodePaths.joinZNode(zkw.getZNodePaths().rsZNode, RS.getServerName());
     zkw.getRecoverableZooKeeper().create(rsPath, null, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-    rsPath = ZNodePaths.joinZNode(zkw.znodePaths.rsZNode, RS2.getServerName());
+    rsPath = ZNodePaths.joinZNode(zkw.getZNodePaths().rsZNode, RS2.getServerName());
     zkw.getRecoverableZooKeeper().create(rsPath, null, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
 
     for (int i = 0; i < maxTasks; i++) {

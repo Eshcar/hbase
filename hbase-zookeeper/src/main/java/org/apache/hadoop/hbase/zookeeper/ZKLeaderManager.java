@@ -20,12 +20,12 @@ package org.apache.hadoop.hbase.zookeeper;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Stoppable;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles coordination of a single "leader" instance among many possible
@@ -41,8 +41,9 @@ import org.apache.zookeeper.KeeperException;
 @Deprecated
 @InterfaceAudience.Private
 public class ZKLeaderManager extends ZKListener {
-  private static final Log LOG = LogFactory.getLog(ZKLeaderManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ZKLeaderManager.class);
 
+  private final Object lock = new Object();
   private final AtomicBoolean leaderExists = new AtomicBoolean();
   private String leaderZNode;
   private byte[] nodeId;
@@ -85,14 +86,14 @@ public class ZKLeaderManager extends ZKListener {
 
   private void handleLeaderChange() {
     try {
-      synchronized(leaderExists) {
+      synchronized(lock) {
         if (ZKUtil.watchAndCheckExists(watcher, leaderZNode)) {
           LOG.info("Found new leader for znode: "+leaderZNode);
           leaderExists.set(true);
         } else {
           LOG.info("Leader change, but no new leader found");
           leaderExists.set(false);
-          leaderExists.notifyAll();
+          lock.notifyAll();
         }
       }
     } catch (KeeperException ke) {
@@ -136,10 +137,10 @@ public class ZKLeaderManager extends ZKListener {
       }
 
       // wait for next chance
-      synchronized(leaderExists) {
+      synchronized(lock) {
         while (leaderExists.get() && !candidate.isStopped()) {
           try {
-            leaderExists.wait();
+            lock.wait();
           } catch (InterruptedException ie) {
             LOG.debug("Interrupted waiting on leader", ie);
           }
@@ -153,7 +154,7 @@ public class ZKLeaderManager extends ZKListener {
    */
   public void stepDownAsLeader() {
     try {
-      synchronized(leaderExists) {
+      synchronized(lock) {
         if (!leaderExists.get()) {
           return;
         }

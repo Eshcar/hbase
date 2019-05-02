@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,7 +17,6 @@
  */
 package org.apache.hadoop.hbase;
 
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -33,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
-
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
@@ -41,27 +38,34 @@ import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.io.TimeRange;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.DataInputBuffer;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
 
 /**
  * Test HBase Writables serializations
  */
 @Category({MiscTests.class, SmallTests.class})
 public class TestSerialization {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSerialization.class);
+
   @Test public void testKeyValue() throws Exception {
     final String name = "testKeyValue2";
-    byte[] row = name.getBytes();
-    byte[] fam = "fam".getBytes();
-    byte[] qf = "qf".getBytes();
+    byte[] row = Bytes.toBytes(name);
+    byte[] fam = Bytes.toBytes("fam");
+    byte[] qf = Bytes.toBytes("qf");
     long ts = System.currentTimeMillis();
-    byte[] val = "val".getBytes();
+    byte[] val = Bytes.toBytes("val");
     KeyValue kv = new KeyValue(row, fam, qf, ts, val);
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     DataOutputStream dos = new DataOutputStream(baos);
@@ -286,9 +290,9 @@ public class TestSerialization {
   */
 
   @Test public void testGet() throws Exception{
-    byte[] row = "row".getBytes();
-    byte[] fam = "fam".getBytes();
-    byte[] qf1 = "qf1".getBytes();
+    byte[] row = Bytes.toBytes("row");
+    byte[] fam = Bytes.toBytes("fam");
+    byte[] qf1 = Bytes.toBytes("qf1");
 
     long ts = System.currentTimeMillis();
     int maxVersions = 2;
@@ -296,7 +300,7 @@ public class TestSerialization {
     Get get = new Get(row);
     get.addColumn(fam, qf1);
     get.setTimeRange(ts, ts+1);
-    get.setMaxVersions(maxVersions);
+    get.readVersions(maxVersions);
 
     ClientProtos.Get getProto = ProtobufUtil.toGet(get);
     Get desGet = ProtobufUtil.toGet(getProto);
@@ -325,10 +329,10 @@ public class TestSerialization {
 
   @Test public void testScan() throws Exception {
 
-    byte[] startRow = "startRow".getBytes();
-    byte[] stopRow  = "stopRow".getBytes();
-    byte[] fam = "fam".getBytes();
-    byte[] qf1 = "qf1".getBytes();
+    byte[] startRow = Bytes.toBytes("startRow");
+    byte[] stopRow  = Bytes.toBytes("stopRow");
+    byte[] fam = Bytes.toBytes("fam");
+    byte[] qf1 = Bytes.toBytes("qf1");
 
     long ts = System.currentTimeMillis();
     int maxVersions = 2;

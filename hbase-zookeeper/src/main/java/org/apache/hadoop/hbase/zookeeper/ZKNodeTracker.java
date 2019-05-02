@@ -18,11 +18,11 @@
  */
 package org.apache.hadoop.hbase.zookeeper;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tracks the availability and value of a single ZooKeeper node.
@@ -36,7 +36,7 @@ import org.apache.zookeeper.KeeperException;
 @InterfaceAudience.Private
 public abstract class ZKNodeTracker extends ZKListener {
   // LOG is being used in subclasses, hence keeping it protected
-  protected static final Log LOG = LogFactory.getLog(ZKNodeTracker.class);
+  protected static final Logger LOG = LoggerFactory.getLogger(ZKNodeTracker.class);
   /** Path of node being tracked */
   protected final String node;
 
@@ -53,9 +53,10 @@ public abstract class ZKNodeTracker extends ZKListener {
    *
    * <p>After construction, use {@link #start} to kick off tracking.
    *
-   * @param watcher
-   * @param node
-   * @param abortable
+   * @param watcher reference to the {@link ZKWatcher} which also contains configuration and
+   *                constants
+   * @param node path of the node being tracked
+   * @param abortable used to abort if a fatal error occurs
    */
   public ZKNodeTracker(ZKWatcher watcher, String node,
                        Abortable abortable) {
@@ -101,7 +102,7 @@ public abstract class ZKNodeTracker extends ZKListener {
    * @throws InterruptedException if the waiting thread is interrupted
    */
   public synchronized byte [] blockUntilAvailable()
-  throws InterruptedException {
+    throws InterruptedException {
     return blockUntilAvailable(0, false);
   }
 
@@ -109,14 +110,17 @@ public abstract class ZKNodeTracker extends ZKListener {
    * Gets the data of the node, blocking until the node is available or the
    * specified timeout has elapsed.
    *
-   * @param timeout maximum time to wait for the node data to be available,
-   * n milliseconds.  Pass 0 for no timeout.
+   * @param timeout maximum time to wait for the node data to be available, n milliseconds. Pass 0
+   *                for no timeout.
    * @return data of the node
    * @throws InterruptedException if the waiting thread is interrupted
    */
   public synchronized byte [] blockUntilAvailable(long timeout, boolean refresh)
-  throws InterruptedException {
-    if (timeout < 0) throw new IllegalArgumentException();
+          throws InterruptedException {
+    if (timeout < 0) {
+      throw new IllegalArgumentException();
+    }
+
     boolean notimeout = timeout == 0;
     long startTime = System.currentTimeMillis();
     long remaining = timeout;
@@ -137,9 +141,8 @@ public abstract class ZKNodeTracker extends ZKListener {
         try {
           nodeExistsChecked = (ZKUtil.checkExists(watcher, node) != -1);
         } catch (KeeperException e) {
-          LOG.warn(
-            "Got exception while trying to check existence in  ZooKeeper" +
-            " of the node: "+node+", retrying if timeout not reached",e );
+          LOG.warn("Got exception while trying to check existence in  ZooKeeper" +
+            " of the node: " + node + ", retrying if timeout not reached", e);
         }
 
         // It did not exists, and now it does.
@@ -188,7 +191,10 @@ public abstract class ZKNodeTracker extends ZKListener {
 
   @Override
   public synchronized void nodeCreated(String path) {
-    if (!path.equals(node)) return;
+    if (!path.equals(node)) {
+      return;
+    }
+
     try {
       byte [] data = ZKUtil.getDataAndWatch(watcher, node);
       if (data != null) {
@@ -232,11 +238,11 @@ public abstract class ZKNodeTracker extends ZKListener {
    */
   public boolean checkIfBaseNodeAvailable() {
     try {
-      if (ZKUtil.checkExists(watcher, watcher.znodePaths.baseZNode) == -1) {
+      if (ZKUtil.checkExists(watcher, watcher.getZNodePaths().baseZNode) == -1) {
         return false;
       }
     } catch (KeeperException e) {
-      abortable.abort("Exception while checking if basenode (" + watcher.znodePaths.baseZNode
+      abortable.abort("Exception while checking if basenode (" + watcher.getZNodePaths().baseZNode
           + ") exists in ZooKeeper.",
         e);
     }

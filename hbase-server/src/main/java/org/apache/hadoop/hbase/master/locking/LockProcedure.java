@@ -24,8 +24,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.RegionInfo;
@@ -37,7 +35,8 @@ import org.apache.hadoop.hbase.procedure2.ProcedureEvent;
 import org.apache.hadoop.hbase.procedure2.ProcedureStateSerializer;
 import org.apache.hadoop.hbase.procedure2.ProcedureSuspendedException;
 import org.apache.yetus.audience.InterfaceAudience;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.LockServiceProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.LockServiceProtos.LockProcedureData;
@@ -57,7 +56,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ProcedureProtos;
 @InterfaceAudience.Private
 public final class LockProcedure extends Procedure<MasterProcedureEnv>
     implements TableProcedureInterface {
-  private static final Log LOG = LogFactory.getLog(LockProcedure.class);
+  private static final Logger LOG = LoggerFactory.getLogger(LockProcedure.class);
 
   public static final int DEFAULT_REMOTE_LOCKS_TIMEOUT_MS = 30000;  // timeout in ms
   public static final String REMOTE_LOCKS_TIMEOUT_MS_CONF =
@@ -77,8 +76,6 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
   private String description;
   // True when recovery of master lock from WALs
   private boolean recoveredMasterLock;
-  // this is for internal working
-  private boolean hasLock;
 
   private final ProcedureEvent<LockProcedure> event = new ProcedureEvent<>(this);
   // True if this proc acquired relevant locks. This value is for client checks.
@@ -203,13 +200,13 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
    * @return false, so procedure framework doesn't mark this procedure as failure.
    */
   @Override
-  protected boolean setTimeoutFailure(final MasterProcedureEnv env) {
+  protected synchronized boolean setTimeoutFailure(final MasterProcedureEnv env) {
     synchronized (event) {
       if (LOG.isDebugEnabled()) LOG.debug("Timeout failure " + this.event);
       if (!event.isReady()) {  // Maybe unlock() awakened the event.
         setState(ProcedureProtos.ProcedureState.RUNNABLE);
         if (LOG.isDebugEnabled()) LOG.debug("Calling wake on " + this.event);
-        env.getProcedureScheduler().wakeEvent(event);
+        event.wake(env.getProcedureScheduler());
       }
     }
     return false;  // false: do not mark the procedure as failed.
@@ -224,7 +221,7 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
     synchronized (event) {
       if (!event.isReady()) {
         setState(ProcedureProtos.ProcedureState.RUNNABLE);
-        env.getProcedureScheduler().wakeEvent(event);
+        event.wake(env.getProcedureScheduler());
       }
     }
   }
@@ -244,8 +241,8 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
       return null;
     }
     synchronized (event) {
-      env.getProcedureScheduler().suspendEvent(event);
-      env.getProcedureScheduler().waitEvent(event, this);
+      event.suspend();
+      event.suspendIfNotReady(this);
       setState(ProcedureProtos.ProcedureState.WAITING_TIMEOUT);
     }
     throw new ProcedureSuspendedException();
@@ -307,7 +304,6 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
   protected LockState acquireLock(final MasterProcedureEnv env) {
     boolean ret = lock.acquireLock(env);
     locked.set(ret);
-    hasLock = ret;
     if (ret) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("LOCKED " + toString());
@@ -322,7 +318,6 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
   @Override
   protected void releaseLock(final MasterProcedureEnv env) {
     lock.releaseLock(env);
-    hasLock = false;
   }
 
   /**
@@ -371,7 +366,7 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
   }
 
   private LockInterface setupNamespaceLock() throws IllegalArgumentException {
-    this.tableName = TableName.NAMESPACE_TABLE_NAME;
+    this.tableName = TableProcedureInterface.DUMMY_NAMESPACE_TABLE_NAME;
     switch (type) {
       case EXCLUSIVE:
         this.opType = TableOperationType.EDIT;
@@ -422,11 +417,6 @@ public final class LockProcedure extends Procedure<MasterProcedureEnv>
   @Override
   public boolean holdLock(final MasterProcedureEnv env) {
     return true;
-  }
-
-  @Override
-  public boolean hasLock(final MasterProcedureEnv env) {
-    return hasLock;
   }
 
   ///////////////////////

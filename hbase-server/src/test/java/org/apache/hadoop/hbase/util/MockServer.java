@@ -18,9 +18,6 @@
 package org.apache.hadoop.hbase.util;
 
 import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.ChoreService;
@@ -30,14 +27,17 @@ import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
 import org.apache.hadoop.hbase.client.ClusterConnection;
-import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.log.HBaseMarkers;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Basic mock Server for handler tests.
  */
 public class MockServer implements Server {
-  private static final Log LOG = LogFactory.getLog(MockServer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MockServer.class);
   final static ServerName NAME = ServerName.valueOf("MockServer", 123, -1);
 
   boolean stopped;
@@ -45,7 +45,6 @@ public class MockServer implements Server {
   final ZKWatcher zk;
   final HBaseTestingUtility htu;
 
-  @SuppressWarnings("unused")
   public MockServer() throws ZooKeeperConnectionException, IOException {
     // Shutdown default constructor by making it private.
     this(null);
@@ -72,7 +71,7 @@ public class MockServer implements Server {
 
   @Override
   public void abort(String why, Throwable e) {
-    LOG.fatal("Abort why=" + why, e);
+    LOG.error(HBaseMarkers.FATAL, "Abort why=" + why, e);
     stop(why);
     this.aborted = true;
   }
@@ -109,11 +108,6 @@ public class MockServer implements Server {
   }
 
   @Override
-  public MetaTableLocator getMetaTableLocator() {
-    return null;
-  }
-
-  @Override
   public ServerName getServerName() {
     return NAME;
   }
@@ -143,5 +137,10 @@ public class MockServer implements Server {
   @Override
   public boolean isStopping() {
     return false;
+  }
+
+  @Override
+  public Connection createConnection(Configuration conf) throws IOException {
+    return null;
   }
 }

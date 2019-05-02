@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EmptyStackException;
@@ -30,12 +31,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.CompareOperator;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class allows a user to specify a filter via a string
@@ -48,7 +48,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  */
 @InterfaceAudience.Public
 public class ParseFilter {
-  private static final Log LOG = LogFactory.getLog(ParseFilter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ParseFilter.class);
 
   private static HashMap<ByteBuffer, Integer> operatorPrecedenceHashMap;
   private static HashMap<String, String> filterHashMap;
@@ -92,6 +92,8 @@ public class ParseFilter {
                       "SingleColumnValueExcludeFilter");
     filterHashMap.put("DependentColumnFilter", ParseConstants.FILTER_PACKAGE + "." +
                       "DependentColumnFilter");
+    filterHashMap.put("ColumnValueFilter", ParseConstants.FILTER_PACKAGE + "." +
+                      "ColumnValueFilter");
 
     // Creates the operatorPrecedenceHashMap
     operatorPrecedenceHashMap = new HashMap<>();
@@ -241,27 +243,28 @@ public class ParseFilter {
     throws CharacterCodingException {
 
     String filterName = Bytes.toString(getFilterName(filterStringAsByteArray));
-    ArrayList<byte []> filterArguments = getFilterArguments(filterStringAsByteArray);
+    ArrayList<byte[]> filterArguments = getFilterArguments(filterStringAsByteArray);
     if (!filterHashMap.containsKey(filterName)) {
       throw new IllegalArgumentException("Filter Name " + filterName + " not supported");
     }
+    filterName = filterHashMap.get(filterName);
+    final String methodName = "createFilterFromArguments";
     try {
-      filterName = filterHashMap.get(filterName);
       Class<?> c = Class.forName(filterName);
-      Class<?>[] argTypes = new Class [] {ArrayList.class};
-      Method m = c.getDeclaredMethod("createFilterFromArguments", argTypes);
-      return (Filter) m.invoke(null,filterArguments);
+      Class<?>[] argTypes = new Class[] { ArrayList.class };
+      Method m = c.getDeclaredMethod(methodName, argTypes);
+      return (Filter) m.invoke(null, filterArguments);
     } catch (ClassNotFoundException e) {
-      e.printStackTrace();
+      LOG.error("Could not find class {}", filterName, e);
     } catch (NoSuchMethodException e) {
-      e.printStackTrace();
+      LOG.error("Could not find method {} in {}", methodName, filterName, e);
     } catch (IllegalAccessException e) {
-      e.printStackTrace();
+      LOG.error("Unable to access specified class {}", filterName, e);
     } catch (InvocationTargetException e) {
-      e.printStackTrace();
+      LOG.error("Method {} threw an exception for {}", methodName, filterName, e);
     }
-    throw new IllegalArgumentException("Incorrect filter string " +
-                                       new String(filterStringAsByteArray));
+    throw new IllegalArgumentException(
+        "Incorrect filter string " + new String(filterStringAsByteArray, StandardCharsets.UTF_8));
   }
 
 /**
@@ -768,8 +771,6 @@ public class ParseFilter {
 
   /**
    * Takes a compareOperator symbol as a byte array and returns the corresponding CompareOperator
-   * @deprecated Since 2.0
-   * <p>
    * @param compareOpAsByteArray the comparatorOperator symbol as a byte array
    * @return the Compare Operator
    */
@@ -787,33 +788,6 @@ public class ParseFilter {
       return CompareOperator.NOT_EQUAL;
     else if (compareOp.equals(ParseConstants.EQUAL_TO_BUFFER))
       return CompareOperator.EQUAL;
-    else
-      throw new IllegalArgumentException("Invalid compare operator");
-  }
-
-  /**
-   * Takes a compareOperator symbol as a byte array and returns the corresponding CompareOperator
-   * @deprecated Since 2.0
-   * <p>
-   * @param compareOpAsByteArray the comparatorOperator symbol as a byte array
-   * @return the Compare Operator
-   * @deprecated Since 2.0.0. Will be removed in 3.0.0. Use {@link #createCompareOperator(byte [])}
-   */
-  @Deprecated
-  public static CompareFilter.CompareOp createCompareOp (byte [] compareOpAsByteArray) {
-    ByteBuffer compareOp = ByteBuffer.wrap(compareOpAsByteArray);
-    if (compareOp.equals(ParseConstants.LESS_THAN_BUFFER))
-      return CompareOp.LESS;
-    else if (compareOp.equals(ParseConstants.LESS_THAN_OR_EQUAL_TO_BUFFER))
-      return CompareOp.LESS_OR_EQUAL;
-    else if (compareOp.equals(ParseConstants.GREATER_THAN_BUFFER))
-      return CompareOp.GREATER;
-    else if (compareOp.equals(ParseConstants.GREATER_THAN_OR_EQUAL_TO_BUFFER))
-      return CompareOp.GREATER_OR_EQUAL;
-    else if (compareOp.equals(ParseConstants.NOT_EQUAL_TO_BUFFER))
-      return CompareOp.NOT_EQUAL;
-    else if (compareOp.equals(ParseConstants.EQUAL_TO_BUFFER))
-      return CompareOp.EQUAL;
     else
       throw new IllegalArgumentException("Invalid compare operator");
   }
@@ -837,9 +811,9 @@ public class ParseFilter {
     else if (Bytes.equals(comparatorType, ParseConstants.binaryPrefixType))
       return new BinaryPrefixComparator(comparatorValue);
     else if (Bytes.equals(comparatorType, ParseConstants.regexStringType))
-      return new RegexStringComparator(new String(comparatorValue));
+      return new RegexStringComparator(new String(comparatorValue, StandardCharsets.UTF_8));
     else if (Bytes.equals(comparatorType, ParseConstants.substringType))
-      return new SubstringComparator(new String(comparatorValue));
+      return new SubstringComparator(new String(comparatorValue, StandardCharsets.UTF_8));
     else
       throw new IllegalArgumentException("Incorrect comparatorType");
   }

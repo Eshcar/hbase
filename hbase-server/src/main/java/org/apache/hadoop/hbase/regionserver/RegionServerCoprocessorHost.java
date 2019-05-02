@@ -19,12 +19,13 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 
 import com.google.protobuf.Service;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.SharedConnection;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.coprocessor.BaseEnvironment;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
@@ -40,12 +41,14 @@ import org.apache.hadoop.hbase.metrics.MetricRegistry;
 import org.apache.hadoop.hbase.replication.ReplicationEndpoint;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @InterfaceAudience.Private
 public class RegionServerCoprocessorHost extends
     CoprocessorHost<RegionServerCoprocessor, RegionServerCoprocessorEnvironment> {
 
-  private static final Log LOG = LogFactory.getLog(RegionServerCoprocessorHost.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RegionServerCoprocessorHost.class);
 
   private RegionServerServices rsServices;
 
@@ -80,17 +83,23 @@ public class RegionServerCoprocessorHost extends
   @Override
   public RegionServerCoprocessor checkAndGetInstance(Class<?> implClass)
       throws InstantiationException, IllegalAccessException {
-    if (RegionServerCoprocessor.class.isAssignableFrom(implClass)) {
-      return (RegionServerCoprocessor)implClass.newInstance();
-    } else if (SingletonCoprocessorService.class.isAssignableFrom(implClass)) {
-      // For backward compatibility with old CoprocessorService impl which don't extend
-      // RegionCoprocessor.
-      return new CoprocessorServiceBackwardCompatiblity.RegionServerCoprocessorService(
-          (SingletonCoprocessorService)implClass.newInstance());
-    } else {
-      LOG.error(implClass.getName() + " is not of type RegionServerCoprocessor. Check the "
-          + "configuration " + CoprocessorHost.REGIONSERVER_COPROCESSOR_CONF_KEY);
-      return null;
+    try {
+      if (RegionServerCoprocessor.class.isAssignableFrom(implClass)) {
+        return implClass.asSubclass(RegionServerCoprocessor.class).getDeclaredConstructor()
+            .newInstance();
+      } else if (SingletonCoprocessorService.class.isAssignableFrom(implClass)) {
+        // For backward compatibility with old CoprocessorService impl which don't extend
+        // RegionCoprocessor.
+        SingletonCoprocessorService tmp = implClass.asSubclass(SingletonCoprocessorService.class)
+            .getDeclaredConstructor().newInstance();
+        return new CoprocessorServiceBackwardCompatiblity.RegionServerCoprocessorService(tmp);
+      } else {
+        LOG.error("{} is not of type RegionServerCoprocessor. Check the configuration of {}",
+            implClass.getName(), CoprocessorHost.REGIONSERVER_COPROCESSOR_CONF_KEY);
+        return null;
+      }
+    } catch (NoSuchMethodException | InvocationTargetException e) {
+      throw (InstantiationException) new InstantiationException(implClass.getName()).initCause(e);
     }
   }
 
@@ -203,6 +212,24 @@ public class RegionServerCoprocessorHost extends
     });
   }
 
+  public void preExecuteProcedures() throws IOException {
+    execOperation(coprocEnvironments.isEmpty() ? null : new RegionServerObserverOperation() {
+      @Override
+      public void call(RegionServerObserver observer) throws IOException {
+        observer.preExecuteProcedures(this);
+      }
+    });
+  }
+
+  public void postExecuteProcedures() throws IOException {
+    execOperation(coprocEnvironments.isEmpty() ? null : new RegionServerObserverOperation() {
+      @Override
+      public void call(RegionServerObserver observer) throws IOException {
+        observer.postExecuteProcedures(this);
+      }
+    });
+  }
+
   /**
    * Coprocessor environment extension providing access to region server
    * related services.
@@ -210,9 +237,7 @@ public class RegionServerCoprocessorHost extends
   private static class RegionServerEnvironment extends BaseEnvironment<RegionServerCoprocessor>
       implements RegionServerCoprocessorEnvironment {
     private final MetricRegistry metricRegistry;
-    private final Connection connection;
-    private final ServerName serverName;
-    private final OnlineRegions onlineRegions;
+    private final RegionServerServices services;
 
     @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="BC_UNCONFIRMED_CAST",
         justification="Intentional; FB has trouble detecting isAssignableFrom")
@@ -223,26 +248,29 @@ public class RegionServerCoprocessorHost extends
       for (Service service : impl.getServices()) {
         services.registerService(service);
       }
-      this.onlineRegions = services;
-      this.connection = services.getConnection();
-      this.serverName = services.getServerName();
+      this.services = services;
       this.metricRegistry =
           MetricsCoprocessor.createRegistryForRSCoprocessor(impl.getClass().getName());
     }
 
     @Override
     public OnlineRegions getOnlineRegions() {
-      return this.onlineRegions;
+      return this.services;
     }
 
     @Override
     public ServerName getServerName() {
-      return this.serverName;
+      return this.services.getServerName();
     }
 
     @Override
     public Connection getConnection() {
-      return this.connection;
+      return new SharedConnection(this.services.getConnection());
+    }
+
+    @Override
+    public Connection createConnection(Configuration conf) throws IOException {
+      return this.services.createConnection(conf);
     }
 
     @Override
@@ -276,6 +304,7 @@ public class RegionServerCoprocessorHost extends
      * @return An instance of RegionServerServices, an object NOT for general user-space Coprocessor
      * consumption.
      */
+    @Override
     public RegionServerServices getRegionServerServices() {
       return this.regionServerServices;
     }

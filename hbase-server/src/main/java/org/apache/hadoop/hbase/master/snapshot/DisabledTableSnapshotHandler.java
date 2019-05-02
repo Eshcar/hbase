@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.RegionReplicaUtil;
@@ -39,7 +37,8 @@ import org.apache.hadoop.hbase.util.Pair;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.yetus.audience.InterfaceStability;
 import org.apache.zookeeper.KeeperException;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.SnapshotDescription;
 
 /**
@@ -50,14 +49,17 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.Snapshot
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
 public class DisabledTableSnapshotHandler extends TakeSnapshotHandler {
-  private static final Log LOG = LogFactory.getLog(DisabledTableSnapshotHandler.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DisabledTableSnapshotHandler.class);
 
   /**
    * @param snapshot descriptor of the snapshot to take
    * @param masterServices master services provider
+   * @throws IOException if it cannot access the filesystem of the snapshot
+   *         temporary directory
    */
   public DisabledTableSnapshotHandler(SnapshotDescription snapshot,
-      final MasterServices masterServices, final SnapshotManager snapshotManager) {
+      final MasterServices masterServices, final SnapshotManager snapshotManager)
+      throws IOException {
     super(snapshot, masterServices, snapshotManager);
   }
 
@@ -119,5 +121,12 @@ public class DisabledTableSnapshotHandler extends TakeSnapshotHandler {
       LOG.debug("Marking snapshot" + ClientSnapshotDescriptionUtils.toString(snapshot)
           + " as finished.");
     }
+  }
+
+  @Override
+  protected boolean downgradeToSharedTableLock() {
+    // for taking snapshot on disabled table, it is OK to always hold the exclusive lock, as we do
+    // not need to assign the regions when there are region server crashes.
+    return false;
   }
 }

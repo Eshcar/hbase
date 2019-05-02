@@ -20,18 +20,18 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.metrics.Interns;
 import org.apache.hadoop.metrics2.MetricsRecordBuilder;
 import org.apache.hadoop.metrics2.lib.DynamicMetricsRegistry;
 import org.apache.hadoop.metrics2.lib.MutableFastCounter;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @InterfaceAudience.Private
 public class MetricsRegionSourceImpl implements MetricsRegionSource {
 
-  private static final Log LOG = LogFactory.getLog(MetricsRegionSourceImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MetricsRegionSourceImpl.class);
 
   private AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -261,6 +261,10 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
               regionNamePrefix + MetricsRegionServerSource.READ_REQUEST_COUNT,
               MetricsRegionServerSource.READ_REQUEST_COUNT_DESC),
           this.regionWrapper.getReadRequestCount());
+      mrb.addCounter(Interns.info(
+              regionNamePrefix + MetricsRegionServerSource.CP_REQUEST_COUNT,
+              MetricsRegionServerSource.CP_REQUEST_COUNT_DESC),
+          this.regionWrapper.getCpRequestCount());
       mrb.addCounter(Interns.info(
               regionNamePrefix + MetricsRegionServerSource.FILTERED_READ_REQUEST_COUNT,
               MetricsRegionServerSource.FILTERED_READ_REQUEST_COUNT_DESC),

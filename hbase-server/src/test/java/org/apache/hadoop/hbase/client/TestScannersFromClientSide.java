@@ -1,26 +1,32 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with this
- * work for additional information regarding copyright ownership. The ASF
- * licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.hadoop.hbase.client;
 
+import static org.apache.hadoop.hbase.HConstants.RPC_CODEC_CONF_KEY;
+import static org.apache.hadoop.hbase.client.TestFromClientSide3.generateHugeValue;
+import static org.apache.hadoop.hbase.ipc.RpcClient.DEFAULT_CODEC_CLASS;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,11 +34,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CompareOperator;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -42,8 +47,11 @@ import org.apache.hadoop.hbase.HTestConst;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.TableNotFoundException;
+import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.ColumnPrefixFilter;
 import org.apache.hadoop.hbase.filter.ColumnRangeFilter;
+import org.apache.hadoop.hbase.filter.QualifierFilter;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
@@ -53,17 +61,25 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A client-side test, mostly testing scanners with various parameters.
  */
 @Category({MediumTests.class, ClientTests.class})
 public class TestScannersFromClientSide {
-  private static final Log LOG = LogFactory.getLog(TestScannersFromClientSide.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestScannersFromClientSide.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestScannersFromClientSide.class);
 
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static byte [] ROW = Bytes.toBytes("testRow");
@@ -231,6 +247,27 @@ public class TestScannersFromClientSide {
     // in the cache it means that more than the expected max result size was fetched.
     assertTrue("The cache contains: " + clientScanner.getCacheSize() + " results",
       clientScanner.getCacheSize() <= 1);
+  }
+
+  /**
+   * Scan on not existing table should throw the exception with correct message
+   */
+  @Test
+  public void testScannerForNotExistingTable() {
+    String[] tableNames = {"A", "Z", "A:A", "Z:Z"};
+    for(String tableName : tableNames) {
+      try {
+        Table table = TEST_UTIL.getConnection().getTable(TableName.valueOf(tableName));
+        testSmallScan(table, true, 1, 5);
+        fail("TableNotFoundException was not thrown");
+      } catch (TableNotFoundException e) {
+        // We expect that the message for TableNotFoundException would have only the table name only
+        // Otherwise that would mean that localeRegionInMeta doesn't work properly
+        assertEquals(e.getMessage(), tableName);
+      } catch (Exception e) {
+        fail("Unexpected exception " + e.getMessage());
+      }
+    }
   }
 
   @Test
@@ -575,6 +612,30 @@ public class TestScannersFromClientSide {
        "Testing offset + multiple CFs + maxResults");
   }
 
+  @Test
+  public void testScanRawDeleteFamilyVersion() throws Exception {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    TEST_UTIL.createTable(tableName, FAMILY);
+    Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
+    conf.set(RPC_CODEC_CONF_KEY, "");
+    conf.set(DEFAULT_CODEC_CLASS, "");
+    try (Connection connection = ConnectionFactory.createConnection(conf);
+        Table table = connection.getTable(tableName)) {
+      Delete delete = new Delete(ROW);
+      delete.addFamilyVersion(FAMILY, 0L);
+      table.delete(delete);
+      Scan scan = new Scan(ROW).setRaw(true);
+      ResultScanner scanner = table.getScanner(scan);
+      int count = 0;
+      while (scanner.next() != null) {
+        count++;
+      }
+      assertEquals(1, count);
+    } finally {
+      TEST_UTIL.deleteTable(tableName);
+    }
+  }
+
   /**
    * Test from client side for scan while the region is reopened
    * on the same region server.
@@ -814,6 +875,107 @@ public class TestScannersFromClientSide {
         assertArrayEquals(value, scanner.next().getValue(FAMILY, QUALIFIER));
         assertNull(scanner.next());
       }
+    }
+  }
+
+  @Test
+  public void testScanWithColumnsAndFilterAndVersion() throws IOException {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    try (Table table = TEST_UTIL.createTable(tableName, FAMILY, 4)) {
+      for (int i = 0; i < 4; i++) {
+        Put put = new Put(ROW);
+        put.addColumn(FAMILY, QUALIFIER, VALUE);
+        table.put(put);
+      }
+
+      Scan scan = new Scan();
+      scan.addColumn(FAMILY, QUALIFIER);
+      scan.setFilter(new QualifierFilter(CompareOperator.EQUAL, new BinaryComparator(QUALIFIER)));
+      scan.readVersions(3);
+
+      try (ResultScanner scanner = table.getScanner(scan)) {
+        Result result = scanner.next();
+        assertEquals(3, result.size());
+      }
+    }
+  }
+
+  @Test
+  public void testScanWithSameStartRowStopRow() throws IOException {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    try (Table table = TEST_UTIL.createTable(tableName, FAMILY)) {
+      table.put(new Put(ROW).addColumn(FAMILY, QUALIFIER, VALUE));
+
+      Scan scan = new Scan().withStartRow(ROW).withStopRow(ROW);
+      try (ResultScanner scanner = table.getScanner(scan)) {
+        assertNull(scanner.next());
+      }
+
+      scan = new Scan().withStartRow(ROW, true).withStopRow(ROW, true);
+      try (ResultScanner scanner = table.getScanner(scan)) {
+        Result result = scanner.next();
+        assertNotNull(result);
+        assertArrayEquals(ROW, result.getRow());
+        assertArrayEquals(VALUE, result.getValue(FAMILY, QUALIFIER));
+        assertNull(scanner.next());
+      }
+
+      scan = new Scan().withStartRow(ROW, true).withStopRow(ROW, false);
+      try (ResultScanner scanner = table.getScanner(scan)) {
+        assertNull(scanner.next());
+      }
+
+      scan = new Scan().withStartRow(ROW, false).withStopRow(ROW, false);
+      try (ResultScanner scanner = table.getScanner(scan)) {
+        assertNull(scanner.next());
+      }
+
+      scan = new Scan().withStartRow(ROW, false).withStopRow(ROW, true);
+      try (ResultScanner scanner = table.getScanner(scan)) {
+        assertNull(scanner.next());
+      }
+    }
+  }
+
+  @Test
+  public void testReverseScanWithFlush() throws Exception {
+    TableName tableName = TableName.valueOf(name.getMethodName());
+    final int BATCH_SIZE = 10;
+    final int ROWS_TO_INSERT = 100;
+    final byte[] LARGE_VALUE = generateHugeValue(128 * 1024);
+
+    try (Table table = TEST_UTIL.createTable(tableName, FAMILY);
+        Admin admin = TEST_UTIL.getAdmin()) {
+      List<Put> putList = new ArrayList<>();
+      for (long i = 0; i < ROWS_TO_INSERT; i++) {
+        Put put = new Put(Bytes.toBytes(i));
+        put.addColumn(FAMILY, QUALIFIER, LARGE_VALUE);
+        putList.add(put);
+
+        if (putList.size() >= BATCH_SIZE) {
+          table.put(putList);
+          admin.flush(tableName);
+          putList.clear();
+        }
+      }
+
+      if (!putList.isEmpty()) {
+        table.put(putList);
+        admin.flush(tableName);
+        putList.clear();
+      }
+
+      Scan scan = new Scan();
+      scan.setReversed(true);
+      int count = 0;
+
+      try (ResultScanner results = table.getScanner(scan)) {
+        for (Result result : results) {
+          count++;
+        }
+      }
+      assertEquals("Expected " + ROWS_TO_INSERT + " rows in the table but it is " + count,
+          ROWS_TO_INSERT, count);
     }
   }
 }

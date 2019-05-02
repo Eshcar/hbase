@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.snapshot;
 
 import static org.apache.hadoop.util.ToolRunner.run;
@@ -28,15 +27,13 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
@@ -51,12 +48,13 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.SnapshotDescription;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.SnapshotRegionManifest;
@@ -66,9 +64,12 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.Snapshot
  */
 @Category({VerySlowMapReduceTests.class, LargeTests.class})
 public class TestExportSnapshot {
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().
-      withTimeout(this.getClass()).withLookingForStuckThread(true).build();
-  private static final Log LOG = LogFactory.getLog(TestExportSnapshot.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestExportSnapshot.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestExportSnapshot.class);
 
   protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
 
@@ -78,8 +79,8 @@ public class TestExportSnapshot {
   public final TestName testName = new TestName();
 
   protected TableName tableName;
-  private byte[] emptySnapshotName;
-  private byte[] snapshotName;
+  private String emptySnapshotName;
+  private String snapshotName;
   private int tableNumFiles;
   private Admin admin;
 
@@ -98,7 +99,7 @@ public class TestExportSnapshot {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     setUpBaseConf(TEST_UTIL.getConfiguration());
-    TEST_UTIL.startMiniCluster(1, 3);
+    TEST_UTIL.startMiniCluster(3);
     TEST_UTIL.startMiniMapReduceCluster();
   }
 
@@ -116,8 +117,8 @@ public class TestExportSnapshot {
     this.admin = TEST_UTIL.getAdmin();
 
     tableName = TableName.valueOf("testtb-" + testName.getMethodName());
-    snapshotName = Bytes.toBytes("snaptb0-" + testName.getMethodName());
-    emptySnapshotName = Bytes.toBytes("emptySnaptb0-" + testName.getMethodName());
+    snapshotName = "snaptb0-" + testName.getMethodName();
+    emptySnapshotName = "emptySnaptb0-" + testName.getMethodName();
 
     // create Table
     createTable();
@@ -127,7 +128,7 @@ public class TestExportSnapshot {
 
     // Add some rows
     SnapshotTestingUtils.loadData(TEST_UTIL, tableName, 50, FAMILY);
-    tableNumFiles = admin.getTableRegions(tableName).size();
+    tableNumFiles = admin.getRegions(tableName).size();
 
     // take a snapshot
     admin.snapshot(snapshotName, tableName);
@@ -185,18 +186,18 @@ public class TestExportSnapshot {
 
   @Test
   public void testExportWithTargetName() throws Exception {
-    final byte[] targetName = Bytes.toBytes("testExportWithTargetName");
+    final String targetName = "testExportWithTargetName";
     testExportFileSystemState(tableName, snapshotName, targetName, tableNumFiles);
   }
 
-  private void testExportFileSystemState(final TableName tableName, final byte[] snapshotName,
-      final byte[] targetName, int filesExpected) throws Exception {
+  private void testExportFileSystemState(final TableName tableName, final String snapshotName,
+      final String targetName, int filesExpected) throws Exception {
     testExportFileSystemState(tableName, snapshotName, targetName,
       filesExpected, getHdfsDestinationDir(), false);
   }
 
   protected void testExportFileSystemState(final TableName tableName,
-      final byte[] snapshotName, final byte[] targetName, int filesExpected,
+      final String snapshotName, final String targetName, int filesExpected,
       Path copyDir, boolean overwrite) throws Exception {
     testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName, targetName,
       filesExpected, TEST_UTIL.getDefaultRootDirPath(), copyDir,
@@ -207,7 +208,7 @@ public class TestExportSnapshot {
    * Creates destination directory, runs ExportSnapshot() tool, and runs some verifications.
    */
   protected static void testExportFileSystemState(final Configuration conf, final TableName tableName,
-      final byte[] snapshotName, final byte[] targetName, final int filesExpected,
+      final String snapshotName, final String targetName, final int filesExpected,
       final Path sourceDir, Path copyDir, final boolean overwrite,
       final RegionPredicate bypassregionPredicate, boolean success) throws Exception {
     URI hdfsUri = FileSystem.get(conf).getUri();
@@ -216,12 +217,12 @@ public class TestExportSnapshot {
 
     List<String> opts = new ArrayList<>();
     opts.add("--snapshot");
-    opts.add(Bytes.toString(snapshotName));
+    opts.add(snapshotName);
     opts.add("--copy-to");
     opts.add(copyDir.toString());
-    if (targetName != snapshotName) {
+    if (!targetName.equals(snapshotName)) {
       opts.add("--target");
-      opts.add(Bytes.toString(targetName));
+      opts.add(targetName);
     }
     if (overwrite) opts.add("--overwrite");
 
@@ -229,7 +230,7 @@ public class TestExportSnapshot {
     int res = run(conf, new ExportSnapshot(), opts.toArray(new String[opts.size()]));
     assertEquals(success ? 0 : 1, res);
     if (!success) {
-      final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(targetName));
+      final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, targetName);
       assertFalse(fs.exists(new Path(copyDir, targetDir)));
       return;
     }
@@ -246,12 +247,12 @@ public class TestExportSnapshot {
 
     // compare the snapshot metadata and verify the hfiles
     final FileSystem hdfs = FileSystem.get(hdfsUri, conf);
-    final Path snapshotDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(snapshotName));
-    final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(targetName));
+    final Path snapshotDir = new Path(HConstants.SNAPSHOT_DIR_NAME, snapshotName);
+    final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, targetName);
     verifySnapshotDir(hdfs, new Path(sourceDir, snapshotDir),
         fs, new Path(copyDir, targetDir));
     Set<String> snapshotFiles = verifySnapshot(conf, fs, copyDir, tableName,
-      Bytes.toString(targetName), bypassregionPredicate);
+      targetName, bypassregionPredicate);
     assertEquals(filesExpected, snapshotFiles.size());
   }
 
@@ -350,7 +351,7 @@ public class TestExportSnapshot {
     FileStatus[] list = FSUtils.listStatus(fs, dir);
     if (list != null) {
       for (FileStatus fstat: list) {
-        LOG.debug(fstat.getPath());
+        LOG.debug(Objects.toString(fstat.getPath()));
         if (fstat.isDirectory()) {
           files.addAll(listFiles(fs, root, fstat.getPath()));
         } else {

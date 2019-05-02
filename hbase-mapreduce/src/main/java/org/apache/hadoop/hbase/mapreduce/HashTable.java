@@ -26,9 +26,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -56,14 +53,18 @@ import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner;
 import org.apache.hadoop.util.GenericOptionsParser;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Charsets;
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Throwables;
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Ordering;
+import org.apache.hbase.thirdparty.com.google.common.base.Charsets;
+import org.apache.hbase.thirdparty.com.google.common.base.Throwables;
+import org.apache.hbase.thirdparty.com.google.common.collect.Ordering;
 
+@InterfaceAudience.Private
 public class HashTable extends Configured implements Tool {
 
-  private static final Log LOG = LogFactory.getLog(HashTable.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HashTable.class);
 
   private static final int DEFAULT_BATCH_SIZE = 8000;
 
@@ -712,7 +713,7 @@ public class HashTable extends Configured implements Tool {
       }
 
     } catch (Exception e) {
-      e.printStackTrace();
+      LOG.error("Failed to parse commandLine arguments", e);
       printUsage("Can't start because " + e.getMessage());
       return false;
     }

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.ServiceException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,9 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -64,7 +62,6 @@ import org.apache.hadoop.hbase.mob.MobUtils;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionFileSystem;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSTableDescriptors;
 import org.apache.hadoop.hbase.util.FSUtils;
@@ -72,6 +69,8 @@ import org.apache.hadoop.hbase.util.FSVisitor;
 import org.apache.hadoop.hbase.util.MD5Hash;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsSnapshotDoneRequest;
@@ -79,14 +78,12 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.IsSnapshot
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.SnapshotProtos.SnapshotRegionManifest;
 
-import com.google.protobuf.ServiceException;
-
 /**
  * Utilities class for snapshots
  */
 @InterfaceAudience.Private
 public final class SnapshotTestingUtils {
-  private static final Log LOG = LogFactory.getLog(SnapshotTestingUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotTestingUtils.class);
 
   // default number of regions (and keys) given by getSplitKeys() and createTable()
   private static byte[] KEYS = Bytes.toBytes("0123456");
@@ -230,7 +227,6 @@ public final class SnapshotTestingUtils {
         }
       });
     }
-
     // Verify that there are store files in the specified families
     if (nonEmptyTestFamilies != null) {
       for (final byte[] familyName: nonEmptyTestFamilies) {
@@ -278,15 +274,15 @@ public final class SnapshotTestingUtils {
    * Helper method for testing async snapshot operations. Just waits for the
    * given snapshot to complete on the server by repeatedly checking the master.
    *
-   * @param master: the master running the snapshot
-   * @param snapshot: the snapshot to check
-   * @param sleep: amount to sleep between checks to see if the snapshot is done
+   * @param master the master running the snapshot
+   * @param snapshot the snapshot to check
+   * @param sleep amount to sleep between checks to see if the snapshot is done
    * @throws ServiceException if the snapshot fails
-   * @throws org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException
+   * @throws org.apache.hbase.thirdparty.com.google.protobuf.ServiceException
    */
   public static void waitForSnapshotToComplete(HMaster master,
       SnapshotProtos.SnapshotDescription snapshot, long sleep)
-          throws org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException {
+          throws org.apache.hbase.thirdparty.com.google.protobuf.ServiceException {
     final IsSnapshotDoneRequest request = IsSnapshotDoneRequest.newBuilder()
         .setSnapshot(snapshot).build();
     IsSnapshotDoneResponse done = IsSnapshotDoneResponse.newBuilder()
@@ -296,7 +292,7 @@ public final class SnapshotTestingUtils {
       try {
         Thread.sleep(sleep);
       } catch (InterruptedException e) {
-        throw new org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException(e);
+        throw new org.apache.hbase.thirdparty.com.google.protobuf.ServiceException(e);
       }
     }
   }
@@ -347,7 +343,7 @@ public final class SnapshotTestingUtils {
     try {
       master.getMasterRpcServices().isSnapshotDone(null, snapshot);
       Assert.fail("didn't fail to lookup a snapshot");
-    } catch (org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException se) {
+    } catch (org.apache.hbase.thirdparty.com.google.protobuf.ServiceException se) {
       try {
         throw ProtobufUtil.handleRemoteException(se);
       } catch (HBaseSnapshotException e) {
@@ -361,7 +357,7 @@ public final class SnapshotTestingUtils {
   /**
    * List all the HFiles in the given table
    *
-   * @param fs: FileSystem where the table lives
+   * @param fs FileSystem where the table lives
    * @param tableDir directory of the table
    * @return array of the current HFiles in the table (could be a zero-length array)
    * @throws IOException on unexecpted error reading the FS
@@ -511,7 +507,7 @@ public final class SnapshotTestingUtils {
         this.htd = htd;
         this.desc = desc;
         this.tableRegions = tableRegions;
-        this.snapshotDir = SnapshotDescriptionUtils.getWorkingSnapshotDir(desc, rootDir);
+        this.snapshotDir = SnapshotDescriptionUtils.getWorkingSnapshotDir(desc, rootDir, conf);
         new FSTableDescriptors(conf)
           .createTableDescriptorForTableDirectory(snapshotDir, htd, false);
       }
@@ -691,14 +687,14 @@ public final class SnapshotTestingUtils {
         .setVersion(version)
         .build();
 
-      Path workingDir = SnapshotDescriptionUtils.getWorkingSnapshotDir(desc, rootDir);
+      Path workingDir = SnapshotDescriptionUtils.getWorkingSnapshotDir(desc, rootDir, conf);
       SnapshotDescriptionUtils.writeSnapshotInfo(desc, workingDir, fs);
       return new SnapshotBuilder(conf, fs, rootDir, htd, desc, regions);
     }
 
     public TableDescriptor createHtd(final String tableName) {
       return TableDescriptorBuilder.newBuilder(TableName.valueOf(tableName))
-              .addColumnFamily(ColumnFamilyDescriptorBuilder.of(TEST_FAMILY))
+              .setColumnFamily(ColumnFamilyDescriptorBuilder.of(TEST_FAMILY))
               .build();
     }
 
@@ -776,12 +772,12 @@ public final class SnapshotTestingUtils {
           .newBuilder(tableName)
           .setRegionReplication(regionReplication);
     for (byte[] family : families) {
-      builder.addColumnFamily(ColumnFamilyDescriptorBuilder.of(family));
+      builder.setColumnFamily(ColumnFamilyDescriptorBuilder.of(family));
     }
     byte[][] splitKeys = getSplitKeys(nRegions);
     util.createTable(builder.build(), splitKeys);
     assertEquals((splitKeys.length + 1) * regionReplication,
-        util.getAdmin().getTableRegions(tableName).size());
+        util.getAdmin().getRegions(tableName).size());
   }
 
   public static byte[][] getSplitKeys() {

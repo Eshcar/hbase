@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -26,9 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
@@ -42,11 +39,14 @@ import org.apache.hadoop.hbase.util.JVMClusterUtil;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 
@@ -59,6 +59,10 @@ import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 @RunWith(value = Parameterized.class)
 public class TestRegionRebalancing {
 
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRegionRebalancing.class);
+
   @Parameters
   public static Collection<Object[]> data() {
     Object[][] balancers =
@@ -68,7 +72,7 @@ public class TestRegionRebalancing {
   }
 
   private static final byte[] FAMILY_NAME = Bytes.toBytes("col");
-  private static final Log LOG = LogFactory.getLog(TestRegionRebalancing.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestRegionRebalancing.class);
   private final HBaseTestingUtility UTIL = new HBaseTestingUtility();
   private RegionLocator regionLocator;
   private HTableDescriptor desc;
@@ -99,7 +103,7 @@ public class TestRegionRebalancing {
    * @throws IOException
    * @throws InterruptedException
    */
-  @Test (timeout=300000)
+  @Test
   public void testRebalanceOnRegionServerNumberChange()
   throws IOException, InterruptedException {
     try(Connection connection = ConnectionFactory.createConnection(UTIL.getConfiguration());

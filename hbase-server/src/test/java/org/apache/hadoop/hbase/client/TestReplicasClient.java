@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.client;
 
+import com.codahale.metrics.Counter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,13 +32,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.codahale.metrics.Counter;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
@@ -52,9 +47,6 @@ import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.RegionObserver;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.StorefileRefresherChore;
@@ -62,15 +54,22 @@ import org.apache.hadoop.hbase.regionserver.TestRegionServerNoMaster;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.log4j.Level;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.shaded.protobuf.RequestConverter;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
 
 /**
  * Tests for region replicas. Sad that we cannot isolate these without bringing up a whole
@@ -79,15 +78,16 @@ import org.junit.experimental.categories.Category;
 @Category({MediumTests.class, ClientTests.class})
 @SuppressWarnings("deprecation")
 public class TestReplicasClient {
-  private static final Log LOG = LogFactory.getLog(TestReplicasClient.class);
 
-  static {
-    ((Log4JLogger)RpcRetryingCallerImpl.LOG).getLogger().setLevel(Level.ALL);
-  }
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestReplicasClient.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestReplicasClient.class);
 
   private static final int NB_SERVERS = 1;
   private static Table table = null;
-  private static final byte[] row = TestReplicasClient.class.getName().getBytes();
+  private static final byte[] row = Bytes.toBytes(TestReplicasClient.class.getName());
 
   private static HRegionInfo hriPrimary;
   private static HRegionInfo hriSecondary;
@@ -161,7 +161,7 @@ public class TestReplicasClient {
             }
           }
         } catch (InterruptedException e1) {
-          LOG.error(e1);
+          LOG.error(e1.toString(), e1);
         }
       } else {
         LOG.info("We're not the primary replicas.");
@@ -175,7 +175,7 @@ public class TestReplicasClient {
             }
           }
         } catch (InterruptedException e1) {
-          LOG.error(e1);
+          LOG.error(e1.toString(), e1);
         }
       }
     }
@@ -229,7 +229,7 @@ public class TestReplicasClient {
 
   @Before
   public void before() throws IOException {
-    ((ClusterConnection) HTU.getAdmin().getConnection()).clearRegionCache();
+    ((ClusterConnection) HTU.getAdmin().getConnection()).clearRegionLocationCache();
     try {
       openRegion(hriPrimary);
     } catch (Exception ignored) {
@@ -251,7 +251,7 @@ public class TestReplicasClient {
     } catch (Exception ignored) {
     }
 
-    ((ClusterConnection) HTU.getAdmin().getConnection()).clearRegionCache();
+    ((ClusterConnection) HTU.getAdmin().getConnection()).clearRegionLocationCache();
   }
 
   private HRegionServer getRS() {
@@ -266,9 +266,9 @@ public class TestReplicasClient {
     AdminProtos.OpenRegionRequest orr = RequestConverter.buildOpenRegionRequest(
       getRS().getServerName(), hri, null);
     AdminProtos.OpenRegionResponse responseOpen = getRS().getRSRpcServices().openRegion(null, orr);
-    Assert.assertEquals(responseOpen.getOpeningStateCount(), 1);
-    Assert.assertEquals(responseOpen.getOpeningState(0),
-      AdminProtos.OpenRegionResponse.RegionOpeningState.OPENED);
+    Assert.assertEquals(1, responseOpen.getOpeningStateCount());
+    Assert.assertEquals(AdminProtos.OpenRegionResponse.RegionOpeningState.OPENED,
+        responseOpen.getOpeningState(0));
     checkRegionIsOpened(hri);
   }
 
@@ -313,7 +313,7 @@ public class TestReplicasClient {
 
   @Test
   public void testUseRegionWithoutReplica() throws Exception {
-    byte[] b1 = "testUseRegionWithoutReplica".getBytes();
+    byte[] b1 = Bytes.toBytes("testUseRegionWithoutReplica");
     openRegion(hriSecondary);
     SlowMeCopro.getPrimaryCdl().set(new CountDownLatch(0));
     try {
@@ -327,19 +327,19 @@ public class TestReplicasClient {
 
   @Test
   public void testLocations() throws Exception {
-    byte[] b1 = "testLocations".getBytes();
+    byte[] b1 = Bytes.toBytes("testLocations");
     openRegion(hriSecondary);
     ClusterConnection hc = (ClusterConnection) HTU.getAdmin().getConnection();
 
     try {
-      hc.clearRegionCache();
+      hc.clearRegionLocationCache();
       RegionLocations rl = hc.locateRegion(table.getName(), b1, false, false);
       Assert.assertEquals(2, rl.size());
 
       rl = hc.locateRegion(table.getName(), b1, true, false);
       Assert.assertEquals(2, rl.size());
 
-      hc.clearRegionCache();
+      hc.clearRegionLocationCache();
       rl = hc.locateRegion(table.getName(), b1, true, false);
       Assert.assertEquals(2, rl.size());
 
@@ -352,7 +352,7 @@ public class TestReplicasClient {
 
   @Test
   public void testGetNoResultNoStaleRegionWithReplica() throws Exception {
-    byte[] b1 = "testGetNoResultNoStaleRegionWithReplica".getBytes();
+    byte[] b1 = Bytes.toBytes("testGetNoResultNoStaleRegionWithReplica");
     openRegion(hriSecondary);
 
     try {
@@ -368,7 +368,7 @@ public class TestReplicasClient {
 
   @Test
   public void testGetNoResultStaleRegionWithReplica() throws Exception {
-    byte[] b1 = "testGetNoResultStaleRegionWithReplica".getBytes();
+    byte[] b1 = Bytes.toBytes("testGetNoResultStaleRegionWithReplica");
     openRegion(hriSecondary);
 
     SlowMeCopro.getPrimaryCdl().set(new CountDownLatch(1));
@@ -385,7 +385,7 @@ public class TestReplicasClient {
 
   @Test
   public void testGetNoResultNotStaleSleepRegionWithReplica() throws Exception {
-    byte[] b1 = "testGetNoResultNotStaleSleepRegionWithReplica".getBytes();
+    byte[] b1 = Bytes.toBytes("testGetNoResultNotStaleSleepRegionWithReplica");
     openRegion(hriSecondary);
 
     try {
@@ -461,7 +461,7 @@ public class TestReplicasClient {
 
   @Test
   public void testUseRegionWithReplica() throws Exception {
-    byte[] b1 = "testUseRegionWithReplica".getBytes();
+    byte[] b1 = Bytes.toBytes("testUseRegionWithReplica");
     openRegion(hriSecondary);
 
     try {
@@ -554,7 +554,7 @@ public class TestReplicasClient {
 
   @Test
   public void testHedgedRead() throws Exception {
-    byte[] b1 = "testHedgedRead".getBytes();
+    byte[] b1 = Bytes.toBytes("testHedgedRead");
     openRegion(hriSecondary);
 
     try {
@@ -588,8 +588,8 @@ public class TestReplicasClient {
       r = table.get(g);
       Assert.assertFalse(r.isStale());
       Assert.assertFalse(r.getColumnCells(f, b1).isEmpty());
-      Assert.assertEquals(hedgedReadOps.getCount(), 1);
-      Assert.assertEquals(hedgedReadWin.getCount(), 0);
+      Assert.assertEquals(1, hedgedReadOps.getCount());
+      Assert.assertEquals(0, hedgedReadWin.getCount());
       SlowMeCopro.sleepTime.set(0);
       SlowMeCopro.getSecondaryCdl().get().countDown();
       LOG.info("hedged read occurred but not faster");
@@ -602,8 +602,8 @@ public class TestReplicasClient {
       r = table.get(g);
       Assert.assertTrue(r.isStale());
       Assert.assertTrue(r.getColumnCells(f, b1).isEmpty());
-      Assert.assertEquals(hedgedReadOps.getCount(), 2);
-      Assert.assertEquals(hedgedReadWin.getCount(), 1);
+      Assert.assertEquals(2, hedgedReadOps.getCount());
+      Assert.assertEquals(1, hedgedReadWin.getCount());
       SlowMeCopro.getPrimaryCdl().get().countDown();
       LOG.info("hedged read occurred and faster");
 
@@ -617,6 +617,7 @@ public class TestReplicasClient {
     }
   }
 
+  @Ignore // Disabled because it is flakey. Fails 17% on constrained GCE. %3 on Apache.
   @Test
   public void testCancelOfMultiGet() throws Exception {
     openRegion(hriSecondary);
@@ -768,7 +769,7 @@ public class TestReplicasClient {
         for (int col = 0; col < NUMCOLS; col++) {
           Put p = new Put(b1);
           String qualifier = "qualifer" + col;
-          KeyValue kv = new KeyValue(b1, f, qualifier.getBytes());
+          KeyValue kv = new KeyValue(b1, f, Bytes.toBytes(qualifier));
           p.add(kv);
           table.put(p);
         }

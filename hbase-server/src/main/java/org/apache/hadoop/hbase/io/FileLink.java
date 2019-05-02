@@ -26,11 +26,12 @@ import java.io.InputStream;
 import java.io.FileNotFoundException;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.CanSetDropBehind;
 import org.apache.hadoop.fs.CanSetReadahead;
+import org.apache.hadoop.fs.CanUnbuffer;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileStatus;
@@ -92,7 +93,7 @@ import org.apache.hadoop.ipc.RemoteException;
  */
 @InterfaceAudience.Private
 public class FileLink {
-  private static final Log LOG = LogFactory.getLog(FileLink.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FileLink.class);
 
   /** Define the Back-reference directory name prefix: .links-&lt;hfile&gt;/ */
   public static final String BACK_REFERENCES_DIRECTORY_PREFIX = ".links-";
@@ -102,7 +103,7 @@ public class FileLink {
    * and the alternative locations, when the file is moved.
    */
   private static class FileLinkInputStream extends InputStream
-      implements Seekable, PositionedReadable, CanSetDropBehind, CanSetReadahead {
+      implements Seekable, PositionedReadable, CanSetDropBehind, CanSetReadahead, CanUnbuffer {
     private FSDataInputStream in = null;
     private Path currentPath = null;
     private long pos = 0;
@@ -279,6 +280,14 @@ public class FileLink {
     @Override
     public boolean markSupported() {
       return false;
+    }
+
+    @Override
+    public void unbuffer() {
+      if (in == null) {
+        return;
+      }
+      in.unbuffer();
     }
 
     /**

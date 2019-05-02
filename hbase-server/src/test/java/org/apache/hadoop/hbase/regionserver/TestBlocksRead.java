@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,53 +15,62 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.regionserver;
+
+import static junit.framework.TestCase.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.testclassification.MediumTests;
-import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.RegionInfo;
+import org.apache.hadoop.hbase.client.RegionInfoBuilder;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
-import org.apache.hadoop.hbase.io.hfile.CacheConfig;
+import org.apache.hadoop.hbase.io.hfile.BlockCacheFactory;
 import org.apache.hadoop.hbase.io.hfile.HFile;
+import org.apache.hadoop.hbase.testclassification.MediumTests;
+import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManagerTestHelper;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-
-import static junit.framework.TestCase.assertTrue;
-import static org.junit.Assert.assertEquals;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestBlocksRead  {
-  private static final Log LOG = LogFactory.getLog(TestBlocksRead.class);
-  @Rule public TestName testName = new TestName();
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestBlocksRead.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestBlocksRead.class);
+  @Rule
+  public TestName testName = new TestName();
 
   static final BloomType[] BLOOM_TYPE = new BloomType[] { BloomType.ROWCOL,
       BloomType.ROW, BloomType.NONE };
 
-  private static BlockCache blockCache;
   HRegion region = null;
   private static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private final String DIR = TEST_UTIL.getDataTestDir("TestBlocksRead").toString();
@@ -88,23 +96,31 @@ public class TestBlocksRead  {
    * @throws IOException
    * @return created and initialized region.
    */
-  private HRegion initHRegion(byte[] tableName, String callingMethod,
-      Configuration conf, String family) throws IOException {
-    HTableDescriptor htd = new HTableDescriptor(TableName.valueOf(tableName));
-    HColumnDescriptor familyDesc;
+  private HRegion initHRegion(byte[] tableName, String callingMethod, Configuration conf,
+      String family) throws IOException {
+    return initHRegion(tableName, callingMethod, conf, family, null);
+  }
+
+  /**
+   * Callers must afterward call {@link HBaseTestingUtility#closeRegionAndWAL(HRegion)}
+   */
+  private HRegion initHRegion(byte[] tableName, String callingMethod, Configuration conf,
+      String family, BlockCache blockCache) throws IOException {
+    TableDescriptorBuilder builder =
+        TableDescriptorBuilder.newBuilder(TableName.valueOf(tableName));
     for (int i = 0; i < BLOOM_TYPE.length; i++) {
       BloomType bloomType = BLOOM_TYPE[i];
-      familyDesc = new HColumnDescriptor(family + "_" + bloomType)
-          .setBlocksize(1)
-          .setBloomFilterType(BLOOM_TYPE[i]);
-      htd.addFamily(familyDesc);
+      builder.setColumnFamily(
+          ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes(family + "_" + bloomType))
+              .setBlocksize(1).setBloomFilterType(bloomType).build());
     }
-
-    HRegionInfo info = new HRegionInfo(htd.getTableName(), null, null, false);
+    RegionInfo info = RegionInfoBuilder.newBuilder(TableName.valueOf(tableName)).build();
     Path path = new Path(DIR + callingMethod);
-    HRegion r = HBaseTestingUtility.createRegionAndWAL(info, path, conf, htd);
-    blockCache = new CacheConfig(conf).getBlockCache();
-    return r;
+    if (blockCache != null) {
+      return HBaseTestingUtility.createRegionAndWAL(info, path, conf, builder.build(), blockCache);
+    } else {
+      return HBaseTestingUtility.createRegionAndWAL(info, path, conf, builder.build());
+    }
   }
 
   private void putData(String family, String row, String col, long version)
@@ -197,10 +213,6 @@ public class TestBlocksRead  {
 
   private static long getBlkAccessCount(byte[] cf) {
       return HFile.DATABLOCK_READ_COUNT.sum();
-  }
-
-  private static long getBlkCount() {
-    return blockCache.getBlockCount();
   }
 
   /**
@@ -347,7 +359,7 @@ public class TestBlocksRead  {
       // Baseline expected blocks read: 6. [HBASE-4532]
       kvs = getData(FAMILY, "row", Arrays.asList("col1", "col2", "col3"), 6, 7, 7);
       assertEquals(0, kvs.length);
- 
+
       // File 7: Put back new data
       putData(FAMILY, "row", "col1", 11);
       putData(FAMILY, "row", "col2", 12);
@@ -376,7 +388,8 @@ public class TestBlocksRead  {
     byte [] TABLE = Bytes.toBytes("testBlocksReadWhenCachingDisabled");
     String FAMILY = "cf1";
 
-    this.region = initHRegion(TABLE, testName.getMethodName(), conf, FAMILY);
+    BlockCache blockCache = BlockCacheFactory.createBlockCache(conf);
+    this.region = initHRegion(TABLE, testName.getMethodName(), conf, FAMILY, blockCache);
 
     try {
       putData(FAMILY, "row", "col1", 1);
@@ -385,7 +398,7 @@ public class TestBlocksRead  {
 
       // Execute a scan with caching turned off
       // Expected blocks stored: 0
-      long blocksStart = getBlkCount();
+      long blocksStart = blockCache.getBlockCount();
       Scan scan = new Scan();
       scan.setCacheBlocks(false);
       RegionScanner rs = region.getScanner(scan);
@@ -393,7 +406,7 @@ public class TestBlocksRead  {
       rs.next(result);
       assertEquals(2 * BLOOM_TYPE.length, result.size());
       rs.close();
-      long blocksEnd = getBlkCount();
+      long blocksEnd = blockCache.getBlockCount();
 
       assertEquals(blocksStart, blocksEnd);
 
@@ -406,8 +419,8 @@ public class TestBlocksRead  {
       rs.next(result);
       assertEquals(2 * BLOOM_TYPE.length, result.size());
       rs.close();
-      blocksEnd = getBlkCount();
-    
+      blocksEnd = blockCache.getBlockCount();
+
       assertEquals(2 * BLOOM_TYPE.length, blocksEnd - blocksStart);
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(this.region);

@@ -25,6 +25,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
@@ -92,11 +93,13 @@ public class TestCompactor {
       writers.add(realWriter);
       StoreFileWriter writer = mock(StoreFileWriter.class);
       doAnswer(new Answer<Object>() {
+        @Override
         public Object answer(InvocationOnMock invocation) {
           return realWriter.kvs.add((KeyValue) invocation.getArgument(0));
         }
       }).when(writer).append(any());
       doAnswer(new Answer<Object>() {
+        @Override
         public Object answer(InvocationOnMock invocation) {
           Object[] args = invocation.getArguments();
           return realWriter.data.put((byte[]) args[0], (byte[]) args[1]);
@@ -109,6 +112,13 @@ public class TestCompactor {
           return null;
         }
       }).when(writer).appendMetadata(anyLong(), anyBoolean());
+      doAnswer(new Answer<Void>() {
+        @Override
+        public Void answer(InvocationOnMock invocation) throws Throwable {
+          realWriter.hasMetadata = true;
+          return null;
+        }
+      }).when(writer).appendMetadata(anyLong(), anyBoolean(), anyCollection());
       doAnswer(new Answer<Path>() {
         @Override
         public Path answer(InvocationOnMock invocation) throws Throwable {

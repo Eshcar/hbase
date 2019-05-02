@@ -29,25 +29,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.ClusterStatus;
-import org.apache.hadoop.hbase.ClusterStatus.Option;
+import org.apache.hadoop.hbase.ClusterMetrics;
+import org.apache.hadoop.hbase.ClusterMetrics.Option;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
@@ -57,7 +52,6 @@ import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RegionInfo;
-import org.apache.hadoop.hbase.client.RegionInfoBuilder;
 import org.apache.hadoop.hbase.client.RegionLocator;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
@@ -77,6 +71,8 @@ import org.apache.hadoop.hbase.util.HBaseFsck.TableInfo;
 import org.apache.hadoop.hbase.util.hbck.HFileCorruptionChecker;
 import org.apache.zookeeper.KeeperException;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
@@ -92,7 +88,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
  */
 public class BaseTestHBaseFsck {
   static final int POOL_SIZE = 7;
-  protected static final Log LOG = LogFactory.getLog(BaseTestHBaseFsck.class);
+  protected static final Logger LOG = LoggerFactory.getLogger(BaseTestHBaseFsck.class);
   protected final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   protected final static Configuration conf = TEST_UTIL.getConfiguration();
   protected final static String FAM_STR = "fam";
@@ -113,23 +109,6 @@ public class BaseTestHBaseFsck {
   protected final static byte[][] ROWKEYS= new byte[][] {
     Bytes.toBytes("00"), Bytes.toBytes("50"), Bytes.toBytes("A0"), Bytes.toBytes("A5"),
     Bytes.toBytes("B0"), Bytes.toBytes("B5"), Bytes.toBytes("C0"), Bytes.toBytes("C5") };
-
-
-  /**
-   * Create a new region in META.
-   */
-  protected RegionInfo createRegion(final HTableDescriptor
-      htd, byte[] startKey, byte[] endKey)
-      throws IOException {
-    Table meta = connection.getTable(TableName.META_TABLE_NAME, tableExecutorService);
-    RegionInfo hri = RegionInfoBuilder.newBuilder(htd.getTableName())
-        .setStartKey(startKey)
-        .setEndKey(endKey)
-        .build();
-    MetaTableAccessor.addRegionToMeta(meta, hri);
-    meta.close();
-    return hri;
-  }
 
   /**
    * Debugging method to dump the contents of meta.
@@ -329,7 +308,7 @@ public class BaseTestHBaseFsck {
       tbl = null;
     }
 
-    ((ClusterConnection) connection).clearRegionCache();
+    ((ClusterConnection) connection).clearRegionLocationCache();
     deleteTable(TEST_UTIL, tablename);
   }
 
@@ -337,8 +316,8 @@ public class BaseTestHBaseFsck {
    * Get region info from local cluster.
    */
   Map<ServerName, List<String>> getDeployedHRIs(final Admin admin) throws IOException {
-    ClusterStatus status = admin.getClusterStatus(EnumSet.of(Option.LIVE_SERVERS));
-    Collection<ServerName> regionServers = status.getServers();
+    ClusterMetrics status = admin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS));
+    Collection<ServerName> regionServers = status.getLiveServerMetrics().keySet();
     Map<ServerName, List<String>> mm = new HashMap<>();
     for (ServerName hsi : regionServers) {
       AdminProtos.AdminService.BlockingInterface server = connection.getAdmin(hsi);
@@ -435,7 +414,8 @@ public class BaseTestHBaseFsck {
     MobFileName mobFileName = MobFileName.create(oldFileName);
     String startKey = mobFileName.getStartKey();
     String date = mobFileName.getDate();
-    return MobFileName.create(startKey, date, UUID.randomUUID().toString().replaceAll("-", ""))
+    return MobFileName.create(startKey, date,
+                              TEST_UTIL.getRandomUUID().toString().replaceAll("-", ""))
       .getFileName();
   }
 

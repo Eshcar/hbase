@@ -31,8 +31,6 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.TableName;
@@ -53,6 +51,8 @@ import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.wal.AbstractFSWALProvider;
 import org.apache.hadoop.util.Tool;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Incremental backup implementation.
@@ -61,7 +61,7 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.Private
 public class IncrementalTableBackupClient extends TableBackupClient {
-  private static final Log LOG = LogFactory.getLog(IncrementalTableBackupClient.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IncrementalTableBackupClient.class);
 
   protected IncrementalTableBackupClient() {
   }
@@ -72,8 +72,7 @@ public class IncrementalTableBackupClient extends TableBackupClient {
   }
 
   protected List<String> filterMissingFiles(List<String> incrBackupFileList) throws IOException {
-    FileSystem fs = FileSystem.get(conf);
-    List<String> list = new ArrayList<String>();
+    List<String> list = new ArrayList<>();
     for (String file : incrBackupFileList) {
       Path p = new Path(file);
       if (fs.exists(p) || isActiveWalPath(p)) {
@@ -95,7 +94,10 @@ public class IncrementalTableBackupClient extends TableBackupClient {
   }
 
   protected static int getIndex(TableName tbl, List<TableName> sTableList) {
-    if (sTableList == null) return 0;
+    if (sTableList == null) {
+      return 0;
+    }
+
     for (int i = 0; i < sTableList.size(); i++) {
       if (tbl.equals(sTableList.get(i))) {
         return i;
@@ -110,14 +112,15 @@ public class IncrementalTableBackupClient extends TableBackupClient {
    * @param sTableList list of tables to be backed up
    * @return map of table to List of files
    */
-  protected Map<byte[], List<Path>>[] handleBulkLoad(List<TableName> sTableList) throws IOException {
+  @SuppressWarnings("unchecked")
+  protected Map<byte[], List<Path>>[] handleBulkLoad(List<TableName> sTableList)
+          throws IOException {
     Map<byte[], List<Path>>[] mapForSrc = new Map[sTableList.size()];
-    List<String> activeFiles = new ArrayList<String>();
-    List<String> archiveFiles = new ArrayList<String>();
+    List<String> activeFiles = new ArrayList<>();
+    List<String> archiveFiles = new ArrayList<>();
     Pair<Map<TableName, Map<String, Map<String, List<Pair<String, Boolean>>>>>, List<byte[]>> pair =
-    backupManager.readBulkloadRows(sTableList);
+            backupManager.readBulkloadRows(sTableList);
     Map<TableName, Map<String, Map<String, List<Pair<String, Boolean>>>>> map = pair.getFirst();
-    FileSystem fs = FileSystem.get(conf);
     FileSystem tgtFs;
     try {
       tgtFs = FileSystem.get(new URI(backupInfo.getBackupRootDir()), conf);
@@ -126,6 +129,7 @@ public class IncrementalTableBackupClient extends TableBackupClient {
     }
     Path rootdir = FSUtils.getRootDir(conf);
     Path tgtRoot = new Path(new Path(backupInfo.getBackupRootDir()), backupId);
+
     for (Map.Entry<TableName, Map<String, Map<String, List<Pair<String, Boolean>>>>> tblEntry :
       map.entrySet()) {
       TableName srcTable = tblEntry.getKey();
@@ -136,7 +140,7 @@ public class IncrementalTableBackupClient extends TableBackupClient {
         continue;
       }
       if (mapForSrc[srcIdx] == null) {
-        mapForSrc[srcIdx] = new TreeMap<byte[], List<Path>>(Bytes.BYTES_COMPARATOR);
+        mapForSrc[srcIdx] = new TreeMap<>(Bytes.BYTES_COMPARATOR);
       }
       Path tblDir = FSUtils.getTableDir(rootdir, srcTable);
       Path tgtTable = new Path(new Path(tgtRoot, srcTable.getNamespaceAsString()),
@@ -151,11 +155,11 @@ public class IncrementalTableBackupClient extends TableBackupClient {
           String fam = famEntry.getKey();
           Path famDir = new Path(regionDir, fam);
           List<Path> files;
-          if (!mapForSrc[srcIdx].containsKey(fam.getBytes())) {
-            files = new ArrayList<Path>();
-            mapForSrc[srcIdx].put(fam.getBytes(), files);
+          if (!mapForSrc[srcIdx].containsKey(Bytes.toBytes(fam))) {
+            files = new ArrayList<>();
+            mapForSrc[srcIdx].put(Bytes.toBytes(fam), files);
           } else {
-            files = mapForSrc[srcIdx].get(fam.getBytes());
+            files = mapForSrc[srcIdx].get(Bytes.toBytes(fam));
           }
           Path archiveDir = HFileArchiveUtil.getStoreArchivePath(conf, srcTable, regionName, fam);
           String tblName = srcTable.getQualifierAsString();
@@ -177,13 +181,13 @@ public class IncrementalTableBackupClient extends TableBackupClient {
               if (LOG.isTraceEnabled()) {
                 LOG.trace("found bulk hfile " + file + " in " + famDir + " for " + tblName);
               }
-                if (LOG.isTraceEnabled()) {
-                  LOG.trace("copying " + p + " to " + tgt);
-                }
-                activeFiles.add(p.toString());
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("copying " + p + " to " + tgt);
+              }
+              activeFiles.add(p.toString());
             } else if (fs.exists(archive)){
               LOG.debug("copying archive " + archive + " to " + tgt);
-                archiveFiles.add(archive.toString());
+              archiveFiles.add(archive.toString());
             }
             files.add(tgt);
           }
@@ -192,26 +196,45 @@ public class IncrementalTableBackupClient extends TableBackupClient {
     }
 
     copyBulkLoadedFiles(activeFiles, archiveFiles);
-
-    backupManager.writeBulkLoadedFiles(sTableList, mapForSrc);
-    backupManager.removeBulkLoadedRows(sTableList, pair.getSecond());
+    backupManager.deleteBulkLoadedRows(pair.getSecond());
     return mapForSrc;
   }
 
   private void copyBulkLoadedFiles(List<String> activeFiles, List<String> archiveFiles)
-    throws IOException
-  {
-
+      throws IOException {
     try {
       // Enable special mode of BackupDistCp
       conf.setInt(MapReduceBackupCopyJob.NUMBER_OF_LEVELS_TO_PRESERVE_KEY, 5);
       // Copy active files
       String tgtDest = backupInfo.getBackupRootDir() + Path.SEPARATOR + backupInfo.getBackupId();
-      if (activeFiles.size() > 0) {
+      int attempt = 1;
+      while (activeFiles.size() > 0) {
+        LOG.info("Copy "+ activeFiles.size() +
+          " active bulk loaded files. Attempt ="+ (attempt++));
         String[] toCopy = new String[activeFiles.size()];
         activeFiles.toArray(toCopy);
-        incrementalCopyHFiles(toCopy, tgtDest);
+        // Active file can be archived during copy operation,
+        // we need to handle this properly
+        try {
+          incrementalCopyHFiles(toCopy, tgtDest);
+          break;
+        } catch (IOException e) {
+          // Check if some files got archived
+          // Update active and archived lists
+          // When file is being moved from active to archive
+          // directory, the number of active files decreases
+          int numOfActive = activeFiles.size();
+          updateFileLists(activeFiles, archiveFiles);
+          if (activeFiles.size() < numOfActive) {
+            continue;
+          }
+          // if not - throw exception
+          throw e;
+        }
       }
+      // If incremental copy will fail for archived files
+      // we will have partially loaded files in backup destination (only files from active data
+      // directory). It is OK, because the backup will marked as FAILED and data will be cleaned up
       if (archiveFiles.size() > 0) {
         String[] toCopy = new String[archiveFiles.size()];
         archiveFiles.toArray(toCopy);
@@ -221,12 +244,28 @@ public class IncrementalTableBackupClient extends TableBackupClient {
       // Disable special mode of BackupDistCp
       conf.unset(MapReduceBackupCopyJob.NUMBER_OF_LEVELS_TO_PRESERVE_KEY);
     }
+  }
 
+  private void updateFileLists(List<String> activeFiles, List<String> archiveFiles)
+      throws IOException {
+    List<String> newlyArchived = new ArrayList<>();
+
+    for (String spath : activeFiles) {
+      if (!fs.exists(new Path(spath))) {
+        newlyArchived.add(spath);
+      }
+    }
+
+    if (newlyArchived.size() > 0) {
+      activeFiles.removeAll(newlyArchived);
+      archiveFiles.addAll(newlyArchived);
+    }
+
+    LOG.debug(newlyArchived.size() + " files have been archived.");
   }
 
   @Override
   public void execute() throws IOException {
-
     try {
       // case PREPARE_INCREMENTAL:
       beginBackup(backupManager, backupInfo);
@@ -248,7 +287,8 @@ public class IncrementalTableBackupClient extends TableBackupClient {
       BackupUtils.copyTableRegionInfo(conn, backupInfo, conf);
       // convert WAL to HFiles and copy them to .tmp under BACKUP_ROOT
       convertWALsToHFiles();
-      incrementalCopyHFiles(new String[] {getBulkOutputDir().toString()}, backupInfo.getBackupRootDir());
+      incrementalCopyHFiles(new String[] {getBulkOutputDir().toString()},
+              backupInfo.getBackupRootDir());
       // Save list of WAL files copied
       backupManager.recordWALFiles(backupInfo.getIncrBackupFileList());
     } catch (Exception e) {
@@ -289,9 +329,8 @@ public class IncrementalTableBackupClient extends TableBackupClient {
   }
 
   protected void incrementalCopyHFiles(String[] files, String backupDest) throws IOException {
-
     try {
-      LOG.debug("Incremental copy HFiles is starting. dest="+backupDest);
+      LOG.debug("Incremental copy HFiles is starting. dest=" + backupDest);
       // set overall backup phase: incremental_copy
       backupInfo.setPhase(BackupPhase.INCREMENTAL_COPY);
       // get incremental backup file list and prepare parms for DistCp
@@ -322,12 +361,11 @@ public class IncrementalTableBackupClient extends TableBackupClient {
   protected void deleteBulkLoadDirectory() throws IOException {
     // delete original bulk load directory on method exit
     Path path = getBulkOutputDir();
-    FileSystem fs = FileSystem.get(conf);
+    FileSystem fs = FileSystem.get(path.toUri(), conf);
     boolean result = fs.delete(path, true);
     if (!result) {
       LOG.warn("Could not delete " + path);
     }
-
   }
 
   protected void convertWALsToHFiles() throws IOException {
@@ -337,38 +375,40 @@ public class IncrementalTableBackupClient extends TableBackupClient {
     Set<TableName> tableSet = backupManager.getIncrementalBackupTableSet();
     // filter missing files out (they have been copied by previous backups)
     incrBackupFileList = filterMissingFiles(incrBackupFileList);
+    List<String> tableList = new ArrayList<String>();
     for (TableName table : tableSet) {
       // Check if table exists
       if (tableExists(table, conn)) {
-        walToHFiles(incrBackupFileList, table);
+        tableList.add(table.getNameAsString());
       } else {
         LOG.warn("Table " + table + " does not exists. Skipping in WAL converter");
       }
     }
+    walToHFiles(incrBackupFileList, tableList);
+
   }
 
-
   protected boolean tableExists(TableName table, Connection conn) throws IOException {
-    try (Admin admin = conn.getAdmin();) {
+    try (Admin admin = conn.getAdmin()) {
       return admin.tableExists(table);
     }
   }
 
-  protected void walToHFiles(List<String> dirPaths, TableName tableName) throws IOException {
-
+  protected void walToHFiles(List<String> dirPaths, List<String> tableList) throws IOException {
     Tool player = new WALPlayer();
 
     // Player reads all files in arbitrary directory structure and creates
     // a Map task for each file. We use ';' as separator
     // because WAL file names contains ','
     String dirs = StringUtils.join(dirPaths, ';');
-    String jobname = "Incremental_Backup-" + backupId + "-" + tableName.getNameAsString();
+    String jobname = "Incremental_Backup-" + backupId ;
 
-    Path bulkOutputPath = getBulkOutputDirForTable(tableName);
+    Path bulkOutputPath = getBulkOutputDir();
     conf.set(WALPlayer.BULK_OUTPUT_CONF_KEY, bulkOutputPath.toString());
     conf.set(WALPlayer.INPUT_FILES_SEPARATOR_KEY, ";");
+    conf.setBoolean(WALPlayer.MULTI_TABLES_SUPPORT, true);
     conf.set(JOB_NAME_CONF_KEY, jobname);
-    String[] playerArgs = { dirs, tableName.getNameAsString() };
+    String[] playerArgs = { dirs, StringUtils.join(tableList, ",") };
 
     try {
       player.setConf(conf);
@@ -400,5 +440,4 @@ public class IncrementalTableBackupClient extends TableBackupClient {
     path = new Path(path, backupId);
     return path;
   }
-
 }

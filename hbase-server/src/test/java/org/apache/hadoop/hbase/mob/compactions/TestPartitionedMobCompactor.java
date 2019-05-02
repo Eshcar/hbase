@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -32,16 +31,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -49,6 +44,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellComparatorImpl;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -82,14 +78,22 @@ import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category(LargeTests.class)
 public class TestPartitionedMobCompactor {
-  private static final Log LOG = LogFactory.getLog(TestPartitionedMobCompactor.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestPartitionedMobCompactor.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestPartitionedMobCompactor.class);
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private final static String family = "family";
   private final static String qf = "qf";
@@ -131,8 +135,8 @@ public class TestPartitionedMobCompactor {
     Path testDir = FSUtils.getRootDir(conf);
     Path mobTestDir = new Path(testDir, MobConstants.MOB_DIR_NAME);
     basePath = new Path(new Path(mobTestDir, tableName), family);
-    mobSuffix = UUID.randomUUID().toString().replaceAll("-", "");
-    delSuffix = UUID.randomUUID().toString().replaceAll("-", "") + "_del";
+    mobSuffix = TEST_UTIL.getRandomUUID().toString().replaceAll("-", "");
+    delSuffix = TEST_UTIL.getRandomUUID().toString().replaceAll("-", "") + "_del";
     allFiles.clear();
     mobFiles.clear();
     delFiles.clear();
@@ -827,8 +831,8 @@ public class TestPartitionedMobCompactor {
       if (sameStartKey) {
         // When creating multiple files under one partition, suffix needs to be different.
         startRow = Bytes.toBytes(startKey);
-        mobSuffix = UUID.randomUUID().toString().replaceAll("-", "");
-        delSuffix = UUID.randomUUID().toString().replaceAll("-", "") + "_del";
+        mobSuffix = TEST_UTIL.getRandomUUID().toString().replaceAll("-", "");
+        delSuffix = TEST_UTIL.getRandomUUID().toString().replaceAll("-", "") + "_del";
       } else {
         startRow = Bytes.toBytes(startKey + i);
       }

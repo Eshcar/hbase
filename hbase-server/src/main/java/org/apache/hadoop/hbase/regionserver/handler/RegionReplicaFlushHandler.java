@@ -21,13 +21,13 @@ package org.apache.hadoop.hbase.regionserver.handler;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.client.ClusterConnection;
 import org.apache.hadoop.hbase.client.FlushRegionCallable;
 import org.apache.hadoop.hbase.client.RegionReplicaUtil;
@@ -54,7 +54,7 @@ import org.apache.hadoop.hbase.util.ServerRegionReplicaUtil;
 @InterfaceAudience.Private
 public class RegionReplicaFlushHandler extends EventHandler {
 
-  private static final Log LOG = LogFactory.getLog(RegionReplicaFlushHandler.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RegionReplicaFlushHandler.class);
 
   private final ClusterConnection connection;
   private final RpcRetryingCallerFactory rpcRetryingCallerFactory;
@@ -96,7 +96,8 @@ public class RegionReplicaFlushHandler extends EventHandler {
     int numRetries = conf.getInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER,
       HConstants.DEFAULT_HBASE_CLIENT_RETRIES_NUMBER);
     if (numRetries > 10) {
-      int mult = conf.getInt("hbase.client.serverside.retries.multiplier", 10);
+      int mult = conf.getInt(HConstants.HBASE_CLIENT_SERVERSIDE_RETRIES_MULTIPLIER,
+        HConstants.DEFAULT_HBASE_CLIENT_SERVERSIDE_RETRIES_MULTIPLIER);
       numRetries = numRetries / mult; // reset if HRS has multiplied this already
     }
     return numRetries;
@@ -144,6 +145,7 @@ public class RegionReplicaFlushHandler extends EventHandler {
                 + " of region " + region.getRegionInfo().getEncodedName()
                 + " Now waiting and blocking reads until observing a full flush cycle");
         }
+        region.setReadsEnabled(true);
         break;
       } else {
         if (response.hasWroteFlushWalMarker()) {
@@ -155,6 +157,7 @@ public class RegionReplicaFlushHandler extends EventHandler {
                   + " of region " + region.getRegionInfo().getEncodedName() + " Now waiting and "
                   + "blocking reads until observing a flush marker");
             }
+            region.setReadsEnabled(true);
             break;
           } else {
             // somehow we were not able to get the primary to write the flush request. It may be

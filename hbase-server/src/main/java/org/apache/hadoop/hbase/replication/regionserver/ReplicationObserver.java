@@ -23,24 +23,21 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.coprocessor.CoreCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.HasRegionServerServices;
-import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
-import org.apache.hadoop.hbase.regionserver.RegionServerServices;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.apache.hadoop.hbase.HBaseInterfaceAudience;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.RegionObserver;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
+import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.util.Pair;
-
-import javax.validation.constraints.Null;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An Observer to add HFile References to replication queue.
@@ -48,7 +45,7 @@ import javax.validation.constraints.Null;
 @CoreCoprocessor
 @InterfaceAudience.Private
 public class ReplicationObserver implements RegionCoprocessor, RegionObserver {
-  private static final Log LOG = LogFactory.getLog(ReplicationObserver.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ReplicationObserver.class);
 
   @Override
   public Optional<RegionObserver> getRegionObserver() {

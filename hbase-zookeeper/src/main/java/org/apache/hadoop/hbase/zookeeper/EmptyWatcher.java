@@ -25,10 +25,11 @@ import org.apache.zookeeper.Watcher;
  * An empty ZooKeeper watcher
  */
 @InterfaceAudience.Private
-public class EmptyWatcher implements Watcher {
+public final class EmptyWatcher implements Watcher {
   // Used in this package but also by tests so needs to be public
   public static final EmptyWatcher instance = new EmptyWatcher();
   private EmptyWatcher() {}
 
+  @Override
   public void process(WatchedEvent event) {}
 }

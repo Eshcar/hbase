@@ -17,14 +17,19 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.Collection;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.*;
-import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.snapshot.SnapshotTestingUtils;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -33,15 +38,20 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
-
 import org.junit.experimental.categories.Category;
-
-import static org.junit.Assert.assertEquals;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category(MediumTests.class)
 public class TestCompactSplitThread {
-  private static final Log LOG = LogFactory.getLog(TestCompactSplitThread.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestCompactSplitThread.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestCompactSplitThread.class);
   private static final HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private final TableName tableName = TableName.valueOf(getClass().getSimpleName());
   private final byte[] family = Bytes.toBytes("f");
@@ -147,7 +157,7 @@ public class TestCompactSplitThread {
     }
   }
 
-  @Test(timeout = 60000)
+  @Test
   public void testFlushWithTableCompactionDisabled() throws Exception {
     HTableDescriptor htd = new HTableDescriptor(tableName);
     htd.setCompactionEnabled(false);

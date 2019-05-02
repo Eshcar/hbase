@@ -26,10 +26,8 @@ import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.IntStream;
-
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellBuilder;
 import org.apache.hadoop.hbase.CellBuilderFactory;
 import org.apache.hadoop.hbase.CellBuilderType;
 import org.apache.hadoop.hbase.CellUtil;
@@ -53,8 +51,9 @@ import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionLifeCycleTracker;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.math.IntMath;
+import org.apache.hbase.thirdparty.com.google.common.math.IntMath;
 
 /**
  * An example for implementing a counter that reads is much less than writes, i.e, write heavy.
@@ -65,6 +64,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.math.IntMath;
  * Notice that this is only an example so we do not handle most corner cases, for example, you must
  * provide a qualifier when doing a get.
  */
+@InterfaceAudience.Private
 public class WriteHeavyIncrementObserver implements RegionCoprocessor, RegionObserver {
 
   @Override
@@ -80,7 +80,7 @@ public class WriteHeavyIncrementObserver implements RegionCoprocessor, RegionObs
 
   private Cell createCell(byte[] row, byte[] family, byte[] qualifier, long ts, long value) {
     return CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY).setRow(row)
-        .setType(CellBuilder.DataType.Put).setFamily(family).setQualifier(qualifier)
+        .setType(Cell.Type.Put).setFamily(family).setQualifier(qualifier)
         .setTimestamp(ts).setValue(Bytes.toBytes(value)).build();
   }
 
@@ -250,7 +250,7 @@ public class WriteHeavyIncrementObserver implements RegionCoprocessor, RegionObs
             .setQualifier(cell.getQualifierArray(), cell.getQualifierOffset(),
               cell.getQualifierLength())
             .setValue(cell.getValueArray(), cell.getValueOffset(), cell.getValueLength())
-            .setType(CellBuilder.DataType.Put).setTimestamp(ts).build());
+            .setType(Cell.Type.Put).setTimestamp(ts).build());
       }
     }
     c.getEnvironment().getRegion().put(put);

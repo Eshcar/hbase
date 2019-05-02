@@ -19,6 +19,7 @@
 
 package org.apache.hadoop.hbase.filter;
 
+import java.util.Objects;
 import java.util.Random;
 
 import org.apache.hadoop.hbase.Cell;
@@ -26,7 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
 
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * A filter that includes rows based on a chance.
@@ -87,7 +88,8 @@ public class RandomRowFilter extends FilterBase {
   public boolean filterRow() {
     return filterOutRow;
   }
-  
+
+  @Override
   public boolean hasFilterRow() {
     return true;
   }
@@ -115,6 +117,7 @@ public class RandomRowFilter extends FilterBase {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte [] toByteArray() {
     FilterProtos.RandomRowFilter.Builder builder =
       FilterProtos.RandomRowFilter.newBuilder();
@@ -144,11 +147,22 @@ public class RandomRowFilter extends FilterBase {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof RandomRowFilter)) return false;
 
     RandomRowFilter other = (RandomRowFilter)o;
     return this.getChance() == other.getChance();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(this.getChance());
   }
 }

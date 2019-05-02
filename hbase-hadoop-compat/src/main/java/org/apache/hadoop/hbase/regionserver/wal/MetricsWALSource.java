@@ -19,10 +19,12 @@
 package org.apache.hadoop.hbase.regionserver.wal;
 
 import org.apache.hadoop.hbase.metrics.BaseSource;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * Interface of the source that will export metrics about the region server's WAL.
  */
+@InterfaceAudience.Private
 public interface MetricsWALSource extends BaseSource {
 
 
@@ -58,10 +60,19 @@ public interface MetricsWALSource extends BaseSource {
   String SYNC_TIME = "syncTime";
   String SYNC_TIME_DESC = "The time it took to sync the WAL to HDFS.";
   String ROLL_REQUESTED = "rollRequest";
-  String ROLL_REQUESTED_DESC = "How many times a log roll has been requested total";
+  String ROLL_REQUESTED_DESC = "How many times a roll has been requested total";
+  String ERROR_ROLL_REQUESTED = "errorRollRequest";
+  String ERROR_ROLL_REQUESTED_DESC =
+      "How many times a roll was requested due to I/O or other errors.";
   String LOW_REPLICA_ROLL_REQUESTED = "lowReplicaRollRequest";
   String LOW_REPLICA_ROLL_REQUESTED_DESC =
-      "How many times a log roll was requested due to too few DN's in the write pipeline.";
+      "How many times a roll was requested due to too few datanodes in the write pipeline.";
+  String SLOW_SYNC_ROLL_REQUESTED = "slowSyncRollRequest";
+  String SLOW_SYNC_ROLL_REQUESTED_DESC =
+      "How many times a roll was requested due to sync too slow on the write pipeline.";
+  String SIZE_ROLL_REQUESTED = "sizeRollRequest";
+  String SIZE_ROLL_REQUESTED_DESC =
+      "How many times a roll was requested due to file size roll threshold.";
   String WRITTEN_BYTES = "writtenBytes";
   String WRITTEN_BYTES_DESC = "Size (in bytes) of the data written to the WAL.";
 
@@ -92,9 +103,15 @@ public interface MetricsWALSource extends BaseSource {
 
   void incrementLogRollRequested();
 
+  void incrementErrorLogRoll();
+
   void incrementLowReplicationLogRoll();
 
   long getSlowAppendCount();
+
+  void incrementSlowSyncLogRoll();
+
+  void incrementSizeLogRoll();
 
   void incrementWrittenBytes(long val);
 

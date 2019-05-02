@@ -27,7 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * This is a Filter wrapper class which is used in the server side. Some filter
@@ -51,6 +51,7 @@ final public class FilterWrapper extends Filter {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte[] toByteArray() throws IOException {
     FilterProtos.FilterWrapper.Builder builder =
       FilterProtos.FilterWrapper.newBuilder();
@@ -118,6 +119,7 @@ final public class FilterWrapper extends Filter {
     return filterCell(c);
   }
 
+  @Override
   public ReturnCode filterCell(final Cell c) throws IOException {
     return this.filter.filterCell(c);
   }
@@ -170,6 +172,7 @@ final public class FilterWrapper extends Filter {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof FilterWrapper)) return false;

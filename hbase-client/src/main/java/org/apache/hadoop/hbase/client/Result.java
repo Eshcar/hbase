@@ -859,7 +859,7 @@ public class Result implements CellScannable, CellScanner {
       return size;
     }
     for (Cell c : result.rawCells()) {
-      size += PrivateCellUtil.estimatedHeapSizeOf(c);
+      size += c.heapSize();
     }
     return size;
   }
@@ -921,16 +921,6 @@ public class Result implements CellScannable, CellScanner {
    */
   public boolean isStale() {
     return stale;
-  }
-
-  /**
-   * @deprecated the word 'partial' ambiguous, use {@link #mayHaveMoreCellsInRow()} instead.
-   *             Deprecated since 1.4.0.
-   * @see #mayHaveMoreCellsInRow()
-   */
-  @Deprecated
-  public boolean isPartial() {
-    return mayHaveMoreCellsInRow;
   }
 
   /**

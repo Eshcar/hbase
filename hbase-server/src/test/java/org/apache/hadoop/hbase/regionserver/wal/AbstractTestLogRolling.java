@@ -22,27 +22,25 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.StartMiniClusterOption;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
@@ -57,12 +55,14 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test log deletion as logs are rolled.
  */
 public abstract class AbstractTestLogRolling  {
-  private static final Log LOG = LogFactory.getLog(AbstractTestLogRolling.class);
+  private static final Logger LOG = LoggerFactory.getLogger(AbstractTestLogRolling.class);
   protected HRegionServer server;
   protected String tableName;
   protected byte[] value;
@@ -89,11 +89,9 @@ public abstract class AbstractTestLogRolling  {
   // to the HDFS & HBase cluster startup.
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-
-
     /**** configuration for testLogRolling ****/
     // Force a region split after every 768KB
-    Configuration conf= TEST_UTIL.getConfiguration();
+    Configuration conf = TEST_UTIL.getConfiguration();
     conf.setLong(HConstants.HREGION_MAX_FILESIZE, 768L * 1024L);
 
     // We roll the log after every 32 writes
@@ -114,11 +112,16 @@ public abstract class AbstractTestLogRolling  {
     // Reduce thread wake frequency so that other threads can get
     // a chance to run.
     conf.setInt(HConstants.THREAD_WAKE_FREQUENCY, 2 * 1000);
+
+    // disable low replication check for log roller to get a more stable result
+    // TestWALOpenAfterDNRollingStart will test this option.
+    conf.setLong("hbase.regionserver.hlog.check.lowreplication.interval", 24L * 60 * 60 * 1000);
   }
 
   @Before
   public void setUp() throws Exception {
-    TEST_UTIL.startMiniCluster(1, 1, 2);
+    // Use 2 DataNodes and default values for other StartMiniCluster options.
+    TEST_UTIL.startMiniCluster(StartMiniClusterOption.builder().numDataNodes(2).build());
 
     cluster = TEST_UTIL.getHBaseCluster();
     dfsCluster = TEST_UTIL.getDFSCluster();
@@ -158,12 +161,12 @@ public abstract class AbstractTestLogRolling  {
   /**
    * Tests that log rolling doesn't hang when no data is written.
    */
-  @Test(timeout=120000)
+  @Test
   public void testLogRollOnNothingWritten() throws Exception {
     final Configuration conf = TEST_UTIL.getConfiguration();
-    final WALFactory wals = new WALFactory(conf, null,
-        ServerName.valueOf("test.com",8080, 1).toString());
-    final WAL newLog = wals.getWAL(new byte[]{}, null);
+    final WALFactory wals =
+      new WALFactory(conf, ServerName.valueOf("test.com", 8080, 1).toString());
+    final WAL newLog = wals.getWAL(null);
     try {
       // Now roll the log before we write anything.
       newLog.rollWriter(true);
@@ -182,8 +185,6 @@ public abstract class AbstractTestLogRolling  {
 
   /**
    * Tests that logs are deleted
-   * @throws IOException
-   * @throws org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException
    */
   @Test
   public void testLogRolling() throws Exception {
@@ -253,9 +254,6 @@ public abstract class AbstractTestLogRolling  {
       final WAL log = server.getWAL(region.getRegionInfo());
       Store s = region.getStore(HConstants.CATALOG_FAMILY);
 
-      //have to flush namespace to ensure it doesn't affect wall tests
-      admin.flush(TableName.NAMESPACE_TABLE_NAME);
-
       // Put some stuff into table, to make sure we have some files to compact.
       for (int i = 1; i <= 2; ++i) {
         doPut(table, i);
@@ -305,8 +303,8 @@ public abstract class AbstractTestLogRolling  {
 
   protected Table createTestTable(String tableName) throws IOException {
     // Create the test table and open it
-    HTableDescriptor desc = new HTableDescriptor(TableName.valueOf(tableName));
-    desc.addFamily(new HColumnDescriptor(HConstants.CATALOG_FAMILY));
+    TableDescriptor desc = TableDescriptorBuilder.newBuilder(TableName.valueOf(getName()))
+        .setColumnFamily(ColumnFamilyDescriptorBuilder.of(HConstants.CATALOG_FAMILY)).build();
     admin.createTable(desc);
     return TEST_UTIL.getConnection().getTable(desc.getTableName());
   }

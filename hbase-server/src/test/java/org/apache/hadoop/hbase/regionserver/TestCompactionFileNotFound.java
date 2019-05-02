@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -23,10 +22,8 @@ import static org.junit.Assert.assertEquals;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Waiter;
@@ -41,8 +38,11 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class tests the scenario where a store refresh happens due to a file not found during scan,
@@ -51,7 +51,12 @@ import org.junit.experimental.categories.Category;
  */
 @Category(MediumTests.class)
 public class TestCompactionFileNotFound {
-  private static final Log LOG = LogFactory.getLog(TestCompactionFileNotFound.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestCompactionFileNotFound.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestCompactionFileNotFound.class);
   private static final HBaseTestingUtility util = new HBaseTestingUtility();
 
   private static final TableName TEST_TABLE = TableName.valueOf("test");
@@ -121,12 +126,13 @@ public class TestCompactionFileNotFound {
       }
       table.put(putb);
       HRegion hr1 = (HRegion) util.getRSForFirstRegionInTable(TEST_TABLE)
-          .getRegionByEncodedName(admin.getTableRegions(TEST_TABLE).get(0).getEncodedName());
+          .getRegionByEncodedName(admin.getRegions(TEST_TABLE).get(0).getEncodedName());
       // Refresh store files post compaction, this should not open already compacted files
       hr1.refreshStoreFiles(true);
-      int numRegionsBeforeSplit = admin.getTableRegions(TEST_TABLE).size();
+      int numRegionsBeforeSplit = admin.getRegions(TEST_TABLE).size();
       // Check if we can successfully split after compaction
-      admin.splitRegion(admin.getTableRegions(TEST_TABLE).get(0).getEncodedNameAsBytes(), ROW_C);
+      admin.splitRegionAsync(admin.getRegions(TEST_TABLE).get(0).getEncodedNameAsBytes(), ROW_C)
+        .get();
       util.waitFor(20000, new Waiter.Predicate<Exception>() {
         @Override
         public boolean evaluate() throws Exception {
@@ -141,7 +147,7 @@ public class TestCompactionFileNotFound {
         }
       });
       // Split at this point should not result in the RS being aborted
-      assertEquals(util.getMiniHBaseCluster().getLiveRegionServerThreads().size(), 3);
+      assertEquals(3, util.getMiniHBaseCluster().getLiveRegionServerThreads().size());
     } finally {
       if (admin != null) {
         admin.close();
@@ -176,7 +182,7 @@ public class TestCompactionFileNotFound {
       }
       table.put(putb);
       HRegion hr1 = (HRegion) util.getRSForFirstRegionInTable(TEST_TABLE)
-          .getRegionByEncodedName(admin.getTableRegions(TEST_TABLE).get(0).getEncodedName());
+          .getRegionByEncodedName(admin.getRegions(TEST_TABLE).get(0).getEncodedName());
       // Refresh store files post compaction, this should not open already compacted files
       hr1.refreshStoreFiles(true);
       // Archive the store files and try another compaction to see if all is good

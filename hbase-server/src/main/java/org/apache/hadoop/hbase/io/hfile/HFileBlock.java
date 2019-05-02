@@ -27,14 +27,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.io.ByteArrayOutputStream;
 import org.apache.hadoop.hbase.io.ByteBuffInputStream;
@@ -53,8 +53,8 @@ import org.apache.hadoop.hbase.util.ChecksumType;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.io.IOUtils;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
 
 /**
  * Cacheable Blocks of an {@link HFile} version 2 file.
@@ -95,8 +95,8 @@ import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
  * Caches cache whole blocks with trailing checksums if any. We then tag on some metadata, the
  * content of BLOCK_METADATA_SPACE which will be flag on if we are doing 'hbase'
  * checksums and then the offset into the file which is needed when we re-make a cache key
- * when we return the block to the cache as 'done'. See {@link Cacheable#serialize(ByteBuffer)} and
- * {@link Cacheable#getDeserializer()}.
+ * when we return the block to the cache as 'done'.
+ * See {@link Cacheable#serialize(ByteBuffer, boolean)} and {@link Cacheable#getDeserializer()}.
  *
  * <p>TODO: Should we cache the checksums? Down in Writer#getBlockForCaching(CacheConfig) where
  * we make a block to cache-on-write, there is an attempt at turning off checksums. This is not the
@@ -110,7 +110,7 @@ import org.apache.hadoop.hbase.shaded.com.google.common.base.Preconditions;
  */
 @InterfaceAudience.Private
 public class HFileBlock implements Cacheable {
-  private static final Log LOG = LogFactory.getLog(HFileBlock.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HFileBlock.class);
 
   // Block Header fields.
 
@@ -251,46 +251,51 @@ public class HFileBlock implements Cacheable {
    * + Metadata!  + <= See note on BLOCK_METADATA_SPACE above.
    * ++++++++++++++
    * </code>
-   * @see #serialize(ByteBuffer)
+   * @see #serialize(ByteBuffer, boolean)
    */
-  static final CacheableDeserializer<Cacheable> BLOCK_DESERIALIZER =
-      new CacheableDeserializer<Cacheable>() {
-        public HFileBlock deserialize(ByteBuff buf, boolean reuse, MemoryType memType)
+  public static final CacheableDeserializer<Cacheable> BLOCK_DESERIALIZER = new BlockDeserializer();
+
+  public static final class BlockDeserializer implements CacheableDeserializer<Cacheable> {
+    private BlockDeserializer() {
+    }
+
+    @Override
+    public HFileBlock deserialize(ByteBuff buf, boolean reuse, MemoryType memType)
         throws IOException {
-          // The buf has the file block followed by block metadata.
-          // Set limit to just before the BLOCK_METADATA_SPACE then rewind.
-          buf.limit(buf.limit() - BLOCK_METADATA_SPACE).rewind();
-          // Get a new buffer to pass the HFileBlock for it to 'own'.
-          ByteBuff newByteBuff;
-          if (reuse) {
-            newByteBuff = buf.slice();
-          } else {
-            int len = buf.limit();
-            newByteBuff = new SingleByteBuff(ByteBuffer.allocate(len));
-            newByteBuff.put(0, buf, buf.position(), len);
-          }
-          // Read out the BLOCK_METADATA_SPACE content and shove into our HFileBlock.
-          buf.position(buf.limit());
-          buf.limit(buf.limit() + HFileBlock.BLOCK_METADATA_SPACE);
-          boolean usesChecksum = buf.get() == (byte)1;
-          long offset = buf.getLong();
-          int nextBlockOnDiskSize = buf.getInt();
-          HFileBlock hFileBlock =
-              new HFileBlock(newByteBuff, usesChecksum, memType, offset, nextBlockOnDiskSize, null);
-          return hFileBlock;
-        }
+      // The buf has the file block followed by block metadata.
+      // Set limit to just before the BLOCK_METADATA_SPACE then rewind.
+      buf.limit(buf.limit() - BLOCK_METADATA_SPACE).rewind();
+      // Get a new buffer to pass the HFileBlock for it to 'own'.
+      ByteBuff newByteBuff;
+      if (reuse) {
+        newByteBuff = buf.slice();
+      } else {
+        int len = buf.limit();
+        newByteBuff = new SingleByteBuff(ByteBuffer.allocate(len));
+        newByteBuff.put(0, buf, buf.position(), len);
+      }
+      // Read out the BLOCK_METADATA_SPACE content and shove into our HFileBlock.
+      buf.position(buf.limit());
+      buf.limit(buf.limit() + HFileBlock.BLOCK_METADATA_SPACE);
+      boolean usesChecksum = buf.get() == (byte) 1;
+      long offset = buf.getLong();
+      int nextBlockOnDiskSize = buf.getInt();
+      HFileBlock hFileBlock =
+          new HFileBlock(newByteBuff, usesChecksum, memType, offset, nextBlockOnDiskSize, null);
+      return hFileBlock;
+    }
 
-        @Override
-        public int getDeserialiserIdentifier() {
-          return DESERIALIZER_IDENTIFIER;
-        }
+    @Override
+    public int getDeserialiserIdentifier() {
+      return DESERIALIZER_IDENTIFIER;
+    }
 
-        @Override
-        public HFileBlock deserialize(ByteBuff b) throws IOException {
-          // Used only in tests
-          return deserialize(b, false, MemoryType.EXCLUSIVE);
-        }
-      };
+    @Override
+    public HFileBlock deserialize(ByteBuff b) throws IOException {
+      // Used only in tests
+      return deserialize(b, false, MemoryType.EXCLUSIVE);
+    }
+  }
 
   private static final int DESERIALIZER_IDENTIFIER;
   static {
@@ -324,7 +329,6 @@ public class HFileBlock implements Cacheable {
    * Creates a new {@link HFile} block from the given fields. This constructor
    * is used only while writing blocks and caching,
    * and is sitting in a byte buffer and we want to stuff the block into cache.
-   * See {@link Writer#getBlockForCaching(CacheConfig)}.
    *
    * <p>TODO: The caller presumes no checksumming
    * required of this block instance since going into cache; checksum already verified on
@@ -340,9 +344,11 @@ public class HFileBlock implements Cacheable {
    * @param onDiskDataSizeWithHeader see {@link #onDiskDataSizeWithHeader}
    * @param fileContext HFile meta data
    */
-  HFileBlock(BlockType blockType, int onDiskSizeWithoutHeader, int uncompressedSizeWithoutHeader,
-      long prevBlockOffset, ByteBuffer b, boolean fillHeader, long offset,
-      final int nextBlockOnDiskSize, int onDiskDataSizeWithHeader, HFileContext fileContext) {
+  @VisibleForTesting
+  public HFileBlock(BlockType blockType, int onDiskSizeWithoutHeader,
+      int uncompressedSizeWithoutHeader, long prevBlockOffset, ByteBuffer b, boolean fillHeader,
+      long offset, final int nextBlockOnDiskSize, int onDiskDataSizeWithHeader,
+      HFileContext fileContext) {
     init(blockType, onDiskSizeWithoutHeader, uncompressedSizeWithoutHeader,
         prevBlockOffset, offset, onDiskDataSizeWithHeader, nextBlockOnDiskSize, fileContext);
     this.buf = new SingleByteBuff(b);
@@ -619,6 +625,7 @@ public class HFileBlock implements Cacheable {
       .append(", buf=[").append(buf).append("]")
       .append(", dataBeginsWith=").append(dataBegin)
       .append(", fileContext=").append(fileContext)
+      .append(", nextBlockOnDiskSize=").append(nextBlockOnDiskSize)
       .append("]");
     return sb.toString();
   }
@@ -834,7 +841,7 @@ public class HFileBlock implements Cacheable {
       INIT,
       WRITING,
       BLOCK_READY
-    };
+    }
 
     /** Writer state. Used to ensure the correct usage protocol. */
     private State state = State.INIT;
@@ -1480,6 +1487,7 @@ public class HFileBlock implements Cacheable {
       this(new FSDataInputStreamWrapper(istream), fileSize, null, null, fileContext);
     }
 
+    @Override
     public BlockIterator blockRange(final long startOffset, final long endOffset) {
       final FSReader owner = this; // handle for inner class
       return new BlockIterator() {
@@ -1730,11 +1738,9 @@ public class HFileBlock implements Cacheable {
       // and will save us having to seek the stream backwards to reread the header we
       // read the last time through here.
       ByteBuffer headerBuf = getCachedHeader(offset);
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("Reading " + this.fileContext.getHFileName() + " at offset=" + offset +
-          ", pread=" + pread + ", verifyChecksum=" + verifyChecksum + ", cachedHeader=" +
-          headerBuf + ", onDiskSizeWithHeader=" + onDiskSizeWithHeader);
-      }
+      LOG.trace("Reading {} at offset={}, pread={}, verifyChecksum={}, cachedHeader={}, " +
+          "onDiskSizeWithHeader={}", this.fileContext.getHFileName(), offset, pread,
+          verifyChecksum, headerBuf, onDiskSizeWithHeader);
       // This is NOT same as verifyChecksum. This latter is whether to do hbase
       // checksums. Can change with circumstances. The below flag is whether the
       // file has support for checksums (version 2+).
@@ -1798,9 +1804,7 @@ public class HFileBlock implements Cacheable {
       if (!fileContext.isCompressedOrEncrypted()) {
         hFileBlock.sanityCheckUncompressed();
       }
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("Read " + hFileBlock + " in " + duration + " ns");
-      }
+      LOG.trace("Read {} in {} ns", hFileBlock, duration);
       // Cache next block header if we read it for the next time through here.
       if (nextBlockOnDiskSize != -1) {
         cacheNextBlockHeader(offset + hFileBlock.getOnDiskSizeWithHeader(),
@@ -1895,11 +1899,9 @@ public class HFileBlock implements Cacheable {
 
   // Cacheable implementation
   @Override
-  public void serialize(ByteBuffer destination) {
-    // BE CAREFUL!! There is a custom version of this serialization over in BucketCache#doDrain.
-    // Make sure any changes in here are reflected over there.
+  public void serialize(ByteBuffer destination, boolean includeNextBlockMetadata) {
     this.buf.get(destination, 0, getSerializedLength() - BLOCK_METADATA_SPACE);
-    destination = addMetaData(destination);
+    destination = addMetaData(destination, includeNextBlockMetadata);
 
     // Make it ready for reading. flip sets position to zero and limit to current position which
     // is what we want if we do not want to serialize the block plus checksums if present plus
@@ -1912,7 +1914,7 @@ public class HFileBlock implements Cacheable {
    */
   public ByteBuffer getMetaData() {
     ByteBuffer bb = ByteBuffer.allocate(BLOCK_METADATA_SPACE);
-    bb = addMetaData(bb);
+    bb = addMetaData(bb, true);
     bb.flip();
     return bb;
   }
@@ -1921,10 +1923,12 @@ public class HFileBlock implements Cacheable {
    * Adds metadata at current position (position is moved forward). Does not flip or reset.
    * @return The passed <code>destination</code> with metadata added.
    */
-  private ByteBuffer addMetaData(final ByteBuffer destination) {
+  private ByteBuffer addMetaData(final ByteBuffer destination, boolean includeNextBlockMetadata) {
     destination.put(this.fileContext.isUseHBaseChecksum() ? (byte) 1 : (byte) 0);
     destination.putLong(this.offset);
-    destination.putInt(this.nextBlockOnDiskSize);
+    if (includeNextBlockMetadata) {
+      destination.putInt(this.nextBlockOnDiskSize);
+    }
     return destination;
   }
 

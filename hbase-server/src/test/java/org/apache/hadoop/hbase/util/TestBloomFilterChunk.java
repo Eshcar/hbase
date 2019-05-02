@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,22 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.util;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.nio.ByteBuffer;
-
 import junit.framework.TestCase;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.nio.MultiByteBuff;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
+import org.junit.ClassRule;
 import org.junit.experimental.categories.Category;
 
 @Category({MiscTests.class, SmallTests.class})
 public class TestBloomFilterChunk extends TestCase {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestBloomFilterChunk.class);
 
   public void testBasicBloom() throws Exception {
     BloomFilterChunk bf1 = new BloomFilterChunk(1000, (float)0.01, Hash.MURMUR_HASH, 0);
@@ -56,7 +58,7 @@ public class TestBloomFilterChunk extends TestCase {
         (int) bf2.byteSize, bf2.hash, bf2.hashCount));
 
     byte [] bkey = {1,2,3,4};
-    byte [] bval = "this is a much larger byte array".getBytes();
+    byte [] bval = Bytes.toBytes("this is a much larger byte array");
 
     bf1.add(bkey, 0, bkey.length);
     bf1.add(bval, 1, bval.length-1);

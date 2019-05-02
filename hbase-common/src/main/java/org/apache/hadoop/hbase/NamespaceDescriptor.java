@@ -26,8 +26,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.yetus.audience.InterfaceAudience;
 
 /**
  * Namespace POJO class. Used to represent and define namespaces.
@@ -166,7 +166,7 @@ public class NamespaceDescriptor {
 
     private Builder(NamespaceDescriptor ns) {
       this.bName = ns.name;
-      this.bConfiguration = ns.configuration;
+      this.bConfiguration.putAll(ns.configuration);
     }
 
     private Builder(String name) {

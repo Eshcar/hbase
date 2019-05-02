@@ -27,8 +27,12 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-
+import org.apache.hadoop.hbase.Cell.Type;
+import org.apache.hadoop.hbase.CellBuilderFactory;
+import org.apache.hadoop.hbase.CellBuilderType;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Put;
@@ -45,6 +49,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -53,6 +58,10 @@ import org.junit.experimental.categories.Category;
  */
 @Category({ CoprocessorTests.class, MediumTests.class })
 public class TestFlushLifeCycleTracker {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestFlushLifeCycleTracker.class);
 
   private static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
@@ -173,8 +182,8 @@ public class TestFlushLifeCycleTracker {
   public void setUp() throws IOException {
     UTIL.getAdmin()
         .createTable(TableDescriptorBuilder.newBuilder(NAME)
-            .addColumnFamily(ColumnFamilyDescriptorBuilder.of(CF))
-            .addCoprocessor(FlushObserver.class.getName()).build());
+            .setColumnFamily(ColumnFamilyDescriptorBuilder.of(CF))
+            .setCoprocessor(FlushObserver.class.getName()).build());
     region = UTIL.getHBaseCluster().getRegions(NAME).get(0);
   }
 
@@ -189,7 +198,16 @@ public class TestFlushLifeCycleTracker {
   public void test() throws IOException, InterruptedException {
     try (Table table = UTIL.getConnection().getTable(NAME)) {
       for (int i = 0; i < 100; i++) {
-        table.put(new Put(Bytes.toBytes(i)).addImmutable(CF, QUALIFIER, Bytes.toBytes(i)));
+        byte[] row = Bytes.toBytes(i);
+        table.put(new Put(row, true)
+                    .add(CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY)
+                        .setRow(row)
+                        .setFamily(CF)
+                        .setQualifier(QUALIFIER)
+                        .setTimestamp(HConstants.LATEST_TIMESTAMP)
+                        .setType(Type.Put)
+                        .setValue(Bytes.toBytes(i))
+                        .build()));
       }
     }
     Tracker tracker = new Tracker();
@@ -214,7 +232,16 @@ public class TestFlushLifeCycleTracker {
   public void testNotExecuted() throws IOException, InterruptedException {
     try (Table table = UTIL.getConnection().getTable(NAME)) {
       for (int i = 0; i < 100; i++) {
-        table.put(new Put(Bytes.toBytes(i)).addImmutable(CF, QUALIFIER, Bytes.toBytes(i)));
+        byte[] row = Bytes.toBytes(i);
+        table.put(new Put(row, true)
+                    .add(CellBuilderFactory.create(CellBuilderType.SHALLOW_COPY)
+                        .setRow(row)
+                        .setFamily(CF)
+                        .setQualifier(QUALIFIER)
+                        .setTimestamp(HConstants.LATEST_TIMESTAMP)
+                        .setType(Type.Put)
+                        .setValue(Bytes.toBytes(i))
+                        .build()));
       }
     }
     // here we may have overlap when calling the CP hooks so we do not assert on TRACKER

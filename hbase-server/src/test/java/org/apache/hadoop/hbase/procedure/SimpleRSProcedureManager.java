@@ -29,20 +29,21 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.DaemonThreadFactory;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.apache.hadoop.hbase.errorhandling.ForeignException;
 import org.apache.hadoop.hbase.errorhandling.ForeignExceptionDispatcher;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SimpleRSProcedureManager extends RegionServerProcedureManager {
 
-  private static final Log LOG = LogFactory.getLog(SimpleRSProcedureManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SimpleRSProcedureManager.class);
 
   private RegionServerServices rss;
   private ProcedureMemberRpcs memberRpcs;
@@ -249,7 +250,7 @@ public class SimpleRSProcedureManager extends RegionServerProcedureManager {
     @Override
     public byte[] insideBarrier() throws ForeignException {
       execute();
-      return SimpleMasterProcedureManager.SIMPLE_DATA.getBytes();
+      return Bytes.toBytes(SimpleMasterProcedureManager.SIMPLE_DATA);
     }
 
     /**

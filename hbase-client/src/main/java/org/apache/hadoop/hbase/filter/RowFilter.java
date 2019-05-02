@@ -16,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.filter;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * This filter is used to filter based on the key. It takes an operator
@@ -45,21 +44,7 @@ import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferE
  */
 @InterfaceAudience.Public
 public class RowFilter extends CompareFilter {
-
   private boolean filterOutRow = false;
-
-  /**
-   * Constructor.
-   * @param rowCompareOp the compare op for row matching
-   * @param rowComparator the comparator for row matching
-   * @deprecated Since 2.0.0. Will remove in 3.0.0. Use
-   * {@link #RowFilter(CompareOperator, ByteArrayComparable)}} instead.
-   */
-  @Deprecated
-  public RowFilter(final CompareOp rowCompareOp,
-      final ByteArrayComparable rowComparator) {
-    super(rowCompareOp, rowComparator);
-  }
 
   /**
    * Constructor.
@@ -114,6 +99,7 @@ public class RowFilter extends CompareFilter {
  /**
   * @return The filter serialized using pb
   */
+  @Override
   public byte [] toByteArray() {
     FilterProtos.RowFilter.Builder builder =
       FilterProtos.RowFilter.newBuilder();
@@ -152,10 +138,21 @@ public class RowFilter extends CompareFilter {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof RowFilter)) return false;
 
     return super.areSerializedFieldsEqual(o);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
   }
 }

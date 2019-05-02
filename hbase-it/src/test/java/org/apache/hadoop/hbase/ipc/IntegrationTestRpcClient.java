@@ -37,8 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.codec.Codec;
@@ -51,13 +49,14 @@ import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
 
 @Category(IntegrationTests.class)
 public class IntegrationTestRpcClient {
 
-  private static final Log LOG = LogFactory.getLog(IntegrationTestRpcClient.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IntegrationTestRpcClient.class);
 
   private final Configuration conf;
 
@@ -203,7 +202,7 @@ public class IntegrationTestRpcClient {
           try {
             cluster.startServer();
           } catch (Exception e) {
-            LOG.warn(e);
+            LOG.warn(e.toString(), e);
             exception.compareAndSet(null, e);
           }
         } else {
@@ -211,7 +210,7 @@ public class IntegrationTestRpcClient {
           try {
             cluster.stopRandomServer();
           } catch (Exception e) {
-            LOG.warn(e);
+            LOG.warn(e.toString(), e);
             exception.compareAndSet(null, e);
           }
         }
@@ -261,7 +260,7 @@ public class IntegrationTestRpcClient {
           BlockingInterface stub = newBlockingStub(rpcClient, server.getListenerAddress());
           ret = stub.echo(null, param);
         } catch (Exception e) {
-          LOG.warn(e);
+          LOG.warn(e.toString(), e);
           continue; // expected in case connection is closing or closed
         }
 
@@ -294,7 +293,7 @@ public class IntegrationTestRpcClient {
   Test that not started connections are successfully removed from connection pool when
   rpc client is closing.
    */
-  @Test (timeout = 30000)
+  @Test
   public void testRpcWithWriteThread() throws IOException, InterruptedException {
     LOG.info("Starting test");
     Cluster cluster = new Cluster(1, 1);
@@ -313,7 +312,7 @@ public class IntegrationTestRpcClient {
   }
 
 
-  @Test (timeout = 1800000)
+  @Test
   public void testRpcWithChaosMonkeyWithSyncClient() throws Throwable {
     for (int i = 0; i < numIterations; i++) {
       TimeoutThread.runWithTimeout(new Callable<Void>() {
@@ -334,7 +333,7 @@ public class IntegrationTestRpcClient {
     }
   }
 
-  @Test (timeout = 900000)
+  @Test
   @Ignore // TODO: test fails with async client
   public void testRpcWithChaosMonkeyWithAsyncClient() throws Throwable {
     for (int i = 0; i < numIterations; i++) {

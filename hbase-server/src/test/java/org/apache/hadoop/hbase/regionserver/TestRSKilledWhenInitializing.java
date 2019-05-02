@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -26,12 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
-import org.apache.hadoop.hbase.CoordinatedStateManager;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.LocalHBaseCluster;
@@ -47,11 +42,14 @@ import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil.MasterThread;
 import org.apache.hadoop.hbase.util.Threads;
+import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProtos.RegionServerStartupResponse;
 
@@ -60,11 +58,17 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.RegionServerStatusProto
  * from list of online regions. See HBASE-9593.
  */
 @Category({RegionServerTests.class, MediumTests.class})
+@Ignore("See HBASE-19515")
 public class TestRSKilledWhenInitializing {
-  private static final Log LOG = LogFactory.getLog(TestRSKilledWhenInitializing.class);
-  @Rule public TestName testName = new TestName();
-  @Rule public final TestRule timeout = CategoryBasedTimeout.builder().
-    withTimeout(this.getClass()).withLookingForStuckThread(true).build();
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestRSKilledWhenInitializing.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestRSKilledWhenInitializing.class);
+
+  @Rule
+  public TestName testName = new TestName();
 
   // This boolean needs to be globally available. It is used below in our
   // mocked up regionserver so it knows when to die.
@@ -141,6 +145,10 @@ public class TestRSKilledWhenInitializing {
       LOG.info("Move " + hri.getEncodedName() + " to " + killedRS.get());
       master.getMaster().move(hri.getEncodedNameAsBytes(),
           Bytes.toBytes(killedRS.get().toString()));
+
+      // TODO: This test could do more to verify fix. It could create a table
+      // and do round-robin assign. It should fail if zombie RS. HBASE-19515.
+
       // Wait until the RS no longer shows as registered in Master.
       while (onlineServersList.size() > (NUM_RS + 1)) {
         Thread.sleep(100);

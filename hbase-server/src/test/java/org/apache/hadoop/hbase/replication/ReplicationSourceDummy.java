@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -21,7 +20,7 @@ package org.apache.hadoop.hbase.replication;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -40,21 +39,24 @@ import org.apache.hadoop.hbase.wal.WAL.Entry;
  */
 public class ReplicationSourceDummy implements ReplicationSourceInterface {
 
-  ReplicationSourceManager manager;
-  String peerClusterId;
-  Path currentPath;
-  MetricsSource metrics;
-  WALFileLengthProvider walFileLengthProvider;
+  private ReplicationSourceManager manager;
+  private ReplicationPeer replicationPeer;
+  private String peerClusterId;
+  private Path currentPath;
+  private MetricsSource metrics;
+  private WALFileLengthProvider walFileLengthProvider;
+  private AtomicBoolean startup = new AtomicBoolean(false);
 
   @Override
   public void init(Configuration conf, FileSystem fs, ReplicationSourceManager manager,
-      ReplicationQueues rq, ReplicationPeers rp, Server server, String peerClusterId,
-      UUID clusterId, ReplicationEndpoint replicationEndpoint,
-      WALFileLengthProvider walFileLengthProvider, MetricsSource metrics) throws IOException {
+      ReplicationQueueStorage rq, ReplicationPeer rp, Server server, String peerClusterId,
+      UUID clusterId, WALFileLengthProvider walFileLengthProvider, MetricsSource metrics)
+      throws IOException {
     this.manager = manager;
     this.peerClusterId = peerClusterId;
     this.metrics = metrics;
     this.walFileLengthProvider = walFileLengthProvider;
+    this.replicationPeer = rp;
   }
 
   @Override
@@ -70,21 +72,25 @@ public class ReplicationSourceDummy implements ReplicationSourceInterface {
 
   @Override
   public void startup() {
+    startup.set(true);
+  }
 
+  public boolean isStartup() {
+    return startup.get();
   }
 
   @Override
   public void terminate(String reason) {
-
+    terminate(reason, null);
   }
 
   @Override
   public void terminate(String reason, Exception e) {
-
+    this.metrics.clear();
   }
 
   @Override
-  public String getPeerClusterZnode() {
+  public String getQueueId() {
     return peerClusterId;
   }
 
@@ -147,5 +153,10 @@ public class ReplicationSourceDummy implements ReplicationSourceInterface {
   @Override
   public ServerName getServerWALsBelongTo() {
     return null;
+  }
+
+  @Override
+  public ReplicationPeer getPeer() {
+    return replicationPeer;
   }
 }

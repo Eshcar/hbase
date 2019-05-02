@@ -28,14 +28,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.apache.hadoop.hbase.ClusterStatus;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.ClusterMetrics;
 import org.apache.hadoop.hbase.IntegrationTestingUtility;
 import org.apache.hadoop.hbase.InvalidFamilyOperationException;
 import org.apache.hadoop.hbase.NamespaceExistException;
@@ -50,18 +45,20 @@ import org.apache.hadoop.hbase.chaos.actions.RestartRsHoldingMetaAction;
 import org.apache.hadoop.hbase.chaos.actions.RestartRsHoldingTableAction;
 import org.apache.hadoop.hbase.chaos.factories.MonkeyConstants;
 import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.RetriesExhaustedException;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorException;
 import org.apache.hadoop.hbase.filter.KeyOnlyFilter;
 import org.apache.hadoop.hbase.ipc.FatalConnectionException;
 import org.apache.hadoop.hbase.regionserver.NoSuchColumnFamilyException;
 import org.apache.hadoop.hbase.security.AccessDeniedException;
-import org.apache.hadoop.hbase.shaded.com.google.common.base.MoreObjects;
 import org.apache.hadoop.hbase.testclassification.IntegrationTests;
 import org.apache.hadoop.hbase.trace.TraceUtil;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -73,6 +70,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.hbase.thirdparty.com.google.common.base.MoreObjects;
 
 /**
  * Integration test that should benchmark how fast HBase can recover from failures. This test starts
@@ -120,7 +121,7 @@ public class IntegrationTestMTTR {
    * Constants.
    */
   private static final byte[] FAMILY = Bytes.toBytes("d");
-  private static final Log LOG = LogFactory.getLog(IntegrationTestMTTR.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IntegrationTestMTTR.class);
   private static long sleepTime;
   private static final String SLEEP_TIME_KEY = "hbase.IntegrationTestMTTR.sleeptime";
   private static final long SLEEP_TIME_DEFAULT = 60 * 1000l;
@@ -232,15 +233,17 @@ public class IntegrationTestMTTR {
     }
 
     // Create the table.  If this fails then fail everything.
-    HTableDescriptor tableDescriptor = new HTableDescriptor(tableName);
+    TableDescriptor tableDescriptor = util.getAdmin().getDescriptor(tableName);
+    TableDescriptorBuilder builder = TableDescriptorBuilder.newBuilder(tableDescriptor);
 
     // Make the max file size huge so that splits don't happen during the test.
-    tableDescriptor.setMaxFileSize(Long.MAX_VALUE);
+    builder.setMaxFileSize(Long.MAX_VALUE);
 
-    HColumnDescriptor descriptor = new HColumnDescriptor(FAMILY);
-    descriptor.setMaxVersions(1);
-    tableDescriptor.addFamily(descriptor);
-    util.getAdmin().createTable(tableDescriptor);
+    ColumnFamilyDescriptorBuilder colDescriptorBldr =
+        ColumnFamilyDescriptorBuilder.newBuilder(FAMILY);
+    colDescriptorBldr.setMaxVersions(1);
+    builder.setColumnFamily(colDescriptorBldr.build());
+    util.getAdmin().createTable(builder.build());
 
     // Setup the table for LoadTestTool
     int ret = loadTool.run(new String[]{"-tn", loadTableName.getNameAsString(), "-init_only"});
@@ -570,7 +573,7 @@ public class IntegrationTestMTTR {
       Admin admin = null;
       try {
         admin = util.getAdmin();
-        ClusterStatus status = admin.getClusterStatus();
+        ClusterMetrics status = admin.getClusterMetrics();
         return status != null;
       } finally {
         if (admin != null) {
@@ -615,7 +618,8 @@ public class IntegrationTestMTTR {
     @Override
     public Boolean call() throws Exception {
       int colsPerKey = 10;
-      int numServers = util.getHBaseClusterInterface().getInitialClusterStatus().getServersSize();
+      int numServers = util.getHBaseClusterInterface().getInitialClusterMetrics()
+        .getLiveServerMetrics().size();
       int numKeys = numServers * 5000;
       int writeThreads = 10;
 

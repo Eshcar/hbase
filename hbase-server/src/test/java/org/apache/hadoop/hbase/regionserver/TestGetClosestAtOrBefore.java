@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,17 +17,20 @@
  */
 package org.apache.hadoop.hbase.regionserver;
 
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.Objects;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
@@ -44,14 +46,15 @@ import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WAL;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * TestGet is a medley of tests of get all done up as a single test.
@@ -59,8 +62,13 @@ import static org.junit.Assert.assertTrue;
  */
 @Category({RegionServerTests.class, MediumTests.class})
 public class TestGetClosestAtOrBefore  {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestGetClosestAtOrBefore.class);
+
   @Rule public TestName testName = new TestName();
-  private static final Log LOG = LogFactory.getLog(TestGetClosestAtOrBefore.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestGetClosestAtOrBefore.class);
 
   private static final byte[] T00 = Bytes.toBytes("000");
   private static final byte[] T10 = Bytes.toBytes("010");
@@ -86,65 +94,65 @@ public class TestGetClosestAtOrBefore  {
     HRegion mr = HBaseTestingUtility.createRegionAndWAL(HRegionInfo.FIRST_META_REGIONINFO,
         rootdir, this.conf, metaBuilder.build());
     try {
-    // Write rows for three tables 'A', 'B', and 'C'.
-    for (char c = 'A'; c < 'D'; c++) {
-      HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("" + c));
-      final int last = 128;
-      final int interval = 2;
-      for (int i = 0; i <= last; i += interval) {
-        HRegionInfo hri = new HRegionInfo(htd.getTableName(),
-          i == 0? HConstants.EMPTY_BYTE_ARRAY: Bytes.toBytes((byte)i),
-          i == last? HConstants.EMPTY_BYTE_ARRAY: Bytes.toBytes((byte)i + interval));
+      // Write rows for three tables 'A', 'B', and 'C'.
+      for (char c = 'A'; c < 'D'; c++) {
+        HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("" + c));
+        final int last = 128;
+        final int interval = 2;
+        for (int i = 0; i <= last; i += interval) {
+          HRegionInfo hri = new HRegionInfo(htd.getTableName(),
+            i == 0 ? HConstants.EMPTY_BYTE_ARRAY : Bytes.toBytes((byte) i),
+            i == last ? HConstants.EMPTY_BYTE_ARRAY : Bytes.toBytes((byte) i + interval));
 
-        Put put = MetaTableAccessor.makePutFromRegionInfo(hri);
-        put.setDurability(Durability.SKIP_WAL);
-        mr.put(put);
+          Put put =
+            MetaTableAccessor.makePutFromRegionInfo(hri, EnvironmentEdgeManager.currentTime());
+          put.setDurability(Durability.SKIP_WAL);
+          mr.put(put);
+        }
       }
-    }
-    InternalScanner s = mr.getScanner(new Scan());
-    try {
-      List<Cell> keys = new ArrayList<>();
+      InternalScanner s = mr.getScanner(new Scan());
+      try {
+        List<Cell> keys = new ArrayList<>();
         while (s.next(keys)) {
-        LOG.info(keys);
-        keys.clear();
+          LOG.info(Objects.toString(keys));
+          keys.clear();
+        }
+      } finally {
+        s.close();
       }
-    } finally {
-      s.close();
-    }
-    findRow(mr, 'C', 44, 44);
-    findRow(mr, 'C', 45, 44);
-    findRow(mr, 'C', 46, 46);
-    findRow(mr, 'C', 43, 42);
-    mr.flush(true);
-    findRow(mr, 'C', 44, 44);
-    findRow(mr, 'C', 45, 44);
-    findRow(mr, 'C', 46, 46);
-    findRow(mr, 'C', 43, 42);
-    // Now delete 'C' and make sure I don't get entries from 'B'.
-    byte [] firstRowInC = HRegionInfo.createRegionName(
-        TableName.valueOf("" + 'C'),
+      findRow(mr, 'C', 44, 44);
+      findRow(mr, 'C', 45, 44);
+      findRow(mr, 'C', 46, 46);
+      findRow(mr, 'C', 43, 42);
+      mr.flush(true);
+      findRow(mr, 'C', 44, 44);
+      findRow(mr, 'C', 45, 44);
+      findRow(mr, 'C', 46, 46);
+      findRow(mr, 'C', 43, 42);
+      // Now delete 'C' and make sure I don't get entries from 'B'.
+      byte[] firstRowInC = HRegionInfo.createRegionName(TableName.valueOf("" + 'C'),
         HConstants.EMPTY_BYTE_ARRAY, HConstants.ZEROES, false);
-    Scan scan = new Scan(firstRowInC);
-    s = mr.getScanner(scan);
-    try {
-      List<Cell> keys = new ArrayList<>();
+      Scan scan = new Scan(firstRowInC);
+      s = mr.getScanner(scan);
+      try {
+        List<Cell> keys = new ArrayList<>();
         while (s.next(keys)) {
-        mr.delete(new Delete(CellUtil.cloneRow(keys.get(0))));
-        keys.clear();
+          mr.delete(new Delete(CellUtil.cloneRow(keys.get(0))));
+          keys.clear();
+        }
+      } finally {
+        s.close();
       }
-    } finally {
-      s.close();
-    }
-    // Assert we get null back (pass -1).
-    findRow(mr, 'C', 44, -1);
-    findRow(mr, 'C', 45, -1);
-    findRow(mr, 'C', 46, -1);
-    findRow(mr, 'C', 43, -1);
-    mr.flush(true);
-    findRow(mr, 'C', 44, -1);
-    findRow(mr, 'C', 45, -1);
-    findRow(mr, 'C', 46, -1);
-    findRow(mr, 'C', 43, -1);
+      // Assert we get null back (pass -1).
+      findRow(mr, 'C', 44, -1);
+      findRow(mr, 'C', 45, -1);
+      findRow(mr, 'C', 46, -1);
+      findRow(mr, 'C', 43, -1);
+      mr.flush(true);
+      findRow(mr, 'C', 44, -1);
+      findRow(mr, 'C', 45, -1);
+      findRow(mr, 'C', 46, -1);
+      findRow(mr, 'C', 43, -1);
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(mr);
     }
@@ -167,7 +175,7 @@ public class TestGetClosestAtOrBefore  {
     byte [] metaKey = HRegionInfo.createRegionName(
         tableb, tofindBytes,
       HConstants.NINES, false);
-    LOG.info("find=" + new String(metaKey));
+    LOG.info("find=" + new String(metaKey, StandardCharsets.UTF_8));
     Result r = UTIL.getClosestRowBefore(mr, metaKey, HConstants.CATALOG_FAMILY);
     if (answer == -1) {
       assertNull(r);
@@ -293,8 +301,8 @@ public class TestGetClosestAtOrBefore  {
     } finally {
       if (region != null) {
         try {
-          WAL wal = ((HRegion)region).getWAL();
-          ((HRegion)region).close();
+          WAL wal = region.getWAL();
+          region.close();
           wal.close();
         } catch (Exception e) {
           e.printStackTrace();
@@ -351,8 +359,8 @@ public class TestGetClosestAtOrBefore  {
     } finally {
       if (region != null) {
         try {
-          WAL wal = ((HRegion)region).getWAL();
-          ((HRegion)region).close();
+          WAL wal = region.getWAL();
+          region.close();
           wal.close();
         } catch (Exception e) {
           e.printStackTrace();

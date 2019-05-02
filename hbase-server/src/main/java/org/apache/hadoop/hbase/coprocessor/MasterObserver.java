@@ -21,8 +21,7 @@ package org.apache.hadoop.hbase.coprocessor;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-
-import org.apache.hadoop.hbase.ClusterStatus;
+import org.apache.hadoop.hbase.ClusterMetrics;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.MetaMutationAnnotation;
 import org.apache.hadoop.hbase.NamespaceDescriptor;
@@ -37,6 +36,9 @@ import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.net.Address;
 import org.apache.hadoop.hbase.quotas.GlobalQuotaSettings;
 import org.apache.hadoop.hbase.replication.ReplicationPeerConfig;
+import org.apache.hadoop.hbase.replication.SyncReplicationState;
+import org.apache.hadoop.hbase.security.access.Permission;
+import org.apache.hadoop.hbase.security.access.UserPermission;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.yetus.audience.InterfaceStability;
 
@@ -70,6 +72,21 @@ import org.apache.yetus.audience.InterfaceStability;
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 @InterfaceStability.Evolving
 public interface MasterObserver {
+
+  /**
+   * Called before we create the region infos for this table. Called as part of create table RPC
+   * call.
+   * @param ctx the environment to interact with the framework and master
+   * @param desc the TableDescriptor for the table
+   * @return the TableDescriptor used to create the table. Default is the one passed in. Return
+   *         {@code null} means cancel the creation.
+   */
+  default TableDescriptor preCreateTableRegionsInfos(
+      final ObserverContext<MasterCoprocessorEnvironment> ctx, TableDescriptor desc)
+      throws IOException {
+    return desc;
+  }
+
   /**
    * Called before a new table is created by
    * {@link org.apache.hadoop.hbase.master.HMaster}.  Called as part of create
@@ -210,20 +227,53 @@ public interface MasterObserver {
    * table RPC call.
    * @param ctx the environment to interact with the framework and master
    * @param tableName the name of the table
-   * @param htd the TableDescriptor
+   * @param newDescriptor after modify operation, table will have this descriptor
+   * @deprecated Since 2.1. Will be removed in 3.0.
    */
+  @Deprecated
   default void preModifyTable(final ObserverContext<MasterCoprocessorEnvironment> ctx,
-      final TableName tableName, TableDescriptor htd) throws IOException {}
+    final TableName tableName, TableDescriptor newDescriptor) throws IOException {}
+
+  /**
+   * Called prior to modifying a table's properties.  Called as part of modify
+   * table RPC call.
+   * @param ctx the environment to interact with the framework and master
+   * @param tableName the name of the table
+   * @param currentDescriptor current TableDescriptor of the table
+   * @param newDescriptor after modify operation, table will have this descriptor
+   */
+  default TableDescriptor preModifyTable(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final TableName tableName, TableDescriptor currentDescriptor, TableDescriptor newDescriptor)
+      throws IOException {
+    preModifyTable(ctx, tableName, newDescriptor);
+    return newDescriptor;
+  }
 
   /**
    * Called after the modifyTable operation has been requested.  Called as part
    * of modify table RPC call.
    * @param ctx the environment to interact with the framework and master
    * @param tableName the name of the table
-   * @param htd the TableDescriptor
+   * @param currentDescriptor current TableDescriptor of the table
+   * @deprecated Since 2.1. Will be removed in 3.0.
+   */
+  @Deprecated
+  default void postModifyTable(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+    final TableName tableName, TableDescriptor currentDescriptor) throws IOException {}
+
+  /**
+   * Called after the modifyTable operation has been requested.  Called as part
+   * of modify table RPC call.
+   * @param ctx the environment to interact with the framework and master
+   * @param tableName the name of the table
+   * @param oldDescriptor descriptor of table before modify operation happened
+   * @param currentDescriptor current TableDescriptor of the table
    */
   default void postModifyTable(final ObserverContext<MasterCoprocessorEnvironment> ctx,
-      final TableName tableName, TableDescriptor htd) throws IOException {}
+      final TableName tableName, TableDescriptor oldDescriptor, TableDescriptor currentDescriptor)
+    throws IOException {
+    postModifyTable(ctx, tableName, currentDescriptor);
+  }
 
   /**
    * Called prior to modifying a table's properties.  Called as part of modify
@@ -231,12 +281,31 @@ public interface MasterObserver {
    *
    * @param ctx the environment to interact with the framework and master
    * @param tableName the name of the table
-   * @param htd the TableDescriptor
+   * @param newDescriptor after modify operation, table will have this descriptor
+   * @deprecated Since 2.1. Will be removed in 3.0.
+   */
+  @Deprecated
+  default void preModifyTableAction(
+    final ObserverContext<MasterCoprocessorEnvironment> ctx,
+    final TableName tableName,
+    final TableDescriptor newDescriptor) throws IOException {}
+
+  /**
+   * Called prior to modifying a table's properties.  Called as part of modify
+   * table procedure and it is async to the modify table RPC call.
+   *
+   * @param ctx the environment to interact with the framework and master
+   * @param tableName the name of the table
+   * @param currentDescriptor current TableDescriptor of the table
+   * @param newDescriptor after modify operation, table will have this descriptor
    */
   default void preModifyTableAction(
       final ObserverContext<MasterCoprocessorEnvironment> ctx,
       final TableName tableName,
-      final TableDescriptor htd) throws IOException {}
+      final TableDescriptor currentDescriptor,
+      final TableDescriptor newDescriptor) throws IOException {
+    preModifyTableAction(ctx, tableName, newDescriptor);
+  }
 
   /**
    * Called after to modifying a table's properties.  Called as part of modify
@@ -244,12 +313,31 @@ public interface MasterObserver {
    *
    * @param ctx the environment to interact with the framework and master
    * @param tableName the name of the table
-   * @param htd the TableDescriptor
+   * @param currentDescriptor current TableDescriptor of the table
+   * @deprecated Since 2.1. Will be removed in 3.0.
+   */
+  @Deprecated
+  default void postCompletedModifyTableAction(
+    final ObserverContext<MasterCoprocessorEnvironment> ctx,
+    final TableName tableName,
+    final TableDescriptor currentDescriptor) throws IOException {}
+
+  /**
+   * Called after to modifying a table's properties.  Called as part of modify
+   * table procedure and it is async to the modify table RPC call.
+   *
+   * @param ctx the environment to interact with the framework and master
+   * @param tableName the name of the table
+   * @param oldDescriptor descriptor of table before modify operation happened
+   * @param currentDescriptor current TableDescriptor of the table
    */
   default void postCompletedModifyTableAction(
       final ObserverContext<MasterCoprocessorEnvironment> ctx,
       final TableName tableName,
-      final TableDescriptor htd) throws IOException {}
+      final TableDescriptor oldDescriptor,
+      final TableDescriptor currentDescriptor) throws IOException {
+    postCompletedModifyTableAction(ctx, tableName, currentDescriptor);
+  }
 
   /**
    * Called prior to enabling a table.  Called as part of enable table RPC call.
@@ -818,18 +906,46 @@ public interface MasterObserver {
   /**
    * Called prior to modifying a namespace's properties.
    * @param ctx the environment to interact with the framework and master
-   * @param ns the NamespaceDescriptor
+   * @param newNsDescriptor after modify operation, namespace will have this descriptor
+   * @deprecated Since 2.1. Will be removed in 3.0.
+   */
+  @Deprecated
+  default void preModifyNamespace(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+    NamespaceDescriptor newNsDescriptor) throws IOException {}
+
+  /**
+   * Called prior to modifying a namespace's properties.
+   * @param ctx the environment to interact with the framework and master
+   * @param currentNsDescriptor current NamespaceDescriptor of the namespace
+   * @param newNsDescriptor after modify operation, namespace will have this descriptor
    */
   default void preModifyNamespace(final ObserverContext<MasterCoprocessorEnvironment> ctx,
-      NamespaceDescriptor ns) throws IOException {}
+      NamespaceDescriptor currentNsDescriptor, NamespaceDescriptor newNsDescriptor)
+    throws IOException {
+    preModifyNamespace(ctx, newNsDescriptor);
+  }
 
   /**
    * Called after the modifyNamespace operation has been requested.
    * @param ctx the environment to interact with the framework and master
-   * @param ns the NamespaceDescriptor
+   * @param currentNsDescriptor current NamespaceDescriptor of the namespace
+   * @deprecated Since 2.1. Will be removed in 3.0.
+   */
+  @Deprecated
+  default void postModifyNamespace(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+    NamespaceDescriptor currentNsDescriptor) throws IOException {}
+
+  /**
+   * Called after the modifyNamespace operation has been requested.
+   * @param ctx the environment to interact with the framework and master
+   * @param oldNsDescriptor descriptor of namespace before modify operation happened
+   * @param currentNsDescriptor current NamespaceDescriptor of the namespace
    */
   default void postModifyNamespace(final ObserverContext<MasterCoprocessorEnvironment> ctx,
-      NamespaceDescriptor ns) throws IOException {}
+      NamespaceDescriptor oldNsDescriptor, NamespaceDescriptor currentNsDescriptor)
+    throws IOException {
+    postModifyNamespace(ctx, currentNsDescriptor);
+  }
 
   /**
    * Called before a getNamespaceDescriptor request has been processed.
@@ -979,6 +1095,24 @@ public interface MasterObserver {
       final String namespace, final GlobalQuotaSettings quotas) throws IOException {}
 
   /**
+   * Called before the quota for the region server is stored.
+   * @param ctx the environment to interact with the framework and master
+   * @param regionServer the name of the region server
+   * @param quotas the current quota for the region server
+   */
+  default void preSetRegionServerQuota(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final String regionServer, final GlobalQuotaSettings quotas) throws IOException {}
+
+  /**
+   * Called after the quota for the region server is stored.
+   * @param ctx the environment to interact with the framework and master
+   * @param regionServer the name of the region server
+   * @param quotas the resulting quota for the region server
+   */
+  default void postSetRegionServerQuota(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final String regionServer, final GlobalQuotaSettings quotas) throws IOException {}
+
+  /**
    * Called before merge regions request.
    * @param ctx coprocessor environment
    * @param regionsToMerge regions to be merged
@@ -1099,6 +1233,86 @@ public interface MasterObserver {
                           String groupName, boolean balancerRan) throws IOException {}
 
   /**
+   * Called before servers are removed from rsgroup
+   * @param ctx the environment to interact with the framework and master
+   * @param servers set of decommissioned servers to remove
+   */
+  default void preRemoveServers(
+      final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      Set<Address> servers) throws IOException {}
+
+  /**
+   * Called after servers are removed from rsgroup
+   * @param ctx the environment to interact with the framework and master
+   * @param servers set of servers to remove
+   */
+  default void postRemoveServers(
+      final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      Set<Address> servers) throws IOException {}
+
+  /**
+   * Called before getting region server group info of the passed groupName.
+   * @param ctx the environment to interact with the framework and master
+   * @param groupName name of the group to get RSGroupInfo for
+   */
+  default void preGetRSGroupInfo(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final String groupName) throws IOException {}
+
+  /**
+   * Called after getting region server group info of the passed groupName.
+   * @param ctx the environment to interact with the framework and master
+   * @param groupName name of the group to get RSGroupInfo for
+   */
+  default void postGetRSGroupInfo(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final String groupName) throws IOException {}
+
+  /**
+   * Called before getting region server group info of the passed tableName.
+   * @param ctx the environment to interact with the framework and master
+   * @param tableName name of the table to get RSGroupInfo for
+   */
+  default void preGetRSGroupInfoOfTable(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final TableName tableName) throws IOException {}
+
+  /**
+   * Called after getting region server group info of the passed tableName.
+   * @param ctx the environment to interact with the framework and master
+   * @param tableName name of the table to get RSGroupInfo for
+   */
+  default void postGetRSGroupInfoOfTable(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final TableName tableName) throws IOException {}
+
+  /**
+   * Called before listing region server group information.
+   * @param ctx the environment to interact with the framework and master
+   */
+  default void preListRSGroups(final ObserverContext<MasterCoprocessorEnvironment> ctx)
+      throws IOException {}
+
+  /**
+   * Called after listing region server group information.
+   * @param ctx the environment to interact with the framework and master
+   */
+  default void postListRSGroups(final ObserverContext<MasterCoprocessorEnvironment> ctx)
+      throws IOException {}
+
+  /**
+   * Called before getting region server group info of the passed server.
+   * @param ctx the environment to interact with the framework and master
+   * @param server server to get RSGroupInfo for
+   */
+  default void preGetRSGroupInfoOfServer(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final Address server) throws IOException {}
+
+  /**
+   * Called after getting region server group info of the passed server.
+   * @param ctx the environment to interact with the framework and master
+   * @param server server to get RSGroupInfo for
+   */
+  default void postGetRSGroupInfoOfServer(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final Address server) throws IOException {}
+
+  /**
    * Called before add a replication peer
    * @param ctx the environment to interact with the framework and master
    * @param peerId a short name that identifies the peer
@@ -1215,6 +1429,29 @@ public interface MasterObserver {
       String regex) throws IOException {}
 
   /**
+   * Called before transit current cluster state for the specified synchronous replication peer
+   * @param ctx the environment to interact with the framework and master
+   * @param peerId a short name that identifies the peer
+   * @param state the new state
+   */
+  default void preTransitReplicationPeerSyncReplicationState(
+      final ObserverContext<MasterCoprocessorEnvironment> ctx, String peerId,
+      SyncReplicationState state) throws IOException {
+  }
+
+  /**
+   * Called after transit current cluster state for the specified synchronous replication peer
+   * @param ctx the environment to interact with the framework and master
+   * @param peerId a short name that identifies the peer
+   * @param from the old state
+   * @param to the new state
+   */
+  default void postTransitReplicationPeerSyncReplicationState(
+      final ObserverContext<MasterCoprocessorEnvironment> ctx, String peerId,
+      SyncReplicationState from, SyncReplicationState to) throws IOException {
+  }
+
+  /**
    * Called before new LockProcedure is queued.
    * @param ctx the environment to interact with the framework and master
    */
@@ -1245,14 +1482,14 @@ public interface MasterObserver {
   /**
    * Called before get cluster status.
    */
-  default void preGetClusterStatus(ObserverContext<MasterCoprocessorEnvironment> ctx)
+  default void preGetClusterMetrics(ObserverContext<MasterCoprocessorEnvironment> ctx)
       throws IOException {}
 
   /**
    * Called after get cluster status.
    */
-  default void postGetClusterStatus(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      ClusterStatus status) throws IOException {}
+  default void postGetClusterMetrics(ObserverContext<MasterCoprocessorEnvironment> ctx,
+    ClusterMetrics status) throws IOException {}
 
   /**
    * Called before clear dead region servers.
@@ -1263,7 +1500,8 @@ public interface MasterObserver {
   /**
    * Called after clear dead region servers.
    */
-  default void postClearDeadServers(ObserverContext<MasterCoprocessorEnvironment> ctx)
+  default void postClearDeadServers(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      List<ServerName> servers, List<ServerName> notClearedServers)
       throws IOException {}
 
   /**
@@ -1301,4 +1539,148 @@ public interface MasterObserver {
    */
   default void postRecommissionRegionServer(ObserverContext<MasterCoprocessorEnvironment> ctx,
       ServerName server, List<byte[]> encodedRegionNames) throws IOException {}
+
+  /**
+   * Called before switching rpc throttle enabled state.
+   * @param ctx the coprocessor instance's environment
+   * @param enable the rpc throttle value
+   */
+  default void preSwitchRpcThrottle(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final boolean enable) throws IOException {
+  }
+
+  /**
+   * Called after switching rpc throttle enabled state.
+   * @param ctx the coprocessor instance's environment
+   * @param oldValue the previously rpc throttle value
+   * @param newValue the newly rpc throttle value
+   */
+  default void postSwitchRpcThrottle(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final boolean oldValue, final boolean newValue) throws IOException {
+  }
+
+  /**
+   * Called before getting if is rpc throttle enabled.
+   * @param ctx the coprocessor instance's environment
+   */
+  default void preIsRpcThrottleEnabled(final ObserverContext<MasterCoprocessorEnvironment> ctx)
+      throws IOException {
+  }
+
+  /**
+   * Called after getting if is rpc throttle enabled.
+   * @param ctx the coprocessor instance's environment
+   * @param rpcThrottleEnabled the rpc throttle enabled value
+   */
+  default void postIsRpcThrottleEnabled(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final boolean rpcThrottleEnabled) throws IOException {
+  }
+
+  /**
+   * Called before switching exceed throttle quota state.
+   * @param ctx the coprocessor instance's environment
+   * @param enable the exceed throttle quota value
+   */
+  default void preSwitchExceedThrottleQuota(final ObserverContext<MasterCoprocessorEnvironment> ctx,
+      final boolean enable) throws IOException {
+  }
+
+  /**
+   * Called after switching exceed throttle quota state.
+   * @param ctx the coprocessor instance's environment
+   * @param oldValue the previously exceed throttle quota value
+   * @param newValue the newly exceed throttle quota value
+   */
+  default void postSwitchExceedThrottleQuota(
+      final ObserverContext<MasterCoprocessorEnvironment> ctx, final boolean oldValue,
+      final boolean newValue) throws IOException {
+  }
+
+  /**
+   * Called before granting user permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userPermission the user and permissions
+   * @param mergeExistingPermissions True if merge with previous granted permissions
+   */
+  default void preGrant(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      UserPermission userPermission, boolean mergeExistingPermissions) throws IOException {
+  }
+
+  /**
+   * Called after granting user permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userPermission the user and permissions
+   * @param mergeExistingPermissions True if merge with previous granted permissions
+   */
+  default void postGrant(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      UserPermission userPermission, boolean mergeExistingPermissions) throws IOException {
+  }
+
+  /**
+   * Called before revoking user permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userPermission the user and permissions
+   */
+  default void preRevoke(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      UserPermission userPermission) throws IOException {
+  }
+
+  /**
+   * Called after revoking user permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userPermission the user and permissions
+   */
+  default void postRevoke(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      UserPermission userPermission) throws IOException {
+  }
+
+  /**
+   * Called before getting user permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userName the user name, null if get all user permissions
+   * @param namespace the namespace, null if don't get namespace permission
+   * @param tableName the table name, null if don't get table permission
+   * @param family the table column family, null if don't get table family permission
+   * @param qualifier the table column qualifier, null if don't get table qualifier permission
+   * @throws IOException if something went wrong
+   */
+  default void preGetUserPermissions(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      String userName, String namespace, TableName tableName, byte[] family, byte[] qualifier)
+      throws IOException {
+  }
+
+  /**
+   * Called after getting user permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userName the user name, null if get all user permissions
+   * @param namespace the namespace, null if don't get namespace permission
+   * @param tableName the table name, null if don't get table permission
+   * @param family the table column family, null if don't get table family permission
+   * @param qualifier the table column qualifier, null if don't get table qualifier permission
+   * @throws IOException if something went wrong
+   */
+  default void postGetUserPermissions(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      String userName, String namespace, TableName tableName, byte[] family, byte[] qualifier)
+      throws IOException {
+  }
+
+  /*
+   * Called before checking if user has permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userName the user name
+   * @param permissions the permission list
+   */
+  default void preHasUserPermissions(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      String userName, List<Permission> permissions) throws IOException {
+  }
+
+  /**
+   * Called after checking if user has permissions.
+   * @param ctx the coprocessor instance's environment
+   * @param userName the user name
+   * @param permissions the permission list
+   */
+  default void postHasUserPermissions(ObserverContext<MasterCoprocessorEnvironment> ctx,
+      String userName, List<Permission> permissions) throws IOException {
+  }
 }

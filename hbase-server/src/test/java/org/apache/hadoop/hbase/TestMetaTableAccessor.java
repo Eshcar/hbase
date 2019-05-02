@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -23,7 +22,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -33,9 +32,6 @@ import static org.mockito.Mockito.verify;
 import java.io.IOException;
 import java.util.List;
 import java.util.Random;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
@@ -50,6 +46,7 @@ import org.apache.hadoop.hbase.ipc.CallRunner;
 import org.apache.hadoop.hbase.ipc.DelegatingRpcScheduler;
 import org.apache.hadoop.hbase.ipc.PriorityFunction;
 import org.apache.hadoop.hbase.ipc.RpcScheduler;
+import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.RSRpcServices;
 import org.apache.hadoop.hbase.regionserver.SimpleRpcSchedulerFactory;
@@ -57,17 +54,22 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.ManualEnvironmentEdge;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
+import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 
 /**
  * Test {@link org.apache.hadoop.hbase.MetaTableAccessor}.
@@ -75,7 +77,12 @@ import org.apache.hadoop.hbase.shaded.com.google.common.collect.Lists;
 @Category({MiscTests.class, MediumTests.class})
 @SuppressWarnings("deprecation")
 public class TestMetaTableAccessor {
-  private static final Log LOG = LogFactory.getLog(TestMetaTableAccessor.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMetaTableAccessor.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestMetaTableAccessor.class);
   private static final  HBaseTestingUtility UTIL = new HBaseTestingUtility();
   private static Connection connection;
   private Random random = new Random();
@@ -99,12 +106,25 @@ public class TestMetaTableAccessor {
     UTIL.shutdownMiniCluster();
   }
 
+  @Test
+  public void testIsMetaWhenAllHealthy() throws InterruptedException {
+    HMaster m = UTIL.getMiniHBaseCluster().getMaster();
+    assertTrue(m.waitForMetaOnline());
+  }
+
+  @Test
+  public void testIsMetaWhenMetaGoesOffline() throws InterruptedException {
+    HMaster m = UTIL.getMiniHBaseCluster().getMaster();
+    int index = UTIL.getMiniHBaseCluster().getServerWithMeta();
+    HRegionServer rsWithMeta = UTIL.getMiniHBaseCluster().getRegionServer(index);
+    rsWithMeta.abort("TESTING");
+    assertTrue(m.waitForMetaOnline());
+  }
+
   /**
    * Does {@link MetaTableAccessor#getRegion(Connection, byte[])} and a write
    * against hbase:meta while its hosted server is restarted to prove our retrying
    * works.
-   * @throws IOException
-   * @throws InterruptedException
    */
   @Test public void testRetrying()
   throws IOException, InterruptedException {
@@ -227,13 +247,11 @@ public class TestMetaTableAccessor {
     abstract void metaTask() throws Throwable;
   }
 
-  @Test public void testGetRegionsFromMetaTable()
-  throws IOException, InterruptedException {
-    List<RegionInfo> regions =
-      new MetaTableLocator().getMetaRegions(UTIL.getZooKeeperWatcher());
+  @Test
+  public void testGetRegionsFromMetaTable() throws IOException, InterruptedException {
+    List<RegionInfo> regions = MetaTableLocator.getMetaRegions(UTIL.getZooKeeperWatcher());
     assertTrue(regions.size() >= 1);
-    assertTrue(new MetaTableLocator().getMetaRegionsAndLocations(
-      UTIL.getZooKeeperWatcher()).size() >= 1);
+    assertTrue(MetaTableLocator.getMetaRegionsAndLocations(UTIL.getZooKeeperWatcher()).size() >= 1);
   }
 
   @Test public void testTableExists() throws IOException {
@@ -377,31 +395,30 @@ public class TestMetaTableAccessor {
     long seqNum1 = random.nextLong();
     long seqNum100 = random.nextLong();
 
-
-    Table meta = MetaTableAccessor.getMetaHTable(connection);
-    try {
-      MetaTableAccessor.updateRegionLocation(connection, primary, serverName0, seqNum0, -1);
+    try (Table meta = MetaTableAccessor.getMetaHTable(connection)) {
+      MetaTableAccessor.updateRegionLocation(connection, primary, serverName0, seqNum0,
+        EnvironmentEdgeManager.currentTime());
 
       // assert that the server, startcode and seqNum columns are there for the primary region
       assertMetaLocation(meta, primary.getRegionName(), serverName0, seqNum0, 0, true);
 
       // add replica = 1
-      MetaTableAccessor.updateRegionLocation(connection, replica1, serverName1, seqNum1, -1);
+      MetaTableAccessor.updateRegionLocation(connection, replica1, serverName1, seqNum1,
+        EnvironmentEdgeManager.currentTime());
       // check whether the primary is still there
       assertMetaLocation(meta, primary.getRegionName(), serverName0, seqNum0, 0, true);
       // now check for replica 1
       assertMetaLocation(meta, primary.getRegionName(), serverName1, seqNum1, 1, true);
 
       // add replica = 1
-      MetaTableAccessor.updateRegionLocation(connection, replica100, serverName100, seqNum100, -1);
+      MetaTableAccessor.updateRegionLocation(connection, replica100, serverName100, seqNum100,
+        EnvironmentEdgeManager.currentTime());
       // check whether the primary is still there
       assertMetaLocation(meta, primary.getRegionName(), serverName0, seqNum0, 0, true);
       // check whether the replica 1 is still there
       assertMetaLocation(meta, primary.getRegionName(), serverName1, seqNum1, 1, true);
       // now check for replica 1
       assertMetaLocation(meta, primary.getRegionName(), serverName100, seqNum100, 100, true);
-    } finally {
-      meta.close();
     }
   }
 
@@ -434,6 +451,44 @@ public class TestMetaTableAccessor {
     assertNotNull(startCodeCell);
     assertEquals(0, serverCell.getValueLength());
     assertEquals(0, startCodeCell.getValueLength());
+  }
+
+  @Test
+  public void testMetaLocationForRegionReplicasIsRemovedAtTableDeletion() throws IOException {
+    long regionId = System.currentTimeMillis();
+    RegionInfo primary = RegionInfoBuilder.newBuilder(TableName.valueOf(name.getMethodName()))
+        .setStartKey(HConstants.EMPTY_START_ROW).setEndKey(HConstants.EMPTY_END_ROW).setSplit(false)
+        .setRegionId(regionId).setReplicaId(0).build();
+
+    Table meta = MetaTableAccessor.getMetaHTable(connection);
+    try {
+      List<RegionInfo> regionInfos = Lists.newArrayList(primary);
+      MetaTableAccessor.addRegionsToMeta(connection, regionInfos, 3);
+      MetaTableAccessor.removeRegionReplicasFromMeta(Sets.newHashSet(primary.getRegionName()), 1, 2,
+        connection);
+      Get get = new Get(primary.getRegionName());
+      Result result = meta.get(get);
+      for (int replicaId = 0; replicaId < 3; replicaId++) {
+        Cell serverCell = result.getColumnLatestCell(HConstants.CATALOG_FAMILY,
+          MetaTableAccessor.getServerColumn(replicaId));
+        Cell startCodeCell = result.getColumnLatestCell(HConstants.CATALOG_FAMILY,
+          MetaTableAccessor.getStartCodeColumn(replicaId));
+        Cell stateCell = result.getColumnLatestCell(HConstants.CATALOG_FAMILY,
+          MetaTableAccessor.getRegionStateColumn(replicaId));
+        Cell snCell = result.getColumnLatestCell(HConstants.CATALOG_FAMILY,
+          MetaTableAccessor.getServerNameColumn(replicaId));
+        if (replicaId == 0) {
+          assertNotNull(stateCell);
+        } else {
+          assertNull(serverCell);
+          assertNull(startCodeCell);
+          assertNull(stateCell);
+          assertNull(snCell);
+        }
+      }
+    } finally {
+      meta.close();
+    }
   }
 
   @Test
@@ -486,20 +541,16 @@ public class TestMetaTableAccessor {
         .setReplicaId(0)
         .build();
 
-
-    Table meta = MetaTableAccessor.getMetaHTable(connection);
-    try {
+    try (Table meta = MetaTableAccessor.getMetaHTable(connection)) {
       List<RegionInfo> regionInfos = Lists.newArrayList(parent);
       MetaTableAccessor.addRegionsToMeta(connection, regionInfos, 3);
 
-      MetaTableAccessor.splitRegion(connection, parent, splitA, splitB, serverName0, 3, false);
+      MetaTableAccessor.splitRegion(connection, parent, -1L, splitA, splitB, serverName0, 3);
 
       assertEmptyMetaLocation(meta, splitA.getRegionName(), 1);
       assertEmptyMetaLocation(meta, splitA.getRegionName(), 2);
       assertEmptyMetaLocation(meta, splitB.getRegionName(), 1);
       assertEmptyMetaLocation(meta, splitB.getRegionName(), 2);
-    } finally {
-      meta.close();
     }
   }
 
@@ -531,18 +582,15 @@ public class TestMetaTableAccessor {
         .setReplicaId(0)
         .build();
 
-    Table meta = MetaTableAccessor.getMetaHTable(connection);
-    try {
+    try (Table meta = MetaTableAccessor.getMetaHTable(connection)) {
       List<RegionInfo> regionInfos = Lists.newArrayList(parentA, parentB);
       MetaTableAccessor.addRegionsToMeta(connection, regionInfos, 3);
 
-      MetaTableAccessor.mergeRegions(connection, merged, parentA, parentB, serverName0, 3,
-          HConstants.LATEST_TIMESTAMP, false);
+      MetaTableAccessor.mergeRegions(connection, merged, parentA, -1L, parentB, -1L, serverName0,
+        3);
 
       assertEmptyMetaLocation(meta, merged.getRegionName(), 1);
       assertEmptyMetaLocation(meta, merged.getRegionName(), 2);
-    } finally {
-      meta.close();
     }
   }
 
@@ -605,8 +653,7 @@ public class TestMetaTableAccessor {
         .build();
 
     ServerName sn = ServerName.valueOf("bar", 0, 0);
-    Table meta = MetaTableAccessor.getMetaHTable(connection);
-    try {
+    try (Table meta = MetaTableAccessor.getMetaHTable(connection)) {
       List<RegionInfo> regionInfos = Lists.newArrayList(regionInfo);
       MetaTableAccessor.addRegionsToMeta(connection, regionInfos, 1);
 
@@ -630,8 +677,6 @@ public class TestMetaTableAccessor {
       assertEquals(masterSystemTime, serverCell.getTimestamp());
       assertEquals(masterSystemTime, startCodeCell.getTimestamp());
       assertEquals(masterSystemTime, seqNumCell.getTimestamp());
-    } finally {
-      meta.close();
     }
   }
 
@@ -663,8 +708,7 @@ public class TestMetaTableAccessor {
         .build();
 
     ServerName sn = ServerName.valueOf("bar", 0, 0);
-    Table meta = MetaTableAccessor.getMetaHTable(connection);
-    try {
+    try (Table meta = MetaTableAccessor.getMetaHTable(connection)) {
       List<RegionInfo> regionInfos = Lists.newArrayList(regionInfoA, regionInfoB);
       MetaTableAccessor.addRegionsToMeta(connection, regionInfos, 1);
 
@@ -685,9 +729,17 @@ public class TestMetaTableAccessor {
       assertNotNull(serverCell);
       assertEquals(serverNameTime, serverCell.getTimestamp());
 
-      // now merge the regions, effectively deleting the rows for region a and b.
-      MetaTableAccessor.mergeRegions(connection, mergedRegionInfo,
-        regionInfoA, regionInfoB, sn, 1, masterSystemTime, false);
+      ManualEnvironmentEdge edge = new ManualEnvironmentEdge();
+      edge.setValue(masterSystemTime);
+      EnvironmentEdgeManager.injectEdge(edge);
+      try {
+        // now merge the regions, effectively deleting the rows for region a and b.
+        MetaTableAccessor.mergeRegions(connection, mergedRegionInfo, regionInfoA, -1L, regionInfoB,
+          -1L, sn, 1);
+      } finally {
+        EnvironmentEdgeManager.reset();
+      }
+
 
       result = meta.get(get);
       serverCell = result.getColumnLatestCell(HConstants.CATALOG_FAMILY,
@@ -699,8 +751,6 @@ public class TestMetaTableAccessor {
       assertNull(serverCell);
       assertNull(startCodeCell);
       assertNull(seqNumCell);
-    } finally {
-      meta.close();
     }
   }
 
@@ -778,7 +828,8 @@ public class TestMetaTableAccessor {
       }
       SpyingRpcScheduler scheduler = (SpyingRpcScheduler) rs.getRpcServer().getScheduler();
       long prevCalls = scheduler.numPriorityCalls;
-      MetaTableAccessor.splitRegion(connection, parent, splitA, splitB,loc.getServerName(),1,false);
+      MetaTableAccessor.splitRegion(connection, parent, -1L, splitA, splitB, loc.getServerName(),
+        1);
 
       assertTrue(prevCalls < scheduler.numPriorityCalls);
     }
@@ -815,7 +866,7 @@ public class TestMetaTableAccessor {
       List<RegionInfo> regionInfos = Lists.newArrayList(parent);
       MetaTableAccessor.addRegionsToMeta(connection, regionInfos, 3);
 
-      MetaTableAccessor.splitRegion(connection, parent, splitA, splitB, serverName0, 3, false);
+      MetaTableAccessor.splitRegion(connection, parent, -1L, splitA, splitB, serverName0, 3);
       Get get1 = new Get(splitA.getRegionName());
       Result resultA = meta.get(get1);
       Cell serverCellA = resultA.getColumnLatestCell(HConstants.CATALOG_FAMILY,

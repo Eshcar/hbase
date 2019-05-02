@@ -18,30 +18,28 @@
 package org.apache.hadoop.hbase.master;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-
 import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.NamespaceNotFoundException;
 import org.apache.hadoop.hbase.ServiceNotRunningException;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.master.procedure.CreateNamespaceProcedure;
 import org.apache.hadoop.hbase.master.procedure.DeleteNamespaceProcedure;
 import org.apache.hadoop.hbase.master.procedure.MasterProcedureEnv;
 import org.apache.hadoop.hbase.master.procedure.ModifyNamespaceProcedure;
+import org.apache.hadoop.hbase.master.procedure.ProcedurePrepareLatch;
 import org.apache.hadoop.hbase.procedure2.Procedure;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
-import org.apache.hadoop.hbase.shaded.com.google.common.util.concurrent.AbstractService;
 import org.apache.hadoop.hbase.util.NonceKey;
+import org.apache.yetus.audience.InterfaceAudience;
+
+import org.apache.hbase.thirdparty.com.google.common.collect.ImmutableList;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.AbstractService;
 
 @InterfaceAudience.Private
 class ClusterSchemaServiceImpl extends AbstractService implements ClusterSchemaService {
+
   private final TableNamespaceManager tableNamespaceManager;
   private final MasterServices masterServices;
-  private final static List<NamespaceDescriptor> EMPTY_NAMESPACE_LIST =
-    Collections.unmodifiableList(new ArrayList<NamespaceDescriptor>(0));
 
   ClusterSchemaServiceImpl(final MasterServices masterServices) {
     this.masterServices = masterServices;
@@ -50,13 +48,14 @@ class ClusterSchemaServiceImpl extends AbstractService implements ClusterSchemaS
 
   // All below are synchronized so consistent view on whether running or not.
 
-
   private synchronized void checkIsRunning() throws ServiceNotRunningException {
-    if (!isRunning()) throw new ServiceNotRunningException();
+    if (!isRunning()) {
+      throw new ServiceNotRunningException();
+    }
   }
 
   @Override
-  public synchronized void doStart() {
+  protected synchronized void doStart() {
     try {
       notifyStarted();
       this.tableNamespaceManager.start();
@@ -76,34 +75,35 @@ class ClusterSchemaServiceImpl extends AbstractService implements ClusterSchemaS
     return this.tableNamespaceManager;
   }
 
-  private long submitProcedure(final Procedure<?> procedure, final NonceKey nonceKey)
-      throws ServiceNotRunningException {
+  private long submitProcedure(final Procedure<MasterProcedureEnv> procedure,
+      final NonceKey nonceKey) throws ServiceNotRunningException {
     checkIsRunning();
     ProcedureExecutor<MasterProcedureEnv> pe = this.masterServices.getMasterProcedureExecutor();
     return pe.submitProcedure(procedure, nonceKey);
   }
 
   @Override
-  public long createNamespace(NamespaceDescriptor namespaceDescriptor, final NonceKey nonceKey)
+  public long createNamespace(NamespaceDescriptor namespaceDescriptor, final NonceKey nonceKey,
+      final ProcedurePrepareLatch latch)
       throws IOException {
     return submitProcedure(new CreateNamespaceProcedure(
-      this.masterServices.getMasterProcedureExecutor().getEnvironment(), namespaceDescriptor),
+      this.masterServices.getMasterProcedureExecutor().getEnvironment(), namespaceDescriptor, latch),
         nonceKey);
   }
 
   @Override
-  public long modifyNamespace(NamespaceDescriptor namespaceDescriptor, final NonceKey nonceKey)
-      throws IOException {
+  public long modifyNamespace(NamespaceDescriptor namespaceDescriptor, final NonceKey nonceKey,
+      final ProcedurePrepareLatch latch) throws IOException {
     return submitProcedure(new ModifyNamespaceProcedure(
-      this.masterServices.getMasterProcedureExecutor().getEnvironment(), namespaceDescriptor),
+      this.masterServices.getMasterProcedureExecutor().getEnvironment(), namespaceDescriptor, latch),
         nonceKey);
   }
 
   @Override
-  public long deleteNamespace(String name, final NonceKey nonceKey)
+  public long deleteNamespace(String name, final NonceKey nonceKey, final ProcedurePrepareLatch latch)
       throws IOException {
     return submitProcedure(new DeleteNamespaceProcedure(
-      this.masterServices.getMasterProcedureExecutor().getEnvironment(), name),
+      this.masterServices.getMasterProcedureExecutor().getEnvironment(), name, latch),
       nonceKey);
   }
 
@@ -117,10 +117,8 @@ class ClusterSchemaServiceImpl extends AbstractService implements ClusterSchemaS
   @Override
   public List<NamespaceDescriptor> getNamespaces() throws IOException {
     checkIsRunning();
-    Set<NamespaceDescriptor> set = getTableNamespaceManager().list();
-    if (set == null || set.isEmpty()) return EMPTY_NAMESPACE_LIST;
-    List<NamespaceDescriptor> list = new ArrayList<>(set.size());
-    list.addAll(set);
-    return Collections.unmodifiableList(list);
+    return getTableNamespaceManager().list().stream()
+      .sorted(NamespaceDescriptor.NAMESPACE_DESCRIPTOR_COMPARATOR)
+      .collect(ImmutableList.toImmutableList());
   }
 }

@@ -50,14 +50,14 @@ import org.apache.hadoop.hbase.security.HBaseSaslRpcServer;
 import org.apache.hadoop.hbase.security.SaslStatus;
 import org.apache.hadoop.hbase.security.SaslUtil;
 import org.apache.hadoop.hbase.security.User;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.BlockingService;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ByteInput;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.ByteString;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.CodedInputStream;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.Descriptors.MethodDescriptor;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.Message;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.TextFormat;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.UnsafeByteOperations;
+import org.apache.hbase.thirdparty.com.google.protobuf.BlockingService;
+import org.apache.hbase.thirdparty.com.google.protobuf.ByteInput;
+import org.apache.hbase.thirdparty.com.google.protobuf.ByteString;
+import org.apache.hbase.thirdparty.com.google.protobuf.CodedInputStream;
+import org.apache.hbase.thirdparty.com.google.protobuf.Descriptors.MethodDescriptor;
+import org.apache.hbase.thirdparty.com.google.protobuf.Message;
+import org.apache.hbase.thirdparty.com.google.protobuf.TextFormat;
+import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.VersionInfo;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.RPCProtos;
@@ -193,14 +193,15 @@ abstract class ServerRpcConnection implements Closeable {
     String className = header.getCellBlockCodecClass();
     if (className == null || className.length() == 0) return;
     try {
-      this.codec = (Codec)Class.forName(className).newInstance();
+      this.codec = (Codec)Class.forName(className).getDeclaredConstructor().newInstance();
     } catch (Exception e) {
       throw new UnsupportedCellCodecException(className, e);
     }
     if (!header.hasCellBlockCompressorClass()) return;
     className = header.getCellBlockCompressorClass();
     try {
-      this.compressionCodec = (CompressionCodec)Class.forName(className).newInstance();
+      this.compressionCodec =
+          (CompressionCodec)Class.forName(className).getDeclaredConstructor().newInstance();
     } catch (Exception e) {
       throw new UnsupportedCompressionCodecException(className, e);
     }
@@ -341,10 +342,8 @@ abstract class ServerRpcConnection implements Closeable {
   public void saslReadAndProcess(ByteBuff saslToken) throws IOException,
       InterruptedException {
     if (saslContextEstablished) {
-      if (RpcServer.LOG.isTraceEnabled())
-        RpcServer.LOG.trace("Have read input token of size " + saslToken.limit()
-            + " for processing by saslServer.unwrap()");
-
+      RpcServer.LOG.trace("Read input token of size={} for processing by saslServer.unwrap()",
+        saslToken.limit());
       if (!useWrap) {
         processOneRpc(saslToken);
       } else {
@@ -364,17 +363,13 @@ abstract class ServerRpcConnection implements Closeable {
         if (saslServer == null) {
           saslServer =
               new HBaseSaslRpcServer(authMethod, rpcServer.saslProps, rpcServer.secretManager);
-          if (RpcServer.LOG.isDebugEnabled()) {
-            RpcServer.LOG
-                .debug("Created SASL server with mechanism = " + authMethod.getMechanismName());
-          }
+          RpcServer.LOG.debug("Created SASL server with mechanism={}",
+              authMethod.getMechanismName());
         }
-        if (RpcServer.LOG.isDebugEnabled()) {
-          RpcServer.LOG.debug("Have read input token of size " + saslToken.limit()
-              + " for processing by saslServer.evaluateResponse()");
-        }
-        replyToken = saslServer
-            .evaluateResponse(saslToken.hasArray() ? saslToken.array() : saslToken.toBytes());
+        RpcServer.LOG.debug("Read input token of size={} for processing by saslServer." +
+            "evaluateResponse()", saslToken.limit());
+        replyToken = saslServer.evaluateResponse(saslToken.hasArray()?
+            saslToken.array() : saslToken.toBytes());
       } catch (IOException e) {
         IOException sendToClient = e;
         Throwable cause = e;
@@ -499,8 +494,8 @@ abstract class ServerRpcConnection implements Closeable {
     if (buf.hasArray()) {
       this.connectionHeader = ConnectionHeader.parseFrom(buf.array());
     } else {
-      CodedInputStream cis = UnsafeByteOperations
-          .unsafeWrap(new ByteBuffByteInput(buf, 0, buf.limit()), 0, buf.limit()).newCodedInput();
+      CodedInputStream cis = UnsafeByteOperations.unsafeWrap(
+          new ByteBuffByteInput(buf, 0, buf.limit()), 0, buf.limit()).newCodedInput();
       cis.enableAliasing(true);
       this.connectionHeader = ConnectionHeader.parseFrom(cis);
     }
@@ -521,10 +516,9 @@ abstract class ServerRpcConnection implements Closeable {
       }
       // audit logging for SASL authenticated users happens in saslReadAndProcess()
       if (authenticatedWithFallback) {
-        RpcServer.LOG.warn("Allowed fallback to SIMPLE auth for " + ugi
-            + " connecting from " + getHostAddress());
+        RpcServer.LOG.warn("Allowed fallback to SIMPLE auth for {} connecting from {}",
+            ugi, getHostAddress());
       }
-      RpcServer.AUDITLOG.info(RpcServer.AUTH_SUCCESSFUL_FOR + ugi);
     } else {
       // user is authenticated
       ugi.setAuthenticationMethod(authMethod.authenticationMethod);
@@ -550,17 +544,17 @@ abstract class ServerRpcConnection implements Closeable {
         }
       }
     }
-    if (connectionHeader.hasVersionInfo()) {
+    String version;
+    if (this.connectionHeader.hasVersionInfo()) {
       // see if this connection will support RetryImmediatelyException
-      retryImmediatelySupported = VersionInfoUtil.hasMinimumVersion(getVersionInfo(), 1, 2);
-
-      RpcServer.AUDITLOG.info("Connection from " + this.hostAddress + " port: " + this.remotePort
-          + " with version info: "
-          + TextFormat.shortDebugString(connectionHeader.getVersionInfo()));
+      this.retryImmediatelySupported =
+          VersionInfoUtil.hasMinimumVersion(getVersionInfo(), 1, 2);
+      version = this.connectionHeader.getVersionInfo().getVersion();
     } else {
-      RpcServer.AUDITLOG.info("Connection from " + this.hostAddress + " port: " + this.remotePort
-          + " with unknown version info");
+      version = "UNKNOWN";
     }
+    RpcServer.AUDITLOG.info("Connection from {}:{}, version={}, sasl={}, ugi={}, service={}",
+        this.hostAddress, this.remotePort, version, this.useSasl, this.ugi, serviceName);
   }
 
   /**

@@ -20,13 +20,14 @@
 package org.apache.hadoop.hbase.filter;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.FilterProtos;
-import org.apache.hadoop.hbase.shaded.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hbase.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * A wrapper filter that filters an entire row if any of the Cell checks do
@@ -96,10 +97,12 @@ public class SkipFilter extends FilterBase {
     return filter.transformCell(v);
   }
 
+  @Override
   public boolean filterRow() {
     return filterRow;
   }
     
+  @Override
   public boolean hasFilterRow() {
     return true;
   }
@@ -107,6 +110,7 @@ public class SkipFilter extends FilterBase {
   /**
    * @return The filter serialized using pb
    */
+  @Override
   public byte[] toByteArray() throws IOException {
     FilterProtos.SkipFilter.Builder builder =
       FilterProtos.SkipFilter.newBuilder();
@@ -140,6 +144,7 @@ public class SkipFilter extends FilterBase {
    * @return true if and only if the fields of the filter that are serialized
    * are equal to the corresponding fields in other.  Used for testing.
    */
+  @Override
   boolean areSerializedFieldsEqual(Filter o) {
     if (o == this) return true;
     if (!(o instanceof SkipFilter)) return false;
@@ -148,6 +153,7 @@ public class SkipFilter extends FilterBase {
     return getFilter().areSerializedFieldsEqual(other.getFilter());
   }
 
+  @Override
   public boolean isFamilyEssential(byte[] name) throws IOException {
     return filter.isFamilyEssential(name);
   }
@@ -155,5 +161,15 @@ public class SkipFilter extends FilterBase {
   @Override
   public String toString() {
     return this.getClass().getSimpleName() + " " + this.filter.toString();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof Filter && areSerializedFieldsEqual((Filter) obj);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(this.filter);
   }
 }

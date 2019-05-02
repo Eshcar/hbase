@@ -22,30 +22,30 @@ import static org.junit.Assert.assertFalse;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.snapshot.CorruptedSnapshotException;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.snapshot.SnapshotDescriptionUtils;
 import org.apache.hadoop.hbase.snapshot.SnapshotReferenceUtil;
 import org.apache.hadoop.hbase.snapshot.SnapshotTestingUtils;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
-import org.apache.hadoop.hbase.snapshot.SnapshotDescriptionUtils;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test that the snapshot hfile cleaner finds hfiles referenced in a snapshot
@@ -53,7 +53,11 @@ import org.junit.rules.TestName;
 @Category({MasterTests.class, SmallTests.class})
 public class TestSnapshotHFileCleaner {
 
-  private static final Log LOG = LogFactory.getLog(TestSnapshotFileCache.class);
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestSnapshotHFileCleaner.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotFileCache.class);
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static final String TABLE_NAME_STR = "testSnapshotManifest";
   private static final String SNAPSHOT_NAME_STR = "testSnapshotManifest-snapshot";
@@ -114,7 +118,8 @@ public class TestSnapshotHFileCleaner {
     assertFalse(cleaner.isFileDeletable(fs.getFileStatus(refFile)));
   }
 
-  class SnapshotFiles implements SnapshotFileCache.SnapshotFileInspector {
+  static class SnapshotFiles implements SnapshotFileCache.SnapshotFileInspector {
+    @Override
     public Collection<String> filesUnderSnapshot(final Path snapshotDir) throws IOException {
       Collection<String> files =  new HashSet<>();
       files.addAll(SnapshotReferenceUtil.getHFileNames(TEST_UTIL.getConfiguration(), fs, snapshotDir));
@@ -135,16 +140,8 @@ public class TestSnapshotHFileCleaner {
     builder.addRegionV2();
     builder.corruptOneRegionManifest();
 
-    long period = Long.MAX_VALUE;
-    SnapshotFileCache cache = new SnapshotFileCache(fs, rootDir, period, 10000000,
-        "test-snapshot-file-cache-refresh", new SnapshotFiles());
-    try {
-      cache.getSnapshotsInProgress(null);
-    } catch (CorruptedSnapshotException cse) {
-      LOG.info("Expected exception " + cse);
-    } finally {
-      fs.delete(SnapshotDescriptionUtils.getWorkingSnapshotDir(rootDir), true);
-    }
+    fs.delete(SnapshotDescriptionUtils.getWorkingSnapshotDir(rootDir, TEST_UTIL.getConfiguration()),
+      true);
   }
 
   /**
@@ -162,34 +159,7 @@ public class TestSnapshotHFileCleaner {
     builder.consolidate();
     builder.corruptDataManifest();
 
-    long period = Long.MAX_VALUE;
-    SnapshotFileCache cache = new SnapshotFileCache(fs, rootDir, period, 10000000,
-        "test-snapshot-file-cache-refresh", new SnapshotFiles());
-    try {
-      cache.getSnapshotsInProgress(null);
-    } catch (CorruptedSnapshotException cse) {
-      LOG.info("Expected exception " + cse);
-    } finally {
-      fs.delete(SnapshotDescriptionUtils.getWorkingSnapshotDir(rootDir), true);
-    }
-  }
-
-  /**
-  * HBASE-16464
-  */
-  @Test
-  public void testMissedTmpSnapshot() throws IOException {
-    SnapshotTestingUtils.SnapshotMock
-        snapshotMock = new SnapshotTestingUtils.SnapshotMock(TEST_UTIL.getConfiguration(), fs, rootDir);
-    SnapshotTestingUtils.SnapshotMock.SnapshotBuilder builder = snapshotMock.createSnapshotV2(
-        SNAPSHOT_NAME_STR, TABLE_NAME_STR);
-    builder.addRegionV2();
-    builder.missOneRegionSnapshotFile();
-
-      long period = Long.MAX_VALUE;
-    SnapshotFileCache cache = new SnapshotFileCache(fs, rootDir, period, 10000000,
-        "test-snapshot-file-cache-refresh", new SnapshotFiles());
-    cache.getSnapshotsInProgress(null);
-    assertFalse(fs.exists(builder.getSnapshotsDir()));
+    fs.delete(SnapshotDescriptionUtils.getWorkingSnapshotDir(rootDir,
+          TEST_UTIL.getConfiguration()), true);
   }
 }

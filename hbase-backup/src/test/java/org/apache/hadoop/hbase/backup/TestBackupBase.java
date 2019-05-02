@@ -25,9 +25,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
@@ -58,16 +57,20 @@ import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
+import org.apache.hadoop.hbase.master.cleaner.LogCleaner;
+import org.apache.hadoop.hbase.master.cleaner.TimeToLiveLogCleaner;
 import org.apache.hadoop.hbase.security.HadoopSecurityEnabledUserProviderForTesting;
 import org.apache.hadoop.hbase.security.UserProvider;
 import org.apache.hadoop.hbase.security.access.SecureTestUtil;
 import org.apache.hadoop.hbase.snapshot.SnapshotTestingUtils;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.CommonFSUtils;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.wal.WALFactory;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class is only a base for other integration-level backup tests. Do not add tests here.
@@ -75,8 +78,7 @@ import org.junit.Before;
  * tests should have their own classes and extend this one
  */
 public class TestBackupBase {
-
-  private static final Log LOG = LogFactory.getLog(TestBackupBase.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestBackupBase.class);
 
   protected static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   protected static HBaseTestingUtility TEST_UTIL2;
@@ -89,8 +91,8 @@ public class TestBackupBase {
   protected static TableName table3 = TableName.valueOf("table3");
   protected static TableName table4 = TableName.valueOf("table4");
 
-  protected static TableName table1_restore = TableName.valueOf("ns1:table1_restore");
-  protected static TableName table2_restore = TableName.valueOf("ns2:table2_restore");
+  protected static TableName table1_restore = TableName.valueOf("default:table1");
+  protected static TableName table2_restore = TableName.valueOf("ns2:table2");
   protected static TableName table3_restore = TableName.valueOf("ns3:table3_restore");
   protected static TableName table4_restore = TableName.valueOf("ns4:table4_restore");
 
@@ -107,10 +109,7 @@ public class TestBackupBase {
   protected static boolean setupIsDone = false;
   protected static boolean useSecondCluster = false;
 
-
-  static class IncrementalTableBackupClientForTest extends IncrementalTableBackupClient
-  {
-
+  static class IncrementalTableBackupClientForTest extends IncrementalTableBackupClient {
     public IncrementalTableBackupClientForTest() {
     }
 
@@ -120,8 +119,7 @@ public class TestBackupBase {
     }
 
     @Override
-    public void execute() throws IOException
-    {
+    public void execute() throws IOException {
       // case INCREMENTAL_COPY:
       try {
         // case PREPARE_INCREMENTAL:
@@ -174,14 +172,10 @@ public class TestBackupBase {
           BackupType.INCREMENTAL, conf);
         throw new IOException(e);
       }
-
     }
   }
 
-  static class FullTableBackupClientForTest extends FullTableBackupClient
-  {
-
-
+  static class FullTableBackupClientForTest extends FullTableBackupClient {
     public FullTableBackupClientForTest() {
     }
 
@@ -191,21 +185,20 @@ public class TestBackupBase {
     }
 
     @Override
-    public void execute() throws IOException
-    {
+    public void execute() throws IOException {
       // Get the stage ID to fail on
-      try (Admin admin = conn.getAdmin();) {
+      try (Admin admin = conn.getAdmin()) {
         // Begin BACKUP
         beginBackup(backupManager, backupInfo);
         failStageIf(Stage.stage_0);
-        String savedStartCode = null;
-        boolean firstBackup = false;
+        String savedStartCode;
+        boolean firstBackup;
         // do snapshot for full table backup
         savedStartCode = backupManager.readBackupStartCode();
         firstBackup = savedStartCode == null || Long.parseLong(savedStartCode) == 0L;
         if (firstBackup) {
-          // This is our first backup. Let's put some marker to system table so that we can hold the logs
-          // while we do the backup.
+          // This is our first backup. Let's put some marker to system table so that we can hold the
+          // logs while we do the backup.
           backupManager.writeBackupStartCode(0L);
         }
         failStageIf(Stage.stage_1);
@@ -216,7 +209,7 @@ public class TestBackupBase {
         // the snapshot.
         LOG.info("Execute roll log procedure for full backup ...");
 
-        Map<String, String> props = new HashMap<String, String>();
+        Map<String, String> props = new HashMap<>();
         props.put("backupRoot", backupInfo.getBackupRootDir());
         admin.execProcedure(LogRollMasterProcedureManager.ROLLLOG_PROCEDURE_SIGNATURE,
           LogRollMasterProcedureManager.ROLLLOG_PROCEDURE_NAME, props);
@@ -277,12 +270,10 @@ public class TestBackupBase {
         throw new IOException(e);
       }
     }
-
   }
 
-
   /**
-   * @throws java.lang.Exception
+   * @throws Exception if starting the mini cluster or setting up the tables fails
    */
   @Before
   public void setUp() throws Exception {
@@ -296,13 +287,15 @@ public class TestBackupBase {
       // setup configuration
       SecureTestUtil.enableSecurity(TEST_UTIL.getConfiguration());
     }
-    String coproc = conf1.get(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY);
-    conf1.set(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, (coproc == null ? "" : coproc + ",") +
-        BackupObserver.class.getName());
     conf1.setBoolean(BackupRestoreConstants.BACKUP_ENABLE_KEY, true);
     BackupManager.decorateMasterConfiguration(conf1);
     BackupManager.decorateRegionServerConfiguration(conf1);
     conf1.set(HConstants.ZOOKEEPER_ZNODE_PARENT, "/1");
+    // Set TTL for old WALs to 1 sec to enforce fast cleaning of an archived
+    // WAL files
+    conf1.setLong(TimeToLiveLogCleaner.TTL_CONF_KEY, 1000);
+    conf1.setLong(LogCleaner.OLD_WALS_CLEANER_THREAD_TIMEOUT_MSEC, 1000);
+
     // Set MultiWAL (with 2 default WAL files per RS)
     conf1.set(WALFactory.WAL_PROVIDER, provider);
     TEST_UTIL.startMiniCluster();
@@ -312,18 +305,22 @@ public class TestBackupBase {
       conf2.set(HConstants.ZOOKEEPER_ZNODE_PARENT, "/2");
       TEST_UTIL2 = new HBaseTestingUtility(conf2);
       TEST_UTIL2.setZkCluster(TEST_UTIL.getZkCluster());
+      TEST_UTIL2.startMiniDFSCluster(3);
+      String root2 = TEST_UTIL2.getConfiguration().get("fs.defaultFS");
+      Path p = new Path(new Path(root2), "/tmp/wal");
+      CommonFSUtils.setWALRootDir(TEST_UTIL2.getConfiguration(), p);
       TEST_UTIL2.startMiniCluster();
     }
     conf1 = TEST_UTIL.getConfiguration();
 
     TEST_UTIL.startMiniMapReduceCluster();
     BACKUP_ROOT_DIR =
-        new Path ( new Path(TEST_UTIL.getConfiguration().get("fs.defaultFS")),
+        new Path(new Path(TEST_UTIL.getConfiguration().get("fs.defaultFS")),
           BACKUP_ROOT_DIR).toString();
     LOG.info("ROOTDIR " + BACKUP_ROOT_DIR);
     if (useSecondCluster) {
       BACKUP_REMOTE_ROOT_DIR =
-          new Path ( new Path(TEST_UTIL2.getConfiguration().get("fs.defaultFS"))
+          new Path(new Path(TEST_UTIL2.getConfiguration().get("fs.defaultFS"))
           + BACKUP_REMOTE_ROOT_DIR).toString();
       LOG.info("REMOTE ROOTDIR " + BACKUP_REMOTE_ROOT_DIR);
     }
@@ -341,7 +338,7 @@ public class TestBackupBase {
   }
 
   /**
-   * @throws java.lang.Exception
+   * @throws Exception if deleting the archive directory or shutting down the mini cluster fails
    */
   @AfterClass
   public static void tearDown() throws Exception {
@@ -368,7 +365,6 @@ public class TestBackupBase {
     }
     return t;
   }
-
 
   protected BackupRequest createBackupRequest(BackupType type,
       List<TableName> tables, String path) {
@@ -409,7 +405,6 @@ public class TestBackupBase {
   }
 
   protected static void loadTable(Table table) throws Exception {
-
     Put p; // 100 + 1 row to t1_syncup
     for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
       p = new Put(Bytes.toBytes("row" + i));
@@ -420,9 +415,8 @@ public class TestBackupBase {
   }
 
   protected static void createTables() throws Exception {
-
     long tid = System.currentTimeMillis();
-    table1 = TableName.valueOf("ns1:test-" + tid);
+    table1 = TableName.valueOf("test-" + tid);
     HBaseAdmin ha = TEST_UTIL.getHBaseAdmin();
 
     // Create namespaces
@@ -464,13 +458,21 @@ public class TestBackupBase {
 
   protected boolean checkSucceeded(String backupId) throws IOException {
     BackupInfo status = getBackupInfo(backupId);
-    if (status == null) return false;
+
+    if (status == null) {
+      return false;
+    }
+
     return status.getState() == BackupState.COMPLETE;
   }
 
   protected boolean checkFailed(String backupId) throws IOException {
     BackupInfo status = getBackupInfo(backupId);
-    if (status == null) return false;
+
+    if (status == null) {
+      return false;
+    }
+
     return status.getState() == BackupState.FAILED;
   }
 
@@ -501,8 +503,7 @@ public class TestBackupBase {
     FileSystem fs = FileSystem.get(conf1);
     RemoteIterator<LocatedFileStatus> it = fs.listFiles(new Path(BACKUP_ROOT_DIR), true);
     while (it.hasNext()) {
-      LOG.debug(it.next().getPath());
+      LOG.debug(Objects.toString(it.next().getPath()));
     }
-
   }
 }

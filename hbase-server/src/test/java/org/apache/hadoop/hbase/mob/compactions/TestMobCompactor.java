@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -29,6 +28,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
@@ -37,17 +37,14 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
 import javax.crypto.spec.SecretKeySpec;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
@@ -81,6 +78,7 @@ import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.master.cleaner.TimeToLiveHFileCleaner;
 import org.apache.hadoop.hbase.mob.MobConstants;
 import org.apache.hadoop.hbase.mob.MobFileName;
+import org.apache.hadoop.hbase.mob.MobTestUtil;
 import org.apache.hadoop.hbase.mob.MobUtils;
 import org.apache.hadoop.hbase.regionserver.BloomType;
 import org.apache.hadoop.hbase.regionserver.HRegion;
@@ -94,19 +92,26 @@ import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category(LargeTests.class)
 public class TestMobCompactor {
-  private static final Log LOG = LogFactory.getLog(TestMobCompactor.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMobCompactor.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestMobCompactor.class);
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static Configuration conf = null;
   private TableName tableName;
@@ -178,7 +183,6 @@ public class TestMobCompactor {
     TEST_UTIL.getConfiguration().setLong(TimeToLiveHFileCleaner.TTL_CONF_KEY, 0);
     TEST_UTIL.getConfiguration().setInt("hbase.client.retries.number", 1);
     TEST_UTIL.getConfiguration().setInt("hbase.hfile.compaction.discharger.interval", 100);
-    TEST_UTIL.getConfiguration().setBoolean("hbase.online.schema.update.enable", true);
     TEST_UTIL.startMiniCluster(1);
     pool = createThreadPool(TEST_UTIL.getConfiguration());
     conn = ConnectionFactory.createConnection(TEST_UTIL.getConfiguration(), pool);
@@ -263,17 +267,11 @@ public class TestMobCompactor {
 
     hcd1.setMobCompactPartitionPolicy(type);
     desc.modifyFamily(hcd1);
-    admin.modifyTable(tableName, desc);
-    Pair<Integer, Integer> st;
-
-    while (null != (st = admin.getAlterStatus(tableName)) && st.getFirst() > 0) {
-      LOG.debug(st.getFirst() + " regions left to update");
-      Thread.sleep(40);
-    }
+    admin.modifyTable(desc);
     LOG.info("alter status finished");
   }
 
-  @Test(timeout = 300000)
+  @Test
   public void testMinorCompaction() throws Exception {
     resetConf();
     int mergeSize = 5000;
@@ -291,7 +289,7 @@ public class TestMobCompactor {
     int rowNumPerRegion = count * rowNumPerFile;
 
     assertEquals("Before deleting: mob rows count", regionNum * rowNumPerRegion,
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("Before deleting: mob cells count", regionNum * cellNumPerRow * rowNumPerRegion,
       countMobCells(table));
     assertEquals("Before deleting: mob file count", regionNum * count,
@@ -301,7 +299,7 @@ public class TestMobCompactor {
     createDelFile(table, tableName, Bytes.toBytes(family1), Bytes.toBytes(qf1));
 
     assertEquals("Before compaction: mob rows count", regionNum * (rowNumPerRegion - delRowNum),
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("Before compaction: mob cells count", regionNum
       * (cellNumPerRow * rowNumPerRegion - delCellNum), countMobCells(table));
     assertEquals("Before compaction: family1 mob file count", regionNum * count,
@@ -318,7 +316,7 @@ public class TestMobCompactor {
     compactor.compact();
 
     assertEquals("After compaction: mob rows count", regionNum * (rowNumPerRegion - delRowNum),
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("After compaction: mob cells count", regionNum
       * (cellNumPerRow * rowNumPerRegion - delCellNum), countMobCells(table));
     // After the compaction, the files smaller than the mob compaction merge size
@@ -423,7 +421,7 @@ public class TestMobCompactor {
         new String[] { "20150907", "20151128", "20151205", "20160103" }, false);
   }
 
-  @Test(timeout = 300000)
+  @Test
   public void testCompactionWithHFileLink() throws IOException, InterruptedException {
     resetConf();
     String tableNameAsString = "testCompactionWithHFileLink";
@@ -434,14 +432,14 @@ public class TestMobCompactor {
     int rowNumPerRegion = count * rowNumPerFile;
 
     long tid = System.currentTimeMillis();
-    byte[] snapshotName1 = Bytes.toBytes("snaptb-" + tid);
+    String snapshotName1 = "snaptb-" + tid;
     // take a snapshot
     admin.snapshot(snapshotName1, tableName);
 
     createDelFile(table, tableName, Bytes.toBytes(family1), Bytes.toBytes(qf1));
 
     assertEquals("Before compaction: mob rows count", regionNum * (rowNumPerRegion - delRowNum),
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("Before compaction: mob cells count", regionNum
       * (cellNumPerRow * rowNumPerRegion - delCellNum), countMobCells(table));
     assertEquals("Before compaction: family1 mob file count", regionNum * count,
@@ -458,7 +456,7 @@ public class TestMobCompactor {
     compactor.compact();
 
     assertEquals("After first compaction: mob rows count", regionNum
-      * (rowNumPerRegion - delRowNum), countMobRows(table));
+      * (rowNumPerRegion - delRowNum), MobTestUtil.countMobRows(table));
     assertEquals("After first compaction: mob cells count", regionNum
       * (cellNumPerRow * rowNumPerRegion - delCellNum), countMobCells(table));
     assertEquals("After first compaction: family1 mob file count", regionNum,
@@ -478,7 +476,7 @@ public class TestMobCompactor {
     admin.enableTable(tableName);
 
     assertEquals("After restoring snapshot: mob rows count", regionNum * rowNumPerRegion,
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("After restoring snapshot: mob cells count", regionNum * cellNumPerRow
       * rowNumPerRegion, countMobCells(table));
     assertEquals("After restoring snapshot: family1 mob file count", regionNum * count,
@@ -496,7 +494,7 @@ public class TestMobCompactor {
     compactor.compact();
 
     assertEquals("After second compaction: mob rows count", regionNum * rowNumPerRegion,
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("After second compaction: mob cells count", regionNum * cellNumPerRow
       * rowNumPerRegion, countMobCells(table));
     assertEquals("After second compaction: family1 mob file count", regionNum,
@@ -512,7 +510,7 @@ public class TestMobCompactor {
     assertRefFileNameEqual(family1);
   }
 
-  @Test(timeout = 300000)
+  @Test
   public void testMajorCompactionFromAdmin() throws Exception {
     resetConf();
     int mergeSize = 5000;
@@ -546,7 +544,7 @@ public class TestMobCompactor {
     int rowNumPerRegion = count * rowNumPerFile;
 
     assertEquals("Before deleting: mob rows count", regionNum * rowNumPerRegion,
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("Before deleting: mob cells count", regionNum * cellNumPerRow * rowNumPerRegion,
       countMobCells(table));
     assertEquals("Before deleting: mob file count", regionNum * count,
@@ -555,7 +553,7 @@ public class TestMobCompactor {
     createDelFile(table, tableName, Bytes.toBytes(family1), Bytes.toBytes(qf1));
 
     assertEquals("Before compaction: mob rows count", regionNum * (rowNumPerRegion - delRowNum),
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("Before compaction: mob cells count", regionNum
       * (cellNumPerRow * rowNumPerRegion - delCellNum), countMobCells(table));
     assertEquals("Before compaction: family1 mob file count", regionNum * count,
@@ -572,7 +570,7 @@ public class TestMobCompactor {
 
     waitUntilMobCompactionFinished(tableName);
     assertEquals("After compaction: mob rows count", regionNum * (rowNumPerRegion - delRowNum),
-      countMobRows(table));
+      MobTestUtil.countMobRows(table));
     assertEquals("After compaction: mob cells count", regionNum
       * (cellNumPerRow * rowNumPerRegion - delCellNum), countMobCells(table));
     assertEquals("After compaction: family1 mob file count", regionNum,
@@ -587,7 +585,7 @@ public class TestMobCompactor {
     table.close();
   }
 
-  @Test(timeout = 300000)
+  @Test
   public void testScannerOnBulkLoadRefHFiles() throws Exception {
     resetConf();
     setUp("testScannerOnBulkLoadRefHFiles");
@@ -647,7 +645,7 @@ public class TestMobCompactor {
    * is compacted with some other normal hfiles. This is to make sure the mvcc is included
    * after compaction for mob enabled store files.
    */
-  @Test(timeout = 300000)
+  @Test
   public void testGetAfterCompaction() throws Exception {
     resetConf();
     conf.setLong(TimeToLiveHFileCleaner.TTL_CONF_KEY, 0);
@@ -715,7 +713,7 @@ public class TestMobCompactor {
       Thread.sleep(50);
       fileList = fs.listStatus(path);
       for (FileStatus fileStatus: fileList) {
-        LOG.info(fileStatus);
+        LOG.info(Objects.toString(fileStatus));
       }
     }
   }
@@ -757,18 +755,6 @@ public class TestMobCompactor {
       Thread.sleep(10);
     }
     assertEquals(CompactionState.NONE, state);
-  }
-
-  /**
-   * Gets the number of rows in the given table.
-   * @param table to get the  scanner
-   * @return the number of rows
-   */
-  private int countMobRows(final Table table) throws IOException {
-    Scan scan = new Scan();
-    // Do not retrieve the mob data when scanning
-    scan.setAttribute(MobConstants.MOB_SCAN_RAW, Bytes.toBytes(Boolean.TRUE));
-    return TEST_UTIL.countRows(table, scan);
   }
 
   /**
@@ -919,13 +905,15 @@ public class TestMobCompactor {
 
     for (int i = 0; i < 1000; i ++) {
       Put put0 = new Put(Bytes.toBytes("r0" + i));
-      put0.addColumn(Bytes.toBytes(family1), Bytes.toBytes(qf1), tsFor20151130Monday, Bytes.toBytes(mobValue0));
+      put0.addColumn(Bytes.toBytes(family1), Bytes.toBytes(qf1),
+              tsFor20151130Monday, Bytes.toBytes(mobValue0));
       pArray[i] = put0;
     }
     loadData(admin, bufMut, tableName, pArray);
 
     Put put06 = new Put(mobKey06);
-    put06.addColumn(Bytes.toBytes(family1), Bytes.toBytes(qf1), tsFor20151128Saturday, Bytes.toBytes(mobValue0));
+    put06.addColumn(Bytes.toBytes(family1), Bytes.toBytes(qf1),
+            tsFor20151128Saturday, Bytes.toBytes(mobValue0));
 
     loadData(admin, bufMut, tableName, new Put[] { put06 });
 
@@ -1040,7 +1028,7 @@ public class TestMobCompactor {
             }
           }
         });
-    ((ThreadPoolExecutor) pool).allowCoreThreadTimeOut(true);
+    pool.allowCoreThreadTimeOut(true);
     return pool;
   }
 

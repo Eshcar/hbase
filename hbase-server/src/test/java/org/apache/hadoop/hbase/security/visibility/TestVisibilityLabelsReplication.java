@@ -28,26 +28,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.ArrayBackedTag;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
+import org.apache.hadoop.hbase.PrivateCellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Tag;
-import org.apache.hadoop.hbase.ArrayBackedTag;
 import org.apache.hadoop.hbase.TagType;
-import org.apache.hadoop.hbase.TagUtil;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
@@ -65,7 +62,6 @@ import org.apache.hadoop.hbase.coprocessor.RegionCoprocessor;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.RegionObserver;
 import org.apache.hadoop.hbase.protobuf.generated.VisibilityLabelsProtos.VisibilityLabelsResponse;
-import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.replication.ReplicationEndpoint;
 import org.apache.hadoop.hbase.replication.ReplicationPeerConfig;
 import org.apache.hadoop.hbase.security.User;
@@ -73,18 +69,27 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.SecurityTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WAL.Entry;
+import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.apache.hadoop.hbase.zookeeper.ZKWatcher;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({ SecurityTests.class, MediumTests.class })
 public class TestVisibilityLabelsReplication {
-  private static final Log LOG = LogFactory.getLog(TestVisibilityLabelsReplication.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestVisibilityLabelsReplication.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestVisibilityLabelsReplication.class);
   protected static final int NON_VIS_TAG_TYPE = 100;
   protected static final String TEMP = "temp";
   protected static Configuration conf;
@@ -223,7 +228,7 @@ public class TestVisibilityLabelsReplication {
     try (Table table = writeData(TABLE_NAME, "(" + SECRET + "&" + PUBLIC + ")" + "|(" + CONFIDENTIAL
             + ")&(" + TOPSECRET + ")", "(" + PRIVATE + "|" + CONFIDENTIAL + ")&(" + PUBLIC + "|"
             + TOPSECRET + ")", "(" + SECRET + "|" + CONFIDENTIAL + ")" + "&" + "!" + TOPSECRET,
-        CellVisibility.quote(UNICODE_VIS_TAG) + "&" + SECRET);) {
+        CellVisibility.quote(UNICODE_VIS_TAG) + "&" + SECRET)) {
       Scan s = new Scan();
       s.setAuthorizations(new Authorizations(SECRET, CONFIDENTIAL, PRIVATE, TOPSECRET,
           UNICODE_VIS_TAG));
@@ -251,7 +256,7 @@ public class TestVisibilityLabelsReplication {
       current = cellScanner.current();
       assertTrue(Bytes.equals(current.getRowArray(), current.getRowOffset(),
           current.getRowLength(), row4, 0, row4.length));
-      try (Table table2 = TEST_UTIL1.getConnection().getTable(TABLE_NAME);) {
+      try (Table table2 = TEST_UTIL1.getConnection().getTable(TABLE_NAME)) {
         s = new Scan();
         // Ensure both rows are replicated
         scanner = table2.getScanner(s);
@@ -285,11 +290,10 @@ public class TestVisibilityLabelsReplication {
     for (Cell cell : cells) {
       if ((Bytes.equals(cell.getRowArray(), cell.getRowOffset(), cell.getRowLength(), row, 0,
           row.length))) {
-        List<Tag> tags = TagUtil.asList(cell.getTagsArray(), cell.getTagsOffset(),
-            cell.getTagsLength());
+        List<Tag> tags = PrivateCellUtil.getTags(cell);
         for (Tag tag : tags) {
           if (tag.getType() == TagType.STRING_VIS_TAG_TYPE) {
-            assertEquals(visTag, TagUtil.getValueAsString(tag));
+            assertEquals(visTag, Tag.getValueAsString(tag));
             tagFound = true;
             break;
           }
@@ -303,6 +307,7 @@ public class TestVisibilityLabelsReplication {
       final boolean nullExpected, final String... auths) throws IOException,
       InterruptedException {
     PrivilegedExceptionAction<Void> scanAction = new PrivilegedExceptionAction<Void>() {
+      @Override
       public Void run() throws Exception {
         try (Connection connection = ConnectionFactory.createConnection(conf1);
              Table table2 = connection.getTable(TABLE_NAME)) {
@@ -331,7 +336,7 @@ public class TestVisibilityLabelsReplication {
           boolean foundNonVisTag = false;
           for (Tag t : TestCoprocessorForTagsAtSink.tags) {
             if (t.getType() == NON_VIS_TAG_TYPE) {
-              assertEquals(TEMP, TagUtil.getValueAsString(t));
+              assertEquals(TEMP, Tag.getValueAsString(t));
               foundNonVisTag = true;
               break;
             }
@@ -348,6 +353,7 @@ public class TestVisibilityLabelsReplication {
   public static void addLabels() throws Exception {
     PrivilegedExceptionAction<VisibilityLabelsResponse> action =
         new PrivilegedExceptionAction<VisibilityLabelsResponse>() {
+      @Override
       public VisibilityLabelsResponse run() throws Exception {
         String[] labels = { SECRET, TOPSECRET, CONFIDENTIAL, PUBLIC, PRIVATE, UNICODE_VIS_TAG };
         try (Connection conn = ConnectionFactory.createConnection(conf)) {
@@ -364,6 +370,7 @@ public class TestVisibilityLabelsReplication {
   public static void setAuths(final Configuration conf) throws Exception {
     PrivilegedExceptionAction<VisibilityLabelsResponse> action =
         new PrivilegedExceptionAction<VisibilityLabelsResponse>() {
+      @Override
       public VisibilityLabelsResponse run() throws Exception {
         try (Connection conn = ConnectionFactory.createConnection(conf)) {
           return VisibilityClient.setAuths(conn, new String[] { SECRET,
@@ -414,9 +421,9 @@ public class TestVisibilityLabelsReplication {
               cf = CellUtil.cloneFamily(kv);
             }
             Tag tag = new ArrayBackedTag((byte) NON_VIS_TAG_TYPE, attribute);
-            List<Tag> tagList = new ArrayList<>(kv.getTags().size() + 1);
+            List<Tag> tagList = new ArrayList<>(PrivateCellUtil.getTags(cell).size() + 1);
             tagList.add(tag);
-            tagList.addAll(kv.getTags());
+            tagList.addAll(PrivateCellUtil.getTags(cell));
             Cell newcell = PrivateCellUtil.createCell(kv, tagList);
             ((List<Cell>) updatedCells).add(newcell);
           }
@@ -443,7 +450,7 @@ public class TestVisibilityLabelsReplication {
         // Check tag presence in the 1st cell in 1st Result
         if (!results.isEmpty()) {
           Cell cell = results.get(0);
-          tags = TagUtil.asList(cell.getTagsArray(), cell.getTagsOffset(), cell.getTagsLength());
+          tags = PrivateCellUtil.getTags(cell);
         }
       }
     }

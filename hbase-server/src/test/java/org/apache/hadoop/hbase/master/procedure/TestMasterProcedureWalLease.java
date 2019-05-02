@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hbase.master.procedure;
 
 import static org.junit.Assert.assertEquals;
@@ -24,12 +23,10 @@ import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.CategoryBasedTimeout;
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.StartMiniClusterOption;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.TableDescriptor;
@@ -50,20 +47,22 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Category({MasterTests.class, LargeTests.class})
 @Ignore
 public class TestMasterProcedureWalLease {
-  private static final Log LOG = LogFactory.getLog(TestMasterProcedureWalLease.class);
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestMasterProcedureWalLease.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestMasterProcedureWalLease.class);
 
   @Rule
   public TestName name = new TestName();
-
-  @ClassRule
-  public static final TestRule timeout =
-      CategoryBasedTimeout.forClass(TestMasterProcedureWalLease.class);
 
   protected static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
@@ -78,7 +77,9 @@ public class TestMasterProcedureWalLease {
   @Before
   public void setup() throws Exception {
     setupConf(UTIL.getConfiguration());
-    UTIL.startMiniCluster(2, 3);
+    StartMiniClusterOption option = StartMiniClusterOption.builder()
+        .numMasters(2).numRegionServers(3).numDataNodes(3).build();
+    UTIL.startMiniCluster(option);
   }
 
   @After

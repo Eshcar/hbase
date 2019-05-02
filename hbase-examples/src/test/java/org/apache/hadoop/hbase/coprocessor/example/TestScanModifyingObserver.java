@@ -25,7 +25,7 @@ import static org.junit.Assert.assertNull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
+import org.apache.hadoop.hbase.HBaseClassTestRule;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
@@ -41,11 +41,16 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({ CoprocessorTests.class, MediumTests.class })
 public class TestScanModifyingObserver {
+
+  @ClassRule
+  public static final HBaseClassTestRule CLASS_RULE =
+      HBaseClassTestRule.forClass(TestScanModifyingObserver.class);
 
   private static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
   private static final TableName NAME = TableName.valueOf("TestScanModifications");
@@ -63,10 +68,10 @@ public class TestScanModifyingObserver {
     UTIL.startMiniCluster(1);
     UTIL.getAdmin()
         .createTable(TableDescriptorBuilder.newBuilder(NAME)
-            .addCoprocessor(ScanModifyingObserver.class.getName())
+            .setCoprocessor(ScanModifyingObserver.class.getName())
             .setValue(ScanModifyingObserver.FAMILY_TO_ADD_KEY, Bytes.toString(FAMILY))
             .setValue(ScanModifyingObserver.QUALIFIER_TO_ADD_KEY, Bytes.toString(IMPLICIT_QUAL))
-            .addColumnFamily(CFD).build());
+            .setColumnFamily(CFD).build());
   }
 
   @AfterClass

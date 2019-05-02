@@ -24,9 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
@@ -58,7 +58,7 @@ import org.apache.hadoop.hbase.util.JVMClusterUtil;
  */
 @InterfaceAudience.Public
 public class LocalHBaseCluster {
-  private static final Log LOG = LogFactory.getLog(LocalHBaseCluster.class);
+  private static final Logger LOG = LoggerFactory.getLogger(LocalHBaseCluster.class);
   private final List<JVMClusterUtil.MasterThread> masterThreads = new CopyOnWriteArrayList<>();
   private final List<JVMClusterUtil.RegionServerThread> regionThreads = new CopyOnWriteArrayList<>();
   private final static int DEFAULT_NO = 1;
@@ -66,6 +66,8 @@ public class LocalHBaseCluster {
   public static final String LOCAL = "local";
   /** 'local:' */
   public static final String LOCAL_COLON = LOCAL + ":";
+  public static final String ASSIGN_RANDOM_PORTS = "hbase.localcluster.assign.random.ports";
+
   private final Configuration conf;
   private final Class<? extends HMaster> masterClass;
   private final Class<? extends HRegionServer> regionServerClass;
@@ -137,12 +139,32 @@ public class LocalHBaseCluster {
   throws IOException {
     this.conf = conf;
 
-    // Always have masters and regionservers come up on port '0' so we don't
-    // clash over default ports.
-    conf.set(HConstants.MASTER_PORT, "0");
-    conf.set(HConstants.REGIONSERVER_PORT, "0");
-    if (conf.getInt(HConstants.REGIONSERVER_INFO_PORT, 0) != -1) {
-      conf.set(HConstants.REGIONSERVER_INFO_PORT, "0");
+    // When active, if a port selection is default then we switch to random
+    if (conf.getBoolean(ASSIGN_RANDOM_PORTS, false)) {
+      if (conf.getInt(HConstants.MASTER_PORT, HConstants.DEFAULT_MASTER_PORT)
+          == HConstants.DEFAULT_MASTER_PORT) {
+        LOG.debug("Setting Master Port to random.");
+        conf.set(HConstants.MASTER_PORT, "0");
+      }
+      if (conf.getInt(HConstants.REGIONSERVER_PORT, HConstants.DEFAULT_REGIONSERVER_PORT)
+          == HConstants.DEFAULT_REGIONSERVER_PORT) {
+        LOG.debug("Setting RegionServer Port to random.");
+        conf.set(HConstants.REGIONSERVER_PORT, "0");
+      }
+      // treat info ports special; expressly don't change '-1' (keep off)
+      // in case we make that the default behavior.
+      if (conf.getInt(HConstants.REGIONSERVER_INFO_PORT, 0) != -1 &&
+          conf.getInt(HConstants.REGIONSERVER_INFO_PORT, HConstants.DEFAULT_REGIONSERVER_INFOPORT)
+          == HConstants.DEFAULT_REGIONSERVER_INFOPORT) {
+        LOG.debug("Setting RS InfoServer Port to random.");
+        conf.set(HConstants.REGIONSERVER_INFO_PORT, "0");
+      }
+      if (conf.getInt(HConstants.MASTER_INFO_PORT, 0) != -1 &&
+          conf.getInt(HConstants.MASTER_INFO_PORT, HConstants.DEFAULT_MASTER_INFOPORT)
+          == HConstants.DEFAULT_MASTER_INFOPORT) {
+        LOG.debug("Setting Master InfoServer Port to random.");
+        conf.set(HConstants.MASTER_INFO_PORT, "0");
+      }
     }
 
     this.masterClass = (Class<? extends HMaster>)
@@ -276,7 +298,8 @@ public class LocalHBaseCluster {
         LOG.info("Waiting on " + rst.getRegionServer().toString());
         rst.join();
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        LOG.error("Interrupted while waiting for {} to finish. Retrying join", rst.getName(), e);
+        Thread.currentThread().interrupt();
       }
     }
     regionThreads.remove(rst);
@@ -348,7 +371,9 @@ public class LocalHBaseCluster {
         LOG.info("Waiting on " + masterThread.getMaster().getServerName().toString());
         masterThread.join();
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        LOG.error("Interrupted while waiting for {} to finish. Retrying join",
+            masterThread.getName(), e);
+        Thread.currentThread().interrupt();
       }
     }
     masterThreads.remove(masterThread);

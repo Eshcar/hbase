@@ -20,10 +20,9 @@ package org.apache.hadoop.hbase.mapreduce;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Map;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
@@ -39,7 +38,7 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.StringUtils;
 
-import org.apache.hadoop.hbase.shaded.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Iterate over an HBase table data, return (ImmutableBytesWritable, Result)
@@ -50,11 +49,11 @@ public class TableRecordReaderImpl {
   public static final String LOG_PER_ROW_COUNT
       = "hbase.mapreduce.log.scanner.rowcount";
 
-  private static final Log LOG = LogFactory.getLog(TableRecordReaderImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TableRecordReaderImpl.class);
 
   // HBASE_COUNTER_GROUP_NAME is the name of mapreduce counter group for HBase
   @VisibleForTesting
-  static final String HBASE_COUNTER_GROUP_NAME = "HBase Counters";
+  static final String HBASE_COUNTER_GROUP_NAME = "HBaseCounters";
   private ResultScanner scanner = null;
   private Scan scan = null;
   private Scan currentScan = null;
@@ -241,8 +240,16 @@ public class TableRecordReaderImpl {
         if (value != null && value.isStale()) numStale++;
         numRestarts++;
       }
+
       if (value != null && value.size() > 0) {
         key.set(value.getRow());
+        lastSuccessfulRow = key.get();
+        return true;
+      }
+
+      // Need handle cursor result
+      if (value != null && value.isCursor()) {
+        key.set(value.getCursor().getRow());
         lastSuccessfulRow = key.get();
         return true;
       }
@@ -254,7 +261,7 @@ public class TableRecordReaderImpl {
         long now = System.currentTimeMillis();
         LOG.info("Mapper took " + (now-timestamp)
           + "ms to process " + rowcount + " rows");
-        LOG.info(ioe);
+        LOG.info(ioe.toString(), ioe);
         String lastRow = lastSuccessfulRow == null ?
           "null" : Bytes.toStringBinary(lastSuccessfulRow);
         LOG.info("lastSuccessfulRow=" + lastRow);

@@ -30,8 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
@@ -58,6 +56,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Validate ImportTsv + LoadIncrementalHFiles on a distributed cluster.
@@ -66,7 +66,7 @@ import org.junit.rules.TestName;
 public class IntegrationTestImportTsv extends Configured implements Tool {
 
   private static final String NAME = IntegrationTestImportTsv.class.getSimpleName();
-  private static final Log LOG = LogFactory.getLog(IntegrationTestImportTsv.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IntegrationTestImportTsv.class);
 
   protected static final String simple_tsv =
       "row1\t1\tc1\tc2\n" +
@@ -185,12 +185,14 @@ public class IntegrationTestImportTsv extends Configured implements Tool {
 
   @Test
   public void testGenerateAndLoad() throws Exception {
+    generateAndLoad(TableName.valueOf(name.getMethodName()));
+  }
+
+  void generateAndLoad(final TableName table) throws Exception {
     LOG.info("Running test testGenerateAndLoad.");
-    final TableName table = TableName.valueOf(name.getMethodName());
     String cf = "d";
     Path hfiles = new Path(
         util.getDataTestDirOnTestFS(table.getNameAsString()), "hfiles");
-
 
     Map<String, String> args = new HashMap<>();
     args.put(ImportTsv.BULK_OUTPUT_CONF_KEY, hfiles.toString());
@@ -226,7 +228,11 @@ public class IntegrationTestImportTsv extends Configured implements Tool {
     // adding more test methods? Don't forget to add them here... or consider doing what
     // IntegrationTestsDriver does.
     provisionCluster();
-    testGenerateAndLoad();
+    TableName tableName = TableName.valueOf("IntegrationTestImportTsv");
+    if (util.getAdmin().tableExists(tableName)) {
+      util.deleteTable(tableName);
+    }
+    generateAndLoad(tableName);
     releaseCluster();
 
     return 0;

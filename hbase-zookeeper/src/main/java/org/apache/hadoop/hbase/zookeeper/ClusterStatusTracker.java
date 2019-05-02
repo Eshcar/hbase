@@ -18,13 +18,14 @@
  */
 package org.apache.hadoop.hbase.zookeeper;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.Abortable;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.ZooKeeperProtos;
-import org.apache.zookeeper.KeeperException;
 
 /**
  * Tracker on cluster settings up in zookeeper.
@@ -35,24 +36,25 @@ import org.apache.zookeeper.KeeperException;
  */
 @InterfaceAudience.Private
 public class ClusterStatusTracker extends ZKNodeTracker {
-  private static final Log LOG = LogFactory.getLog(ClusterStatusTracker.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ClusterStatusTracker.class);
 
   /**
    * Creates a cluster status tracker.
    *
    * <p>After construction, use {@link #start} to kick off tracking.
    *
-   * @param watcher
-   * @param abortable
+   * @param watcher reference to the {@link ZKWatcher} which also contains configuration and
+   *                constants
+   * @param abortable used to abort if a fatal error occurs
    */
   public ClusterStatusTracker(ZKWatcher watcher, Abortable abortable) {
-    super(watcher, watcher.znodePaths.clusterStateZNode, abortable);
+    super(watcher, watcher.getZNodePaths().clusterStateZNode, abortable);
   }
 
   /**
    * Checks if cluster is up.
    * @return true if the cluster up ('shutdown' is its name up in zk) znode
-   * exists with data, false if not
+   *         exists with data, false if not
    */
   public boolean isClusterUp() {
     return super.getData(false) != null;
@@ -63,12 +65,12 @@ public class ClusterStatusTracker extends ZKNodeTracker {
    * @throws KeeperException unexpected zk exception
    */
   public void setClusterUp()
-  throws KeeperException {
+    throws KeeperException {
     byte [] upData = toByteArray();
     try {
-      ZKUtil.createAndWatch(watcher, watcher.znodePaths.clusterStateZNode, upData);
+      ZKUtil.createAndWatch(watcher, watcher.getZNodePaths().clusterStateZNode, upData);
     } catch(KeeperException.NodeExistsException nee) {
-      ZKUtil.setData(watcher, watcher.znodePaths.clusterStateZNode, upData);
+      ZKUtil.setData(watcher, watcher.getZNodePaths().clusterStateZNode, upData);
     }
   }
 
@@ -77,18 +79,18 @@ public class ClusterStatusTracker extends ZKNodeTracker {
    * @throws KeeperException unexpected zk exception
    */
   public void setClusterDown()
-  throws KeeperException {
+    throws KeeperException {
     try {
-      ZKUtil.deleteNode(watcher, watcher.znodePaths.clusterStateZNode);
+      ZKUtil.deleteNode(watcher, watcher.getZNodePaths().clusterStateZNode);
     } catch(KeeperException.NoNodeException nne) {
       LOG.warn("Attempted to set cluster as down but already down, cluster " +
-          "state node (" + watcher.znodePaths.clusterStateZNode + ") not found");
+          "state node (" + watcher.getZNodePaths().clusterStateZNode + ") not found");
     }
   }
 
   /**
    * @return Content of the clusterup znode as a serialized pb with the pb
-   * magic as prefix.
+   *         magic as prefix.
    */
   static byte [] toByteArray() {
     ZooKeeperProtos.ClusterUp.Builder builder =

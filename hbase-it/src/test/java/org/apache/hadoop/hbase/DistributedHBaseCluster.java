@@ -20,25 +20,26 @@ package org.apache.hadoop.hbase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ClusterManager.ServiceType;
-import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.ClusterConnection;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.RegionLocator;
-import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos.ServerInfo;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
-import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.MasterService;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
+import org.apache.yetus.audience.InterfaceAudience;
+
+import org.apache.hadoop.hbase.shaded.protobuf.generated.AdminProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.ClientProtos;
+import org.apache.hadoop.hbase.shaded.protobuf.generated.MasterProtos.MasterService;
 
 /**
  * Manages the interactions with an already deployed distributed cluster (as opposed to
@@ -50,6 +51,12 @@ public class DistributedHBaseCluster extends HBaseCluster {
   private final Connection connection;
 
   private ClusterManager clusterManager;
+  /**
+   * List of RegionServers killed so far. ServerName also comprises startCode of a server,
+   * so any restarted instances of the same server will have different ServerName and will not
+   * coincide with past dead ones. So there's no need to cleanup this list.
+   */
+  private Set<ServerName> killedRegionServers = new HashSet<>();
 
   public DistributedHBaseCluster(Configuration conf, ClusterManager clusterManager)
       throws IOException {
@@ -57,7 +64,7 @@ public class DistributedHBaseCluster extends HBaseCluster {
     this.clusterManager = clusterManager;
     this.connection = ConnectionFactory.createConnection(conf);
     this.admin = this.connection.getAdmin();
-    this.initialClusterStatus = getClusterStatus();
+    this.initialClusterStatus = getClusterMetrics();
   }
 
   public void setClusterManager(ClusterManager clusterManager) {
@@ -73,12 +80,12 @@ public class DistributedHBaseCluster extends HBaseCluster {
    * @throws IOException
    */
   @Override
-  public ClusterStatus getClusterStatus() throws IOException {
-    return admin.getClusterStatus();
+  public ClusterMetrics getClusterMetrics() throws IOException {
+    return admin.getClusterMetrics();
   }
 
   @Override
-  public ClusterStatus getInitialClusterStatus() throws IOException {
+  public ClusterMetrics getInitialClusterMetrics() throws IOException {
     return initialClusterStatus;
   }
 
@@ -113,8 +120,14 @@ public class DistributedHBaseCluster extends HBaseCluster {
   @Override
   public void killRegionServer(ServerName serverName) throws IOException {
     LOG.info("Aborting RS: " + serverName.getServerName());
+    killedRegionServers.add(serverName);
     clusterManager.kill(ServiceType.HBASE_REGIONSERVER,
       serverName.getHostname(), serverName.getPort());
+  }
+
+  @Override
+  public boolean isKilledRS(ServerName serverName) {
+    return killedRegionServers.contains(serverName);
   }
 
   @Override
@@ -188,6 +201,37 @@ public class DistributedHBaseCluster extends HBaseCluster {
   @Override
   public void waitForDataNodeToStop(ServerName serverName, long timeout) throws IOException {
     waitForServiceToStop(ServiceType.HADOOP_DATANODE, serverName, timeout);
+  }
+
+  @Override
+  public void startNameNode(ServerName serverName) throws IOException {
+    LOG.info("Starting name node on: " + serverName.getServerName());
+    clusterManager.start(ServiceType.HADOOP_NAMENODE, serverName.getHostname(),
+      serverName.getPort());
+  }
+
+  @Override
+  public void killNameNode(ServerName serverName) throws IOException {
+    LOG.info("Aborting name node on: " + serverName.getServerName());
+    clusterManager.kill(ServiceType.HADOOP_NAMENODE, serverName.getHostname(),
+      serverName.getPort());
+  }
+
+  @Override
+  public void stopNameNode(ServerName serverName) throws IOException {
+    LOG.info("Stopping name node on: " + serverName.getServerName());
+    clusterManager.stop(ServiceType.HADOOP_NAMENODE, serverName.getHostname(),
+      serverName.getPort());
+  }
+
+  @Override
+  public void waitForNameNodeToStart(ServerName serverName, long timeout) throws IOException {
+    waitForServiceToStart(ServiceType.HADOOP_NAMENODE, serverName, timeout);
+  }
+
+  @Override
+  public void waitForNameNodeToStop(ServerName serverName, long timeout) throws IOException {
+    waitForServiceToStop(ServiceType.HADOOP_NAMENODE, serverName, timeout);
   }
 
   private void waitForServiceToStop(ServiceType service, ServerName serverName, long timeout)
@@ -267,20 +311,16 @@ public class DistributedHBaseCluster extends HBaseCluster {
 
   @Override
   public ServerName getServerHoldingRegion(TableName tn, byte[] regionName) throws IOException {
+    byte[] startKey = RegionInfo.getStartKey(regionName);
     HRegionLocation regionLoc = null;
     try (RegionLocator locator = connection.getRegionLocator(tn)) {
-      regionLoc = locator.getRegionLocation(regionName, true);
+      regionLoc = locator.getRegionLocation(startKey, true);
     }
     if (regionLoc == null) {
-      LOG.warn("Cannot find region server holding region " + Bytes.toString(regionName) +
-        ", start key [" + Bytes.toString(HRegionInfo.getStartKey(regionName)) + "]");
+      LOG.warn("Cannot find region server holding region " + Bytes.toStringBinary(regionName));
       return null;
     }
-
-    AdminProtos.AdminService.BlockingInterface client =
-        ((ClusterConnection)this.connection).getAdmin(regionLoc.getServerName());
-    ServerInfo info = ProtobufUtil.getServerInfo(null, client);
-    return ProtobufUtil.toServerName(info.getServerName());
+    return regionLoc.getServerName();
   }
 
   @Override
@@ -301,8 +341,8 @@ public class DistributedHBaseCluster extends HBaseCluster {
   }
 
   @Override
-  public boolean restoreClusterStatus(ClusterStatus initial) throws IOException {
-    ClusterStatus current = getClusterStatus();
+  public boolean restoreClusterMetrics(ClusterMetrics initial) throws IOException {
+    ClusterMetrics current = getClusterMetrics();
 
     LOG.info("Restoring cluster - started");
 
@@ -316,22 +356,20 @@ public class DistributedHBaseCluster extends HBaseCluster {
     return success;
   }
 
-  protected boolean restoreMasters(ClusterStatus initial, ClusterStatus current) {
+  protected boolean restoreMasters(ClusterMetrics initial, ClusterMetrics current) {
     List<IOException> deferred = new ArrayList<>();
     //check whether current master has changed
-    final ServerName initMaster = initial.getMaster();
-    if (!ServerName.isSameAddress(initMaster, current.getMaster())) {
-      LOG.info("Restoring cluster - Initial active master : "
-              + initMaster.getHostAndPort()
-              + " has changed to : "
-              + current.getMaster().getHostAndPort());
+    final ServerName initMaster = initial.getMasterName();
+    if (!ServerName.isSameAddress(initMaster, current.getMasterName())) {
+      LOG.info("Restoring cluster - Initial active master : " + initMaster.getAddress() +
+        " has changed to : " + current.getMasterName().getAddress());
       // If initial master is stopped, start it, before restoring the state.
       // It will come up as a backup master, if there is already an active master.
       try {
         if (!clusterManager.isRunning(ServiceType.HBASE_MASTER,
                 initMaster.getHostname(), initMaster.getPort())) {
           LOG.info("Restoring cluster - starting initial active master at:"
-                  + initMaster.getHostAndPort());
+                  + initMaster.getAddress());
           startMaster(initMaster.getHostname(), initMaster.getPort());
         }
 
@@ -339,14 +377,14 @@ public class DistributedHBaseCluster extends HBaseCluster {
         // 1. Kill the current backups
         // 2. Stop current master
         // 3. Start backup masters
-        for (ServerName currentBackup : current.getBackupMasters()) {
+        for (ServerName currentBackup : current.getBackupMasterNames()) {
           if (!ServerName.isSameAddress(currentBackup, initMaster)) {
             LOG.info("Restoring cluster - stopping backup master: " + currentBackup);
             stopMaster(currentBackup);
           }
         }
-        LOG.info("Restoring cluster - stopping active master: " + current.getMaster());
-        stopMaster(current.getMaster());
+        LOG.info("Restoring cluster - stopping active master: " + current.getMasterName());
+        stopMaster(current.getMasterName());
         waitForActiveAndReadyMaster(); // wait so that active master takes over
       } catch (IOException ex) {
         // if we fail to start the initial active master, we do not want to continue stopping
@@ -355,14 +393,14 @@ public class DistributedHBaseCluster extends HBaseCluster {
       }
 
       //start backup masters
-      for (ServerName backup : initial.getBackupMasters()) {
+      for (ServerName backup : initial.getBackupMasterNames()) {
         try {
           //these are not started in backup mode, but we should already have an active master
           if (!clusterManager.isRunning(ServiceType.HBASE_MASTER,
                   backup.getHostname(),
                   backup.getPort())) {
             LOG.info("Restoring cluster - starting initial backup master: "
-                    + backup.getHostAndPort());
+                    + backup.getAddress());
             startMaster(backup.getHostname(), backup.getPort());
           }
         } catch (IOException ex) {
@@ -373,20 +411,20 @@ public class DistributedHBaseCluster extends HBaseCluster {
       //current master has not changed, match up backup masters
       Set<ServerName> toStart = new TreeSet<>(new ServerNameIgnoreStartCodeComparator());
       Set<ServerName> toKill = new TreeSet<>(new ServerNameIgnoreStartCodeComparator());
-      toStart.addAll(initial.getBackupMasters());
-      toKill.addAll(current.getBackupMasters());
+      toStart.addAll(initial.getBackupMasterNames());
+      toKill.addAll(current.getBackupMasterNames());
 
-      for (ServerName server : current.getBackupMasters()) {
+      for (ServerName server : current.getBackupMasterNames()) {
         toStart.remove(server);
       }
-      for (ServerName server: initial.getBackupMasters()) {
+      for (ServerName server: initial.getBackupMasterNames()) {
         toKill.remove(server);
       }
 
       for (ServerName sn:toStart) {
         try {
           if(!clusterManager.isRunning(ServiceType.HBASE_MASTER, sn.getHostname(), sn.getPort())) {
-            LOG.info("Restoring cluster - starting initial backup master: " + sn.getHostAndPort());
+            LOG.info("Restoring cluster - starting initial backup master: " + sn.getAddress());
             startMaster(sn.getHostname(), sn.getPort());
           }
         } catch (IOException ex) {
@@ -397,7 +435,7 @@ public class DistributedHBaseCluster extends HBaseCluster {
       for (ServerName sn:toKill) {
         try {
           if(clusterManager.isRunning(ServiceType.HBASE_MASTER, sn.getHostname(), sn.getPort())) {
-            LOG.info("Restoring cluster - stopping backup master: " + sn.getHostAndPort());
+            LOG.info("Restoring cluster - stopping backup master: " + sn.getAddress());
             stopMaster(sn);
           }
         } catch (IOException ex) {
@@ -409,7 +447,7 @@ public class DistributedHBaseCluster extends HBaseCluster {
       LOG.warn("Restoring cluster - restoring region servers reported "
               + deferred.size() + " errors:");
       for (int i=0; i<deferred.size() && i < 3; i++) {
-        LOG.warn(deferred.get(i));
+        LOG.warn(Objects.toString(deferred.get(i)));
       }
     }
 
@@ -428,18 +466,18 @@ public class DistributedHBaseCluster extends HBaseCluster {
     }
   }
 
-  protected boolean restoreRegionServers(ClusterStatus initial, ClusterStatus current) {
+  protected boolean restoreRegionServers(ClusterMetrics initial, ClusterMetrics current) {
     Set<ServerName> toStart = new TreeSet<>(new ServerNameIgnoreStartCodeComparator());
     Set<ServerName> toKill = new TreeSet<>(new ServerNameIgnoreStartCodeComparator());
-    toStart.addAll(initial.getServers());
-    toKill.addAll(current.getServers());
+    toStart.addAll(initial.getLiveServerMetrics().keySet());
+    toKill.addAll(current.getLiveServerMetrics().keySet());
 
-    ServerName master = initial.getMaster();
+    ServerName master = initial.getMasterName();
 
-    for (ServerName server : current.getServers()) {
+    for (ServerName server : current.getLiveServerMetrics().keySet()) {
       toStart.remove(server);
     }
-    for (ServerName server: initial.getServers()) {
+    for (ServerName server: initial.getLiveServerMetrics().keySet()) {
       toKill.remove(server);
     }
 
@@ -447,11 +485,9 @@ public class DistributedHBaseCluster extends HBaseCluster {
 
     for(ServerName sn:toStart) {
       try {
-        if (!clusterManager.isRunning(ServiceType.HBASE_REGIONSERVER,
-                sn.getHostname(),
-                sn.getPort())
-                && master.getPort() != sn.getPort()) {
-          LOG.info("Restoring cluster - starting initial region server: " + sn.getHostAndPort());
+        if (!clusterManager.isRunning(ServiceType.HBASE_REGIONSERVER, sn.getHostname(),
+          sn.getPort()) && master.getPort() != sn.getPort()) {
+          LOG.info("Restoring cluster - starting initial region server: " + sn.getAddress());
           startRegionServer(sn.getHostname(), sn.getPort());
         }
       } catch (IOException ex) {
@@ -461,11 +497,9 @@ public class DistributedHBaseCluster extends HBaseCluster {
 
     for(ServerName sn:toKill) {
       try {
-        if (clusterManager.isRunning(ServiceType.HBASE_REGIONSERVER,
-                sn.getHostname(),
-                sn.getPort())
-                && master.getPort() != sn.getPort()){
-          LOG.info("Restoring cluster - stopping initial region server: " + sn.getHostAndPort());
+        if (clusterManager.isRunning(ServiceType.HBASE_REGIONSERVER, sn.getHostname(),
+          sn.getPort()) && master.getPort() != sn.getPort()) {
+          LOG.info("Restoring cluster - stopping initial region server: " + sn.getAddress());
           stopRegionServer(sn);
         }
       } catch (IOException ex) {
@@ -476,7 +510,7 @@ public class DistributedHBaseCluster extends HBaseCluster {
       LOG.warn("Restoring cluster - restoring region servers reported "
               + deferred.size() + " errors:");
       for (int i=0; i<deferred.size() && i < 3; i++) {
-        LOG.warn(deferred.get(i));
+        LOG.warn(Objects.toString(deferred.get(i)));
       }
     }
 
@@ -488,11 +522,7 @@ public class DistributedHBaseCluster extends HBaseCluster {
     // and the restore put the cluster back to Initial configuration, HAdmin instance will need
     // to refresh its connections (otherwise it will return incorrect information) or we can
     // point it to new instance.
-    try {
-      admin.close();
-    } catch (IOException ioe) {
-      LOG.warn("While closing the old connection", ioe);
-    }
+    admin.close();
     this.admin = this.connection.getAdmin();
     LOG.info("Added new HBaseAdmin");
     return true;

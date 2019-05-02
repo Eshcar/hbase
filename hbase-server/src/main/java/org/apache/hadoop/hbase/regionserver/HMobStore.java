@@ -26,9 +26,8 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -49,9 +48,9 @@ import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.io.compress.Compression;
 import org.apache.hadoop.hbase.io.hfile.CorruptHFileException;
-import org.apache.hadoop.hbase.mob.MobCacheConfig;
 import org.apache.hadoop.hbase.mob.MobConstants;
 import org.apache.hadoop.hbase.mob.MobFile;
+import org.apache.hadoop.hbase.mob.MobFileCache;
 import org.apache.hadoop.hbase.mob.MobFileName;
 import org.apache.hadoop.hbase.mob.MobStoreEngine;
 import org.apache.hadoop.hbase.mob.MobUtils;
@@ -59,6 +58,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.HFileArchiveUtil;
 import org.apache.hadoop.hbase.util.IdLock;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The store implementation to save MOBs (medium objects), it extends the HStore.
@@ -78,19 +79,19 @@ import org.apache.yetus.audience.InterfaceAudience;
  */
 @InterfaceAudience.Private
 public class HMobStore extends HStore {
-  private static final Log LOG = LogFactory.getLog(HMobStore.class);
-  private MobCacheConfig mobCacheConfig;
+  private static final Logger LOG = LoggerFactory.getLogger(HMobStore.class);
+  private MobFileCache mobFileCache;
   private Path homePath;
   private Path mobFamilyPath;
-  private volatile long cellsCountCompactedToMob = 0;
-  private volatile long cellsCountCompactedFromMob = 0;
-  private volatile long cellsSizeCompactedToMob = 0;
-  private volatile long cellsSizeCompactedFromMob = 0;
-  private volatile long mobFlushCount = 0;
-  private volatile long mobFlushedCellsCount = 0;
-  private volatile long mobFlushedCellsSize = 0;
-  private volatile long mobScanCellsCount = 0;
-  private volatile long mobScanCellsSize = 0;
+  private AtomicLong cellsCountCompactedToMob = new AtomicLong();
+  private AtomicLong cellsCountCompactedFromMob = new AtomicLong();
+  private AtomicLong cellsSizeCompactedToMob = new AtomicLong();
+  private AtomicLong cellsSizeCompactedFromMob = new AtomicLong();
+  private AtomicLong mobFlushCount = new AtomicLong();
+  private AtomicLong mobFlushedCellsCount = new AtomicLong();
+  private AtomicLong mobFlushedCellsSize = new AtomicLong();
+  private AtomicLong mobScanCellsCount = new AtomicLong();
+  private AtomicLong mobScanCellsSize = new AtomicLong();
   private ColumnFamilyDescriptor family;
   private Map<String, List<Path>> map = new ConcurrentHashMap<>();
   private final IdLock keyLock = new IdLock();
@@ -103,10 +104,10 @@ public class HMobStore extends HStore {
   private final byte[] refCellTags;
 
   public HMobStore(final HRegion region, final ColumnFamilyDescriptor family,
-      final Configuration confParam) throws IOException {
-    super(region, family, confParam);
+      final Configuration confParam, boolean warmup) throws IOException {
+    super(region, family, confParam, warmup);
     this.family = family;
-    this.mobCacheConfig = (MobCacheConfig) cacheConf;
+    this.mobFileCache = region.getMobFileCache();
     this.homePath = MobUtils.getMobHome(conf);
     this.mobFamilyPath = MobUtils.getMobFamilyPath(conf, this.getTableName(),
         family.getNameAsString());
@@ -122,14 +123,6 @@ public class HMobStore extends HStore {
         getTableName().getName());
     tags.add(tableNameTag);
     this.refCellTags = TagUtil.fromList(tags);
-  }
-
-  /**
-   * Creates the mob cache config.
-   */
-  @Override
-  protected void createCacheConf(ColumnFamilyDescriptor family) {
-    cacheConf = new MobCacheConfig(conf, family);
   }
 
   /**
@@ -255,7 +248,7 @@ public class HMobStore extends HStore {
       long maxKeyCount, Compression.Algorithm compression,
       boolean isCompaction) throws IOException {
     return MobUtils.createWriter(conf, region.getFilesystem(), family,
-      new Path(basePath, mobFileName.getFileName()), maxKeyCount, compression, mobCacheConfig,
+      new Path(basePath, mobFileName.getFileName()), maxKeyCount, compression, cacheConf,
       cryptoContext, checksumType, bytesPerChecksum, blocksize, BloomType.NONE, isCompaction);
   }
 
@@ -290,7 +283,7 @@ public class HMobStore extends HStore {
   private void validateMobFile(Path path) throws IOException {
     HStoreFile storeFile = null;
     try {
-      storeFile = new HStoreFile(region.getFilesystem(), path, conf, this.mobCacheConfig,
+      storeFile = new HStoreFile(region.getFilesystem(), path, conf, this.cacheConf,
           BloomType.NONE, isPrimaryReplicaStore());
       storeFile.initReader();
     } catch (IOException e) {
@@ -332,7 +325,7 @@ public class HMobStore extends HStore {
       String fileName = MobUtils.getMobFileName(reference);
       Tag tableNameTag = MobUtils.getTableNameTag(reference);
       if (tableNameTag != null) {
-        String tableNameString = TagUtil.getValueAsString(tableNameTag);
+        String tableNameString = Tag.getValueAsString(tableNameTag);
         List<Path> locations = map.get(tableNameString);
         if (locations == null) {
           IdLock.Entry lockEntry = keyLock.getLockEntry(tableNameString.hashCode());
@@ -359,12 +352,15 @@ public class HMobStore extends HStore {
           + "qualifier,timestamp,type and tags but with an empty value to return.");
       result = ExtendedCellBuilderFactory.create(CellBuilderType.DEEP_COPY)
               .setRow(reference.getRowArray(), reference.getRowOffset(), reference.getRowLength())
-              .setFamily(reference.getFamilyArray(), reference.getFamilyOffset(), reference.getFamilyLength())
-              .setQualifier(reference.getQualifierArray(), reference.getQualifierOffset(), reference.getQualifierLength())
+              .setFamily(reference.getFamilyArray(), reference.getFamilyOffset(),
+                reference.getFamilyLength())
+              .setQualifier(reference.getQualifierArray(),
+                reference.getQualifierOffset(), reference.getQualifierLength())
               .setTimestamp(reference.getTimestamp())
               .setType(reference.getTypeByte())
               .setValue(HConstants.EMPTY_BYTE_ARRAY)
-              .setTags(reference.getTagsArray(), reference.getTagsOffset(), reference.getTagsLength())
+              .setTags(reference.getTagsArray(), reference.getTagsOffset(),
+                reference.getTagsLength())
               .build();
     }
     return result;
@@ -394,11 +390,11 @@ public class HMobStore extends HStore {
       MobFile file = null;
       Path path = new Path(location, fileName);
       try {
-        file = mobCacheConfig.getMobFileCache().openFile(fs, path, mobCacheConfig);
+        file = mobFileCache.openFile(fs, path, cacheConf);
         return readPt != -1 ? file.readCell(search, cacheMobBlocks, readPt) : file.readCell(search,
           cacheMobBlocks);
       } catch (IOException e) {
-        mobCacheConfig.getMobFileCache().evictFile(fileName);
+        mobFileCache.evictFile(fileName);
         throwable = e;
         if ((e instanceof FileNotFoundException) ||
             (e.getCause() instanceof FileNotFoundException)) {
@@ -410,16 +406,16 @@ public class HMobStore extends HStore {
           throw e;
         }
       } catch (NullPointerException e) { // HDFS 1.x - DFSInputStream.getBlockAt()
-        mobCacheConfig.getMobFileCache().evictFile(fileName);
+        mobFileCache.evictFile(fileName);
         LOG.debug("Fail to read the cell", e);
         throwable = e;
       } catch (AssertionError e) { // assert in HDFS 1.x - DFSInputStream.getBlockAt()
-        mobCacheConfig.getMobFileCache().evictFile(fileName);
+        mobFileCache.evictFile(fileName);
         LOG.debug("Fail to read the cell", e);
         throwable = e;
       } finally {
         if (file != null) {
-          mobCacheConfig.getMobFileCache().closeFile(file);
+          mobFileCache.closeFile(file);
         }
       }
     }
@@ -450,76 +446,75 @@ public class HMobStore extends HStore {
   }
 
   public void updateCellsCountCompactedToMob(long count) {
-    cellsCountCompactedToMob += count;
+    cellsCountCompactedToMob.addAndGet(count);
   }
 
   public long getCellsCountCompactedToMob() {
-    return cellsCountCompactedToMob;
+    return cellsCountCompactedToMob.get();
   }
 
   public void updateCellsCountCompactedFromMob(long count) {
-    cellsCountCompactedFromMob += count;
+    cellsCountCompactedFromMob.addAndGet(count);
   }
 
   public long getCellsCountCompactedFromMob() {
-    return cellsCountCompactedFromMob;
+    return cellsCountCompactedFromMob.get();
   }
 
   public void updateCellsSizeCompactedToMob(long size) {
-    cellsSizeCompactedToMob += size;
+    cellsSizeCompactedToMob.addAndGet(size);
   }
 
   public long getCellsSizeCompactedToMob() {
-    return cellsSizeCompactedToMob;
+    return cellsSizeCompactedToMob.get();
   }
 
   public void updateCellsSizeCompactedFromMob(long size) {
-    cellsSizeCompactedFromMob += size;
+    cellsSizeCompactedFromMob.addAndGet(size);
   }
 
   public long getCellsSizeCompactedFromMob() {
-    return cellsSizeCompactedFromMob;
+    return cellsSizeCompactedFromMob.get();
   }
 
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "VO_VOLATILE_INCREMENT")
   public void updateMobFlushCount() {
-    mobFlushCount++;
+    mobFlushCount.incrementAndGet();
   }
 
   public long getMobFlushCount() {
-    return mobFlushCount;
+    return mobFlushCount.get();
   }
 
   public void updateMobFlushedCellsCount(long count) {
-    mobFlushedCellsCount += count;
+    mobFlushedCellsCount.addAndGet(count);
   }
 
   public long getMobFlushedCellsCount() {
-    return mobFlushedCellsCount;
+    return mobFlushedCellsCount.get();
   }
 
   public void updateMobFlushedCellsSize(long size) {
-    mobFlushedCellsSize += size;
+    mobFlushedCellsSize.addAndGet(size);
   }
 
   public long getMobFlushedCellsSize() {
-    return mobFlushedCellsSize;
+    return mobFlushedCellsSize.get();
   }
 
   public void updateMobScanCellsCount(long count) {
-    mobScanCellsCount += count;
+    mobScanCellsCount.addAndGet(count);
   }
 
   public long getMobScanCellsCount() {
-    return mobScanCellsCount;
+    return mobScanCellsCount.get();
   }
 
   public void updateMobScanCellsSize(long size) {
-    mobScanCellsSize += size;
+    mobScanCellsSize.addAndGet(size);
   }
 
   public long getMobScanCellsSize() {
-    return mobScanCellsSize;
+    return mobScanCellsSize.get();
   }
 
   public byte[] getRefCellTags() {
